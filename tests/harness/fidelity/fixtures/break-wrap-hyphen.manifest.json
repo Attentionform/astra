@@ -1,0 +1,13 @@
+{
+  "fixture": "break-wrap-hyphen",
+  "family": "breaks-symbols",
+  "motivatingPathology": "Tight layouts micro-manage line breaking: a text-wrapping break that clears all floats between two lines, a no-break hyphen holding a long token together, and a soft hyphen offering an optional break inside a word. Each control changes where lines may split without adding characters. The engine must carry the wrapping break with its clear attribute plus both hyphen characters through the round trip without expanding them into text or dropping the clear.",
+  "knownLimitations": "One wrapping break and one hyphen pair exercise the controls; column and page breaks live in the sibling fixture. Clear attributes beyond all are not covered. Optional hyphens with phonetic guides are absent. Interaction with East Asian kinsoku rules is not exercised. Rendered line breaking is never asserted.",
+  "scopeExclusions": "This fixture does not exercise page breaks, column breaks, tab characters, or symbol runs; those live in sibling fixtures. Hyphenation dictionaries and automatic hyphenation settings are not covered. Rendered line splits are never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Wrapping breaks and hyphen characters sit inside runs as special elements whose presence constrains layout: the clear attribute names which floats the break clears, and hyphen characters are break opportunities, not text. A writer that serializes them as plain text, or that drops controls it never lays out, changes line breaking while keeping every letter. Each control must round-trip as markup, not as characters.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Wrapping breaks with hyphenation controls are Word-legal and safe, so the engine preserves them: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

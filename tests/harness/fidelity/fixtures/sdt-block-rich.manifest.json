@@ -1,0 +1,13 @@
+{
+  "fixture": "sdt-block-rich",
+  "family": "content-controls",
+  "motivatingPathology": "Template contracts guard fill-in clauses: a block-level structured control with an alias, a tag, a content lock, a placeholder reference, and a plain-text type marker wrapping a client-name paragraph. The properties declare editing behavior while the content holds the value, and dropping the lock silently unlocks the clause. The engine must carry the full property set plus the wrapped paragraph through the round trip without stripping the lock or unwrapping the content.",
+  "knownLimitations": "One locked text control exercises the shape; repeating sections, dropdowns, and date pickers live in sibling fixtures. Data binding to custom XML parts is absent. Placeholder behavior when content is empty is not exercised. Showing or hiding the placeholder frame is out of scope.",
+  "scopeExclusions": "This fixture does not exercise inline controls, math, fields, or revision markup; those live in sibling fixtures. Custom XML data parts that controls can bind to are not covered. Rendered control frames are never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Block controls nest a property element with alias, tag, lock, placeholder, and type siblings beside a content element holding ordinary blocks. A writer that keeps the paragraph while dropping the properties unlocks guarded text, and one that flattens the wrapper loses the tag downstream systems key on. Properties and content must round-trip as a unit.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Locked block content controls are Word-legal and safe, so the engine preserves properties and content: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

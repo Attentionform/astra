@@ -1,0 +1,7 @@
+{
+  "family": "nested-tables",
+  "twin": "nested-tables.twin",
+  "base": "nested-table-single",
+  "corruption": "one w:tc close tag is swapped for w:tr (mismatched markup, same element shape).",
+  "expectedRefusal": "validate"
+}

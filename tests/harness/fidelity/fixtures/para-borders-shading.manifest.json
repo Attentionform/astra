@@ -1,0 +1,13 @@
+{
+  "fixture": "para-borders-shading",
+  "family": "paragraph-layout",
+  "motivatingPathology": "Callout paragraphs box themselves: single top and bottom borders in corporate blue with four points of spacing, over a light blue paragraph fill. Advisory notices and quote blocks use exactly this shape, where the border pair and the fill must agree or the callout renders half-dressed. The engine must carry the border siblings in schema order plus the shading fill through ingest, mutation of nearby sentences, and rezip without dropping a border or bleaching the fill.",
+  "knownLimitations": "One bordered paragraph exercises the shape; full four-edge boxes with between and bar borders are not covered. Border styles beyond single are absent, so dashed and wave paragraph borders are out of scope. Shading uses an explicit hex fill; pattern fills and theme fills are not exercised. Interaction with table cell borders on adjacent tables is not covered.",
+  "scopeExclusions": "This fixture does not exercise spacing, indents, justification, tabs, or flow controls; those live in sibling fixtures. Table-level borders ride along in the table-borders fixture, not here. Rendered border painting is not asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Paragraph borders serialize as ordered siblings inside pBdr with per-edge style, size, space, and color attributes, followed by the shading fill as a separate sibling. A writer that reorders the edges, or that drops shading it considers decorative, produces a callout that validates but renders half-dressed. The border children must keep schema order and the fill must survive untouched.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Paragraph borders with shading are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

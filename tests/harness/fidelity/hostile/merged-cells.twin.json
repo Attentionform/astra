@@ -1,0 +1,7 @@
+{
+  "family": "merged-cells",
+  "twin": "merged-cells.twin",
+  "base": "merged-cells-basic",
+  "corruption": "w:gridSpan loses its required w:val attribute (schema violation, same element shape).",
+  "expectedRefusal": "validate"
+}

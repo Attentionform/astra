@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "scope": "Full invariant registry for the adversarial fidelity corpus: one claim per fixture family covering 71 fixtures across 19 families. Each entry records what the corpus run proves, how strong the evidence is, and which hostile twin would falsify it. Tiers borrow the Safe Docx shape: empirically-validated means a deterministic differential harness or reference oracle backs the claim; tested-only means conventional tests back it. Every entry here is tested-only: the runner is deterministic (byte-identical second passes are asserted) but it is still a conventional test run, not a differential oracle. Promotion needs a reference oracle with a variance study; until one lands, tested-only is the honest tier.",
+  "tiers": {
+    "empirically-validated": "established by a deterministic differential harness, property test, or reference-implementation oracle",
+    "tested-only": "covered by conventional tests"
+  },
+  "invariants": [
+    {
+      "id": "FID-MERGED-001",
+      "family": "merged-cells",
+      "claim": "Vertical merges, horizontal spans, repeating header rows, and tall mixed merge groups survive ingest, mutation of nearby sentences, and rezip with byte-identical table nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (merged-cells-basic, merged-cells-header-repeat, merged-cells-tall)",
+      "caveats": [
+        "Header fixture input uses canonical trPr child order; the engine canonicalizes trPr child order on write, so non-canonical input order is not byte-stable.",
+        "No page-break straddling is exercised; restart/continue pairs sit inside one table part."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/merged-cells.twin.docx"
+    },
+    {
+      "id": "FID-NESTED-001",
+      "family": "nested-tables",
+      "claim": "Tables nested one and two levels deep, including a nested table carrying its own vertical merge inside a spanned outer cell, survive the round trip with byte-identical table nodes while outer sentences mutate.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (nested-table-single, nested-table-deep, nested-merge-combo)",
+      "caveats": [
+        "Nesting deeper than two levels is not exercised.",
+        "Merges at two nesting levels at once are not exercised."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/nested-tables.twin.docx"
+    },
+    {
+      "id": "FID-REVISION-001",
+      "family": "tracked-revisions",
+      "claim": "Run-level insertions and deletions, mixed-script runs, insertion-inside-deletion nesting, move source/destination ranges, and cell-level insertion markers survive the round trip untouched while plain sentences mutate.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (revision-multiscript, revision-nested-change, revision-soup, revision-move-pair, revision-cell-split)",
+      "caveats": [
+        "Property-level revision markup inside pPr/rPr is excluded; the schema gate rejects the hand-built shape, so fixtures use run-level markup only.",
+        "Accept/reject semantics are not asserted; only preservation of the markup is."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/tracked-revisions.twin.docx"
+    },
+    {
+      "id": "FID-DRAWING-001",
+      "family": "anchored-drawing",
+      "claim": "Anchored drawings with negative offsets, inline and wrapped drawings, and tight-wrapped drawings with polygon contours keep offsets, wrap modes, descriptions, and image bytes while nearby sentences mutate.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (drawing-negative-anchor, drawing-inline-wrap, drawing-wrap-tight)",
+      "caveats": [
+        "Fixture picture ids are pre-synced (pic:cNvPr id equals wp:docPr id); the engine syncs them on write, so unsynced input ids are not byte-stable.",
+        "One raster PNG per drawing is exercised; vector, chart, and SmartArt drawings are not.",
+        "The tight-wrap polygon carries four points; complex contours are not exercised."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/anchored-drawing.twin.docx"
+    },
+    {
+      "id": "FID-NUMBERING-001",
+      "family": "numbering",
+      "claim": "List restarts via startOverride, dual decimal/bullet abstract definitions, Roman article levels with composite templates, and resumed-list overrides keep numbering parts semantically identical while list sentences mutate.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (numbering-restart, numbering-abstract-duo, numbering-roman-article, numbering-override-duo)",
+      "caveats": [
+        "Restart is asserted at the markup-preservation level; rendered numeral values are not compared.",
+        "Numbering parts re-serialize larger with no meaning change (duo 862 to 1140 bytes, restart 840 to 1052 bytes: redundant xmlns declarations, entity decoding, declaration newline).",
+        "Style-linked numbering (pStyle references) is not exercised."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/numbering.twin.docx"
+    },
+    {
+      "id": "FID-GALLERY-001",
+      "family": "gallery-baseline",
+      "claim": "Unminimized real-world documents from the in-repo gallery round-trip with only the intended two-sentence mutation.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (gallery-coffee-onepager, gallery-edit-target, gallery-image-doc, gallery-footnotes-endnotes, gallery-proposal, gallery-budget, gallery-honesty, gallery-visual-probe, gallery-postmigration)",
+      "caveats": [
+        "All nine gallery files are covered; each is a baseline, not a minimized pathology.",
+        "Gallery files are baselines, not minimized pathologies; failures here indicate regressions, not new characterization.",
+        "Mutation targets are unformatted paragraphs by rule: replace carries the first run's properties onto rewritten text, so the rule is conservative (it keeps multi-run formatting distinctions out of the preservation gate) rather than a workaround for dropped properties."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/gallery-baseline.twin.docx"
+    },
+    {
+      "id": "FID-TABLE-BORDERS-001",
+      "family": "table-borders",
+      "claim": "Table border grids, per-cell border overrides, cell shading fills, layered cell margins with spacing, and style references with look masks survive the round trip with byte-identical table nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (tbl-borders-shading, tbl-cell-margins, tbl-look-banded)",
+      "caveats": [
+        "The dangling TableGrid style reference is carried, never resolved; style resolution is not asserted.",
+        "Diagonal borders, dashed and wave line styles, and theme-tinted fills are not covered.",
+        "Fixture inputs use canonical tblPr and tcPr child order; the engine sorts these containers on write, so non-canonical input order is not byte-stable."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/table-borders.twin.docx"
+    },
+    {
+      "id": "FID-TABLE-LAYOUT-001",
+      "family": "table-layout",
+      "claim": "Fixed table layout with explicit widths, floating tables with positioning and overlap control, and row height rules with split bans survive the round trip with byte-identical table nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (tbl-fixed-layout, tbl-float-overlap, tbl-row-height)",
+      "caveats": [
+        "Widths use dxa units only; percentage and auto widths are not covered.",
+        "Page-anchored floats and allow-overlap behavior are not covered.",
+        "Rendered row heights and float placement are never measured."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/table-layout.twin.docx"
+    },
+    {
+      "id": "FID-PARA-LAYOUT-001",
+      "family": "paragraph-layout",
+      "claim": "Paragraph spacing with indents, justification variants with outline levels, paragraph borders with shading, and tab-stop lists with in-run tabs survive the round trip with byte-identical paragraph nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (para-spacing-indent, para-justify-levels, para-borders-shading, para-tabs-stops)",
+      "caveats": [
+        "Character-unit indents and tab leaders with fills are not covered.",
+        "Distribute justification is carried, never laid out; rendered line breaking is not compared.",
+        "Fixture inputs use canonical pPr child order; the engine sorts pPr on write, so non-canonical input order is not byte-stable."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/paragraph-layout.twin.docx"
+    },
+    {
+      "id": "FID-PARA-FLOW-001",
+      "family": "paragraph-flow",
+      "claim": "Pagination flow markers (keep-next, keep-lines, widow control, page-break-before), contextual spacing, mirror indents, and overlap suppression survive the round trip with byte-identical paragraph nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (para-keep-flow, para-context-spacing, para-mirror-indent)",
+      "caveats": [
+        "Line-number suppression rides beside spacing siblings in the paragraph-flow fixture: the gate accepts the ECMA-376 CT_PPr order (suppression ahead of spacing).",
+        "Keep-next chains longer than two paragraphs are not covered.",
+        "Rendered pagination is never asserted."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/paragraph-flow.twin.docx"
+    },
+    {
+      "id": "FID-RUN-TYPO-001",
+      "family": "run-typography",
+      "claim": "Run colors with fonts and sizes, stacked emphasis toggles, highlights with emboss/outline/imprint/shadow effects, and vanished plus web-hidden runs survive the round trip with byte-identical paragraph nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (run-color-fonts, run-emphasis-stack, run-highlight-shadow, run-vanish-hidden)",
+      "caveats": [
+        "Shadow with color attributes is excluded: the schema gate rejects the color attribute on shadow, so the fixture carries value-only shadow.",
+        "Theme tint resolution is carried, never compared on screen.",
+        "Hidden runs combined with revision markup are not covered.",
+        "Fixture inputs use canonical rPr child order; the engine sorts rPr on write, so non-canonical input order is not byte-stable."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/run-typography.twin.docx"
+    },
+    {
+      "id": "FID-RUN-SCRIPT-001",
+      "family": "run-scripts",
+      "claim": "Super and subscript alignment with micro-spacing, bidi direction with language tagging, and no-proof flags with paragraph-level proof markers survive the round trip with byte-identical paragraph nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (run-super-sub, run-lang-bidi, run-noproof-err)",
+      "caveats": [
+        "Proof-error markers must sit between runs at paragraph level; inside-run placement is rejected by the schema gate.",
+        "Rendered visual order for bidi text is never asserted; the logical character stream is what round-trips."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/run-scripts.twin.docx"
+    },
+    {
+      "id": "FID-BREAKS-001",
+      "family": "breaks-symbols",
+      "claim": "Typed page and column breaks, text-wrapping breaks with clearing, no-break and soft hyphens, symbol runs, and in-run tab characters survive the round trip with byte-identical paragraph nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (break-page-column, break-wrap-hyphen, sym-tab-chars)",
+      "caveats": [
+        "Rendered pagination and line breaking are never measured.",
+        "Tab leaders and symbol fonts beyond Wingdings are not covered."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/breaks-symbols.twin.docx"
+    },
+    {
+      "id": "FID-BOOKMARK-FIELD-001",
+      "family": "bookmarks-fields",
+      "claim": "Paired bookmark ranges, simple page-count fields with cached results, five-part complex date fields, and bookmark-anchored page cross-references survive the round trip with byte-identical paragraph nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (bookmark-pair, field-simple-page, field-complex-date, field-pageref)",
+      "caveats": [
+        "Cached field results are carried, never recomputed; staleness is not asserted.",
+        "Nested complex fields and locked fields are not covered.",
+        "Simple fields must sit at paragraph level; inside-run placement is rejected by the schema gate."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/bookmarks-fields.twin.docx"
+    },
+    {
+      "id": "FID-SDT-001",
+      "family": "content-controls",
+      "claim": "Locked block text controls, inline date controls with full date properties, nested controls two levels deep, and combo boxes with pick lists survive the round trip with byte-identical nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (sdt-block-rich, sdt-inline-date, sdt-nested-repeat, sdt-combobox)",
+      "caveats": [
+        "Combo-box last-value caching rides in the combo-box fixture: the gate accepts a single trailing cache after the list items (CT_SdtComboBox order).",
+        "Newer-namespace extensions such as repeating sections and data binding to custom XML parts are not covered."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/content-controls.twin.docx"
+    },
+    {
+      "id": "FID-MATH-001",
+      "family": "math",
+      "claim": "Office math fractions, superscript structures with n-ary integrals carrying limits, and delimiters with radicals survive the round trip with byte-identical paragraph nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (math-inline-fraction, math-sup-nary, math-delimiters)",
+      "caveats": [
+        "N-ary limit-display flags ride in the n-ary fixture: the gate accepts subHide and supHide after chr and limLoc (CT_NaryPr order).",
+        "Matrices, accents, and boxed formulas are not covered.",
+        "Rendered math layout is never compared."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/math.twin.docx"
+    },
+    {
+      "id": "FID-SECTION-001",
+      "family": "section-layout",
+      "claim": "Continuous section breaks with landscape columns, page-number restarts with gutters and document grids, and title-page sections with guttered margins survive the round trip with byte-identical nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (sect-landscape-margins, sect-pagenum-docgrid, sect-titlepg-gutter)",
+      "caveats": [
+        "Section properties must use schema child order (type before size before margins before columns); the gate rejects misordered input.",
+        "Header and footer variant selection via these sections is not covered here.",
+        "Rendered pagination and column balancing are never measured."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/section-layout.twin.docx"
+    },
+    {
+      "id": "FID-PARTS-001",
+      "family": "document-parts",
+      "claim": "Companion parts round-trip alongside the body: custom styles with defaults, footnotes with separators, endnotes with separators, comment ranges with author metadata, and header plus footer parts with a live field.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (styles-custom-quote, footnote-pair, endnote-single, comment-range-pair, header-footer-basic)",
+      "caveats": [
+        "XML companion parts are compared semantically (namespace and whitespace tolerant); binary parts are compared byte-exact.",
+        "Comment replies, mentions, and resolved-state extensions are not covered.",
+        "First-page, odd, and even header variants are not covered."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/document-parts.twin.docx"
+    },
+    {
+      "id": "FID-LINKS-001",
+      "family": "hyperlinks",
+      "claim": "External hyperlinks with relationship targets and internal bookmark-anchored jumps survive the round trip with byte-identical paragraph nodes.",
+      "tier": "tested-only",
+      "evidence": "tests/harness/fidelity/fidelity-corpus.test.ts (hyperlink-external, hyperlink-bookmark)",
+      "caveats": [
+        "Link resolution is never tested; only reference preservation is.",
+        "Tooltip and frame attributes are not covered."
+      ],
+      "falsifier": "tests/harness/fidelity/hostile/hyperlinks.twin.docx"
+    }
+  ]
+}

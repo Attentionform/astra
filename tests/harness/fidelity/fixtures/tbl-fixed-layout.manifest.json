@@ -1,0 +1,13 @@
+{
+  "fixture": "tbl-fixed-layout",
+  "family": "table-layout",
+  "motivatingPathology": "Print-form contracts pin tables to exact widths: a five-thousand-twips table centered on the page, fixed layout so columns never autofit, equal cell widths in dxa units, and vertical alignment pinned to center and bottom. Fixed layout changes how readers distribute leftover space, so flipping it to autofit reflows every row. The engine must carry the width triple, the layout switch, the justification, and both alignments through the round trip without converting units or relaxing the layout.",
+  "knownLimitations": "One two-cell row exercises the shape; multi-row fixed tables with column spanning are not covered. Widths use dxa only; percentage and auto cell widths ride along in the gallery baselines, not here. Preferred widths on rows and grid-before offsets are absent, so those elements are out of scope. Interaction of fixed layout with merged cells is not exercised.",
+  "scopeExclusions": "This fixture does not exercise borders, shading, margins, floating position, or overlap; those live in sibling fixtures. Nested fixed tables, revision markup inside sized cells, and header-row repetition are covered elsewhere or not at all. Rendered column widths are not measured; only markup preservation and schema validity are asserted.",
+  "ecma376Difficulty": "Table width is a three-way agreement between tblW, the gridCol widths, and each tcW, all carrying a type attribute that changes the meaning of the number. Fixed layout additionally freezes the negotiation readers would otherwise perform. A writer that rewrites widths in a canonical unit, or that drops the layout element because it models only widths, produces a table that validates yet paginates differently.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Fixed layout with explicit widths and alignments is Word-legal and safe, so the engine preserves every value: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

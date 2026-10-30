@@ -1,0 +1,14 @@
+{
+  "fixture": "gallery-image-doc",
+  "family": "gallery-baseline",
+  "motivatingPathology": "This baseline carries a real embedded PNG image part with its relationship and content-type entries, exercising binary part preservation alongside text mutation. Image bytes must pass through the round trip untouched: re-encoding, dropping, or renaming the media part would corrupt the document while the text looks fine. The gate asserts the media part byte-identical, which text-only checks would miss entirely.",
+  "knownLimitations": "One PNG image is present; JPEG, vector, and multi-image documents are not covered by this baseline. The image is not mutated, cropped, or moved, so manipulation paths are untested here. Whether the image is inline or anchored is asserted only insofar as the markup round-trips, not as a characterized pathology. Mutation targets stay unformatted paragraphs by rule; replace now carries the first run's properties onto rewritten text, so the rule is conservative rather than required.",
+  "scopeExclusions": "This fixture does not isolate drawing placement pathologies; those live in the anchored-drawing fixtures. Image rendering quality and format conversion belong to other layers, not to this structural gate. Relationship repair for missing images is a hostile-twin concern, not part of this baseline.",
+  "ecma376Difficulty": "Binary parts live outside the XML tree but inside the package discipline: content types must declare them, relationships must target them, and the bytes must survive a pipeline built for XML. Zip-level round trips that re-serialize only parsed XML parts silently drop binaries they never loaded. The difficulty is plumbing, not schema: keep every entry, touch only the XML you understand.",
+  "licenseProvenance": "Copied byte-identical from the in-repo test gallery; same repository license as the gallery source; no new provenance claims.",
+  "sourceDocument": "test-gallery/T5_image_doc.docx",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "The gallery file is Word-legal throughout, so the engine preserves every part: only the two mutated sentences change, all other parts are byte-identical, and the package validates clean."
+  }
+}

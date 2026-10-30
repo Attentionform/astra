@@ -1,0 +1,14 @@
+{
+  "fixture": "gallery-visual-probe",
+  "family": "gallery-baseline",
+  "motivatingPathology": "This baseline is deliberately unminimized: a real visual-probe document carrying drawn and visual content with its native parts. Hand-built fixtures prove single pathologies; this one proves the round trip holds when visual markup rides along unexamined. If a future engine change breaks real files while minimized fixtures stay green, this is one of the fixtures that catches it.",
+  "knownLimitations": "As a baseline it characterizes no single pathology, so a failure here diagnoses poorly without the minimized fixtures beside it. Visual content is asserted only as preserved; pixels are never compared. Mutation targets stay unformatted paragraphs by rule; replace now carries the first run's properties onto rewritten text, so the rule is conservative rather than required. One probe file generalizes nothing.",
+  "scopeExclusions": "This fixture isolates no pathology: merges, revisions, drawings, numbering, and notes appear only if the source file happens to contain them. Minimized coverage lives in the hand-built fixtures, not here. Visual equivalence belongs to a rendering study, not to this structural gate.",
+  "ecma376Difficulty": "Real files bundle whatever parts their authoring tool wrote, referenced through relationships with content-type declarations that must survive. A writer that rewrites only the parts it models and drops the rest will validate the body while silently losing companions. The difficulty is negative: success means touching nothing except the two mutated sentences.",
+  "licenseProvenance": "Copied byte-identical from the in-repo test gallery; same repository license as the gallery source; no new provenance claims.",
+  "sourceDocument": "test-gallery/T7_visual_probe.docx",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "The gallery file is Word-legal throughout, so the engine preserves every part: only the two mutated sentences change, all other parts are preserved, and the package validates clean."
+  }
+}

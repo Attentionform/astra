@@ -1,0 +1,13 @@
+{
+  "fixture": "math-delimiters",
+  "family": "math",
+  "motivatingPathology": "Proofs fence expressions: a delimiter structure with explicit open and close characters wrapping two element runs, joined to a radical with its degree hidden wrapping a radicand run. Delimiters size with content while the hidden degree keeps the root plain. The engine must carry the delimiter properties with both characters, both fenced runs, and the radical with its hidden degree through the round trip without dropping the fences or exposing the degree.",
+  "knownLimitations": "One delimiter pair plus one radical exercise the shapes; nested delimiters and matrices are not covered. Delimiter characters beyond parentheses are absent. Visible degrees are not exercised. Border-box and group-character structures are out of scope. Rendered fence sizing is never asserted.",
+  "scopeExclusions": "This fixture does not exercise fractions, scripts, n-ary operators, or body-text formulas; those live in sibling fixtures. Delimiter separator characters for multi-part fences are not covered. Delimiter growth limits for tall content are absent. Rendered radical layout is never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Delimiters and radicals are property-driven wrappers: delimiter properties name both fence characters while the radical properties toggle degree display, each wrapping element runs. A writer that keeps the runs while dropping the wrappers preserves characters but deletes the mathematical meaning. Properties, fences, and runs must round-trip as a unit.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Delimiter and radical math structures are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

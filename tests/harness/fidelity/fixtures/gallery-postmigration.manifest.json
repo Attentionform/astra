@@ -1,0 +1,14 @@
+{
+  "fixture": "gallery-postmigration",
+  "family": "gallery-baseline",
+  "motivatingPathology": "This baseline is deliberately unminimized: a real post-migration document carrying whatever structures survived a format migration with its native scars. Hand-built fixtures prove single pathologies; this one proves the round trip holds on migrated content exactly as tools emit it. If a future engine change breaks real files while minimized fixtures stay green, this is one of the fixtures that catches it.",
+  "knownLimitations": "As a baseline it characterizes no single pathology, so a failure here diagnoses poorly without the minimized fixtures beside it. Migration scars are preserved as found, never repaired. Mutation targets stay unformatted paragraphs by rule; replace now carries the first run's properties onto rewritten text, so the rule is conservative rather than required. One migrated file generalizes nothing.",
+  "scopeExclusions": "This fixture isolates no pathology: merges, revisions, drawings, numbering, and notes appear only if the source file happens to contain them. Minimized coverage lives in the hand-built fixtures, not here. Migration quality itself is out of scope; only preservation under mutation is asserted.",
+  "ecma376Difficulty": "Migrated files bundle whatever parts the migration tool wrote, including redundant declarations and re-serialized parts, all of which must survive. A writer that normalizes away migration artifacts while mutating changes bytes beyond the two sentences. The difficulty is negative: success means touching nothing except the two mutated sentences.",
+  "licenseProvenance": "Copied byte-identical from the in-repo test gallery; same repository license as the gallery source; no new provenance claims.",
+  "sourceDocument": "test-gallery/T9_postmigration.docx",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "The gallery file is Word-legal throughout, so the engine preserves every part: only the two mutated sentences change, all other parts are preserved, and the package validates clean."
+  }
+}

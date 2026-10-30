@@ -1,0 +1,13 @@
+{
+  "fixture": "sdt-nested-repeat",
+  "family": "content-controls",
+  "motivatingPathology": "Clause libraries nest controls: an outer locked block control holding a clause paragraph plus an inner plain-text control wrapping an amount paragraph, each with its own alias and tag. Nesting lets templates repeat guarded sections with editable values inside, and flattening either level loses structure downstream systems read. The engine must carry both wrappers with both property sets through the round trip without merging the levels or dropping an alias.",
+  "knownLimitations": "Two nesting levels exercise the shape; three-deep control trees are not covered. Repeating-section semantics use a plain lock here because the repeating-section extension lives in a newer namespace the gate does not cover. Data-bound nested controls are absent. Placeholder interplay between levels is not exercised.",
+  "scopeExclusions": "This fixture does not exercise dropdown controls, date controls, or field codes; those live in sibling fixtures. Single-level controls are covered by the neighboring fixtures, not here. Rendered nesting frames are never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Nested controls recurse the same wrapper shape: properties plus content, where content itself holds another properties-plus-content pair. A writer that flattens nesting while keeping text destroys the machine-readable clause structure without changing a word. Both levels with both alias-tag pairs must round-trip intact.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Nested content controls are Word-legal and safe, so the engine preserves both levels: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

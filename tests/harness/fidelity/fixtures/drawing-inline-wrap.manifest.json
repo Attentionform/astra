@@ -1,0 +1,13 @@
+{
+  "fixture": "drawing-inline-wrap",
+  "family": "anchored-drawing",
+  "motivatingPathology": "Everyday business documents mix inline pictures that flow with the text and square-wrapped figures that text flows around, sometimes in the same section. Product sheets, proposals, and reports all carry this combination, and both shapes share the same picture markup with different placement wrappers. The engine must preserve the inline extents, the square wrap mode, and both image payloads through the round trip while nearby sentences mutate.",
+  "knownLimitations": "One inline PNG and one center-aligned square-wrapped PNG are exercised; tight, through, top-and-bottom, and behind-text wrap modes beyond the companion fixture are not covered here. Picture ids arrive pre-synced because the engine syncs picture ids to drawing ids on write. Cropping, rotation, and effects on the pictures are absent.",
+  "scopeExclusions": "This fixture does not exercise negative offsets, drawings in headers or footers, canvas groups, or linked rather than embedded images. Rendered wrapping behavior belongs to layout engines, not to this structural gate. Charts, diagrams, and vector art are separate pathologies for future growth.",
+  "ecma376Difficulty": "Inline and anchored drawings are sibling content models with different required children: wp:inline needs extents up front while wp:anchor needs the full positioning sequence plus a wrap mode, and mixing them up fails validation. Both reference the same image part through one relationship, so part bookkeeping must survive even though the wrappers differ. A writer that normalizes both shapes into one will corrupt the placement it did not understand.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; embedded pixels are a generated one-pixel PNG; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "deliberately-differ",
+    "reason": "The engine syncs pic:cNvPr id to its wp:docPr id on write instead of preserving unsynced input ids byte-for-byte. The rewrite is schema-valid and semantically neutral, but it is a deliberate byte-level difference, so it is recorded here; fixture ids arrive pre-synced to keep the round trip stable."
+  }
+}

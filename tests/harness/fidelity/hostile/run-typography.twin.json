@@ -1,0 +1,7 @@
+{
+  "family": "run-typography",
+  "twin": "run-typography.twin",
+  "base": "run-color-fonts",
+  "corruption": "w:sz loses its required w:val attribute (schema violation, same run shape).",
+  "expectedRefusal": "validate"
+}

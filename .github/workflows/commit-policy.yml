@@ -1,0 +1,21 @@
+name: Commit rules
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  commit-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check author email, sign-off and author identity
+        run: npx --yes tsx@4 scripts/commit-policy.ts "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}"

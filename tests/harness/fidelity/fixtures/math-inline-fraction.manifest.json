@@ -1,0 +1,13 @@
+{
+  "fixture": "math-inline-fraction",
+  "family": "math",
+  "motivatingPathology": "Technical memos set inline fractions: a math paragraph wrapping a fraction with a numerator and denominator run holding plain variables. Office math nests runs inside math elements inside a math paragraph, a different content model from body text. The engine must carry the math paragraph, the fraction structure, and both math runs through ingest, mutation of nearby sentences, and rezip without flattening the fraction into slashed text.",
+  "knownLimitations": "One simple fraction exercises the shape; scripts, radicals, and n-ary operators live in sibling fixtures. Math properties for justification and line breaking are absent. Fraction styles beyond stacked bar are not covered. Whether the fraction renders identically is never asserted.",
+  "scopeExclusions": "This fixture does not exercise super and subscript runs in body text, delimiters, or equation numbering; those live in sibling fixtures. Body-text formulas with vertAlign are covered by the run-scripts fixture, not here. Rendered math layout is never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Office math uses its own namespace and nesting: math paragraphs hold math elements holding structures like fractions, which hold numerator and denominator runs. A writer that models only body runs will drop or flatten math it never traverses, losing structure while keeping characters. The math namespace, the fraction wrapper, and both runs must round-trip as elements.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Inline math fractions are Word-legal and safe, so the engine preserves the math tree: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

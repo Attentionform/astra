@@ -1,0 +1,13 @@
+{
+  "fixture": "run-noproof-err",
+  "family": "run-scripts",
+  "motivatingPathology": "Drafts carry proofing state inline: a code token marked no-proof so spellcheck skips it, and a flagged typo wrapped between spell-start and spell-end markers at paragraph level. Proofing markers record editor state without changing text, and no-proof exempts tokens like identifiers. The engine must carry the no-proof flag inside run properties and both proof markers between runs through the round trip without deleting the markers or proofing the exempt token.",
+  "knownLimitations": "One paragraph exercises the markers; grammar-error markers and smart-tag proofing are not covered. No-proof appears once; proofing exemptions on East Asian runs are out of scope. Whether proofing state affects word count or spellcheck runs is never asserted. Marker pairing beyond one start-end pair is not exercised.",
+  "scopeExclusions": "This fixture does not exercise fonts, emphasis, colors, or alignment; those live in sibling fixtures. Language tags that drive which proofing applies are covered by the neighboring bidi fixture, not here. Spellcheck behavior is never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Proofing markup lives at two levels with strict placement: no-proof inside rPr, proof-error markers as paragraph children between runs, never inside runs. A writer that moves markers into runs, or that strips proofing state it never displays, produces a file that validates yet loses editor state. Placement is the pathology: markers must stay exactly where Word puts them.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "No-proof flags with paragraph-level proof markers are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

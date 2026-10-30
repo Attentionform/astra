@@ -1,0 +1,13 @@
+{
+  "fixture": "sect-landscape-margins",
+  "family": "section-layout",
+  "motivatingPathology": "Reports mix orientations mid-document: a portrait paragraph, then a continuous section break switching to landscape with tightened margins and two-column text, then a plain sentence closing the section. Continuous breaks change geometry without starting a new page, and columns reflow every line after the break. The engine must carry the break type, the swapped page size with orientation, the margins, and the column count through the round trip without paginating the break or dropping the columns.",
+  "knownLimitations": "One continuous break exercises the shape; next-page, odd, and even break types are not covered. Column counts beyond two are absent. Gutter and mirror-margin geometry live in sibling fixtures. Whether columns balance on the last page is never asserted. Header and footer references are not exercised here.",
+  "scopeExclusions": "This fixture does not exercise page-number restarts, document grids, title pages, or header content; those live in sibling fixtures. Table and drawing layout inside columns is not covered. Rendered pagination and column balancing are never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Section breaks serialize as paragraph properties whose section element must list type before page size before margins before columns in schema order. A writer that emits size before type, or that drops columns it never lays out, produces a section that validates yet lays out as single-column portrait. Order and presence of all four siblings decide the geometry.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Continuous section breaks with landscape columns are Word-legal and safe, so the engine preserves every value: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

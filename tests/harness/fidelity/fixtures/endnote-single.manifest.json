@@ -1,0 +1,13 @@
+{
+  "fixture": "endnote-single",
+  "family": "document-parts",
+  "motivatingPathology": "Chapters collect closing notes: body copy carrying one endnote reference mark tied to an endnotes part holding separator, continuation-separator, and a single closing remark. Endnotes mirror the footnote mechanism in a separate part with its own relationship, and readers gather them at the document end. The engine must carry the mark, all three endnote entries, and the part relationship through the round trip without merging the part into footnotes or dropping the separators.",
+  "knownLimitations": "One note exercises the part; multiple endnotes with numbering restarts are not covered. Endnote positioning options at section versus document end are absent. Footnotes live in the sibling fixture. Whether the note gathers correctly is never asserted. Complex note content is out of scope.",
+  "scopeExclusions": "This fixture does not exercise footnotes, comments, headers, footers, or styles; those live in sibling fixtures. Endnote reference formatting and numbering restarts are not covered. Rendered endnote collection is never measured; only markup and part preservation plus schema validity are.",
+  "ecma376Difficulty": "Endnotes duplicate the footnote pattern in a parallel part with its own content type and relationship, and the two must never be confused. A writer that merges endnotes into footnotes, or that drops the part while keeping the mark, changes the document contract invisibly. The mark, the three entries, and the relationship must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Endnotes with separators are Word-legal and safe, so the engine preserves mark and entries: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

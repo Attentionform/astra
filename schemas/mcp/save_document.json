@@ -1,0 +1,37 @@
+{
+  "name": "save_document",
+  "description": "Validate then persist the session docx (validator-gated save: throws E_VALIDATION with xPath + table/node location + remedy when the package is invalid, never writes corruption). Save-blocked remedies are xpath-specific (drawing docPr/id, table tbl/tr/tc, relationships, header/footer parts, session tracking-attribute leaks each name their own fix). Optional commit params: message (commit subject, single-line, max 500 chars; newlines become spaces; blank/omitted falls back to `save_document: rev <n> (<k> ops since last save)`); author (max 100 chars; blank/omitted falls back to ASTra Agent). Over-long message/author fail at the handler with E_VALIDATION plus a shorten-and-retry remedy (never a bare MCP -32602: caps are enforced in the handler, not the wire schema). A successful save clears the session dirty flag (revision is re-synced to the file on disk). The success envelope also carries revisionsPending (w:ins+w:del left in the saved package) plus a revisionsRemedy naming accept when >0. The success envelope also carries advisory changedValues [{nodeId,before,after}] (old saved text -> new live text, bounded: at most 20 entries, each side at most 200 chars, truncated flag honest; empty + reason when no baseline is computable). When the session carries a style guide (new_document/compose_document styleGuide), the envelope also carries advisory styleWarnings [{nodeId,rule,message}] (table contrast, chart duplicate colors, split-table orphans), never blocking. Example {\"sessionId\":\"sess_abc\"} -> {\"ok\":true,\"path\":\"documents/report.docx\"}. Always save after execute_batch; close afterwards. IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected. ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices. ",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "outPath": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      },
+      "message": {
+        "type": "string"
+      },
+      "author": {
+        "type": "string"
+      },
+      "allowMacros": {
+        "type": "boolean"
+      },
+      "stripMacros": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

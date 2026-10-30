@@ -1,0 +1,13 @@
+{
+  "fixture": "nested-table-single",
+  "family": "nested-tables",
+  "motivatingPathology": "Word users nest tables inside table cells for side-by-side layouts, invoice line items, and form grids that predate text columns. The inner table is a full w:tbl element sitting between paragraphs inside a w:tc, and naive tree walkers either flatten it into the outer grid or drop it when they rewrite rows. The engine must keep the inner table structurally intact and byte-identical while sentences outside it mutate.",
+  "knownLimitations": "Only one level of nesting with a two-cell inner grid is exercised; deeper nesting has its own fixture. The inner table carries no merges, no header rows, and no revision markup, and the outer cell holds plain paragraphs around it. Interactions between nesting and grid spans in the same cell are not covered.",
+  "scopeExclusions": "This fixture does not exercise merges or spans in either grid, repeating headers, floating tables, or text wrapping around tables. Drawings or revision markup inside nested cells are separate pathologies with their own fixtures. Rendered layout of the nested grid is not asserted; only structural preservation and schema validity are.",
+  "ecma376Difficulty": "Tables are recursive: w:tbl may appear wherever block content is allowed, including inside w:tc, so any code that assumes one grid per table or one table per section breaks. Grid definitions belong to each level independently, and a writer that re-derives the outer grid from flattened cell counts will corrupt the package. Preserving nesting means treating each tbl element as opaque to its parent's grid logic.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "A table nested in a cell is Word-legal and safe, so the engine preserves it byte-for-byte: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

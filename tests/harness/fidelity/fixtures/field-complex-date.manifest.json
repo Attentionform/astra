@@ -1,0 +1,13 @@
+{
+  "fixture": "field-complex-date",
+  "family": "bookmarks-fields",
+  "motivatingPathology": "Letterheads stamp dates with complex fields: a begin character, an instruction run carrying a date format picture, a separator character, a cached result run with the rendered date, and an end character, each in its own paragraph. The five-part sequence is a state machine readers walk, and dropping the separator orphans the cache. The engine must carry all five field characters with the instruction and the cached date through the round trip without collapsing the sequence.",
+  "knownLimitations": "One date field exercises the sequence; nested complex fields and locked fields are not covered. Format pictures beyond one date shape are absent. Dirty and edited field flags are not exercised. Field interaction with revision markup is out of scope. Whether the cached date matches today is never asserted.",
+  "scopeExclusions": "This fixture does not exercise bookmarks, simple fields, or hyperlinks; those live in sibling fixtures. Date content controls are covered by the content-controls fixture, not here. Field locking and dirty flags are not covered. Rendered dates are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Complex fields encode a five-state sequence across runs and paragraphs: begin, instruction, separator, cached result, end. A writer that models only text will keep the cached date while deleting the machine that refreshes it, and one that reorders the characters breaks the state walk. All five parts with instruction text must round-trip in order.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Complex date fields with instruction and cache are Word-legal and safe, so the engine preserves the full sequence: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

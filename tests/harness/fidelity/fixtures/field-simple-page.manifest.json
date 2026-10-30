@@ -1,0 +1,13 @@
+{
+  "fixture": "field-simple-page",
+  "family": "bookmarks-fields",
+  "motivatingPathology": "Footers and headers count pages with simple fields: a PAGE field and a NUMPAGES field, each with merge-format tracking and a cached result run showing the last rendered number. Simple fields sit at paragraph level wrapping their cached result, and the instruction text decides what recomputes on open. The engine must carry both field wrappers with instructions plus both cached results through the round trip without unwrapping the fields into plain numbers.",
+  "knownLimitations": "Two page-count fields exercise the shape; date, filename, and formula fields are not covered. Switches beyond merge-format are absent. Nested fields inside simple fields are not exercised. Whether the cached numbers match the rendered pages is never asserted. Complex field sequences live in the sibling fixture.",
+  "scopeExclusions": "This fixture does not exercise bookmarks, hyperlinks, or complex field characters; those live in sibling fixtures. Footer parts carrying page fields are covered by the document-parts fixture, not here. Rendered page numbers are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Simple fields are paragraph-level wrappers whose instruction attribute names the computation and whose cached result is ordinary runs inside. A writer that keeps the cached number while dropping the wrapper freezes the value forever, and one that moves the field inside a run breaks the content model. Placement at paragraph level and instruction text must both round-trip.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Simple page-count fields with cached results are Word-legal and safe, so the engine preserves wrappers and caches: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

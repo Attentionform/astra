@@ -1,0 +1,27 @@
+{
+  "schema": 2,
+  "version": 1,
+  "acceptedVersions": [1],
+  "claSha256": { "1": "546415c6e0d8d797cabc40544600adba41247aff76246472bb0402a887848fb6" },
+  "corporateSha256": { "1": "cadbc8c01484cd204e5c8f13b58e00a6d4e86f87230433200b3ad1ecac404a00" },
+  "statement": "I have read the ASTra CLA v{version} and I agree to it.",
+  "minNameLength": 2,
+  "statusContext": "cla",
+  "signaturesDir": "cla/signatures",
+  "corporateDir": "cla/corporate",
+  "claPath": "CLA.md",
+  "botMarker": "<!-- astra-cla-bot -->",
+  "contact": "astra@attentionform.com",
+  "allowlist": {
+    "logins": ["Userfrom1995"],
+    "patterns": ["*[bot]"]
+  },
+  "protectedPaths": [
+    ".github/cla/",
+    "cla/corporate/",
+    "scripts/cla/",
+    ".github/workflows/cla.yml",
+    "CLA.md",
+    "CLA-CORPORATE.md"
+  ]
+}

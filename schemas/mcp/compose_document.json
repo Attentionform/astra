@@ -1,0 +1,46 @@
+{
+  "name": "compose_document",
+  "description": "Compose a Markdown string into the open session document (appends after existing content, except that a pristine blank template has its two seed placeholders replaced so output holds only composed content). Runs the engine compose path, then applies the resulting operations through the same execute_batch path (strict schema gate, per-chunk quotas, structural checks, per-chunk atomic rollback, then inline-span run splitting), so every gate a batch meets applies here unchanged. Supported input: #/##/### headings (real Heading1..3 styles), blank-line paragraphs (single newlines join with a space), flat bullet (-, *, +) and ordered (1., 1)) lists with real numbering, GitHub-style tables with a header separator row (header row shaded and repeated), --- dividers, fenced or indented code blocks (monospace, line breaks kept), [^label] footnotes with definitions, inline spans (**bold**, *italic*, `code`, [text](url)) applied as runs with real hyperlink targets, and standalone block images/charts (![alt](path)) resolved from allowedDir. Out-of-scope input fails closed with E_VALIDATION plus a 1-based line number and writes nothing: raw HTML (except [!NOTE]-style alert callouts, which compile to callout containers), custom styles, general blockquotes, deeper headings, nested lists or tables, task items. Block image/chart refs need allowedDir pointing at the folder holding the files (refs stay jailed inside it; without allowedDir they fail closed); remote URL refs fail closed; inline data-URL block images bypass allowedDir by design (bytes decode in memory through the same image gates). Sources compiling past 500 operations apply as sequential 500-operation chunks; each chunk is atomic, but a later-chunk failure leaves earlier chunks applied (same exposure as any multi-batch caller). Compiled node ids are deterministic per source, so a second compose into the same session is rejected by the duplicate-id gate (compose once per session with the full source). Optional template (report|memo|blank) requires the open document to still hold that template seed, otherwise composition fails before any write (for a fresh templated document call new_document first, then compose_document with template), and placement is append after existing content except for the pristine blank replace above. Returns {ok:true,opCount,appliedCount,revision,createdNodeIds,results,validation:{valid,errorCount,errors}} where createdNodeIds lists new node ids in document order (use them as anchors without re-inspecting) and validation proves the post-compose package state via a read-only OOXML check (save_document re-gates before writing). A compose that drops a non-empty redo stack signals it (redoCleared:true + redoClearedWarning naming the depth): a fresh edit invalidates redo. Optional styleGuide (bundled guide name or guide .md path, jailed like image refs: explicit allowedDir else the session anchor; remote URLs fail closed) replaces the session guide (not a one-batch override: later batches inherit it until another compose replaces it) and skins this compose (table/header-fill, chart-palette, callout, and code defaults apply where ops omit params; explicit params still win). Guides cannot be detached: open a new session to work without a guide. With no guide, compose uses the built-in Default Corporate look (navy table header, bold white header text, striped rows). styleGuide \"legacy\" gives the older grey header for this call only and is not stored on the session. An italic-only line directly under the opening # title becomes the Subtitle; a [!NOTE]-style line outside a blockquote stays plain text and comes back in warnings. Later batches inherit it, inspect_document shows its compact summary, save_document reports advisory styleWarnings. Unknown names fail with E_VALIDATION naming the available set. Math: $$ ... $$ or \\[ ... \\] blocks become display equations and \\(...\\) becomes inline math (one line, up to 500 characters; refused inside links and table cells). Display blocks are top level only (inside a list item or alert body they fail closed). Optional dollarMath (default false) treats $...$ as inline math; off by default because prices and shell text can look like math. Workflow: open_document -> compose_document -> save_document. Example {\"sessionId\":\"sess_abc\",\"markdown\":\"# Plan\\n\\n- a\\n- b\\n\"} (add \"allowedDir\":\"<dir>\" for image/chart refs, \"template\":\"report|memo|blank\" to verify the seed). IDs are session-scoped: valid only in the issuing session, must not be stored across sessions. persistentIds maps each created paragraph id (md_0003) to the paragraph id the saved file carries, so a reopened session can be addressed with it (tables are renumbered t_001.. by position on reopen).",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "markdown": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500000
+      },
+      "allowedDir": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      },
+      "template": {
+        "type": "string",
+        "enum": [
+          "report",
+          "memo",
+          "blank"
+        ]
+      },
+      "styleGuide": {
+        "type": "string",
+        "maxLength": 1024
+      },
+      "dollarMath": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "sessionId",
+      "markdown"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

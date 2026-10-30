@@ -1,0 +1,13 @@
+{
+  "fixture": "tbl-borders-shading",
+  "family": "table-borders",
+  "motivatingPathology": "Enterprise tables carry full border grids plus per-cell shading: a table-wide single border set with gray fill behind every cell, and one cell overriding with a double red top edge over a yellow fill. Financial schedules and status reports use exactly this layering, where the table grid, the cell override, and the shading fills must agree. The engine must carry the border cascade and both fills through ingest, mutation of nearby sentences, and rezip without dropping the override, flattening the fills, or reordering the border children.",
+  "knownLimitations": "One two-cell table exercises the cascade; larger grids with banded fills and diagonal borders are not covered. Only single and double line styles appear, so dashed, dotted, and wave borders are out of scope. The override sits on one cell, so conflicting overrides on adjacent cells sharing an edge are not exercised. Shading uses explicit fill values only; theme-tinted fills ride along in a separate run fixture.",
+  "scopeExclusions": "This fixture does not exercise table cell margins, cell spacing, floating positioning, or automatic layout; those live in sibling fixtures. Revision markup inside bordered cells, nested tables inside shaded cells, and numbering inside cells are separate pathologies covered elsewhere. Rendered border conflict resolution is not asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Table borders resolve through a cascade: table-level tblBorders set the grid, while tcBorders on a cell override individual edges, and both must serialize in schema child order with shading fills attached at two levels. A writer that re-serializes table properties without the canonical order, or that drops cell-level overrides it does not model, silently changes which edge wins. Any reordering of the border children or loss of a fill produces a document that still opens but renders differently.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Table borders and cell shading are Word-legal and safe, so the engine preserves them untouched: the table node checksum is identical after the round trip, the border child order is unchanged, and the package validates clean."
+  }
+}

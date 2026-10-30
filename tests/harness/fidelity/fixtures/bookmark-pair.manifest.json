@@ -1,0 +1,13 @@
+{
+  "fixture": "bookmark-pair",
+  "family": "bookmarks-fields",
+  "motivatingPathology": "Contracts navigate by named ranges: a bookmark spanning clause copy under the name ClauseNine with a numeric id, plus a cursor-restore GoBack marker over its own paragraph. Bookmark starts and ends pair by id across the range, and names must stay unique for cross-references to resolve. The engine must carry both start-end pairs with ids and names through the round trip without renumbering ids, dropping names, or unpairing the ranges.",
+  "knownLimitations": "Two bookmarks exercise the pairing; overlapping and nested bookmark ranges are not covered. Column-first markers and hidden bookmark name prefixes are absent. Bookmark interaction with field cross-references lives in the neighboring pageref fixture. Ranges spanning table cells are not exercised. Navigation behavior is never asserted.",
+  "scopeExclusions": "This fixture does not exercise field codes, hyperlinks, or proofing markers; those live in sibling fixtures. Table-of-contents entries built from bookmarks are not covered. Ranges inside headers, footers, and text boxes are absent. Rendered navigation is never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Bookmarks are range markup split into two elements that pair by numeric id, with the name carried only on the start. A writer that renumbers ids, drops names it never navigates, or emits starts without ends produces ranges that silently point nowhere. Both elements of each pair must round-trip with id and name intact.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Paired bookmark ranges are Word-legal and safe, so the engine preserves ids and names: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

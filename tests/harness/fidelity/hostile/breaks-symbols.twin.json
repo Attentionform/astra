@@ -1,0 +1,7 @@
+{
+  "family": "breaks-symbols",
+  "twin": "breaks-symbols.twin",
+  "base": "break-page-column",
+  "corruption": "first w:t close tag truncated by one byte (same package shape, corrupt part).",
+  "expectedRefusal": "validate"
+}

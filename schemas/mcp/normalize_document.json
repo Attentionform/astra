@@ -1,0 +1,20 @@
+{
+  "name": "normalize_document",
+  "description": "Canonical repair for an open session document: runs the same allowlist normalizer CLI normalize calls (verified tag renames, whitelisted default infills, schema-sequence sorts) over the live package, then refreshes the session view and proves the result with a read-only validation verdict. Output bytes match CLI normalize on the same input. When the package is still invalid afterwards, the session is restored untouched and the call fails with E_VALIDATION plus a fix-and-retry remedy (same contract as CLI normalize writing nothing on failure). Returns {ok:true,sessionId,revision,dirty,normalized,validation:{valid:true,...}} where normalized lists every rewrite once, plus the standard redoCleared signal when a redo chain is dropped. Example {\"sessionId\":\"sess_abc\"} -> {\"ok\":true,\"normalized\":[...]}. Save after to persist. IDs are session-scoped: valid only in the issuing session, must not be stored across sessions. ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices. ",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

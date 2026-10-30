@@ -1,0 +1,7 @@
+{
+  "family": "tracked-revisions",
+  "twin": "tracked-revisions.twin",
+  "base": "revision-multiscript",
+  "corruption": "w:ins loses its required w:id attribute (schema violation, same range shape).",
+  "expectedRefusal": "validate"
+}

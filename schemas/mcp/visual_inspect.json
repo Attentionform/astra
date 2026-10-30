@@ -1,0 +1,54 @@
+{
+  "name": "visual_inspect",
+  "description": "Inspect document visually with 2D spatial layout telemetry (ASCII wireframe, page breakdown, margins, defects) and optional headless rendered images (withVisual: true; add outputDir to write them to a folder inside the allowed directories, for example next to the document, instead of the server temp folder). Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); success returns {ok:true,sessionId,revision,dirty,telemetry,...} (dirty:true = unsaved edits present).",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "pages": {
+        "maxItems": 4,
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "withVisual": {
+        "type": "boolean"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "png",
+          "jpeg"
+        ]
+      },
+      "jpegQuality": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "dpi": {
+        "type": "integer",
+        "minimum": 72,
+        "maximum": 300
+      },
+      "outputDir": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      }
+    },
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ooxml-validator</AssemblyName>
+    <RootNamespace>OoxmlValidator</RootNamespace>
+    <RuntimeIdentifiers>linux-x64;linux-arm64;osx-x64;osx-arm64;win-x64;win-arm64</RuntimeIdentifiers>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <Deterministic>true</Deterministic>
+    <!-- Restore fails on a known high or critical advisory (also in transitive packages). -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>high</NuGetAuditLevel>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- On CI an unreachable advisory feed (NU1900) must not pass silently. -->
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <WarningsAsErrors>$(WarningsAsErrors);NU1900</WarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <None Remove="tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+  </ItemGroup>
+
+  <!--
+    The single-file binary contains the .NET runtime. Its licence and third-party notices live in the
+    runtime pack and are not copied to the publish folder, so copy them next to the binary. They ship in
+    every platform package (scripts/build-validator-packages.ts refuses to build without them).
+  -->
+  <Target Name="CopyRuntimeNotices" AfterTargets="Publish" Condition="'$(SelfContained)' == 'true'">
+    <ItemGroup>
+      <_NetCoreRuntimePack Include="@(ResolvedRuntimePack)" Condition="'%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.NETCore.App'" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_NetCoreRuntimePackDir>@(_NetCoreRuntimePack->'%(PackageDirectory)')</_NetCoreRuntimePackDir>
+    </PropertyGroup>
+    <Error Condition="'$(_NetCoreRuntimePackDir)' == '' Or !Exists('$(_NetCoreRuntimePackDir)/THIRD-PARTY-NOTICES.TXT')"
+           Text="The .NET runtime pack with THIRD-PARTY-NOTICES.TXT was not found; the runtime notices cannot ship." />
+    <Copy SourceFiles="$(_NetCoreRuntimePackDir)/THIRD-PARTY-NOTICES.TXT" DestinationFolder="$(PublishDir)" />
+    <Copy SourceFiles="$(_NetCoreRuntimePackDir)/LICENSE.TXT" DestinationFiles="$(PublishDir)DOTNET-LICENSE.TXT" />
+  </Target>
+</Project>

@@ -1,0 +1,13 @@
+{
+  "fixture": "tbl-look-banded",
+  "family": "table-borders",
+  "motivatingPathology": "Corporate templates style tables by reference instead of by value: a TableGrid style name plus a tblLook mask requesting a styled first row, a styled first column, horizontal banding, and no vertical banding. The actual colors live in the style definition, so the fixture proves the engine carries the reference and the bitmask without resolving them. Status tables and financial summaries rely on this indirection, and a writer that drops references it cannot resolve silently unstyles the table.",
+  "knownLimitations": "The referenced TableGrid style definition is absent, matching how Word tolerates dangling references; resolution of the style itself is not asserted. One three-column table with a single body row exercises the mask; larger banded grids are not covered. Caption and description siblings of tblLook are absent, so those elements are out of scope. Row band sizes beyond the mask defaults are not exercised.",
+  "scopeExclusions": "This fixture does not exercise explicit borders, shading fills, margins, or floating position; those live in sibling fixtures. Style definitions themselves ride along in the styles-part fixture, not here. Whether a renderer paints the bands is not asserted; only preservation of the reference, the mask, and schema validity are.",
+  "ecma376Difficulty": "Conditional table formatting is indirect twice over: tblStyle names a definition stored elsewhere, and tblLook packs six booleans plus a bitmask value that must stay consistent with each other. A writer that strips references to parts it does not track, or that normalizes the mask bits independently of the value attribute, breaks the styling contract invisibly. The difficulty is restraint: carry fourteen characters of reference and mask without interpreting them.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Style references and look masks are Word-legal and safe, so the engine carries them untouched: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

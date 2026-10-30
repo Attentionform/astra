@@ -1,0 +1,13 @@
+{
+  "fixture": "tbl-float-overlap",
+  "family": "table-layout",
+  "motivatingPathology": "Sidebars and pull-quote tables float: a single-cell table anchored to the margin and text with explicit offsets, centered horizontally and pinned to the top vertically, plus a never-overlap directive so body text wraps around it. Floating tables position through tblpPr coordinates that interact with the anchor story, and losing them drops the table into the text flow. The engine must carry every positioning attribute and the overlap element untouched while nearby sentences mutate.",
+  "knownLimitations": "One floating table with fixed offsets exercises the shape; percentage-based positioning and page-anchored floats are not covered. The overlap directive appears once as never, so allow-overlap behavior is out of scope. Interaction with anchored drawings on the same page is not exercised. Text wrapping distances around the float use defaults only.",
+  "scopeExclusions": "This fixture does not exercise borders, shading, margins, fixed layout, or banded looks; those live in sibling fixtures. Multi-paragraph float content, nested floats, and revision markup inside floating cells are not covered. Rendered float placement is not measured; only markup preservation and schema validity are asserted.",
+  "ecma376Difficulty": "Floating tables address the page through two anchor systems at once: horizontal and vertical anchors each pair a base with an offset or a symbolic alignment, and the overlap element constrains collision with text. The attributes are positional strings and numbers the engine must never interpret or round. Any writer that drops positioning it does not render, or that reorders the tblPr siblings, strands the table at the wrong address.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Floating table positioning with overlap control is Word-legal and safe, so the engine carries every coordinate: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

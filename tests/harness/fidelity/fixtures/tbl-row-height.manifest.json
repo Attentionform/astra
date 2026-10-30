@@ -1,0 +1,13 @@
+{
+  "fixture": "tbl-row-height",
+  "family": "table-layout",
+  "motivatingPathology": "Regulated forms fix row heights: a header row marked unsplittable and repeating, with an at-least height of six hundred twips, followed by an exact-height row of three hundred twips. Height rules change pagination because exact rows never grow while at-least rows may, and cantSplit keeps the header together. The engine must carry the height rules, the split ban, and the header flag through the round trip without relaxing exact to at-least or dropping the repeat marker.",
+  "knownLimitations": "Two single-cell rows exercise the rules; tall multi-row headers with merged cells are not covered. Height uses twips only; automatic heights are the default elsewhere. Grid-before and grid-after offsets are absent, so indented rows are out of scope. Interaction of row heights with floating tables is not exercised.",
+  "scopeExclusions": "This fixture does not exercise borders, shading, margins, layout switches, or floats; those live in sibling fixtures. Cell-level vertical alignment rides along in the fixed-layout fixture, not here. Rendered row heights are not measured; only markup preservation and schema validity are asserted.",
+  "ecma376Difficulty": "Row geometry is a contract between siblings: cantSplit, trHeight with its rule attribute, and tblHeader must appear in schema order inside trPr, and the height value means nothing without its rule. A writer that emits these out of order produces a file Word repairs on open, and one that drops the rule while keeping the number silently converts exact rows into stretchy ones.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Row height rules with split control and header repetition are Word-legal and safe, so the engine preserves them: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

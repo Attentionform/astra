@@ -1,0 +1,7 @@
+{
+  "family": "gallery-baseline",
+  "twin": "gallery-baseline.twin",
+  "base": "gallery-coffee-onepager",
+  "corruption": "first w:t close tag truncated by one byte (same package shape, corrupt part).",
+  "expectedRefusal": "validate"
+}

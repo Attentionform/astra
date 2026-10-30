@@ -1,0 +1,7 @@
+{
+  "family": "document-parts",
+  "twin": "document-parts.twin",
+  "base": "footnote-pair",
+  "corruption": "w:footnoteReference loses its required w:id attribute (schema violation, same note shape).",
+  "expectedRefusal": "validate"
+}

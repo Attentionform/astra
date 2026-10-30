@@ -1,0 +1,13 @@
+{
+  "fixture": "drawing-negative-anchor",
+  "family": "anchored-drawing",
+  "motivatingPathology": "Enterprise templates anchor logos, stamps, and margin art with negative DrawingML offsets that pull the picture partly off the column or above the paragraph, often behind the text. The negative wp:posOffset values are intentional positioning, not corruption, and appear in letterheads and certified forms. The engine must preserve the anchor, the negative offsets, and the image bytes through the round trip while nearby sentences mutate.",
+  "knownLimitations": "One anchored raster PNG with negative column and paragraph offsets is exercised; positive offsets, alignment-based positioning, and multi-image documents are not covered here. Picture ids arrive pre-synced because the engine syncs picture ids to drawing ids on write, so unsynced input ids round-trip with rewritten bytes. Vector drawings, charts, and SmartArt are out of scope.",
+  "scopeExclusions": "This fixture does not exercise inline drawings, text-wrapped anchors beyond behind-text, drawings in headers or footers, or floating objects tied to tables. Image transcoding, scaling quality, and rendered position belong to rendering, not to this structural gate. Relationship repair for dangling image references is a separate negative control, not part of this fixture.",
+  "ecma376Difficulty": "Anchored drawings span three namespaces at once: wordprocessingDrawing for placement, main drawingml for the graphic frame, and picture markup for the blip, all tied together by relationship ids and paired numeric drawing ids. Negative EMU offsets are legal but unusual, so validators and writers that clamp coordinates to positive values silently relocate the art. Preserving the anchor means touching none of the five coordinated pieces.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; embedded pixels are a generated one-pixel PNG; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "deliberately-differ",
+    "reason": "The engine syncs pic:cNvPr id to its wp:docPr id on write instead of preserving unsynced input ids byte-for-byte. The rewrite is schema-valid and semantically neutral, but it is a deliberate byte-level difference, so it is recorded here; fixture ids arrive pre-synced to keep the round trip stable."
+  }
+}

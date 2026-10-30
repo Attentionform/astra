@@ -1,0 +1,13 @@
+{
+  "fixture": "hyperlink-bookmark",
+  "family": "hyperlinks",
+  "motivatingPathology": "Manuals jump within: a named Annex bookmark anchoring caption copy, followed by a hyperlink with an anchor attribute and history flag pointing at that name, wrapping a styled jump run. Internal links name bookmarks instead of relationships, so no relationship entry exists and the anchor text must match the bookmark name. The engine must carry the bookmark pair, the anchor hyperlink with its flag, and the styled run through the round trip without renaming either end or flattening the jump.",
+  "knownLimitations": "One bookmark plus one internal jump exercise the shape; jumps to headings and numbered items are not covered. External links with relationship entries live in the sibling fixture. Bookmark uniqueness beyond one name is not exercised. Whether the jump lands correctly is never asserted.",
+  "scopeExclusions": "This fixture does not exercise fields, footnotes, content controls, or external relationships; those live in sibling fixtures. Bookmark mechanics alone are covered by the bookmarks-fields fixture, not here. Rendered navigation is never tested; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Internal hyperlinks bind a bookmark name to an anchor attribute with no relationship entry, so the contract is purely textual: the anchor must equal the bookmark name exactly. A writer that renames bookmarks while keeping anchors, or that flattens the jump run into text, breaks navigation while keeping the words. Bookmark, anchor, flag, and run must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Internal bookmark hyperlinks are Word-legal and safe, so the engine preserves both ends: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

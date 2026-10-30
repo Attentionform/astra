@@ -1,0 +1,13 @@
+{
+  "fixture": "sect-pagenum-docgrid",
+  "family": "section-layout",
+  "motivatingPathology": "Front matter restarts numbering on grid paper: a section carrying a page-number restart at seven with chapter styling, single-column text, a right-to-left gutter marker, and a line-pitch document grid. Page-number state, gutter side, and grid pitch each change rendering without adding content. The engine must carry the numbering restart, the column declaration, the gutter flag, and the grid element through the round trip in schema order without resetting the start or dropping the grid.",
+  "knownLimitations": "One section exercises the combination; multi-section chains with alternating grids are not covered. Chapter-style numbering beyond the style index is absent. Grid types beyond lines are not exercised. Gutter widths ride along as a margin attribute in the sibling fixture. Rendered page numbers are never compared.",
+  "scopeExclusions": "This fixture does not exercise orientation switches, column counts beyond one, title pages, or header content; those live in sibling fixtures. Footnote and endnote separator settings are not covered. Rendered grid alignment is never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Section state composes independent siblings in strict schema order: numbering restart before columns before gutter before grid. A writer that emits the gutter early, or that drops grid and numbering state it never renders, resets front-matter conventions invisibly. Each sibling must keep its position and value or the section means something else.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Page-number restarts with gutters and grids are Word-legal and safe, so the engine preserves them: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

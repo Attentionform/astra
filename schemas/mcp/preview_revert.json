@@ -1,0 +1,30 @@
+{
+  "name": "preview_revert",
+  "description": "Read-only WOULD-restore preview for revert_document (never mutates: no revision bump, no disk write, no redo-stack change). Target one commit: {steps:N} walks back N saved commits from the head (1 = the previous saved commit, must be < totalCommits) OR {commitOid:\"<40-hex>\"} jumps to that commit (mutually exclusive). Returns {ok:true,sessionId,targetOid,targetMessage,targetAuthor,stepsBack,affectedFiles,changedValues,changedValuesTruncated,changedValuesPositional,dirty,dirtyHandling,currentHeadOid,totalCommits} where affectedFiles lists package paths that differ from the target (word/document.xml plus tracked extras). The preview also carries advisory changedValues [{nodeId,before,after}] (live current text -> target restore text, bounded: at most 20 entries, each side at most 200 chars, truncated flag honest; changedValuesPositional:true means either side held orphan ids (no shared id across the boundary, common under duplicate native ids) so before/after pairing is positional, not identity; empty + changedValuesReason when the target range is not computable). Example {\"sessionId\":\"sess_abc\",\"steps\":1} -> preview summary. Preview first when a revert would discard unsaved edits. ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices. ",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "steps": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991
+      },
+      "commitOid": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

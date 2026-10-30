@@ -1,0 +1,45 @@
+{
+  "name": "export_document",
+  "description": "Export the active document to HTML, Markdown, or PDF format with sandbox security gating. Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); success returns {ok:true,format,path|content,bytes,dirty,revision} (dirty:true = unsaved edits present). PDF renders via headless LibreOffice: a ~11s first-render cold start is expected behavior, not a bug. Failures return {ok:false,code,message,remedy}.",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "description": "Active document session ID returned by open_document"
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "html",
+          "markdown",
+          "md",
+          "pdf"
+        ],
+        "description": "Target export format: \"html\", \"markdown\", \"md\", or \"pdf\""
+      },
+      "outPath": {
+        "description": "Optional output destination path (must reside inside allowed directory)",
+        "type": "string"
+      },
+      "tagged_pdf": {
+        "description": "PDF only: tagged (accessible) render (default true)",
+        "type": "boolean"
+      },
+      "tagged": {
+        "description": "Alias of tagged_pdf",
+        "type": "boolean"
+      },
+      "strict": {
+        "description": "PDF only: fail closed on preflight blockers (default false, warn-only)",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "sessionId",
+      "format"
+    ]
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

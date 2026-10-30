@@ -1,0 +1,13 @@
+{
+  "fixture": "hyperlink-external",
+  "family": "hyperlinks",
+  "motivatingPathology": "Reports link out: a hyperlink wrapping a styled run pointing through an external relationship at an example landing page, carrying a history flag plus underline and brand-blue run properties. The link target lives in the relationships part, not the body, so the body holds only a reference id. The engine must carry the hyperlink wrapper with its reference, the history flag, the relationship entry with external mode, and the styled run through the round trip without flattening the link into plain text.",
+  "knownLimitations": "One external link exercises the shape; internal bookmark jumps live in the sibling fixture. Link targets beyond one example address are not covered. Tooltip and frame attributes are absent. Whether the link resolves or the history shades visited links is never asserted.",
+  "scopeExclusions": "This fixture does not exercise bookmarks, fields, footnotes, or content controls; those live in sibling fixtures. The relationship part mechanics beyond the single link entry are not covered. Rendered link behavior is never tested; only markup and relationship preservation plus schema validity are.",
+  "ecma376Difficulty": "External hyperlinks join three layers: a body wrapper naming a relationship id, a relationships entry with target and external mode, and a styled run inside. A writer that keeps the text while dropping the wrapper or the relationship entry delinks the report silently. Wrapper, reference, relationship, and run properties must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "External hyperlinks with relationship targets are Word-legal and safe, so the engine preserves link and text: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

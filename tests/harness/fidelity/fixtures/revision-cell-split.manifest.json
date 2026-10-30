@@ -1,0 +1,13 @@
+{
+  "fixture": "revision-cell-split",
+  "family": "tracked-revisions",
+  "motivatingPathology": "Table edits track at cell level: a steady cell beside a cell carrying an insertion marker with author and timestamp in its cell properties. Cell insertions record structural table edits that run-level markup cannot express, and the marker lives in tcPr rather than in a run. The engine must carry the cell marker with its metadata plus both cell paragraphs through the round trip without promoting the marker into text or dropping it from the properties.",
+  "knownLimitations": "One inserted cell exercises the shape; deleted and merged cell markers are not covered. Cell markers combined with merges in the same cell are absent. Row-level insert and delete markers are out of scope. Accept and reject semantics for cell edits are not asserted.",
+  "scopeExclusions": "This fixture does not exercise run insertions, deletions, move ranges, or multiscript runs; those live in sibling fixtures. Table structure itself is covered by the table fixtures, not here. Rendered table-edit indicators are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Cell revision markers live inside cell properties in schema order, with author, date, and id attributes that must survive exactly. A writer that re-serializes cell properties from a model lacking revision state drops the marker while keeping the cell, silently accepting the edit. The marker must keep its position and attributes or the tracked edit disappears.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Cell-level insertion markers are Word-legal and safe, so the engine preserves them: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

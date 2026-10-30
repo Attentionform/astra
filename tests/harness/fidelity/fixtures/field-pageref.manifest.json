@@ -1,0 +1,13 @@
+{
+  "fixture": "field-pageref",
+  "family": "bookmarks-fields",
+  "motivatingPathology": "Manuals cross-reference by page: a named bookmark anchoring a figure caption, followed by a PAGEREF simple field with a hyperlink switch pointing at that bookmark and a cached page number. The field instruction names the bookmark, so renaming either end breaks the link. The engine must carry the bookmark pair, the field wrapper with its instruction, and the cached number through the round trip without severing the reference.",
+  "knownLimitations": "One bookmark plus one pageref exercise the link; cross-references to headings and numbered items are not covered. Switches beyond hyperlink-jump are absent. Stale caches pointing at moved content are not exercised. Whether the cached page matches the bookmark location is never asserted.",
+  "scopeExclusions": "This fixture does not exercise external hyperlinks, complex fields, or tables of contents; those live in sibling fixtures. Bookmark mechanics alone are covered by the bookmark-pair fixture, not here. Rendered page numbers are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Cross-references join two pathologies: a bookmark range that must keep its name and a field whose instruction text must name exactly that bookmark. A writer that renames bookmarks while keeping field text, or that unwraps the field into its cached number, keeps the page looking right while breaking navigation. Both ends of the reference must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Bookmark-anchored page cross-references are Word-legal and safe, so the engine preserves both ends: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

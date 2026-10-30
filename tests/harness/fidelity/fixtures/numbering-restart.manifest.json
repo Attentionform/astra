@@ -1,0 +1,13 @@
+{
+  "fixture": "numbering-restart",
+  "family": "numbering",
+  "motivatingPathology": "Contracts, procedures, and RFP responses restart numbered lists mid-document: items one and two, then a nested letter item, then a fresh list starting at seven via lvlOverride and startOverride. The restart lives in the numbering part, far from the paragraphs it affects, connected only by numId references. A writer that regenerates numbering parts from paragraph order, or drops override elements it does not model, silently renumbers the document while the text looks untouched.",
+  "knownLimitations": "One restart via startOverride on a shared abstract definition plus one nested level are exercised; multiple restarts, style-linked numbering, and legal-numbering formats are not covered. Rendered numeral values are never compared; preservation is asserted at the markup level only. Picture bullets and custom number formats are absent.",
+  "scopeExclusions": "This fixture does not exercise bullet lists, multi-abstract documents beyond the companion fixture, numbering inside tables or text boxes, or restart by paragraph style. Actual rendered numbers belong to layout, not to this structural gate. Migration of numbering definitions between documents is unrelated future work.",
+  "ecma376Difficulty": "Numbering is a three-level indirection: paragraphs reference numId, num instances reference abstractNumId with optional level overrides, and abstract definitions hold the formats. Overrides like startOverride exist only on specific instances, so cloning or regenerating the numbering part without carrying overrides renumbers everything downstream. The numbering part must be treated as opaque data, never re-derived.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "List restart through level overrides is Word-legal and safe, so the engine preserves the numbering part semantically identical: only the two mutated sentences change and the package validates clean. Re-serialized numbering.xml measures 840 to 1052 bytes from redundant xmlns declarations, entity decoding, and declaration newline, with no meaning change."
+  }
+}

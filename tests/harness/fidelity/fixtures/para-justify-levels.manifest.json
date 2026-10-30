@@ -1,0 +1,13 @@
+{
+  "fixture": "para-justify-levels",
+  "family": "paragraph-layout",
+  "motivatingPathology": "Headings and body copy justify differently: a centered paragraph carrying an outline level for navigation, a both-justified paragraph with a deeper outline level, and a distribute-justified paragraph for East Asian line breaking. Outline levels feed the navigation pane and tables of contents, so dropping them demotes the document structure. The engine must carry all three justification values and both outline levels through the round trip without collapsing distribute into both.",
+  "knownLimitations": "Three paragraphs exercise the values; left, right, and Thai-distribute justification are absent and out of scope. Outline levels appear at one and two only; deeper hierarchies are not covered. Text direction and alignment siblings of justification are not exercised here. Navigation-pane behavior is never asserted, only markup preservation.",
+  "scopeExclusions": "This fixture does not exercise spacing, indents, borders, tabs, or flow controls; those live in sibling fixtures. Centered content in headers and footers is covered by the document-parts fixture, not here. Rendered line breaking, especially distribute justification, is not asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Justification and outline level are small enumerations with outsized downstream effects: jc values include near-synonyms that renderers treat differently, and outlineLvl connects paragraphs to document structure. A writer that normalizes distribute to both, or that strips outline levels it never displays, keeps the characters while demoting the document. The values must round-trip byte-exact.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Justification variants with outline levels are Word-legal and safe, so the engine preserves them: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

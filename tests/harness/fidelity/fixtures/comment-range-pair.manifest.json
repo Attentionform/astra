@@ -1,0 +1,13 @@
+{
+  "fixture": "comment-range-pair",
+  "family": "document-parts",
+  "motivatingPathology": "Review cycles annotate ranges: two paragraphs each wrapped in comment-range start and end markers with matching ids, each closed by a comment reference mark, tied to a comments part holding both notes with authors, dates, and initials. Range markers pair by id across the paragraph while the part holds the payload. The engine must carry all four markers, both reference marks, and both comment entries with metadata through the round trip without unpairing a range or dropping an author.",
+  "knownLimitations": "Two single-paragraph ranges exercise the pairing; multi-paragraph and nested comment ranges are not covered. Comment ranges spanning table cells are not exercised. Resolved-state and modern-comment threading extensions are absent. Replies and mentions are out of scope. Whether comments display in order is never asserted.",
+  "scopeExclusions": "This fixture does not exercise footnotes, endnotes, headers, footers, or styles; those live in sibling fixtures. Tracked revisions often accompany comments but are covered by their own fixtures, not here. Rendered comment panes are never compared; only markup and part preservation plus schema validity are.",
+  "ecma376Difficulty": "Comments split into range markers in the body pairing by numeric id and a comments part carrying author, date, initials, and paragraphs per note. A writer that keeps text while dropping markers loses what the notes annotate, and one that renumbers ids reattaches notes to the wrong ranges. Markers, references, entries, metadata, and the relationship must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Paired comment ranges with author metadata are Word-legal and safe, so the engine preserves markers and notes: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

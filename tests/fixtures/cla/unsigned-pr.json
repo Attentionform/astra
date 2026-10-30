@@ -1,0 +1,17 @@
+{
+  "pr": { "number": 12, "headSha": "1111111111111111111111111111111111111111", "state": "open" },
+  "commits": [
+    {
+      "sha": "abc1234abcdef0",
+      "author": { "login": "janedoe", "id": 1234567, "type": "User" },
+      "committer": { "login": "janedoe", "id": 1234567, "type": "User" },
+      "authorEmail": "jane@example.org",
+      "parentCount": 1,
+      "message": "fix: typo in the README"
+    }
+  ],
+  "files": [{ "path": "README.md", "status": "modified" }],
+  "base": {},
+  "head": {},
+  "touching": {}
+}

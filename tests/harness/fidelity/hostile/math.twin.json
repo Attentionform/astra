@@ -1,0 +1,7 @@
+{
+  "family": "math",
+  "twin": "math.twin",
+  "base": "math-delimiters",
+  "corruption": "m:begChr loses its required m:val attribute (schema violation, same formula shape).",
+  "expectedRefusal": "validate"
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "merged-cells-tall",
+  "family": "merged-cells",
+  "motivatingPathology": "Tall merge groups stress continuation accounting: a three-row merge down the first column beside a wide middle row spanning two columns, mixing vertical continuation cells with a horizontal span in one grid. Readers must reconcile the merge markers with the grid across rows that disagree in cell count. The engine must carry the restart marker, both continuation cells, and the middle span through the round trip without collapsing the tall group or misaligning the grid.",
+  "knownLimitations": "One tall group plus one span exercise the mix; merges straddling page breaks remain uncovered as noted in the registry. Continuation cells stay empty as Word writes them; continuation cells with their own paragraphs are not covered. Interacting merge groups in the same table beyond this pair are out of scope.",
+  "scopeExclusions": "This fixture does not exercise repeating headers, nested tables, or floating tables; those live in sibling fixtures. Revision markup inside merged cells and numbering inside cells are separate pathologies covered elsewhere. Rendered merge geometry is never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Mixed merges combine two indirect encodings: vertical continuation cells that must exist but stay empty, and gridSpan counts that change effective columns without changing cell counts. The grid, the per-row cell counts, and both marker kinds must agree. A writer that re-serializes rows independently risks dropping empty continuations or emitting a grid that no longer matches the mixed rows.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Tall vertical merges mixed with a column span are Word-legal and safe, so the engine preserves them: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

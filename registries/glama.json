@@ -1,0 +1,107 @@
+{
+  "$schema": "https://glama.ai/mcp/schema.json",
+  "name": "@attentionform/astra-mcp-server",
+  "description": "Official Model Context Protocol (MCP) server for ASTra document IDE",
+  "version": "0.1.0",
+  "homepage": "https://github.com/Attentionform/astra",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Attentionform/astra.git"
+  },
+  "connection": {
+    "type": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@attentionform/astra-mcp-server",
+      "--allowed-dir",
+      "/absolute/path/to/your/documents"
+    ]
+  },
+  "tools": [
+    {
+      "name": "open_document",
+      "description": "Open a .docx document into an isolated session returning session ID and revision"
+    },
+    {
+      "name": "inspect_document",
+      "description": "Generate a Token-Optimized Outline Notation (TOON) outline and typography palette"
+    },
+    {
+      "name": "search_content",
+      "description": "Literal substring search (default, case-insensitive) with opt-in regex via regex:true, returning matched element IDs and text previews"
+    },
+    {
+      "name": "execute_batch",
+      "description": "Execute an atomic batch of typed OOXML mutation operations with automatic rollback"
+    },
+    {
+      "name": "save_document",
+      "description": "Persist document session with mandatory OOXML schema validator gate"
+    },
+    {
+      "name": "close_document",
+      "description": "Evict document session from memory and release locks"
+    },
+    {
+      "name": "new_document",
+      "description": "Create a fresh .docx from a template and open it into a session"
+    },
+    {
+      "name": "compose_document",
+      "description": "Compile a Markdown string into operations via the execute_batch path"
+    },
+    {
+      "name": "export_document",
+      "description": "Export document to HTML, Markdown, or PDF format"
+    },
+    {
+      "name": "visual_inspect",
+      "description": "2D spatial layout telemetry with optional headless rendered images"
+    },
+    {
+      "name": "get_document_history",
+      "description": "List saved git history for a session (newest first, read-only)"
+    },
+    {
+      "name": "preview_revert",
+      "description": "Read-only WOULD-restore preview for revert (never mutates)"
+    },
+    {
+      "name": "revert_document",
+      "description": "Restore an earlier saved state as a new head commit"
+    },
+    {
+      "name": "redo_document",
+      "description": "Re-apply the state undone by the last revert"
+    },
+    {
+      "name": "validate_document",
+      "description": "Preflight read-only OOXML schema audit for an active session"
+    },
+    {
+      "name": "get_stats",
+      "description": "Token-cheap document census returning word, paragraph, table, image, and page counts"
+    },
+    {
+      "name": "sanitize_document",
+      "description": "Scrub metadata, revision IDs, authors, comments, and PII from a document session"
+    },
+    {
+      "name": "normalize_document",
+      "description": "Canonical repair for an open session with schema sequence sorts and tag normalizations"
+    },
+    {
+      "name": "import_document",
+      "description": "Ingest an on-disk Markdown file into an open session under directory sandboxing"
+    }
+  ],
+  "tags": [
+    "ooxml",
+    "docx",
+    "word",
+    "mcp",
+    "document-editor",
+    "toon"
+  ]
+}

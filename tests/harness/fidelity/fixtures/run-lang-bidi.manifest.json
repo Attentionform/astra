@@ -1,0 +1,13 @@
+{
+  "fixture": "run-lang-bidi",
+  "family": "run-scripts",
+  "motivatingPathology": "Multilingual copy tags direction and language: a right-to-left Arabic paragraph with complex-script bold and size plus explicit Arabic language tags, beside a French run with an East Asian font fallback and Chinese language tagging. Bidi paragraphs reorder visually while the character stream stays logical, and language tags drive proofing. The engine must carry the bidi flag, the direction marker, the font fallback, and both language tags in schema order without reordering the stream or dropping the proofing contract.",
+  "knownLimitations": "Two paragraphs exercise the tags; Hebrew, Thai, and other complex scripts are not covered. Bidirectional embedding controls beyond the paragraph flag are absent. Font fallback covers one East Asian face; full pan-CJK stacks are out of scope. Rendered visual order is never asserted.",
+  "scopeExclusions": "This fixture does not exercise emphasis, colors, sizes beyond the complex-script size, or vertical alignment; those live in sibling fixtures. Mixed-script revision runs are covered by the tracked-revisions fixtures, not here. Rendered glyph shaping is never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Bidi and language properties span two levels: the paragraph bidi flag reorders layout while run-level rtl, complex-script toggles, and lang elements keep logical order and proofing. The rPr siblings must serialize in schema order with complex-script properties before direction and language. A writer that reorders the stream to match display, or that drops language tags it never proofreads, corrupts the document while keeping the glyphs.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Bidi direction with language tagging is Word-legal and safe, so the engine preserves flags, fonts, and tags: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

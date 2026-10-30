@@ -1,0 +1,13 @@
+{
+  "fixture": "revision-multiscript",
+  "family": "tracked-revisions",
+  "motivatingPathology": "Multinational review workflows leave insertions and deletions whose runs alternate Latin, Arabic, and CJK scripts inside a single tracked range. Reviewers in different locales edit the same sentence, and Word keeps every script run with its own shaping properties inside w:ins and w:del. A sanitizer or rewriter that normalizes runs by script, drops complex-script properties, or strips deleted text it considers dead will corrupt the review trail while fixing nothing.",
+  "knownLimitations": "One insertion range and one deletion range from two authors are exercised; multi-paragraph ranges and ranges spanning table cells are not covered. Scripts are limited to Latin, Arabic, and CJK with no bidirectional control characters, no shaping-sensitive ligatures under test, and no font fallback assertions. Accept and reject operations are not executed; only preservation of the markup is asserted.",
+  "scopeExclusions": "This fixture does not exercise nested change ranges, property-level revision markup, move ranges, or comments. Font substitution and glyph shaping belong to rendering and are never asserted here. Revision markup inside tables, headers, or text boxes is covered by other fixtures or future growth, not this one.",
+  "ecma376Difficulty": "Tracked runs double the run bookkeeping: w:ins and w:del wrap ordinary runs, carry author and date attributes plus required numeric ids, and deleted text lives in w:delText elements that plain-text extractors ignore. Mixed scripts add run-level font and shaping properties that must survive even though the text they annotate is deleted. A writer that round-trips only visible text silently destroys the deleted half of the record.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Sibling insertion and deletion ranges with mixed-script runs are Word-legal and safe, so the engine preserves them untouched: only the two mutated sentences change and the package validates clean."
+  }
+}

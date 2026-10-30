@@ -1,0 +1,3027 @@
+{
+  "name": "execute_batch",
+  "description": "Apply 1..500 strictly-typed operations atomically (strict discriminatedUnion per action; sequential:true default preserves document order; single edit = 1-item batch). Caps 500 ops / 200MB throw E_QUOTA with remedy (maxSteps is an optional positive integer, unbounded when omitted). Client-supplied op ids are honored where the schema allows (insert/equation/footnote/chart accept `id`; strict schemas reject it elsewhere). Style ops support word-level spans: `match` styles only the matched substring (run splitting; `matchAll` styles every occurrence, `matchCase:false` matches case-insensitively); an absent match fails with E_NOT_FOUND. Returns {ok:true,appliedCount,revision,skippedIds,createdNodeIds,results:[{index,action,createdNodeIds}],revisionsPending,revisionsRemedy?} where createdNodeIds lists new node ids in document order (use them as anchors in the next batch without re-inspecting). A batch that drops a non-empty redo stack signals it (redoCleared:true + redoClearedWarning naming the depth): a fresh edit invalidates redo, so redo_document afterwards reports an empty stack. Example {\"sessionId\":\"sess_abc\",\"operations\":[{\"action\":\"replace\",\"target\":\"p_001\",\"text\":\"Hello\"}],\"sequential\":true} -> {\"ok\":true,\"appliedCount\":1,\"revision\":2}. On failure returns {ok:false,code,remedy} with a fix-and-retry hint. Image inserts take exactly one source: {action:\"image\",operation:\"insert\",anchor,fileData} for inline base64 bytes, or {action:\"image\",operation:\"insert\",anchor,filePath} for a file read from a directory jail (both together fail with E_VALIDATION). The jail resolves explicit allowedDir first, else the session anchor (dirname of the open document); outside-jail refs fail with E_SANDBOX, missing files with E_IO, oversize files with E_LIMIT; batch reads nothing otherwise. Callout themes (operations/callout.ts THEMES): indigo|emerald|amber|slate|rose (default indigo; unknown names render indigo). Optional styleGuide (bundled guide name or guide .md path, jailed like filePath: explicit allowedDir else the session anchor; remote URLs fail closed) overrides the session guide for this batch only; it never replaces or persists (to re-skin the session use compose_document with styleGuide). Omitted inherits the session guide. Guides cannot be detached: an empty styleGuide fails with E_VALIDATION; open a new session to work without a guide. Unknown names fail with E_VALIDATION naming the available set. Guide parse notes ride both server stderr and the client-visible warnings array. Layout operations: {action:\"section\",operation:\"setColumns\",columns,spacing,separator} (columns 1-12, spacing in twips, separator draws the dividing rule), {action:\"section\",operation:\"split\"|\"merge\",...}, and {action:\"pageSetup\",orientation:\"portrait\"|\"landscape\",paperSize:\"A4\"|\"Letter\"|\"Legal\"|\"A3\",marginTop,marginBottom,marginLeft,marginRight,columns,sectionIndex} (margins in twips and written as given, never rotated; orientation turns the page by swapping its width and height; sectionIndex counts sections from 1 and limits the change to one section, omit it to change every section). Section breaks: {action:\"insert\",type:\"sectionBreak\",anchor,position,breakType:\"nextPage\"|\"continuous\"|\"evenPage\"|\"oddPage\"|\"nextColumn\"}; the section before the break keeps the page setup and headers of the section it splits. Headers and footers: {action:\"headerFooter\",operation:\"set\",targetType:\"header\"|\"footer\",text,alignment,sectionIndex (from 1, default the first section)}; {PAGE} and {NUMPAGES} inside text become live page-number fields. Images: width and height are integers in EMU (914400 per inch, 12700 per point, 9525 per pixel at 96 dpi); give one and the other follows the image aspect ratio, give neither and the image keeps its own size fitted to the page. Tables created by insert type:\"table\" or by Markdown repeat their header row across pages by default. Equations: {action:\"equation\",operation:\"insert\"|\"replace\",latex,mode:\"auto\"|\"latex\"|\"plain\"}; LaTeX that contains a backslash, ^ or _ becomes a real Word equation, and mode:\"plain\" keeps the text exactly as written. IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected. ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices. ",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "operations": {
+        "minItems": 1,
+        "maxItems": 500,
+        "type": "array",
+        "items": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "insert"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "paragraph",
+                    "pageBreak",
+                    "sectionBreak",
+                    "table",
+                    "xml",
+                    "divider",
+                    "horizontalRule",
+                    "image",
+                    "chart"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "position": {
+                  "type": "string",
+                  "enum": [
+                    "before",
+                    "after"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 500000
+                },
+                "xml": {
+                  "type": "string",
+                  "maxLength": 500000
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "headers": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 10000
+                  }
+                },
+                "rows": {
+                  "maxItems": 1000,
+                  "type": "array",
+                  "items": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 10000
+                    }
+                  }
+                },
+                "cellPadding": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "top": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "left": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "bottom": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "right": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "thickness": {
+                  "type": "number"
+                },
+                "lineStyle": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "spacingBefore": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ],
+                  "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                },
+                "spacingAfter": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ],
+                  "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                },
+                "breakType": {
+                  "type": "string",
+                  "enum": [
+                    "nextPage",
+                    "nextColumn",
+                    "continuous",
+                    "evenPage",
+                    "oddPage"
+                  ]
+                },
+                "fileData": {
+                  "type": "string",
+                  "maxLength": 20000000
+                },
+                "width": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000000
+                },
+                "height": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000000
+                },
+                "widthEmu": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000000
+                },
+                "heightEmu": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000000
+                },
+                "chartType": {
+                  "type": "string",
+                  "enum": [
+                    "column",
+                    "bar",
+                    "line",
+                    "pie",
+                    "doughnut",
+                    "area",
+                    "scatter",
+                    "combo",
+                    "columnStacked",
+                    "barStacked",
+                    "columnPercentStacked",
+                    "barPercentStacked",
+                    "bar3D",
+                    "line3D",
+                    "pie3D",
+                    "column3D"
+                  ]
+                },
+                "holeSize": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 90
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "categories": {
+                  "maxItems": 1000,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "series": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "values": {
+                        "maxItems": 1000,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      },
+                      "color": {
+                        "type": "string",
+                        "maxLength": 16
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "values"
+                    ],
+                    "additionalProperties": {}
+                  }
+                },
+                "view3D": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "shape": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "wrapMode": {
+                  "type": "string",
+                  "enum": [
+                    "inline",
+                    "square",
+                    "tight",
+                    "through",
+                    "topAndBottom",
+                    "behindText",
+                    "inFrontOfText"
+                  ]
+                },
+                "captionText": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "captionPosition": {
+                  "type": "string",
+                  "enum": [
+                    "above",
+                    "below"
+                  ]
+                },
+                "keepTogether": {
+                  "type": "boolean"
+                },
+                "headerBold": {
+                  "type": "boolean"
+                },
+                "altText": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "trackChanges": {
+                  "type": "boolean"
+                },
+                "author": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                },
+                "target": {
+                  "type": "string",
+                  "enum": [
+                    "body",
+                    "header",
+                    "footer"
+                  ]
+                },
+                "pageType": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "first",
+                    "even"
+                  ]
+                },
+                "sectionIndex": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Section number, counting from 1 (1 is the first section)."
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "cellPadding": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "top": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "left": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "bottom": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "right": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "type"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "replace"
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 500000
+                },
+                "preserveFormatting": {
+                  "type": "boolean"
+                },
+                "trackChanges": {
+                  "type": "boolean"
+                },
+                "author": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                },
+                "fontSize": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "sz": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "target",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "delete"
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    {
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    }
+                  ]
+                },
+                "strict": {
+                  "type": "boolean"
+                },
+                "trackChanges": {
+                  "type": "boolean"
+                },
+                "author": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "target"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "style"
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    {
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    }
+                  ]
+                },
+                "properties": {
+                  "type": "object",
+                  "properties": {
+                    "bold": {
+                      "type": "boolean"
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "underline": {
+                      "type": "boolean"
+                    },
+                    "strikethrough": {
+                      "type": "boolean"
+                    },
+                    "doubleStrikethrough": {
+                      "type": "boolean"
+                    },
+                    "vertAlign": {
+                      "type": "string",
+                      "enum": [
+                        "superscript",
+                        "subscript",
+                        "baseline"
+                      ]
+                    },
+                    "alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "both",
+                        "justify"
+                      ]
+                    },
+                    "color": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "fontSize": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ]
+                    },
+                    "sz": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ]
+                    },
+                    "fontFamily": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "highlight": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "lineSpacing": {
+                      "type": "number"
+                    },
+                    "spacingBefore": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "spacingAfter": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "indentLeft": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "indentRight": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "indentFirstLine": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "indentHanging": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "match": {
+                      "description": "Word-level span: style only this literal substring (run splitting); an absent match fails with E_NOT_FOUND.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "matchAll": {
+                      "description": "Style every occurrence of match (default false: first occurrence only).",
+                      "type": "boolean"
+                    },
+                    "matchCase": {
+                      "description": "Case-sensitive match (default true: pass false for case-insensitive).",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "bold": {
+                      "type": "boolean"
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "underline": {
+                      "type": "boolean"
+                    },
+                    "strikethrough": {
+                      "type": "boolean"
+                    },
+                    "doubleStrikethrough": {
+                      "type": "boolean"
+                    },
+                    "vertAlign": {
+                      "type": "string",
+                      "enum": [
+                        "superscript",
+                        "subscript",
+                        "baseline"
+                      ]
+                    },
+                    "alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "both",
+                        "justify"
+                      ]
+                    },
+                    "color": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "fontSize": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ]
+                    },
+                    "sz": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ]
+                    },
+                    "fontFamily": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "highlight": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "lineSpacing": {
+                      "type": "number"
+                    },
+                    "spacingBefore": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "spacingAfter": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "indentLeft": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "indentRight": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "indentFirstLine": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "indentHanging": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                        }
+                      ],
+                      "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                    },
+                    "match": {
+                      "description": "Word-level span: style only this literal substring (run splitting); an absent match fails with E_NOT_FOUND.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "matchAll": {
+                      "description": "Style every occurrence of match (default false: first occurrence only).",
+                      "type": "boolean"
+                    },
+                    "matchCase": {
+                      "description": "Case-sensitive match (default true: pass false for case-insensitive).",
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "bold": {
+                  "type": "boolean"
+                },
+                "italic": {
+                  "type": "boolean"
+                },
+                "underline": {
+                  "type": "boolean"
+                },
+                "strikethrough": {
+                  "type": "boolean"
+                },
+                "doubleStrikethrough": {
+                  "type": "boolean"
+                },
+                "vertAlign": {
+                  "type": "string",
+                  "enum": [
+                    "superscript",
+                    "subscript",
+                    "baseline"
+                  ]
+                },
+                "alignment": {
+                  "type": "string",
+                  "enum": [
+                    "left",
+                    "center",
+                    "right",
+                    "both",
+                    "justify"
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "fontSize": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "sz": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "fontFamily": {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                "highlight": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "lineSpacing": {
+                  "type": "number"
+                },
+                "spacingBefore": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ],
+                  "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                },
+                "spacingAfter": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ],
+                  "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                },
+                "indentLeft": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ],
+                  "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                },
+                "indentRight": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ],
+                  "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                },
+                "indentFirstLine": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ],
+                  "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                },
+                "indentHanging": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ],
+                  "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
+                },
+                "match": {
+                  "description": "Word-level span: style only this literal substring (run splitting); an absent match fails with E_NOT_FOUND.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "matchAll": {
+                  "description": "Style every occurrence of match (default false: first occurrence only).",
+                  "type": "boolean"
+                },
+                "matchCase": {
+                  "description": "Case-sensitive match (default true: pass false for case-insensitive).",
+                  "type": "boolean"
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "target"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "clearFormat"
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    {
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    }
+                  ]
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "target"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "move"
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    {
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    }
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "position": {
+                  "type": "string",
+                  "enum": [
+                    "before",
+                    "after"
+                  ]
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "target",
+                "anchor",
+                "position"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "table"
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "tableId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "updateCell",
+                    "setCaption",
+                    "addRow",
+                    "deleteRow",
+                    "addColumn",
+                    "deleteColumn",
+                    "mergeCells",
+                    "splitCell",
+                    "setBorder",
+                    "setShading",
+                    "setColumnWidths",
+                    "setColumnWidth",
+                    "setHeaderRepeat",
+                    "setCantSplit",
+                    "setVerticalAlign",
+                    "setCellShading",
+                    "setRowHeight",
+                    "setCellAlignment",
+                    "setTableAlignment",
+                    "setCellPadding",
+                    "setCellTextColor",
+                    "setKeepTogether"
+                  ]
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "updateCell",
+                    "setCaption",
+                    "addRow",
+                    "deleteRow",
+                    "addColumn",
+                    "deleteColumn",
+                    "mergeCells",
+                    "splitCell",
+                    "setBorder",
+                    "setShading",
+                    "setColumnWidths",
+                    "setColumnWidth",
+                    "setHeaderRepeat",
+                    "setCantSplit",
+                    "setVerticalAlign",
+                    "setCellShading",
+                    "setRowHeight",
+                    "setCellAlignment",
+                    "setTableAlignment",
+                    "setCellPadding",
+                    "setCellTextColor",
+                    "setKeepTogether"
+                  ]
+                },
+                "trackChanges": {
+                  "type": "boolean"
+                },
+                "author": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "rowIndex": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Row number, counting from 1 (row 1 is the first row, usually the header)."
+                },
+                "colIndex": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Column number, counting from 1."
+                },
+                "row": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Alias of rowIndex (counting from 1)."
+                },
+                "col": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Alias of colIndex (counting from 1)."
+                },
+                "columnIndex": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Alias of colIndex (counting from 1)."
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 100000
+                },
+                "afterIndex": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "addRow: insert after this row number; addColumn: after this column number (counting from 1; default the last)."
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "deleteRow/deleteColumn: the row or column number to remove (counting from 1)."
+                },
+                "fill": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "headerFill": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "zebra": {
+                  "type": "boolean"
+                },
+                "textColor": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "widths": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "columnWidths": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "width": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "height": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "rule": {
+                  "type": "string",
+                  "enum": [
+                    "atLeast",
+                    "exact",
+                    "auto"
+                  ]
+                },
+                "border": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "sz": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "fontSize": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "vAlign": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "align": {
+                  "type": "string",
+                  "enum": [
+                    "left",
+                    "center",
+                    "right"
+                  ]
+                },
+                "alignment": {
+                  "type": "string",
+                  "enum": [
+                    "left",
+                    "center",
+                    "right"
+                  ]
+                },
+                "padding": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "top": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "left": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "bottom": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "right": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "fromRow": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "mergeCells: first row of the range (counting from 1)."
+                },
+                "fromCol": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "mergeCells: first column of the range (counting from 1)."
+                },
+                "toRow": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "mergeCells: last row of the range (counting from 1; default fromRow)."
+                },
+                "toCol": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "mergeCells: last column of the range (counting from 1; default fromCol)."
+                },
+                "captionText": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "captionPosition": {
+                  "type": "string",
+                  "enum": [
+                    "above",
+                    "below"
+                  ]
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "section"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "setColumns",
+                    "split",
+                    "merge"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "sectionIndex": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Section number, counting from 1 (1 is the first section)."
+                },
+                "columns": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12
+                },
+                "spacing": {
+                  "type": "number"
+                },
+                "separator": {
+                  "type": "boolean"
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "operation"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "pageSetup"
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "marginTop": {
+                      "type": "number"
+                    },
+                    "marginBottom": {
+                      "type": "number"
+                    },
+                    "marginLeft": {
+                      "type": "number"
+                    },
+                    "marginRight": {
+                      "type": "number"
+                    },
+                    "headerDistance": {
+                      "type": "number"
+                    },
+                    "footerDistance": {
+                      "type": "number"
+                    },
+                    "orientation": {
+                      "type": "string",
+                      "enum": [
+                        "portrait",
+                        "landscape"
+                      ]
+                    },
+                    "paperSize": {
+                      "type": "string",
+                      "enum": [
+                        "A4",
+                        "Letter",
+                        "Legal",
+                        "A3"
+                      ]
+                    },
+                    "columns": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 12
+                    },
+                    "sectionIndex": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "description": "Section number, counting from 1 (1 is the first section)."
+                    }
+                  },
+                  "additionalProperties": {}
+                },
+                "marginTop": {
+                  "type": "number"
+                },
+                "marginBottom": {
+                  "type": "number"
+                },
+                "marginLeft": {
+                  "type": "number"
+                },
+                "marginRight": {
+                  "type": "number"
+                },
+                "headerDistance": {
+                  "type": "number"
+                },
+                "footerDistance": {
+                  "type": "number"
+                },
+                "orientation": {
+                  "type": "string",
+                  "enum": [
+                    "portrait",
+                    "landscape"
+                  ]
+                },
+                "paperSize": {
+                  "type": "string",
+                  "enum": [
+                    "A4",
+                    "Letter",
+                    "Legal",
+                    "A3"
+                  ]
+                },
+                "columns": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12
+                },
+                "sectionIndex": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Section number, counting from 1 (1 is the first section)."
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "namedStyle"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "apply"
+                  ]
+                },
+                "styleName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    {
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    }
+                  ]
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "operation",
+                "styleName"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "field"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insertTOC",
+                    "insertPageNumber",
+                    "insertWordCount",
+                    "updateFields"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "position": {
+                  "type": "string",
+                  "enum": [
+                    "before",
+                    "after"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "levels": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9
+                },
+                "target": {
+                  "type": "string",
+                  "enum": [
+                    "body",
+                    "header",
+                    "footer"
+                  ]
+                },
+                "pageType": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "first",
+                    "even"
+                  ]
+                },
+                "sectionIndex": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Section number, counting from 1 (1 is the first section)."
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "operation"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "equation"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insert",
+                    "replace"
+                  ]
+                },
+                "latex": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50000
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "position": {
+                  "type": "string",
+                  "enum": [
+                    "before",
+                    "after"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "latex",
+                    "plain"
+                  ]
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "operation",
+                "latex"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "list"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "create",
+                    "continue",
+                    "changeLevel",
+                    "remove"
+                  ]
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    {
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    }
+                  ]
+                },
+                "listType": {
+                  "type": "string",
+                  "enum": [
+                    "bullet",
+                    "numbered"
+                  ]
+                },
+                "previousNodeId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "level": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9,
+                  "description": "List level, counting from 1 (1 is the top level, up to 9). changeLevel also takes 0 to take the paragraph out of the list."
+                },
+                "delta": {
+                  "type": "integer",
+                  "minimum": -9,
+                  "maximum": 9,
+                  "description": "changeLevel: move this many levels deeper (positive) or shallower (negative); below level 1 leaves the list."
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "operation",
+                "target"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "headerFooter"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "set",
+                    "remove"
+                  ]
+                },
+                "targetType": {
+                  "type": "string",
+                  "enum": [
+                    "header",
+                    "footer"
+                  ]
+                },
+                "pageType": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "first",
+                    "even"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 50000
+                },
+                "xmlContent": {
+                  "type": "string",
+                  "maxLength": 500000
+                },
+                "sectionIndex": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Section number, counting from 1 (1 is the first section)."
+                },
+                "alignment": {
+                  "type": "string",
+                  "enum": [
+                    "left",
+                    "center",
+                    "right"
+                  ]
+                },
+                "numberFormat": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "operation",
+                "targetType"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "chart"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insert",
+                    "update",
+                    "updateView3D"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "chartType": {
+                  "type": "string",
+                  "enum": [
+                    "column",
+                    "bar",
+                    "line",
+                    "pie",
+                    "doughnut",
+                    "area",
+                    "scatter",
+                    "combo",
+                    "columnStacked",
+                    "barStacked",
+                    "columnPercentStacked",
+                    "barPercentStacked",
+                    "bar3D",
+                    "line3D",
+                    "pie3D",
+                    "column3D"
+                  ]
+                },
+                "holeSize": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 90
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "view3D": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "shape": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "categories": {
+                  "maxItems": 1000,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "series": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "values": {
+                        "maxItems": 1000,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      },
+                      "color": {
+                        "type": "string",
+                        "maxLength": 16
+                      },
+                      "chartType": {
+                        "type": "string",
+                        "enum": [
+                          "column",
+                          "line"
+                        ]
+                      },
+                      "axis": {
+                        "type": "string",
+                        "enum": [
+                          "primary",
+                          "secondary"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "values"
+                    ],
+                    "additionalProperties": {}
+                  }
+                },
+                "style": {
+                  "type": "object",
+                  "properties": {
+                    "legend": {
+                      "type": "object",
+                      "properties": {
+                        "position": {
+                          "type": "string",
+                          "enum": [
+                            "b",
+                            "t",
+                            "l",
+                            "r",
+                            "tr",
+                            "none"
+                          ]
+                        },
+                        "overlay": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "dataLabels": {
+                      "type": "object",
+                      "properties": {
+                        "show": {
+                          "type": "boolean"
+                        },
+                        "position": {
+                          "type": "string",
+                          "enum": [
+                            "ctr",
+                            "inBase",
+                            "inEnd",
+                            "outEnd",
+                            "bestFit",
+                            "b",
+                            "t",
+                            "l",
+                            "r"
+                          ]
+                        },
+                        "numberFormat": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "showValue": {
+                          "type": "boolean"
+                        },
+                        "showCategoryName": {
+                          "type": "boolean"
+                        },
+                        "showSeriesName": {
+                          "type": "boolean"
+                        },
+                        "showPercent": {
+                          "type": "boolean"
+                        },
+                        "showLegendKey": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "axes": {
+                      "type": "object",
+                      "properties": {
+                        "category": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "hidden": {
+                              "type": "boolean"
+                            },
+                            "tickLabelPosition": {
+                              "type": "string",
+                              "enum": [
+                                "nextTo",
+                                "high",
+                                "low",
+                                "none"
+                              ]
+                            },
+                            "majorGridlines": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "value": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "hidden": {
+                              "type": "boolean"
+                            },
+                            "min": {
+                              "type": "number"
+                            },
+                            "max": {
+                              "type": "number"
+                            },
+                            "numberFormat": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "majorGridlines": {
+                              "type": "boolean"
+                            },
+                            "tickLabelPosition": {
+                              "type": "string",
+                              "enum": [
+                                "nextTo",
+                                "high",
+                                "low",
+                                "none"
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "trendline": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "linear",
+                            "exponential",
+                            "logarithmic",
+                            "movingAvg",
+                            "polynomial",
+                            "power",
+                            "none"
+                          ]
+                        },
+                        "series": {
+                          "minItems": 1,
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "description": "Series number, counting from 1 in the order the series appear"
+                          }
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 2,
+                          "maximum": 6
+                        },
+                        "period": {
+                          "type": "integer",
+                          "minimum": 2,
+                          "maximum": 255
+                        },
+                        "displayEquation": {
+                          "type": "boolean"
+                        },
+                        "displayRSquared": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "floating": {
+                      "type": "object",
+                      "properties": {
+                        "horizontalAlign": {
+                          "type": "string",
+                          "enum": [
+                            "left",
+                            "center",
+                            "right"
+                          ]
+                        },
+                        "verticalAlign": {
+                          "type": "string",
+                          "enum": [
+                            "top",
+                            "middle",
+                            "bottom"
+                          ]
+                        },
+                        "behindText": {
+                          "type": "boolean"
+                        },
+                        "wrap": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "square"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "widthEmu": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000000
+                },
+                "heightEmu": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000000
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "image"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insert",
+                    "resize",
+                    "reposition",
+                    "setWrap",
+                    "setCaption",
+                    "delete",
+                    "setAltText"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "fileData": {
+                  "type": "string",
+                  "maxLength": 20000000
+                },
+                "filePath": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "width": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000000
+                },
+                "height": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 100000000
+                },
+                "wrapMode": {
+                  "type": "string",
+                  "enum": [
+                    "inline",
+                    "square",
+                    "tight",
+                    "through",
+                    "topAndBottom",
+                    "behindText",
+                    "inFrontOfText"
+                  ]
+                },
+                "captionText": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "altText": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "operation"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "callout"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100000
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "theme": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "position": {
+                  "type": "string",
+                  "enum": [
+                    "before",
+                    "after"
+                  ]
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "footnote"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insert"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50000
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "anchor",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "endnote"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insert"
+                  ]
+                },
+                "anchor": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50000
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "anchor",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "watermark"
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "fontSize": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 500
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "sz": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 500
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "opacity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "rotation": {
+                  "type": "number"
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "pageBorder"
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "sz": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "fontSize": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+                    }
+                  ]
+                },
+                "color": {
+                  "type": "string",
+                  "maxLength": 16
+                },
+                "marginOffset": {
+                  "type": "string",
+                  "enum": [
+                    "page",
+                    "text"
+                  ]
+                },
+                "sectionIndex": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Section number, counting from 1 (1 is the first section)."
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "coverPage"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "template": {
+                  "type": "string",
+                  "enum": [
+                    "modern_minimalist",
+                    "corporate_navy",
+                    "academic",
+                    "executive"
+                  ]
+                },
+                "subtitle": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "author": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "organization": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "org": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "date": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "topSpacingBefore": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "dividerSpacingAfter": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "metaSpacingAfter": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "params": {
+                  "type": "object",
+                  "properties": {
+                    "topSpacingBefore": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "dividerSpacingAfter": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "metaSpacingAfter": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "action",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "hyperlink"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insert"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "bookmarkName": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "target"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "bookmark"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insert"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "bookmarkName": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "target"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "comment"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "insert",
+                    "reply"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50000
+                },
+                "author": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "operation",
+                "target",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "trackedChange"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "acceptAll",
+                    "rejectAll",
+                    "insert",
+                    "delete"
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string"
+                },
+                "author": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "action",
+                "operation"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "const": "metadata"
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "setProperties"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "creator": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "subject": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "keywords": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "category": {
+                  "type": "string",
+                  "maxLength": 5000
+                }
+              },
+              "required": [
+                "action",
+                "operation"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "sequential": {
+        "type": "boolean"
+      },
+      "rollbackOnError": {
+        "type": "boolean"
+      },
+      "maxSteps": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 9007199254740991
+      },
+      "allowedDir": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      },
+      "styleGuide": {
+        "type": "string",
+        "maxLength": 1024
+      }
+    },
+    "required": [
+      "sessionId",
+      "operations"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

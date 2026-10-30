@@ -1,0 +1,13 @@
+{
+  "fixture": "para-mirror-indent",
+  "family": "paragraph-flow",
+  "motivatingPathology": "Bound books mirror their margins: a paragraph with symmetric left and right indents plus mirror-indents, so inside and outside margins swap on facing pages, together with suppress-overlap to keep floating objects clear. Mirror indents change which edge the indent measures from, so dropping the flag unmirrors the page. The engine must carry the indent pair and both flags in schema order through the round trip without flattening the mirror.",
+  "knownLimitations": "One paragraph exercises the flags; multi-paragraph mirrored spreads are not covered. Indents use symmetric twip values; asymmetric mirrored pairs are not exercised. Suppression of line numbers is excluded per FID-002 in ../../../../scratch/FIDELITY_FINDINGS.md. Interaction with gutter-measured margins lives in the section fixtures only as an attribute.",
+  "scopeExclusions": "This fixture does not exercise justification, borders, tabs, or keep controls; those live in sibling fixtures. Floating-object placement itself is covered by the table-float and drawing fixtures, not here. Rendered mirrored pages are never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Mirror indents reinterpret the indent pair against page parity, and suppress-overlap constrains floating layout around the paragraph. All three siblings must appear in schema order inside pPr, and a writer that drops flags it never lays out unmirrors the spread. The values are small but positional: order decides legality, presence decides geometry.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Mirrored indents with overlap suppression are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "footnote-pair",
+  "family": "document-parts",
+  "motivatingPathology": "Scholarly copy cites twice: body text carrying two footnote reference marks tied to a footnotes part holding separator, continuation-separator, and two gloss notes. The reference marks pair with note ids across parts through relationships, and the separators are required structural notes. The engine must carry both marks, all four notes with their paragraphs, and the part relationship through the round trip without renumbering ids or dropping the separators.",
+  "knownLimitations": "Two notes exercise the pairing; footnote numbering formats and custom marks are not covered. Continuation notices beyond the separator are absent. Endnotes live in the sibling fixture. Whether note numbers render in order is never asserted. Note content with complex markup is out of scope.",
+  "scopeExclusions": "This fixture does not exercise endnotes, comments, headers, footers, or styles; those live in sibling fixtures. Citation fields pointing at notes are not covered. Rendered footnote placement at page bottoms is never measured; only markup and part preservation plus schema validity are.",
+  "ecma376Difficulty": "Footnotes split across two parts joined by id: reference marks in the body name note ids realized in the footnotes part, which must also carry the two structural separator notes. A writer that keeps the body while dropping the part orphans every mark, and one that renumbers ids severs the pairing. Marks, notes, separators, and the relationship must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Paired footnotes with separators are Word-legal and safe, so the engine preserves marks and notes: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

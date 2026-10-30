@@ -1,0 +1,13 @@
+{
+  "fixture": "nested-merge-combo",
+  "family": "nested-tables",
+  "motivatingPathology": "Complex layouts nest merges inside spans: an outer table with a wide spanning cell holding a full inner table that itself carries a vertical merge beside a side cell. Nesting multiplies the accounting because the inner grid, the inner merge markers, and the outer span must all agree at once. The engine must carry the outer span, the inner table boundaries, and the inner merge pair through the round trip without flattening a level or dropping the inner continuation.",
+  "knownLimitations": "One nesting level with one inner merge exercises the combo; two-deep nesting with merges at both levels is not covered. The inner merge continuation stays empty as Word writes it. Outer merges combined with inner tables beyond the span are out of scope. Merges straddling page breaks remain uncovered.",
+  "scopeExclusions": "This fixture does not exercise repeating headers, floating tables, or revision markup inside cells; those live in sibling fixtures. Standalone merges and standalone nesting are covered by neighboring fixtures, not here. Rendered nested geometry is never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Nesting puts a complete table with its own grid and merge markers inside a cell of another table, so two independent accounting systems must survive one serialization pass. A writer that flattens nested tables, or that drops empty continuation cells while re-emitting rows, breaks the inner merge while the outer span still validates. Both levels must round-trip byte-exact.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Nested tables combined with inner merges are Word-legal and safe, so the engine preserves both levels: the table node checksums are identical after the round trip and the package validates clean."
+  }
+}

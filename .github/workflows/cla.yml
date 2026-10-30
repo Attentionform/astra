@@ -1,0 +1,40 @@
+name: CLA
+run-name: CLA pull request #${{ github.event.pull_request.number }}
+
+# Checks that everyone who wrote commits in a pull request has signed the
+# contributor license agreement, by a signature file in cla/signatures/ (see
+# CLA.md and CONTRIBUTING.md, rule 4). pull_request_target runs with a token
+# that exists even for forks, so this workflow NEVER checks out or runs the pull
+# request's code: it runs the scripts from the default branch and reads the pull
+# request through the API. It cannot write to the repository (contents: read).
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write   # post and update the one explanatory comment
+  statuses: write        # set the "cla" status on the head commit
+
+concurrency:
+  group: cla-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  cla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the default branch (never the pull request)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Run the CLA check
+        run: npx --yes tsx@4.23.15 scripts/cla/run.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}

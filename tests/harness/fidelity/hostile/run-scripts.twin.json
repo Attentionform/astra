@@ -1,0 +1,7 @@
+{
+  "family": "run-scripts",
+  "twin": "run-scripts.twin",
+  "base": "run-super-sub",
+  "corruption": "w:vertAlign loses its required w:val attribute (schema violation, same run shape).",
+  "expectedRefusal": "validate"
+}

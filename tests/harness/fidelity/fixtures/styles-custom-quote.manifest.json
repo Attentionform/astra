@@ -1,0 +1,13 @@
+{
+  "fixture": "styles-custom-quote",
+  "family": "document-parts",
+  "motivatingPathology": "Templates define quote styling once: a styles part with document defaults for fonts and spacing, two latent style exceptions, and a custom Quoteblock paragraph style with spacing, indent, italic, and gray color, consumed by a body paragraph referencing it. The style definition lives apart from its use, so dropping the part unstyles the paragraph. The engine must carry the defaults, the latent exceptions, the full style definition, and the style reference through the round trip without resolving or inlining the style.",
+  "knownLimitations": "One custom style exercises the part; character and table styles are not covered. Latent exceptions appear twice; full latent catalogs are out of scope. Style inheritance chains beyond one based-on link are not exercised. Whether the quote renders in gray italic is never asserted.",
+  "scopeExclusions": "This fixture does not exercise footnotes, endnotes, comments, headers, or footers; those live in sibling fixtures. Direct formatting on runs is covered by the run-typography fixtures, not here. Rendered style application is never compared; only part preservation and schema validity are.",
+  "ecma376Difficulty": "Styles are a separate package part with its own content model: defaults, latent exceptions, and named definitions each with property children in schema order. The semantic check compares the part as a tree, ignoring serialization whitespace, while the style reference in the body must survive exactly. A writer that drops parts it never models would unstyle the document while the body still validates.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Custom styles with defaults are Word-legal and safe, so the engine preserves part and reference: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "header-footer-basic",
+  "family": "document-parts",
+  "motivatingPathology": "Reports frame pages: a centered running-head header part and a footer part with a live PAGE field, each joined through relationships without any section reference in this minimal shape. Headers and footers are separate parts whose content must survive even though the body mutation never touches them. The engine must carry both parts with the centered alignment and the page field through the round trip without dropping a part or unwrapping the field.",
+  "knownLimitations": "One header plus one footer exercise the parts; first-page, odd, and even variants with title-page flags are not covered. Section references binding parts to sections are absent in this minimal shape. Multiple headers per document are out of scope. Rendered running heads are never compared.",
+  "scopeExclusions": "This fixture does not exercise footnotes, endnotes, comments, or styles; those live in sibling fixtures. Section properties that select header variants are covered by the section-layout fixtures, not here. Rendered header and footer placement is never measured; only part preservation and schema validity are.",
+  "ecma376Difficulty": "Headers and footers are full document parts with their own content types and relationships, compared as semantic trees while the body mutates. A writer that rewrites only the body part and drops the rest would validate the body while losing the frame. Both parts, the alignment, the field, and both relationships must round-trip untouched.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Header and footer parts with a live field are Word-legal and safe, so the engine preserves both: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

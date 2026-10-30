@@ -1,0 +1,13 @@
+{
+  "fixture": "run-vanish-hidden",
+  "family": "run-typography",
+  "motivatingPathology": "Drafts hide annotation copy two ways: a vanished run that prints only when hidden text is shown, and a web-hidden run that appears only in web layout. Both stay in the file and in the text flow; a writer that strips invisible runs destroys content while claiming to preserve it. The engine must carry both hidden runs with their flags through ingest, mutation of nearby sentences, and rezip without deleting the invisible text or promoting it to visible.",
+  "knownLimitations": "Two hidden runs exercise the flags; hidden text combined with revision markup is not covered. Vanish with complex-script and web-hidden with display toggles are absent. Whether hidden runs participate in spellcheck or word count is never asserted. Print versus web rendering is out of scope.",
+  "scopeExclusions": "This fixture does not exercise visible emphasis, colors, fonts, or alignment; those live in sibling fixtures. Hidden paragraph marks and hidden table content are not covered. Rendered visibility in any layout is never asserted; only markup and text preservation plus schema validity are.",
+  "ecma376Difficulty": "Hidden-text flags are presence-only markers inside rPr that change visibility without changing the character stream, and the text they cover must survive exactly like visible text. A sanitizer-shaped writer is tempted to delete what readers hide, which is precisely the data loss this fixture guards against. Both flags and both text runs must round-trip byte-exact.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Vanished and web-hidden runs are Word-legal and safe, so the engine preserves flags and text: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

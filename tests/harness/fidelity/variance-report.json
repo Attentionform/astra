@@ -1,0 +1,41 @@
+{
+  "generatedAt": "2026-10-10",
+  "renderer": "LibreOffice 25.2.7.2 520(Build:2)",
+  "method": "Identical input bytes converted repeatedly (soffice headless docx to pdf, one shared isolated profile per worker); each PDF projected to page count (pdfinfo), layout text (pdftotext -layout), and 36 dpi grayscale rasters (pdftoppm -gray); self-variance is the largest mean absolute pixel difference over all run pairs (see render-similarity.ts). One fixture per shape class: running prose, table grid, numbering part.",
+  "threshold": 0.005,
+  "requiredConsecutiveCampaigns": 3,
+  "campaigns": [
+    {
+      "id": 1,
+      "date": "2026-10-10",
+      "runsPerInput": 6,
+      "inputs": [
+        {
+          "fixture": "gallery-coffee-onepager",
+          "maxSelfVariance": 0,
+          "pagesStable": true,
+          "textStable": true
+        },
+        {
+          "fixture": "merged-cells-basic",
+          "maxSelfVariance": 0,
+          "pagesStable": true,
+          "textStable": true
+        },
+        {
+          "fixture": "numbering-restart",
+          "maxSelfVariance": 0,
+          "pagesStable": true,
+          "textStable": true
+        }
+      ],
+      "maxSelfVariance": 0
+    }
+  ],
+  "openCrashers": [
+    "endnote-single",
+    "gallery-footnotes-endnotes"
+  ],
+  "verdict": "do-not-promote",
+  "reason": "Campaign 1 of 3 shows zero self-variance on convertible inputs, but promotion needs three consecutive campaigns under budget and currently fails the converter-coverage leg: the exporter crashes on 2 of 71 corpus fixtures (endnote-single, gallery-footnotes-endnotes; see the findings log), so a hard gate would red on renderer behavior, not engine behavior. Re-run two more campaigns on later dates; promote only if all three stay under budget with no open crashers."
+}

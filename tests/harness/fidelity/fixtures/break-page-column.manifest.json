@@ -1,0 +1,13 @@
+{
+  "fixture": "break-page-column",
+  "family": "breaks-symbols",
+  "motivatingPathology": "Manual breaks force layout: a hard page break ending one paragraph and a column break ending the next, each as a typed break element inside its own run. Typed breaks paginate without adding paragraphs, so converting a page break into a paragraph mark changes the document structure. The engine must carry both break types through ingest, mutation of nearby sentences, and rezip without converting breaks to paragraphs or swapping their types.",
+  "knownLimitations": "Two break types appear once each; text-wrapping breaks with clear attributes live in the sibling fixture. One paragraph per break type is the whole shape; consecutive breaks are not exercised. Last-rendered page breaks and multi-column interaction are not covered. Breaks inside table cells are absent. Rendered pagination is never asserted.",
+  "scopeExclusions": "This fixture does not exercise line breaks, hyphenation controls, tab characters, or symbol characters; those live in sibling fixtures. Section breaks that change page geometry are covered by the section-layout fixtures, not here. Rendered page and column breaks are never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Breaks are typed empty elements whose type attribute decides geometry: page, column, or text-wrapping with clearing. A writer that drops the type keeps a break that does the wrong thing, and one that expands breaks into empty paragraphs changes node counts. The type attribute must round-trip exactly or pagination silently changes.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Typed page and column breaks are Word-legal and safe, so the engine preserves both types: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

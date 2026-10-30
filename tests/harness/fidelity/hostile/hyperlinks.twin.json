@@ -1,0 +1,7 @@
+{
+  "family": "hyperlinks",
+  "twin": "hyperlinks.twin",
+  "base": "hyperlink-external",
+  "corruption": "w:hyperlink points at a dangling r:id with no matching relationship (same link shape, broken reference).",
+  "expectedRefusal": "validate"
+}

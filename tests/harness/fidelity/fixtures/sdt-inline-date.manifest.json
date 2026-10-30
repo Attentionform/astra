@@ -1,0 +1,13 @@
+{
+  "fixture": "sdt-inline-date",
+  "family": "content-controls",
+  "motivatingPathology": "Agreements stamp signing dates inline: a run-level control inside flowing text with an alias, a tag, and a full date block carrying display format, locale, storage mode, and calendar, wrapping a rendered date run. The date properties decide how the value edits and stores, while the surrounding runs flow around it. The engine must carry the inline wrapper with all five date properties plus the cached run through the round trip without unwrapping the control into plain text.",
+  "knownLimitations": "One inline date control exercises the shape; inline dropdowns and combo boxes are not covered beyond the block-level sibling. Calendars beyond Gregorian are absent. Date storage mapping to custom XML is not exercised. Whether the cached date matches the stored value is never asserted.",
+  "scopeExclusions": "This fixture does not exercise block controls, complex date fields, or revision markup; those live in sibling fixtures. Block-level nesting of inline controls is covered by the nested fixture, not here. Rendered date pickers are never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Inline controls interleave with runs inside a paragraph: the control element sits between text runs carrying a property set whose date children each constrain editing or storage. A writer that keeps the cached run while dropping the wrapper freezes the date, and one that cannot place controls between runs breaks the paragraph. Wrapper, properties, and position must all round-trip.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Inline date content controls are Word-legal and safe, so the engine preserves wrapper, properties, and text: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

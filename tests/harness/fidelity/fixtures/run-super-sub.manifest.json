@@ -1,0 +1,13 @@
+{
+  "fixture": "run-super-sub",
+  "family": "run-scripts",
+  "motivatingPathology": "Technical copy mixes scripts and micro-spacing: subscript two in a formula, superscript two on a variable, and a raised run with eight points of kerning plus expanded spacing. Vertical alignment changes the baseline per run, while position, kern, and spacing tune glyph placement in twips and twentieths of points. The engine must carry the alignment pair and the spacing triple in schema order through the round trip without flattening scripts to baseline or rounding the kerning.",
+  "knownLimitations": "One paragraph exercises the stack; nested super and subscript combinations in one run are not covered. Position, kern, and spacing appear at one value each; ranges are not exercised. East Asian layout siblings are absent. Rendered baseline shifts are never measured.",
+  "scopeExclusions": "This fixture does not exercise fonts, colors, emphasis, or language tagging; those live in sibling fixtures. Equation objects with native math markup are covered by the math fixtures, not here. Rendered glyph placement is never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Script and spacing properties serialize in schema order inside rPr with spacing before kern before position and vertical alignment near the tail. A writer that emits position first, or that drops kerning it never renders, keeps the characters while flattening the formula. The subscript and superscript values must survive exactly or H2O becomes H20.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Super and subscript alignment with micro-spacing is Word-legal and safe, so the engine preserves every value: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "family": "bookmarks-fields",
+  "twin": "bookmarks-fields.twin",
+  "base": "bookmark-pair",
+  "corruption": "w:bookmarkStart loses its required w:name attribute (schema violation, same range shape).",
+  "expectedRefusal": "validate"
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "para-spacing-indent",
+  "family": "paragraph-layout",
+  "motivatingPathology": "Long-form reports tune paragraph rhythm: exact line spacing of three-sixty twips with before and after gaps of two-forty, a first-line indent with asymmetric left and right indents, and a hanging-indent follow-on paragraph. Spacing and indentation interact with justification to decide line breaks, so normalizing any value reflows the page. The engine must carry the spacing triple, both indent shapes, and their schema order through the round trip without rounding a twip.",
+  "knownLimitations": "Two paragraphs exercise the shapes; multi-paragraph rhythm with contextual spacing lives in a sibling fixture. Indents use twips with character-unit variants absent, so those are out of scope. Line rules beyond exact and auto are not covered. Interaction with numbering indents and table cell margins is not exercised.",
+  "scopeExclusions": "This fixture does not exercise justification variants, borders, shading, tabs, or flow controls; those live in sibling fixtures. Run-level spacing and positioning ride along in the run-scripts fixture, not here. Rendered line breaks are not asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Paragraph spacing and indentation are attribute bundles whose siblings must appear in schema order: spacing before ind inside pPr, with lineRule changing the meaning of the line value. A writer that emits ind first, or that drops lineRule while keeping the number, produces valid-looking XML that paginates differently. The difficulty is carrying six numbers and two rules exactly, in order, without interpreting them.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Paragraph spacing and indentation are Word-legal and safe, so the engine preserves every value: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

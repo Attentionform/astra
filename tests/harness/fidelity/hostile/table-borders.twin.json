@@ -1,0 +1,7 @@
+{
+  "family": "table-borders",
+  "twin": "table-borders.twin",
+  "base": "tbl-borders-shading",
+  "corruption": "w:top inside w:tblBorders loses its required w:val attribute (schema violation, same border shape).",
+  "expectedRefusal": "validate"
+}

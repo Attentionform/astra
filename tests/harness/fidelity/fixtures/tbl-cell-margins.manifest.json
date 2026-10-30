@@ -1,0 +1,13 @@
+{
+  "fixture": "tbl-cell-margins",
+  "family": "table-borders",
+  "motivatingPathology": "Government forms and legal schedules tune whitespace per cell: a table-wide default margin of sixty by one-twenty twips, cell spacing of twenty twips between cells, and one cell overriding its top and left margins to two hundred twips. Readers add the table default, the spacing, and the cell override together, so dropping any layer reflows the text. The engine must carry the default margins, the spacing element, and the cell override through the round trip without collapsing them into one value or losing the override.",
+  "knownLimitations": "One two-cell table exercises the layering; multi-row forms with mixed overrides per row are not covered. Margins use dxa units only; percentage and auto margin types are not exercised. Cell spacing appears once at the table level, so spacing combined with floating tables is out of scope. Only top and left overrides appear on the cell, so right and bottom overrides are not covered here.",
+  "scopeExclusions": "This fixture does not exercise borders, shading, banded looks, or floats; those live in sibling fixtures of the same family. Nested tables with their own margins, revision markup inside margined cells, and vertical alignment are covered elsewhere or not at all. Rendered whitespace measurement is not asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Cell margins compose from three levels: tblCellMar defaults, tblCellSpacing gaps, and tcMar overrides, each with width and type attributes that must stay paired. The schema fixes the order of these siblings inside tblPr, and a writer that emits them out of order produces a file Word repairs on open. Any writer that merges the override into the default, or that drops spacing it never modeled, changes pagination without changing a single character.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Layered cell margins and spacing are Word-legal and safe, so the engine preserves every layer: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

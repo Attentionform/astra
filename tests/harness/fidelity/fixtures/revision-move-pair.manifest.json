@@ -1,0 +1,13 @@
+{
+  "fixture": "revision-move-pair",
+  "family": "tracked-revisions",
+  "motivatingPathology": "Editors relocate clauses with move tracking: a move-from range holding deleted text leaving its source, stable middle copy, and a move-to range holding the arriving clause, each with author and timestamp. Move markup pairs source and destination ranges by author intent rather than by id, unlike bookmarks. The engine must carry both move ranges with their authors and dates plus the untouched middle through the round trip without converting the move into plain insert-delete text.",
+  "knownLimitations": "One move pair exercises the shape; move ranges spanning paragraphs or tables are not covered. Move-source location metadata beyond author and date is absent. Accept and reject semantics for moves are not asserted. Interaction of moves with nested insertions inside the moved range is out of scope.",
+  "scopeExclusions": "This fixture does not exercise insertions, deletions, cell revisions, or property-level revision markup; those live in sibling fixtures. Cut-and-paste without tracking is ordinary text and needs no fixture. Rendered move indicators are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Move tracking wraps runs in range elements whose meaning depends on author and date attributes matching across the from-to pair, with deleted text inside move-from and inserted text inside move-to. A writer that strips range wrappers while keeping text converts a tracked move into silent rewriting. Both ranges with metadata and the stable middle must round-trip untouched.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Move-source and move-destination ranges are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

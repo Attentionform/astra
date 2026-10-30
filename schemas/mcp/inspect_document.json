@@ -1,0 +1,63 @@
+{
+  "name": "inspect_document",
+  "description": "Inspect a session: standard TOON outline (fidelity compact|standard|full, default standard) plus style palette passthrough {availableStyles,brandColors,primaryFont} parsed from word/styles.xml, plus document core properties `metadata` {title,creator,subject,description,keywords,category,lastModifiedBy,revision,created,modified} read from docProps/core.xml (absent when the docx has no core part). Renders the in-memory session state (includes unsaved execute_batch edits); `dirty:true` means the session differs from the last saved file, `revision` is the in-memory revision. Node ids are verbatim: paragraphs carry 8-hex w14:paraId (e.g. 3F2A9C1B), tables t_001.., sections sec_root, sec_2, sec_3.. by position; use them as-is for targets/anchors. A repeat paragraph sharing one native paraId reports a `<paraId>_dup` session id instead (e.g. 3F2A9C1B_dup): saving refuses until the repeat is deleted and its text reinserted for a fresh id. Tables render one row per table with grid cells as rNcM coordinates (r1c1 value | r1c2 value, rows joined by ;); merged spans are marked (spanN); merge covers are tagged hidden-cover (not directly editable, address the restart cell). Cell edits: the replace, style, namedStyle, clearFormat, hyperlink, bookmark and comment actions accept target \"<tableId>:r<row>c<col>\" (1-based, as the grid prints it; add \":p<n>\" to pick one paragraph of a multi-paragraph cell). Other actions, including table, take the table id. Every row and column number counts from 1 (cell addresses, rowIndex, colIndex, columnIndex, row, col, index, afterIndex, fromRow/toRow/fromCol/toCol), so r3c2 and {rowIndex:3,colIndex:2} are the same cell. Chart nodes render style chart|chart3d with title + categories + series in the text ([Chart column] Title | cats: Q1,Q2 | ARR: 10,25), read from the chart part. Flag legend: [TBL] table [IMG] image/drawing [EQ] equation [CITE] citation [CMT] comment [TRK] tracked [LNK] link [BKMK] bookmark [L#] list level (1 is the top level; list ops count the same way) [+ADDED]/[~MODIFIED] diff; standard tier adds [B] bold [I] italic [C:hex] color [SZ:half-points] size [RS:name] run style [J:just] [N:num] numbering [HDR]/[ZEBRA] table look [CH:type]/[RID:id] chart. Palette lists every style id verbatim with no trim (large templates return the full list). 3-tier workflow for large docs: (1) macro-overview inspect (compact, first window) -> (2) search_content to find a target node id -> (3) local zoom via {aroundNode:\"<id>\",window:5} or page with {offset,limit}. Windowing opts: offset (min 0, default 0), limit (1-200, default 50), aroundNode + window (1-20, default 5) returning [node-w,node+w], maxTokens (200-8000, cuts on a clean row boundary, always reported via truncated/hasMore). aroundNode and offset/limit are mutually exclusive (use one or the other). Windowed renders preserve the requested tier; the TOON fidelity marker stays lossy by design (TOON is a lossy projection). Docs under ~2000 tokens return the full TOON (unchanged); larger docs default to the first ~50-node window {totalNodes,returnedNodes,offset,limit,hasMore,nextOffset,toonText} with a navigation remedy. Full fidelity requires sectionId; full-fidelity errors name the available section ids. Example {\"sessionId\":\"sess_abc\",\"fidelity\":\"standard\"} -> TOON text + palette. Use the palette style names verbatim (e.g. Corporate Callout); never invent styles. When the session carries a style guide, the envelope also includes its compact styleGuide summary {name,headerFill,headerText,chartPalette,calloutTheme}. IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected. ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices. ",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "fidelity": {
+        "type": "string",
+        "enum": [
+          "compact",
+          "standard",
+          "full"
+        ]
+      },
+      "sectionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxTextLength": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000
+      },
+      "offset": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      },
+      "limit": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 200
+      },
+      "aroundNode": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "window": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 20
+      },
+      "maxTokens": {
+        "type": "integer",
+        "minimum": 200,
+        "maximum": 8000
+      }
+    },
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

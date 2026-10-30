@@ -1,0 +1,13 @@
+{
+  "fixture": "math-sup-nary",
+  "family": "math",
+  "motivatingPathology": "Engineering notes combine scripts with big operators: a superscript structure raising x to the second power, a text join, and an n-ary integral with limit location, explicit limit-display flags, plus explicit lower and upper bound runs. N-ary operators carry presentation properties deciding where limits sit. The engine must carry the script structure, the operator with its character, limit, and display properties, and all bound runs through the round trip.",
+  "knownLimitations": "One script plus one integral exercise the shapes; matrices, radicals, and boxed formulas are not covered. The display flags ride along with hiding off; hiding-on rendering and duplicated flags are refused by the gate and never asserted here. Rendered operator sizing is never asserted.",
+  "scopeExclusions": "This fixture does not exercise fractions, delimiters, or body-text scripts; those live in sibling fixtures. Equation layout properties at the paragraph level are not covered. Script placement on operators carrying limits is absent. Rendered limit placement is never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "N-ary math nests operator properties, limits, and a body element inside one structure, with scripts as sibling structures in the same formula. A writer that traverses only body runs loses the operator tree, and one that drops properties it never paints moves the limits. The operator, its character, limit, and display properties, the script, and every run must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Script and n-ary math structures are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

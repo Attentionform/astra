@@ -1,0 +1,141 @@
+name: Validator Platform
+
+# One job per platform. Each compiles the native validator on its own operating system (nothing is
+# cross-compiled) and runs it there against the validator tests and the document corpus.
+#
+# This workflow never publishes and never sees a token. When asked to `pack`, each job also builds
+# that platform's npm package, uses it from an empty project, and uploads it as the artifact
+# `validator-<platform>` (the package folder, a few MB). release.yml downloads whichever artifacts
+# exist and publishes them; a platform that failed simply has no artifact.
+
+on:
+  workflow_call:
+    inputs:
+      pack:
+        description: Build this platform's npm package and upload it as an artifact
+        type: boolean
+        default: false
+
+jobs:
+  platform:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            npm: linux-x64
+            runner: ubuntu-latest
+            bin: ooxml-validator
+          - rid: linux-arm64
+            npm: linux-arm64
+            runner: ubuntu-24.04-arm
+            bin: ooxml-validator
+          # GitHub retires its Intel Mac image in fall 2027; until then osx-x64 is built and run on it.
+          - rid: osx-x64
+            npm: darwin-x64
+            runner: macos-15-intel
+            bin: ooxml-validator
+          - rid: osx-arm64
+            npm: darwin-arm64
+            runner: macos-latest
+            bin: ooxml-validator
+          - rid: win-x64
+            npm: win32-x64
+            runner: windows-latest
+            bin: ooxml-validator.exe
+          - rid: win-arm64
+            npm: win32-arm64
+            runner: windows-11-arm
+            bin: ooxml-validator.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      # build:native builds for the machine Node runs on. A Node of the wrong architecture would build
+      # (and then test) the wrong binary without any error, so check it is the one this job is for.
+      - name: Check this machine is the platform the job is for
+        run: |
+          actual="$(node -p 'process.platform + "-" + process.arch')"
+          echo "node runs on $actual"
+          test "$actual" = "${{ matrix.npm }}"
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+          cache: true
+          cache-dependency-path: packages/ooxml-validator/native/packages.lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the packages
+        run: npm run build:packages
+
+      # NuGetAudit (see the csproj) makes this restore fail on a high or critical advisory.
+      - name: Restore dependencies with locked file
+        run: dotnet restore packages/ooxml-validator/native/ooxml-validator.csproj --locked-mode
+
+      - name: Compile the native validator
+        run: npm run build:native --workspace=@attentionform/ooxml-validator
+        env:
+          RestoreLockedMode: 'true'
+
+      - name: Sign macOS binary (ad-hoc)
+        if: startsWith(matrix.rid, 'osx-')
+        run: |
+          codesign --force --sign - packages/ooxml-validator/native/out/${{ matrix.rid }}/${{ matrix.bin }}
+          codesign --verify --verbose packages/ooxml-validator/native/out/${{ matrix.rid }}/${{ matrix.bin }}
+
+      - name: Verify one-shot validation
+        run: packages/ooxml-validator/native/out/${{ matrix.rid }}/${{ matrix.bin }} packages/ooxml-validator/tests/fixtures/valid.docx
+
+      - name: Verify worker ping
+        run: printf '{"id":1,"op":"ping"}\n' | packages/ooxml-validator/native/out/${{ matrix.rid }}/${{ matrix.bin }} --worker
+
+      - name: Validator tests
+        run: npx vitest run packages/ooxml-validator/tests
+
+      - name: Document corpus
+        run: npm run validate:docs
+
+      - name: Pack this platform's npm package
+        if: inputs.pack
+        run: npx tsx scripts/build-validator-packages.ts --only ${{ matrix.rid }} --out-dir platform-out
+
+      # Install what is about to be published into an empty project and use it, so a broken tarball or
+      # binary lookup is caught before anything reaches the registry.
+      - name: Use the packed package from a clean project
+        if: inputs.pack
+        run: |
+          set -euo pipefail
+          mkdir -p smoke/pkgs smoke/project
+          npm pack ./platform-out/${{ matrix.npm }} --pack-destination smoke/pkgs
+          npm pack ./packages/ooxml-validator --pack-destination smoke/pkgs
+          cd smoke/project
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund ../pkgs/*.tgz
+          npx ooxml-validator ../../packages/ooxml-validator/tests/fixtures/valid.docx
+
+      - name: Keep this platform's package for the release job
+        if: inputs.pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: validator-${{ matrix.npm }}
+          path: platform-out/${{ matrix.npm }}
+          if-no-files-found: error
+          retention-days: 3

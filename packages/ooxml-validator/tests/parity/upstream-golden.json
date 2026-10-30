@@ -1,0 +1,1107 @@
+{
+ "_about": "Results of the unmodified upstream one-shot validator (xarsh/ooxml-validator 0.4.0, commit 11e3e8c5430d054c8d9102e3e5f5e15c6697c7b2, DocumentFormat.OpenXml 3.5.1) on the corpus built by corpus.ts. Descriptions are sha256 hashes.",
+ "entries": {
+  "T1_coffee_onepager.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T1_coffee_onepager__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_AttributeValueDataTypeDetailed",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:p[2]/w:pPr[1]/w:jc[1]",
+     "errorType": "Schema",
+     "description": "e6a43d468bd4e196d1b0b37a5756ccdf24bb729ca999f6c7f027f009d4a8b9f0"
+    }
+   ]
+  },
+  "T1_coffee_onepager__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T1_coffee_onepager__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_IncompleteContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]",
+     "errorType": "Schema",
+     "description": "c0aa6103b4e1a0172151ae31885cac94645c88423be1c477db1002ef241de19e"
+    }
+   ]
+  },
+  "T1_coffee_onepager__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T1_coffee_onepager__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "6f6a74f66f04f34fbac0894ca3cefbd49d9a7bb5e1ceb2eea906e34e665d1a97"
+    }
+   ]
+  },
+  "T1_coffee_onepager__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T1_coffee_onepager__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T1_coffee_onepager__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "T2_edit_target.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T2_edit_target__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_AttributeValueDataTypeDetailed",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:p[2]/w:pPr[1]/w:jc[1]",
+     "errorType": "Schema",
+     "description": "e6a43d468bd4e196d1b0b37a5756ccdf24bb729ca999f6c7f027f009d4a8b9f0"
+    }
+   ]
+  },
+  "T2_edit_target__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T2_edit_target__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_IncompleteContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]",
+     "errorType": "Schema",
+     "description": "c0aa6103b4e1a0172151ae31885cac94645c88423be1c477db1002ef241de19e"
+    }
+   ]
+  },
+  "T2_edit_target__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T2_edit_target__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "656a7adfbaa8f86d35e135462ba98a31b30e50315dae36356863e301b12a0677"
+    }
+   ]
+  },
+  "T2_edit_target__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T2_edit_target__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T2_edit_target__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "T3_proposal.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T3_proposal__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T3_proposal__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T3_proposal__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_IncompleteContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]",
+     "errorType": "Schema",
+     "description": "c0aa6103b4e1a0172151ae31885cac94645c88423be1c477db1002ef241de19e"
+    }
+   ]
+  },
+  "T3_proposal__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T3_proposal__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "d84ef455c31daeafaf47e14332b466ee435f406fc0d4d46fc5b1dcd9deabee18"
+    }
+   ]
+  },
+  "T3_proposal__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T3_proposal__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T3_proposal__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "T4_budget.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T4_budget__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_AttributeValueDataTypeDetailed",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]/w:tblPr[1]/w:jc[1]",
+     "errorType": "Schema",
+     "description": "e6a43d468bd4e196d1b0b37a5756ccdf24bb729ca999f6c7f027f009d4a8b9f0"
+    }
+   ]
+  },
+  "T4_budget__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T4_budget__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_IncompleteContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]",
+     "errorType": "Schema",
+     "description": "c0aa6103b4e1a0172151ae31885cac94645c88423be1c477db1002ef241de19e"
+    }
+   ]
+  },
+  "T4_budget__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T4_budget__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "d84ef455c31daeafaf47e14332b466ee435f406fc0d4d46fc5b1dcd9deabee18"
+    }
+   ]
+  },
+  "T4_budget__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T4_budget__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T4_budget__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "T5_image_doc.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T5_image_doc__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_AttributeValueDataTypeDetailed",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:p[4]/w:pPr[1]/w:jc[1]",
+     "errorType": "Schema",
+     "description": "e6a43d468bd4e196d1b0b37a5756ccdf24bb729ca999f6c7f027f009d4a8b9f0"
+    }
+   ]
+  },
+  "T5_image_doc__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T5_image_doc__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_IncompleteContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]",
+     "errorType": "Schema",
+     "description": "c0aa6103b4e1a0172151ae31885cac94645c88423be1c477db1002ef241de19e"
+    }
+   ]
+  },
+  "T5_image_doc__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T5_image_doc__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "89dfba86455ffcbd9a530c040ca40c7d2ca1468a85d48f52d3fc36ebaebb9a13"
+    }
+   ]
+  },
+  "T5_image_doc__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T5_image_doc__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T5_image_doc__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "T6_honesty.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T6_honesty__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_AttributeValueDataTypeDetailed",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:p[5]/w:pPr[1]/w:jc[1]",
+     "errorType": "Schema",
+     "description": "e6a43d468bd4e196d1b0b37a5756ccdf24bb729ca999f6c7f027f009d4a8b9f0"
+    }
+   ]
+  },
+  "T6_honesty__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T6_honesty__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_IncompleteContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]",
+     "errorType": "Schema",
+     "description": "c0aa6103b4e1a0172151ae31885cac94645c88423be1c477db1002ef241de19e"
+    }
+   ]
+  },
+  "T6_honesty__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T6_honesty__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "656a7adfbaa8f86d35e135462ba98a31b30e50315dae36356863e301b12a0677"
+    }
+   ]
+  },
+  "T6_honesty__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T6_honesty__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T6_honesty__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "T7_visual_probe.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T7_visual_probe__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T7_visual_probe__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T7_visual_probe__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_IncompleteContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]",
+     "errorType": "Schema",
+     "description": "c0aa6103b4e1a0172151ae31885cac94645c88423be1c477db1002ef241de19e"
+    }
+   ]
+  },
+  "T7_visual_probe__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T7_visual_probe__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "656a7adfbaa8f86d35e135462ba98a31b30e50315dae36356863e301b12a0677"
+    }
+   ]
+  },
+  "T7_visual_probe__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T7_visual_probe__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T7_visual_probe__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "T8_footnotes_endnotes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T8_footnotes_endnotes__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T8_footnotes_endnotes__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T8_footnotes_endnotes__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T8_footnotes_endnotes__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T8_footnotes_endnotes__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "f6a6bab38159b595dd65dd6a144ac33bcddd5c37b03ab7b0feffeef92f6be1b1"
+    }
+   ]
+  },
+  "T8_footnotes_endnotes__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T8_footnotes_endnotes__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T8_footnotes_endnotes__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "T9_postmigration.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T9_postmigration__badattr.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "T9_postmigration__badelem.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "43a9053ce894cd1196c0e6607d9adcf96cd6ccc884971e00a181e1ccaffe04ba"
+    }
+   ]
+  },
+  "T9_postmigration__badorder.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_IncompleteContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]/w:tbl[1]",
+     "errorType": "Schema",
+     "description": "c0aa6103b4e1a0172151ae31885cac94645c88423be1c477db1002ef241de19e"
+    }
+   ]
+  },
+  "T9_postmigration__badstyles.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/styles.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "fdabaa94aa4fb897a1b6c83caec2b3101ad2df907e0e3fbb868ddf8eefcc9a61"
+    }
+   ]
+  },
+  "T9_postmigration__malformed.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "ExceptionError",
+     "path": "/word/document.xml",
+     "xPath": "",
+     "errorType": "Schema",
+     "description": "d84ef455c31daeafaf47e14332b466ee435f406fc0d4d46fc5b1dcd9deabee18"
+    }
+   ]
+  },
+  "T9_postmigration__nocontenttypes.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Pkg_RequiredPartDoNotExist",
+     "path": null,
+     "xPath": null,
+     "errorType": "Package",
+     "description": "d42cba1e80a7c927793bd55e09a9bbb7679e1b8d54888908a49278b723aff0ba"
+    }
+   ]
+  },
+  "T9_postmigration__nomain.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "bcd7e3546f81dd1288c8ef47df350e686be88822af69c14dee89b204f9c9a62d"
+    }
+   ]
+  },
+  "T9_postmigration__truncated.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "empty.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "84b10fd8ac516a7388d53f9d08056adf46b44ee0885ace12a91f288ca08d1815"
+    }
+   ]
+  },
+  "fixture__corrupt-zip.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  },
+  "fixture__invalid-schema.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": "Sch_InvalidElementContentExpectingComplex",
+     "path": "/word/document.xml",
+     "xPath": "/w:document[1]/w:body[1]",
+     "errorType": "Schema",
+     "description": "d8ed5d69502b1df59fae57662d374123bc69c4bd4ce7940eeb6578272a449845"
+    }
+   ]
+  },
+  "fixture__many-errors.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "fixture__minimal.pptx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "fixture__office2010-only.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "fixture__valid.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": true,
+   "errors": []
+  },
+  "garbage.docx": {
+   "exit": 0,
+   "json": true,
+   "ok": false,
+   "errors": [
+    {
+     "id": null,
+     "path": null,
+     "xPath": null,
+     "errorType": "Exception",
+     "description": "120c1673bd6d23afa4cea79bc2cf06f15e7151f98bbf1f2095a6dbaf1424c23b"
+    }
+   ]
+  }
+ }
+}

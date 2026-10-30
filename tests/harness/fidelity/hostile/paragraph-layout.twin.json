@@ -1,0 +1,7 @@
+{
+  "family": "paragraph-layout",
+  "twin": "paragraph-layout.twin",
+  "base": "para-justify-levels",
+  "corruption": "w:jc loses its required w:val attribute (schema violation, same paragraph shape).",
+  "expectedRefusal": "validate"
+}

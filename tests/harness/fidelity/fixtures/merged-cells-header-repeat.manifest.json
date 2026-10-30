@@ -1,0 +1,13 @@
+{
+  "fixture": "merged-cells-header-repeat",
+  "family": "merged-cells",
+  "motivatingPathology": "Multi-page enterprise tables repeat their first row on every page with w:tblHeader and pin rows against page breaks with w:cantSplit. Financial reports and regulatory filings depend on both markers surviving a save: lose tblHeader and page two loses its headings; lose cantSplit and rows split mid-content. The engine must preserve both markers while mutating nearby sentences, even though its own writer normalizes the order of row-property children.",
+  "knownLimitations": "Fixture input uses canonical w:trPr child order because the engine canonicalizes that order on write; non-canonical input order round-trips with reordered bytes, which the runner would flag. The table is short enough that no actual page break occurs, so repetition is asserted at the markup level, never at the rendered level. Only one header row and one body row are present.",
+  "scopeExclusions": "This fixture does not exercise vertical merges, column spans, nested tables, or header rows combined with grid changes. Actual pagination behavior across a page break is not asserted and belongs to a render-similarity study, not this structural gate. Revision markup and drawings inside header cells are covered by their own fixtures and are absent here.",
+  "ecma376Difficulty": "Row properties are a schema sequence, so child order is significant to validators but invisible to readers: tblHeader and cantSplit mean the same thing in either order to Word, yet only specific orders satisfy the letter of the schema. A writer that preserves input order byte-for-byte and a writer that canonicalizes to one order both validate, but they disagree on bytes. Byte-stability therefore depends on input order matching the writer's canonical order.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "deliberately-differ",
+    "reason": "The engine canonicalizes w:trPr child order on write instead of preserving input order byte-for-byte. The reorder is schema-valid and semantically neutral, but it is a deliberate byte-level difference, so it is recorded here rather than hidden; input uses canonical order to keep the round trip stable."
+  }
+}

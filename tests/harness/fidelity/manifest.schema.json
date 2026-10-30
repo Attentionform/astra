@@ -1,0 +1,35 @@
+{
+  "title": "Adversarial fidelity corpus fixture manifest",
+  "notes": "Single source of truth for required fixture prose. Both scripts/check-fidelity-manifests.mjs and tests/harness/fidelity/fidelity-corpus.test.ts validate against this file. Unknown top-level fields fail (a misnamed field is never silently accepted).",
+  "requiredFields": [
+    "fixture",
+    "family",
+    "motivatingPathology",
+    "knownLimitations",
+    "scopeExclusions",
+    "ecma376Difficulty",
+    "licenseProvenance",
+    "disposition"
+  ],
+  "optionalFields": ["sourceDocument"],
+  "bannedAliases": [
+    "limitation",
+    "aiContext",
+    "compare",
+    "specQuirk",
+    "notCovered",
+    "prose",
+    "description",
+    "discussion"
+  ],
+  "namePattern": "^[a-z0-9-]+$",
+  "wordRanges": {
+    "motivatingPathology": [40, 150],
+    "knownLimitations": [40, 150],
+    "scopeExclusions": [40, 150],
+    "ecma376Difficulty": [40, 150],
+    "licenseProvenance": [5, 80],
+    "disposition.reason": [20, 150]
+  },
+  "dispositionVerdicts": ["conform", "deliberately-differ"]
+}

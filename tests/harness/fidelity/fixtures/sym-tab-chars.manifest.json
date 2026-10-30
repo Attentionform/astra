@@ -1,0 +1,13 @@
+{
+  "fixture": "sym-tab-chars",
+  "family": "breaks-symbols",
+  "motivatingPathology": "Checklists and ledgers use non-text glyphs: a Wingdings checkbox symbol addressed by font and hex code, literal text, a tab character, and trailing copy. Symbols reference glyphs by font and character code rather than Unicode, so resolving them into characters changes the contract. The engine must carry the symbol element with its font and code plus the tab character through the round trip without expanding either into text.",
+  "knownLimitations": "One symbol and one tab exercise the shape; symbol runs with complex-script fallbacks are not covered. Symbol fonts beyond Wingdings are absent. Tab stops that give the tab character meaning live in the paragraph-layout fixture. Whether the symbol renders when the font is missing is never asserted.",
+  "scopeExclusions": "This fixture does not exercise page, column, or wrapping breaks, nor hyphenation controls; those live in sibling fixtures. Equation symbols and native math operators are covered by the math fixtures, not here. Rendered glyph shapes are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Symbols and tabs are run-level elements that look like text but are not: sym carries font and character-code attributes that resolve only through the named font, and tab is an empty element positioned by the paragraph stop list. A writer that converts either into literal characters keeps the look on one machine while breaking it everywhere the font differs. Both must round-trip as elements.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Symbol and tab characters are Word-legal and safe, so the engine preserves both elements: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

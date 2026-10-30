@@ -1,0 +1,13 @@
+{
+  "fixture": "merged-cells-basic",
+  "family": "merged-cells",
+  "motivatingPathology": "Enterprise tables routinely merge cells vertically across rows with w:vMerge restart and continue markers while other cells span columns with w:gridSpan. Bank statements, legal schedules, and government forms all carry this shape, often with continuation cells left empty exactly as Word writes them. The engine must carry every merge marker through ingest, mutation of nearby sentences, and rezip without dropping a continuation cell, collapsing the grid, or reordering rows.",
+  "knownLimitations": "The merge pair sits inside a single small table with a clean three-column grid; mismatched column counts across rows and merges straddling page breaks are not exercised. Continuation cells are empty as Word writes them, but continuation cells carrying their own paragraphs are not covered. Only one merge group and one span appear, so interacting merge groups in the same table are out of scope for this fixture.",
+  "scopeExclusions": "This fixture does not exercise repeating header rows, unsplittable rows, nested tables inside merged cells, or horizontal merges combined with vertical merges in one cell. Revision markup inside table cells, DrawingML anchored to table paragraphs, and numbering inside cells are separate pathologies covered by their own fixtures. Rendered layout equivalence is not asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Merged cells are expressed indirectly: a restart cell holds content while continuation cells must exist but stay empty, and gridSpan changes the effective column count without changing the cell count. The grid, the row cell counts, and the merge markers must agree, yet Word tolerates disagreement that strict readers reject. Any writer that re-serializes rows independently risks dropping empty continuations or emitting a grid that no longer matches the rows.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Vertical merges and column spans are Word-legal and safe, so the engine preserves them byte-for-byte: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

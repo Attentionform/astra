@@ -1,0 +1,7 @@
+{
+  "family": "numbering",
+  "twin": "numbering.twin",
+  "base": "numbering-restart",
+  "corruption": "word/numbering.xml truncated mid-element (same package shape, corrupt part).",
+  "expectedRefusal": "rezip"
+}

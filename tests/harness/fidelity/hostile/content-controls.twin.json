@@ -1,0 +1,7 @@
+{
+  "family": "content-controls",
+  "twin": "content-controls.twin",
+  "base": "sdt-block-rich",
+  "corruption": "closing w:sdtContent tag removed (mismatched markup, same control shape).",
+  "expectedRefusal": "open"
+}

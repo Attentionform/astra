@@ -1,0 +1,13 @@
+{
+  "fixture": "numbering-abstract-duo",
+  "family": "numbering",
+  "motivatingPathology": "Real documents mix list styles that share nothing: a decimal procedure list beside a Symbol-font bullet list, each driven by its own abstract definition in one numbering part. Meeting notes, specifications, and audit reports all carry this duo. The engine must preserve both abstract definitions, their distinct formats, and the num instances binding paragraphs to them, while list sentences mutate around the structure.",
+  "knownLimitations": "Two abstract definitions with one level each are exercised; multilevel bullets, legal numbering, and style-linked lists are not covered. Bullet glyph rendering depends on the Symbol font and is never asserted; only the markup survives the gate. Restart overrides are covered by the companion fixture, not this one.",
+  "scopeExclusions": "This fixture does not exercise startOverride restarts, multilevel list indentation beyond one level, numbering inside tables, or custom picture bullets. Rendered bullets and numerals belong to layout, not to this structural gate. Cross-document numbering migration is unrelated future work for this corpus.",
+  "ecma376Difficulty": "Each abstract definition carries its own level formats, fonts, and indentation, and paragraphs bind through num instances that look interchangeable but are not: swapping two numIds silently converts decimals to bullets. Bullet levels additionally depend on font references for their glyphs, so a writer that strips run fonts from numbering levels corrupts the visual without touching the text. The whole part must round-trip opaquely.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Dual decimal and bullet abstract definitions are Word-legal and safe, so the engine preserves the numbering part semantically identical: only the two mutated sentences change and the package validates clean. Re-serialized numbering.xml measures 862 to 1140 bytes from redundant xmlns declarations, entity decoding, and declaration newline, with no meaning change."
+  }
+}

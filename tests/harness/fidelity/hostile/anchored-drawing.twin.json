@@ -1,0 +1,7 @@
+{
+  "family": "anchored-drawing",
+  "twin": "anchored-drawing.twin",
+  "base": "drawing-negative-anchor",
+  "corruption": "required wp:extent child removed from wp:anchor (schema violation, same anchor shape).",
+  "expectedRefusal": "validate"
+}

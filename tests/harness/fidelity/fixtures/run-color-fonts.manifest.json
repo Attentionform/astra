@@ -1,0 +1,13 @@
+{
+  "fixture": "run-color-fonts",
+  "family": "run-typography",
+  "motivatingPathology": "Display copy mixes faces and colors: a run in Cambria at fourteen points in dark red with an explicit complex-script size, beside a run carrying a theme-tinted gray plus a pale yellow shading fill. Theme colors resolve through the theme part, so rewriting them as hex changes the contract. The engine must carry the font triple, both sizes, the theme tint attributes, and the shading fill in schema order through the round trip without resolving the theme or dropping the fill.",
+  "knownLimitations": "Two runs exercise the stack; East Asian and complex-script font slots beyond the declared triple are not covered. Font sizes appear at one value only; size ranges are not exercised. Highlight and emphasis siblings of color live in neighboring fixtures. Whether the theme tint resolves to the same gray on screen is never asserted.",
+  "scopeExclusions": "This fixture does not exercise bold, italic, underline, strike, caps, or vertical alignment; those live in sibling fixtures. Paragraph-level shading is covered by the paragraph-layout fixture, not here. Rendered glyph shapes and colors are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Run typography serializes as ordered siblings inside rPr where position decides legality: fonts before color before sizes before shading. A writer that emits color first, or that resolves theme attributes into hex because it never loads themes, keeps the look while breaking the contract. The order must be canonical on input so the round trip is a fixpoint.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Run colors, fonts, sizes, and shading are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

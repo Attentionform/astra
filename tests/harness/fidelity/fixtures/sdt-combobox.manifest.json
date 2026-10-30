@@ -1,0 +1,13 @@
+{
+  "fixture": "sdt-combobox",
+  "family": "content-controls",
+  "motivatingPathology": "Forms offer picked values: an inline combo box with an alias, a tag, and two list items for Finance and Legal with backing values, wrapping the selected Legal run. The list items enumerate what editors may choose while the content holds the choice, and dropping the items leaves a choice nothing validates. The engine must carry the wrapper, both list items with display text and values, the trailing last-value cache echoing the selection, and the selected run through the round trip.",
+  "knownLimitations": "One combo box with two items exercises the shape; dropdown lists and multi-select variants are not covered. The last-value cache rides along as the selection record; duplicated or misordered caches are refused by the gate and never asserted here. Data-bound lists are absent.",
+  "scopeExclusions": "This fixture does not exercise block text controls, date controls, or nested controls; those live in sibling fixtures. Validation of the selected value against the list is never asserted. Rendered dropdown widgets are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Combo boxes pair a property list of display-value items with a content run holding the selection. A writer that keeps the selection while dropping the item list preserves the text but destroys the pick-list contract. Both items with both attributes, the trailing selection cache, plus the selected run must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Combo-box content controls are Word-legal and safe, so the engine preserves items and selection: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

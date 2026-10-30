@@ -1,0 +1,7 @@
+{
+  "family": "paragraph-flow",
+  "twin": "paragraph-flow.twin",
+  "base": "para-keep-flow",
+  "corruption": "first w:t close tag truncated by one byte (same package shape, corrupt part).",
+  "expectedRefusal": "validate"
+}

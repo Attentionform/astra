@@ -1,0 +1,13 @@
+{
+  "fixture": "revision-soup",
+  "family": "tracked-revisions",
+  "motivatingPathology": "Long-lived enterprise documents accumulate revision soup: five authors inserting and deleting across paragraphs with bold, italic, and underline formatting inside the changed runs, some deletions spanning multiple runs. Legal redlines and contract negotiations look exactly like this. The engine must preserve every range, every author, and every run property through the round trip, changing only the two sentences it was asked to change.",
+  "knownLimitations": "Five authors across two paragraphs are exercised; ranges spanning paragraph boundaries and ranges inside tables are not covered. Property-level revision markup inside paragraph or run properties is excluded because the schema gate rejects the hand-built shape, so all ranges here are run-level. Accept and reject operations are not executed; only preservation is asserted.",
+  "scopeExclusions": "This fixture does not exercise nested ranges, move ranges, comments, or formatting-only revisions. Rendering of change bars and author colors belongs to editors, not to this structural gate. Revision markup in headers, footers, footnotes, or text boxes is future growth, not part of this fixture.",
+  "ecma376Difficulty": "Soup stresses identity bookkeeping: every range needs a unique numeric id alongside author and timestamp, run properties inside changed runs must not leak into neighboring runs, and multi-run deletions must keep run boundaries stable so accept and reject stay well-defined. A writer that renumbers ids, merges adjacent runs, or drops empty properties corrupts the audit trail while the visible text looks unchanged.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Multi-author run-level revision soup is Word-legal and safe, so the engine preserves every range untouched: only the two mutated sentences change and the package validates clean."
+  }
+}

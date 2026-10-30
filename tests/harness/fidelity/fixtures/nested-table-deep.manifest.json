@@ -1,0 +1,13 @@
+{
+  "fixture": "nested-table-deep",
+  "family": "nested-tables",
+  "motivatingPathology": "Generated documents from mail merges, report builders, and compliance templates can nest tables three levels deep: an outer layout grid holding a section grid holding a leaf data grid. Each level multiplies the chance that a serializer flattens, reorders, or drops an inner grid while rewriting the outer one. The engine must carry all three levels through the round trip with the table node byte-identical while outer sentences mutate.",
+  "knownLimitations": "Exactly three levels with single-cell grids at each level are exercised; wider inner grids at depth are not covered. No merges, headers, revision markup, or drawings appear at any level, and nesting deeper than three is not attempted. The leaf cell holds one short paragraph, so long-form content interaction with deep nesting is out of scope.",
+  "scopeExclusions": "This fixture does not exercise merges or spans at any level, floating tables, text wrapping, or tables nested inside text boxes or content controls. Revision markup and drawings inside deep cells belong to their own fixtures. Rendered layout across nesting levels is not asserted; only structural preservation and schema validity are.",
+  "ecma376Difficulty": "Depth amplifies every grid bookkeeping error: each w:tblGrid is scoped to its own level, cell widths compound, and a single misplaced close tag at depth corrupts every ancestor grid. Recursive descent writers must track which grid they are closing, and iterative rewriters must resist flattening levels that share element names. Depth three is where shallow assumptions visibly break.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Three-level table nesting is Word-legal and safe, so the engine preserves it byte-for-byte: the table node checksum is identical after the round trip and the package validates clean."
+  }
+}

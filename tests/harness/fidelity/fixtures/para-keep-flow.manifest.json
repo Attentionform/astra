@@ -1,0 +1,13 @@
+{
+  "fixture": "para-keep-flow",
+  "family": "paragraph-flow",
+  "motivatingPathology": "Headings pin themselves to what follows: a heading carrying keep-next, keep-lines, and widow control so it never strands alone at a page bottom, followed by body copy forced onto a fresh page by page-break-before with widow control explicitly off. Pagination controls decide page breaks without changing a character, so dropping one repaginates the document. The engine must carry all five flow markers through the round trip without relaxing keep-next or swallowing the forced break.",
+  "knownLimitations": "Two paragraphs exercise the markers; longer keep-next chains across three or more paragraphs are not covered. Widow control appears on and off once each; orphan control variants are absent. Interaction with tables that forbid row splits is not exercised. Forced breaks combined with section breaks are out of scope.",
+  "scopeExclusions": "This fixture does not exercise spacing, indents, justification, borders, or tabs; those live in the paragraph-layout fixtures. Section-level pagination such as title pages rides along in the section-layout fixtures, not here. Rendered pagination is never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Pagination markers are empty elements whose presence alone changes page breaking, and they must serialize in schema order inside pPr. A writer that drops markers it never renders, or that emits them out of order so Word repairs the file on open, repaginates without touching text. The difficulty is restraint: five markers that do nothing visible must still round-trip byte-exact.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Pagination flow markers are Word-legal and safe, so the engine preserves them: the paragraph node checksums are identical after the round trip and the package validates clean."
+  }
+}

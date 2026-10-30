@@ -1,0 +1,7 @@
+{
+  "family": "section-layout",
+  "twin": "section-layout.twin",
+  "base": "sect-landscape-margins",
+  "corruption": "w:type loses its required w:val attribute (schema violation, same section shape).",
+  "expectedRefusal": "validate"
+}

@@ -1,0 +1,55 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "types": [
+      "vitest/globals"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@attentionform/astra-engine": [
+        "packages/engine/src/index.ts"
+      ],
+      "@attentionform/astra-engine/*": [
+        "packages/engine/src/*"
+      ],
+      "@attentionform/astra-mcp-server": [
+        "packages/mcp-server/src/index.ts"
+      ],
+      "@attentionform/astra-mcp-server/*": [
+        "packages/mcp-server/src/*"
+      ],
+      "@attentionform/ooxml-validator": [
+        "packages/ooxml-validator/src/index.ts"
+      ],
+      "@attentionform/ooxml-validator/*": [
+        "packages/ooxml-validator/src/*"
+      ]
+    }
+  },
+  "include": [
+    "tests/**/*.ts",
+    "packages/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

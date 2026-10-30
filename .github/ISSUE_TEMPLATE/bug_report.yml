@@ -1,0 +1,47 @@
+name: Bug report
+description: Something did not work as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do not attach documents with real personal or confidential data; make a small test file. For security problems, use the private report link on the issue chooser instead.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did it happen?
+      options:
+        - Command line (astra)
+        - MCP server
+        - Engine (library)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Output of `astra --version`, or the package version."
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and Node.js version
+      placeholder: "Ubuntu 24.04, Node 22.19"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the exact error code and message if there was one (for example E_VALIDATION).
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The command, tool call or operation batch (JSON), and a minimal .docx if needed.
+      render: shell
+    validations:
+      required: true

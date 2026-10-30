@@ -1,0 +1,30 @@
+{
+  "name": "search_content",
+  "description": "Search live paragraph/table w:t text; returns [{id,preview}] node hits for anchors/targets. A table hit also lists `cells` (up to 5 addresses such as t_001:r3c1) for the cells that hold the match; pass one as the target of replace/style/namedStyle/clearFormat/hyperlink/bookmark/comment. Chart titles/series are NOT matched by search (they live in the chart part, not w:t); discover them in inspect TOON chart rows, then anchor by the chart node id. Image alt text and footnote/endnote bodies are NOT matched either (search covers body w:t text only); find images via inspect [IMG] rows and footnotes via their anchor ids. Search extension to those parts is a later-program candidate, not this surface. Default is an exact literal substring (case-insensitive); pass {\"regex\":true} to interpret the query as a regular expression (bounded: pattern <=200 chars, ~500ms evaluation budget, case-insensitive). Caps: first 50 hits, 120-char previews. Literal queries containing regex metacharacters return literal results plus a hint that regex:true exists. Example {\"sessionId\":\"sess_abc\",\"query\":\"Executive Summary\"} -> {\"ok\":true,\"matches\":[{\"id\":\"3F2A9C1B\",\"preview\":\"Executive ...\"}]}. Search before editing when the anchor id is unknown. ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices. ",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      },
+      "regex": {
+        "default": false,
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "sessionId",
+      "query"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

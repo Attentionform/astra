@@ -1,0 +1,39 @@
+name: Validator Check
+
+# Builds the native validator on every supported platform and runs it there against the validator
+# tests and the document corpus, so a change that breaks one platform shows up on the pull request.
+# Nothing is published and no files are passed between jobs.
+
+on:
+  push:
+    paths:
+      - 'packages/ooxml-validator/**'
+      - 'scripts/validator-targets.ts'
+      - 'scripts/build-validator-packages.ts'
+      - 'scripts/inject-validator-optional-deps.ts'
+      - 'scripts/npm-publish-if-new.ts'
+      - 'scripts/validator-platform-status.ts'
+      - 'scripts/validator-binary.ts'
+      - '.github/workflows/validator-platform.yml'
+      - '.github/workflows/validator-check.yml'
+  pull_request:
+    paths:
+      - 'packages/ooxml-validator/**'
+      - 'scripts/validator-targets.ts'
+      - 'scripts/build-validator-packages.ts'
+      - 'scripts/inject-validator-optional-deps.ts'
+      - 'scripts/npm-publish-if-new.ts'
+      - 'scripts/validator-platform-status.ts'
+      - 'scripts/validator-binary.ts'
+      - '.github/workflows/validator-platform.yml'
+      - '.github/workflows/validator-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  platforms:
+    uses: ./.github/workflows/validator-platform.yml
+    with:
+      pack: false

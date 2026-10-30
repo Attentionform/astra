@@ -1,0 +1,13 @@
+{
+  "fixture": "run-highlight-shadow",
+  "family": "run-typography",
+  "motivatingPathology": "Marker copy layers review effects: emboss with a yellow highlight in one run, outline with imprint and a cyan highlight in the next, plus a value-only text shadow. Highlights use named colors, emboss and imprint are mutually exclusive in rendering but co-occur in markup, and shadow carries only its value. The engine must carry all six effects in schema order through the round trip without dropping the shadow or merging the highlights.",
+  "knownLimitations": "Two runs exercise the effects; shadow with color attributes is excluded because the schema gate rejects the color attribute on shadow. Underline, strike, and caps emphasis live in the neighboring fixture. Highlight colors beyond yellow and cyan are not covered. Text-effect rendering is never compared.",
+  "scopeExclusions": "This fixture does not exercise fonts, sizes, colors, or vertical alignment; those live in sibling fixtures. Shading fills are covered by the color-fonts fixture, not here. Rendered emboss, outline, and shadow painting is never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Review effects serialize in schema order inside rPr with outline before emboss before highlight, and a shadow whose only legal attribute here is its value. A writer that reorders the siblings, or that drops effects it never paints, keeps the words while losing the review layer. The shadow in particular must stay value-only, matching what the gate accepts.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Highlight, emboss, outline, imprint, and value-only shadow are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

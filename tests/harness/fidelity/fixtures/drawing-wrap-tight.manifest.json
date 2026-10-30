@@ -1,0 +1,13 @@
+{
+  "fixture": "drawing-wrap-tight",
+  "family": "anchored-drawing",
+  "motivatingPathology": "Illustrated pages wrap text to contours: an anchored drawing with a tight wrap mode carrying a four-point wrap polygon, explicit offsets, accessibility description, and an embedded picture part. Tight wrapping routes text around the polygon rather than the bounding box, so losing the polygon changes every wrapped line. The engine must carry the anchor, the polygon points, the description, and the image bytes through the round trip without degrading the wrap to a box or dropping the art.",
+  "knownLimitations": "One tight-wrapped figure exercises the shape; through-wrap with cut-out regions and behind-text layering beyond the flag are not covered. Polygon points number four; complex contours with holes are out of scope. Vector, chart, and SmartArt drawings remain uncovered as noted in the registry. Wrapped text measurement is never asserted.",
+  "scopeExclusions": "This fixture does not exercise negative offsets, inline drawings, or square wrapping; those live in sibling fixtures. The image part mechanics beyond one raster PNG are not covered. Rendered text flow around the contour is never measured; only markup and byte preservation plus schema validity are.",
+  "ecma376Difficulty": "Tight wrapping nests a polygon point list inside the wrap element inside the anchor beside the drawing properties and the picture reference, with image bytes in a separate part. A writer that drops polygons it never lays out degrades tight wrap to square silently, and one that loses the image part keeps the frame while blanking the art. Anchor, polygon, description, and bytes must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Tight-wrapped anchored drawings are Word-legal and safe, so the engine preserves anchor, polygon, and bytes: the drawing node checksum is identical after the round trip and the package validates clean."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "new_document",
+  "description": "Create a new .docx from a template (report|memo|blank, default blank) at outPath inside an allowed directory (--allowed-dir / documents / system temp). Validates the fresh package before writing (E_VALIDATION when invalid, never writes corruption); refuses to overwrite without {force:true} (E_CONFLICT). Success returns {ok:true,path,sessionId,revision,template,bytes} with the file opened into a session (use sessionId for inspect/execute_batch/save). Example {\"outPath\":\"documents/new-report.docx\",\"template\":\"report\"}. Session ids are server-minted (sess_<uuid>, DEPRECATED to supply sessionId: client-supplied values are rejected with E_VALIDATION; deterministic ids are test-only via --allow-client-session-ids). IDs are session-scoped: valid only in the issuing session, must not be stored across sessions. Optional styleGuide (bundled guide name or guide .md path, jailed to the document folder; remote URLs fail closed) attaches a house style to the session at creation: later batches inherit its table/chart/callout defaults, inspect_document shows its compact summary, save_document reports advisory styleWarnings. Guides cannot be detached afterwards: open a new session to work without a guide. Unknown names fail with E_VALIDATION naming the available set.",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "outPath": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      },
+      "template": {
+        "type": "string",
+        "enum": [
+          "report",
+          "memo",
+          "blank"
+        ]
+      },
+      "force": {
+        "type": "boolean"
+      },
+      "styleGuide": {
+        "type": "string",
+        "maxLength": 1024
+      },
+      "author": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "sessionId": {
+        "description": "DEPRECATED: session ids are server-minted (sess_<uuid>); omit sessionId and use the returned id. Client-supplied values are rejected with E_VALIDATION (deterministic ids are test-only via --allow-client-session-ids).",
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "required": [
+      "outPath"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

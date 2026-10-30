@@ -1,0 +1,687 @@
+{
+  "note": "Hashes of what opening each document produces. \"frozen\" values must not change; \"info\" is recorded for reference and is expected to change for multi-section files. Rewrite with ASTRA_UPDATE_GOLDEN=1.",
+  "docs": {
+    "gallery/T1_coffee_onepager.docx": {
+      "kind": "single",
+      "inputSha": "2d201d6b3c26bd25",
+      "frozen": {
+        "flat": "af2b8521a1f3e319",
+        "markdown": "227a4150d9e2d392",
+        "html": "2d4748088373b8cd",
+        "stats": "2a6150f8e51cfb02",
+        "noop": "1f75a9d2494b8fcb",
+        "toon": "27d00c756246f4f0",
+        "wireframe": "195c4628868ae86b",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          9
+        ],
+        "nodeCount": 9
+      }
+    },
+    "gallery/T2_edit_target.docx": {
+      "kind": "single",
+      "inputSha": "373a4d0fe3ad1f5e",
+      "frozen": {
+        "flat": "a1b9ed219f3f1010",
+        "markdown": "c16f27ac7c306e92",
+        "html": "c69bca9481b9b324",
+        "stats": "a4dd5142a07951fb",
+        "noop": "4d1ab8903092c446",
+        "toon": "795d554414357866",
+        "wireframe": "1971e8114da7f829",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          36
+        ],
+        "nodeCount": 36
+      }
+    },
+    "gallery/T3_proposal.docx": {
+      "kind": "single",
+      "inputSha": "344d30a8f60f2d6e",
+      "frozen": {
+        "flat": "c061bd750e0e3f83",
+        "markdown": "0fab7c9d3c3b7fd3",
+        "html": "027f4c3e6621ccac",
+        "stats": "b6ddfd55e9975b6d",
+        "noop": "a62dabb932fcca86",
+        "toon": "25eb4b5dc74985a9",
+        "wireframe": "bf25f3fda494da0d",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          12
+        ],
+        "nodeCount": 12
+      }
+    },
+    "gallery/T4_budget.docx": {
+      "kind": "single",
+      "inputSha": "6ca0dbae791f725d",
+      "frozen": {
+        "flat": "130d5ee4b07a320c",
+        "markdown": "459f5bcf1be98a9e",
+        "html": "8b55147896f300e0",
+        "stats": "32eb3be32213aa32",
+        "noop": "1005879f11c8b8bb",
+        "toon": "fb2aad2d41e93eef",
+        "wireframe": "7c79209de0b81a7f",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          3
+        ],
+        "nodeCount": 3
+      }
+    },
+    "gallery/T5_image_doc.docx": {
+      "kind": "single",
+      "inputSha": "191be43af16e163c",
+      "frozen": {
+        "flat": "46e27635c2cfdd13",
+        "markdown": "bbd1da2dfb59a38d",
+        "html": "4ecb1bfe61b8f2fa",
+        "stats": "7c7ae5227dfd68fb",
+        "noop": "4ddb552344327f07",
+        "toon": "4e6fc64cd98c3e36",
+        "wireframe": "18c677398ff8db94",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          4
+        ],
+        "nodeCount": 4
+      }
+    },
+    "gallery/T6_honesty.docx": {
+      "kind": "single",
+      "inputSha": "8f615b2bb89feb09",
+      "frozen": {
+        "flat": "3f91532898e7b29b",
+        "markdown": "3e3f7f591b0842d1",
+        "html": "b40d2db6f95315e3",
+        "stats": "4d1c2d0d0482458d",
+        "noop": "bbbe3695865b253f",
+        "toon": "e801cd2cd70b6fbe",
+        "wireframe": "c97a0d19851de06a",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          6
+        ],
+        "nodeCount": 6
+      }
+    },
+    "gallery/T7_visual_probe.docx": {
+      "kind": "single",
+      "inputSha": "91aefba13e9eab48",
+      "frozen": {
+        "flat": "44cf6ab0d3d3256e",
+        "markdown": "210a2fa4462073b4",
+        "html": "8225ca3acb94d744",
+        "stats": "24bf42df4a67a37e",
+        "noop": "c1f122496fe60ed8",
+        "toon": "7b94d3d66254c066",
+        "wireframe": "250a1cd5885e6486",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          3
+        ],
+        "nodeCount": 3
+      }
+    },
+    "gallery/T8_footnotes_endnotes.docx": {
+      "kind": "single",
+      "inputSha": "0871bb3f20c8831c",
+      "frozen": {
+        "flat": "672c3380acd031c7",
+        "markdown": "f3fd36684fa6ef7a",
+        "html": "4c798e050d16581a",
+        "stats": "30775af2f3e4a449",
+        "noop": "0871bb3f20c8831c",
+        "toon": "05996d8e3a781581",
+        "wireframe": "2db1252a818314ef",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          9
+        ],
+        "nodeCount": 9
+      }
+    },
+    "gallery/T9_postmigration.docx": {
+      "kind": "single",
+      "inputSha": "ededa2eca8e07e32",
+      "frozen": {
+        "flat": "16f67323dd140bcb",
+        "markdown": "7dba5e7a5e1ac94e",
+        "html": "4ae94f20f8b1cd98",
+        "stats": "1fa1ff1e074ac1c8",
+        "noop": "c6c5f25a39134685",
+        "toon": "a6fbe27f1dca3215",
+        "wireframe": "e8ec673bc9b5cb76",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          3
+        ],
+        "nodeCount": 3
+      }
+    },
+    "libreoffice/two-page-styles": {
+      "kind": "multi",
+      "inputSha": "c5279aadb7650ff9",
+      "frozen": {
+        "flat": "9e7ce6987c7e1a58",
+        "markdown": "d0e5142e10360e09",
+        "html": "055283377f5abec9",
+        "stats": "d27b6dad8bc479d7",
+        "noop": "b2385b89dbe6d738"
+      },
+      "info": {
+        "toon": "5c0dad4fff5e37d7",
+        "wireframe": "19fdf338e43e31b5",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 3,
+        "sectionIds": [
+          "sec_root",
+          "sec_2",
+          "sec_3"
+        ],
+        "nodesPerSection": [
+          1,
+          2,
+          1
+        ],
+        "nodeCount": 4
+      }
+    },
+    "new/blank": {
+      "kind": "single",
+      "inputSha": "c9a25bb0548ce4cd",
+      "frozen": {
+        "flat": "20abf0b4ec1cba46",
+        "markdown": "76aa448f0ac23450",
+        "html": "506b0f1d2161083c",
+        "stats": "b4a7c8960e62aacb",
+        "noop": "c9a25bb0548ce4cd",
+        "toon": "b178fd845df0c3e3",
+        "wireframe": "c6a8b94dd4e7245b",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          2
+        ],
+        "nodeCount": 2
+      }
+    },
+    "python-docx/three-sections": {
+      "kind": "multi",
+      "inputSha": "e3bf102f72600d7d",
+      "frozen": {
+        "flat": "ce138c38a58b13f3",
+        "markdown": "235a32ad2b9b740e",
+        "html": "61ad1d6c79e85df5",
+        "stats": "cb170028ec45b5cf",
+        "noop": "1560ce7311b81f7e"
+      },
+      "info": {
+        "toon": "e921badcffcb5234",
+        "wireframe": "1aba28b45a07ea7d",
+        "firstSectionPageSetup": "d23e86da78745464",
+        "sectionId": "sec_root",
+        "sectionCount": 3,
+        "sectionIds": [
+          "sec_root",
+          "sec_2",
+          "sec_3"
+        ],
+        "nodesPerSection": [
+          3,
+          2,
+          1
+        ],
+        "nodeCount": 6
+      }
+    },
+    "shape/break-in-content-control": {
+      "kind": "multi",
+      "inputSha": "f53d28f1ec071d0c",
+      "frozen": {
+        "flat": "dd2ed3eea912c73f",
+        "markdown": "70e023f61c5ec10b",
+        "html": "0898801eb0f4ae0c",
+        "stats": "12ff5ecf987fc9f4",
+        "noop": "9330c936dbffd7a1"
+      },
+      "info": {
+        "toon": "11179cb43850f0d5",
+        "wireframe": "3b5f9a4d7e5e1813",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          2,
+          1
+        ],
+        "nodeCount": 3
+      }
+    },
+    "shape/break-paragraph-first": {
+      "kind": "multi",
+      "inputSha": "a19adeb9dd8c392f",
+      "frozen": {
+        "flat": "7be913f1bae03354",
+        "markdown": "0195d37db9b65310",
+        "html": "da0df8a6006bfcfe",
+        "stats": "0fc9c5abaab163ae",
+        "noop": "27afe244cac85a68"
+      },
+      "info": {
+        "toon": "184dd2ae157158fd",
+        "wireframe": "d4f3db07caaf9c1c",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          1,
+          2
+        ],
+        "nodeCount": 3
+      }
+    },
+    "shape/continuous-break": {
+      "kind": "multi",
+      "inputSha": "8d3b5c5fb17bf8e0",
+      "frozen": {
+        "flat": "2508c88ebd5d408c",
+        "markdown": "c248cbf9cd5f43e1",
+        "html": "7946749234aebc43",
+        "stats": "bd01679d5f42f704",
+        "noop": "d25793e635bc66dc"
+      },
+      "info": {
+        "toon": "37f188caf821cf49",
+        "wireframe": "0da65ee64e69aa7f",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          1,
+          1
+        ],
+        "nodeCount": 2
+      }
+    },
+    "shape/first-page-header": {
+      "kind": "multi",
+      "inputSha": "23c9b11c86ec9ed5",
+      "frozen": {
+        "flat": "2508c88ebd5d408c",
+        "markdown": "5fd0e5b6b6afbf02",
+        "html": "8bed4d5a2631c9c6",
+        "stats": "bd01679d5f42f704",
+        "noop": "a1d8b4c7968127bf"
+      },
+      "info": {
+        "toon": "37f188caf821cf49",
+        "wireframe": "0da65ee64e69aa7f",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          1,
+          1
+        ],
+        "nodeCount": 2
+      }
+    },
+    "shape/headers-per-section": {
+      "kind": "multi",
+      "inputSha": "ba2cfeb739f5cb29",
+      "frozen": {
+        "flat": "2508c88ebd5d408c",
+        "markdown": "3587117f08cada84",
+        "html": "087d217fad83e692",
+        "stats": "bd01679d5f42f704",
+        "noop": "cecf59a32e855cdc"
+      },
+      "info": {
+        "toon": "37f188caf821cf49",
+        "wireframe": "0da65ee64e69aa7f",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          1,
+          1
+        ],
+        "nodeCount": 2
+      }
+    },
+    "shape/landscape-section": {
+      "kind": "multi",
+      "inputSha": "97a57529d5a7da13",
+      "frozen": {
+        "flat": "2508c88ebd5d408c",
+        "markdown": "c248cbf9cd5f43e1",
+        "html": "7946749234aebc43",
+        "stats": "bd01679d5f42f704",
+        "noop": "c3abbca0bb56ecc9"
+      },
+      "info": {
+        "toon": "37f188caf821cf49",
+        "wireframe": "0da65ee64e69aa7f",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          1,
+          1
+        ],
+        "nodeCount": 2
+      }
+    },
+    "shape/sectpr-in-table-cell": {
+      "kind": "single",
+      "inputSha": "5b11322f9825cb73",
+      "frozen": {
+        "flat": "5438da2e31f078e6",
+        "markdown": "b394da39098fbd04",
+        "html": "711058eaa815e9d4",
+        "stats": "0f118660d46dffd0",
+        "noop": "95fd7f393142c932",
+        "toon": "4de6a91b46d5f1da",
+        "wireframe": "b09d40133b5f4ed5",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          3
+        ],
+        "nodeCount": 3
+      }
+    },
+    "shape/single": {
+      "kind": "single",
+      "inputSha": "849372b3d0f89b3c",
+      "frozen": {
+        "flat": "a680eace27edcb08",
+        "markdown": "a1a5cb18ec0a7ae9",
+        "html": "ce6109301d8087dc",
+        "stats": "7e13a60c4170bf4b",
+        "noop": "89fb3bfb1fab54c8",
+        "toon": "c7a50dd479c93b1d",
+        "wireframe": "c97f9fd1b9879a5b",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          2
+        ],
+        "nodeCount": 2
+      }
+    },
+    "shape/table-before-break": {
+      "kind": "multi",
+      "inputSha": "97e2439d67b355ea",
+      "frozen": {
+        "flat": "33333bfee2b4aba0",
+        "markdown": "40a30c0724c7b820",
+        "html": "57de677f7213ff7c",
+        "stats": "da4ff506c48421e0",
+        "noop": "cbf88a7d8a22127d"
+      },
+      "info": {
+        "toon": "9d525664643ae977",
+        "wireframe": "981a674f4d3d02ce",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          3,
+          1
+        ],
+        "nodeCount": 4
+      }
+    },
+    "shape/three-sections": {
+      "kind": "multi",
+      "inputSha": "361ead371b43976d",
+      "frozen": {
+        "flat": "8e5e899862c8c1d8",
+        "markdown": "0fbe7ada8fcd4715",
+        "html": "b90b8e497681e07c",
+        "stats": "53d1da7dfdd4fb5c",
+        "noop": "d3094c73b6fb3b84"
+      },
+      "info": {
+        "toon": "b07a2140d64b100d",
+        "wireframe": "7eea53387bebdce3",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 3,
+        "sectionIds": [
+          "sec_root",
+          "sec_2",
+          "sec_3"
+        ],
+        "nodesPerSection": [
+          1,
+          2,
+          1
+        ],
+        "nodeCount": 4
+      }
+    },
+    "shape/tracked-section-change": {
+      "kind": "multi",
+      "inputSha": "e71928b98d9b433c",
+      "frozen": {
+        "flat": "2508c88ebd5d408c",
+        "markdown": "c248cbf9cd5f43e1",
+        "html": "7946749234aebc43",
+        "stats": "bd01679d5f42f704",
+        "noop": "df96089da58cd831"
+      },
+      "info": {
+        "toon": "37f188caf821cf49",
+        "wireframe": "0da65ee64e69aa7f",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          1,
+          1
+        ],
+        "nodeCount": 2
+      }
+    },
+    "shape/trailing-empty-section": {
+      "kind": "multi",
+      "inputSha": "da36efe4faf497ce",
+      "frozen": {
+        "flat": "3c08be4a1a91ba5c",
+        "markdown": "44d64386a78dd332",
+        "html": "ed652308928b56db",
+        "stats": "bd01679d5f42f704",
+        "noop": "990ff65ccfdbbc4c"
+      },
+      "info": {
+        "toon": "e9e7031322f49a5a",
+        "wireframe": "de38c49eb4b318e7",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          2,
+          0
+        ],
+        "nodeCount": 2
+      }
+    },
+    "shape/two-sections": {
+      "kind": "multi",
+      "inputSha": "3fb784a20397bc82",
+      "frozen": {
+        "flat": "a67411911d0877a5",
+        "markdown": "293f0c75e0198257",
+        "html": "fb995bd7148048e7",
+        "stats": "53d1da7dfdd4fb5c",
+        "noop": "6d87c131a22f197d"
+      },
+      "info": {
+        "toon": "157e9db4a0b643bd",
+        "wireframe": "93fa5825c2465ca4",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root",
+        "sectionCount": 2,
+        "sectionIds": [
+          "sec_root",
+          "sec_2"
+        ],
+        "nodesPerSection": [
+          2,
+          2
+        ],
+        "nodeCount": 4
+      }
+    },
+    "validator/valid.docx": {
+      "kind": "single",
+      "inputSha": "344d30a8f60f2d6e",
+      "frozen": {
+        "flat": "c061bd750e0e3f83",
+        "markdown": "0fab7c9d3c3b7fd3",
+        "html": "027f4c3e6621ccac",
+        "stats": "b6ddfd55e9975b6d",
+        "noop": "a62dabb932fcca86",
+        "toon": "25eb4b5dc74985a9",
+        "wireframe": "bf25f3fda494da0d",
+        "firstSectionPageSetup": "9fc7771a9febce3d",
+        "sectionId": "sec_root"
+      },
+      "info": {
+        "sectionCount": 1,
+        "sectionIds": [
+          "sec_root"
+        ],
+        "nodesPerSection": [
+          12
+        ],
+        "nodeCount": 12
+      }
+    }
+  }
+}

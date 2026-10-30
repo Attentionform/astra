@@ -1,0 +1,14 @@
+{
+  "fixture": "gallery-edit-target",
+  "family": "gallery-baseline",
+  "motivatingPathology": "This baseline is the largest gallery file at thirty-six nodes with two distinct footer parts and a styles part, exercising multi-section documents where sections carry different footers. Section properties, footer references, and a long body must all survive while two sentences mutate. Size and section variety make this the closest seed fixture to the multi-hundred-page enterprise files the corpus exists to protect.",
+  "knownLimitations": "Two footers are present but header parts are not, so header preservation rides on other fixtures and future growth. The file is large for the seed corpus yet small beside real enterprise documents; scale behavior is not characterized here. Section-break semantics beyond reference preservation are not asserted. Mutation targets stay unformatted paragraphs by rule; replace now carries the first run's properties onto rewritten text, so the rule is conservative rather than required.",
+  "scopeExclusions": "This fixture does not isolate any single pathology; minimized coverage lives in the hand-built fixtures. Footer rendering, section start behavior, and page geometry belong to layout, not to this structural gate. Revision markup and drawings appear only if the source contains them, which is not asserted either way.",
+  "ecma376Difficulty": "Sections multiply reference bookkeeping: each section can point at its own header and footer parts, and section properties sit at paragraph or body level with different inheritance rules. A writer that models one implicit section will drop the second footer's references or merge section properties. Preservation means carrying every section's references without understanding their layout meaning.",
+  "licenseProvenance": "Copied byte-identical from the in-repo test gallery; same repository license as the gallery source; no new provenance claims.",
+  "sourceDocument": "test-gallery/T2_edit_target.docx",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "The gallery file is Word-legal throughout, so the engine preserves every part: only the two mutated sentences change, all other parts are byte-identical, and the package validates clean."
+  }
+}

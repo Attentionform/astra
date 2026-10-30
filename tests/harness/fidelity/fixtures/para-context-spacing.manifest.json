@@ -1,0 +1,13 @@
+{
+  "fixture": "para-context-spacing",
+  "family": "paragraph-flow",
+  "motivatingPathology": "List-adjacent copy suppresses doubled gaps: a paragraph with line-number suppression plus before and after spacing of two hundred twips plus contextual spacing, so consecutive same-styled paragraphs collapse their touching gaps instead of stacking them. Template body text relies on this to keep list neighborhoods evenly gray. The engine must carry all three siblings in schema order through the round trip without dropping a flag or reordering the siblings.",
+  "knownLimitations": "One paragraph exercises the flags; multi-paragraph collapsing sequences are not covered. Spacing uses before and after only; line spacing rides along in the paragraph-layout fixture. Numbered-paragraph line counting is never explicitly asserted here. Mirror indents live in a sibling fixture.",
+  "scopeExclusions": "This fixture does not exercise justification, borders, tabs, or keep controls; those live in sibling fixtures. List numbering itself is covered by the numbering fixtures, not here. Rendered gap collapsing is never asserted; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Contextual spacing changes the meaning of the spacing values around it: with the flag set, touching gaps between same-styled paragraphs collapse, and without it they stack. The suppression flag must serialize first inside pPr, then spacing, then the contextual flag, and a writer that emits them out of order, or that drops a flag it never lays out, doubles the visible gaps. Order and presence both matter.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Contextual spacing with paragraph gaps is Word-legal and safe, so the engine preserves it: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

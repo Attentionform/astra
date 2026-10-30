@@ -1,0 +1,77 @@
+{
+  "name": "@attentionform/astra-engine",
+  "version": "0.1.0",
+  "description": "Headless, transactional MS Word (OOXML) document engine",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "dist/templates/guides/*.md",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "!dist/**/*.map"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Attentionform/astra.git",
+    "directory": "packages/engine"
+  },
+  "keywords": [
+    "ooxml",
+    "docx",
+    "word",
+    "document-engine",
+    "mcp",
+    "toon",
+    "agentic"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/check-adm-zip-imports.mjs && tsc && esbuild src/git.ts --bundle --packages=external --platform=node --target=node22 --format=cjs --outfile=dist/git.js --log-level=warning && node scripts/copy-guide-assets.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --root ../.. packages/engine/tests/",
+    "adm-zip-gate": "node ../../scripts/check-adm-zip-imports.mjs"
+  },
+  "dependencies": {
+    "@attentionform/ooxml-validator": "^0.1.0",
+    "@xmldom/xmldom": "0.8.15",
+    "adm-zip": "0.6.1",
+    "isomorphic-git": "^1.25.0",
+    "marked": "18.0.5",
+    "p-limit": "^3.1.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.5",
+    "@types/node": "^25.9.1",
+    "typescript": "^5.2.2",
+    "vitest": "^4.1.7"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "homepage": "https://attentionform.com",
+  "bugs": {
+    "url": "https://github.com/Attentionform/astra/issues"
+  },
+  "author": {
+    "name": "Attentionform",
+    "url": "https://attentionform.com"
+  }
+}

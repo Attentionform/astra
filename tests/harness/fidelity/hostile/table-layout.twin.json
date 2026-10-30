@@ -1,0 +1,7 @@
+{
+  "family": "table-layout",
+  "twin": "table-layout.twin",
+  "base": "tbl-fixed-layout",
+  "corruption": "w:jc loses its required w:val attribute (schema violation, same layout shape).",
+  "expectedRefusal": "validate"
+}

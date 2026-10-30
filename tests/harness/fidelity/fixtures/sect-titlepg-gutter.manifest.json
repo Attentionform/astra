@@ -1,0 +1,13 @@
+{
+  "fixture": "sect-titlepg-gutter",
+  "family": "section-layout",
+  "motivatingPathology": "Book openings set generous pages: a section with letter-size paper, wide symmetric margins plus a binding gutter, and a title-page flag marking the first page as special. The gutter reserves binding space inside the margins while title-page status lets headers differ on page one. The engine must carry the page size, all margin values with the gutter, and the title flag in schema order through the round trip without absorbing the gutter or losing the flag.",
+  "knownLimitations": "One section exercises the shape; multi-section books with alternating title pages are not covered. Paper sizes beyond letter are absent. First-page header content itself lives in the document-parts fixture. Even and odd page differentiation beyond the title flag is out of scope. Rendered binding margins are never measured.",
+  "scopeExclusions": "This fixture does not exercise orientation, columns, numbering restarts, or grids; those live in sibling fixtures. Header and footer parts that consume the title-page flag are covered by the document-parts fixture, not here. Rendered title pages are never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Page geometry serializes as size then margins then flags in schema order, with the gutter as a margin attribute rather than an element. A writer that emits the title flag before the size, or that folds the gutter into the side margin, validates while changing binding math. Size, margins with gutter, and flag must each round-trip in position.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Title-page sections with guttered margins are Word-legal and safe, so the engine preserves them: the node checksums are identical after the round trip and the package validates clean."
+  }
+}

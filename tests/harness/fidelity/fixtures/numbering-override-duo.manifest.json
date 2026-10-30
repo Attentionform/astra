@@ -1,0 +1,13 @@
+{
+  "fixture": "numbering-override-duo",
+  "family": "numbering",
+  "motivatingPathology": "Resumed lists restart mid-stream: a concrete numbering instance pointing at a shared decimal abstract definition but overriding level zero to restart at twelve, consumed by one resumed paragraph. Overrides let one definition serve many lists with different start points. The engine must carry the abstract definition, the concrete instance with its level override and start value, plus the consuming paragraph through the round trip without resetting the start or merging the instance into the abstract.",
+  "knownLimitations": "One override on one level exercises the shape; multi-level overrides and numbering-style links are not covered. Multiple overrides stacked on one instance are not exercised. Start values beyond twelve are absent. Override removal and resume semantics are not asserted. Rendered restart values are never compared.",
+  "scopeExclusions": "This fixture does not exercise bullet definitions, Roman formats, or multi-level templates; those live in sibling fixtures. The consuming paragraph is ordinary body copy. Abstract reuse across instances beyond one override is not covered. Rendered list numbers are never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Numbering overrides layer a concrete instance over a shared abstract: the instance names the abstract then overrides a level start, and the paragraph names the instance. A writer that merges instances into abstracts, or that drops overrides it never renders, resets every resumed list to one. Abstract, instance, override, and reference must round-trip as four linked pieces.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Numbering start overrides are Word-legal and safe, so the engine preserves them: the numbering part stays semantically identical and the package validates clean."
+  }
+}

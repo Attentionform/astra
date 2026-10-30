@@ -1,0 +1,287 @@
+name: Release
+
+# The only way packages reach npm. Started by hand from the Actions tab; nothing starts it on its own,
+# and pushing a tag does not publish.
+#
+# Pick what to release (any mix, or "all"):
+#   validator_platforms  the six native binaries, one package per platform
+#   validator_wrapper    @attentionform/ooxml-validator
+#   engine               @attentionform/astra-engine
+#   cli                  @attentionform/astra
+#   mcp_server           @attentionform/astra-mcp-server
+# "all" does them in that order. dry_run is on by default: it plans, builds, tests, packs, installs the
+# packed packages into an empty project and runs `npm publish --dry-run`, and publishes nothing. Run it
+# first, then run again with dry_run off.
+#
+# Versions are raised in a normal commit before the run; this workflow only publishes what the
+# package.json files say. The validator binary has its own version (validatorBinary in the wrapper's
+# package.json), so a platform whose build failed keeps its last binary inside the wrapper's range.
+#
+# The npm token (NPM_TOKEN) is a secret of the `npm` environment, which should require your approval.
+# Only the publish job uses that environment, so build and test steps never see the token. A dry run
+# uses the `npm-dry-run` environment, which has no approval; add the same secret there if you want the
+# rehearsal to check the npm login too.
+
+on:
+  workflow_dispatch:
+    inputs:
+      all:
+        description: 'Everything below, in order'
+        type: boolean
+        default: false
+      validator_platforms:
+        description: 'Validator: the six native platform packages'
+        type: boolean
+        default: false
+      validator_wrapper:
+        description: 'Validator: the wrapper package'
+        type: boolean
+        default: false
+      engine:
+        description: 'Engine'
+        type: boolean
+        default: false
+      cli:
+        description: 'Command-line tool'
+        type: boolean
+        default: false
+      mcp_server:
+        description: 'MCP server'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run: publish nothing (turn off to publish for real)'
+        type: boolean
+        default: true
+      require_all_platforms:
+        description: 'Publish the wrapper only if every platform has the current binary (use for the first release)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      selected: ${{ steps.plan.outputs.selected }}
+      platforms: ${{ steps.plan.outputs.platforms }}
+      wrapper: ${{ steps.plan.outputs.wrapper }}
+      engine: ${{ steps.plan.outputs.engine }}
+      cli: ${{ steps.plan.outputs.cli }}
+      mcp_server: ${{ steps.plan.outputs.mcp_server }}
+      needs_tests: ${{ steps.plan.outputs.needs_tests }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Work out what this run does, and stop if it should not
+        id: plan
+        env:
+          ALL: ${{ inputs.all }}
+          PLATFORMS: ${{ inputs.validator_platforms }}
+          WRAPPER: ${{ inputs.validator_wrapper }}
+          ENGINE: ${{ inputs.engine }}
+          CLI: ${{ inputs.cli }}
+          MCP_SERVER: ${{ inputs.mcp_server }}
+          REQUIRE_ALL: ${{ inputs.require_all_platforms }}
+        run: |
+          selected=""
+          add() { selected="${selected:+$selected,}$1"; }
+          [ "$ALL" = "true" ] && add all
+          [ "$PLATFORMS" = "true" ] && add validator-platforms
+          [ "$WRAPPER" = "true" ] && add validator-wrapper
+          [ "$ENGINE" = "true" ] && add engine
+          [ "$CLI" = "true" ] && add cli
+          [ "$MCP_SERVER" = "true" ] && add mcp-server
+          flags=""
+          [ "$REQUIRE_ALL" = "true" ] && flags="--require-all-platforms"
+          npx tsx scripts/release-plan.ts --selected "$selected" $flags
+
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    needs: plan
+    if: needs.plan.outputs.needs_tests == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # The lowest Node the packages support (engines.node), and the newest.
+        node-version: ['22.19.0', 'latest']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Upgrade npm
+        run: npm install -g npm@^11
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build monorepo packages
+        run: npm run build:packages
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+          cache: true
+          cache-dependency-path: packages/ooxml-validator/native/packages.lock.json
+
+      - name: Build native validator binary
+        run: npm run build:native --workspace=@attentionform/ooxml-validator
+
+      - name: Install LibreOffice & Poppler (headless export dependencies)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer libreoffice-calc poppler-utils
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Validate OOXML test documents
+        run: npm run validate:docs
+
+  # Builds, tests and packs each platform on its own operating system. No token here: the packages
+  # travel to the publish job as artifacts. A platform that fails has no artifact.
+  platforms:
+    name: Validator
+    needs: plan
+    if: needs.plan.outputs.platforms == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/validator-platform.yml
+    with:
+      pack: true
+
+  publish:
+    name: ${{ inputs.dry_run && 'Dry run' || 'Publish' }}
+    needs: [plan, test, platforms]
+    # Runs when a platform failed (the publish step decides whether the wrapper can still go out), not
+    # when the plan or the tests failed or the run was cancelled.
+    if: >-
+      ${{ !cancelled()
+      && needs.plan.result == 'success'
+      && (needs.test.result == 'success' || needs.test.result == 'skipped')
+      && (needs.platforms.result == 'success' || needs.platforms.result == 'failure' || needs.platforms.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    # A real publish waits here for approval; a dry run does not.
+    environment: ${{ inputs.dry_run && 'npm-dry-run' || 'npm' }}
+    permissions:
+      contents: write   # tags
+      id-token: write   # provenance, on a public repository
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Upgrade npm
+        run: npm install -g npm@^11
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build monorepo packages
+        run: npm run build:packages
+
+      - name: Download the platform packages built in this run
+        if: needs.plan.outputs.platforms == 'true'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: validator-*
+          path: platform-out
+
+      # The artifact folders are named validator-<platform>; the publish step wants <platform>.
+      - name: Lay out the platform packages
+        if: needs.plan.outputs.platforms == 'true'
+        run: |
+          mkdir -p platform-out
+          for d in platform-out/validator-*; do
+            [ -d "$d" ] && mv "$d" "platform-out/${d#platform-out/validator-}"
+          done
+          # Artifact upload and download do not keep file modes. The binary must be executable before it
+          # is packed, or the installed package fails with EACCES. (The Windows file is .exe.)
+          for f in platform-out/*/ooxml-validator; do
+            [ -f "$f" ] && chmod 755 "$f"
+          done
+          ls -l platform-out/*/ooxml-validator* 2>/dev/null || true
+          ls platform-out || true
+
+      # The same questions as the plan, asked again now that the run is approved: npm may have changed
+      # since the plan. A real run also checks the npm login here.
+      - name: Check the plan again
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          SELECTED: ${{ needs.plan.outputs.selected }}
+          REQUIRE_ALL: ${{ inputs.require_all_platforms }}
+        run: |
+          flags="--check-auth"
+          [ "$REQUIRE_ALL" = "true" ] && flags="$flags --require-all-platforms"
+          npx tsx scripts/release-plan.ts --selected "$SELECTED" $flags
+
+      - name: Rehearse - install the packed packages into an empty project and use them
+        if: needs.plan.outputs.needs_tests == 'true'
+        run: scripts/release-rehearsal.sh platform-out
+
+      - name: ${{ inputs.dry_run && 'Dry run - publish nothing' || 'Publish' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REQUIRE_ALL: ${{ inputs.require_all_platforms }}
+          PRIVATE_REPO: ${{ github.event.repository.private }}
+          PLATFORMS: ${{ needs.plan.outputs.platforms }}
+          WRAPPER: ${{ needs.plan.outputs.wrapper }}
+          ENGINE: ${{ needs.plan.outputs.engine }}
+          CLI: ${{ needs.plan.outputs.cli }}
+          MCP_SERVER: ${{ needs.plan.outputs.mcp_server }}
+        run: |
+          args=""
+          [ "$PLATFORMS" = "true" ] && args="$args --platforms"
+          [ "$WRAPPER" = "true" ] && args="$args --wrapper"
+          [ "$ENGINE" = "true" ] && args="$args --engine"
+          [ "$CLI" = "true" ] && args="$args --cli"
+          [ "$MCP_SERVER" = "true" ] && args="$args --mcp-server"
+          [ "$REQUIRE_ALL" = "true" ] && args="$args --require-all-platforms"
+          if [ "$DRY_RUN" = "true" ]; then
+            args="$args --dry-run"
+          else
+            if [ -z "$NODE_AUTH_TOKEN" ]; then
+              echo "::error::NPM_TOKEN is not set in the npm environment, so nothing can be published."
+              exit 1
+            fi
+            args="$args --tag"
+          fi
+          # Provenance needs a public repository.
+          if [ "$PRIVATE_REPO" = "false" ]; then args="$args --provenance"; fi
+          npx tsx scripts/release-publish.ts $args

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "astra": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@attentionform/astra-mcp-server",
+        "--allowed-dir",
+        "/absolute/path/to/your/documents"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}

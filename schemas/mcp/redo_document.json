@@ -1,0 +1,32 @@
+{
+  "name": "redo_document",
+  "description": "Re-apply the state undone by the last revert_document (pops the per-session redo stack, restores it, commits as new head). Success carries advisory changedValues [{nodeId,before,after}] (pre-redo live text -> restored text, same bounds as save/preview). Empty stack fails with E_NOT_FOUND plus atLatestState:true (a fresh execute_batch edit clears redo, and each redo consumes one entry). Optional author (<=100 chars, default ASTra Agent) + reason (<=500 chars, preferred over message) with the same hygiene as save/revert. Example {\"sessionId\":\"sess_abc\"} -> {ok:true,revision,dirty:false}. A successful execute_batch clears the redo stack (fresh edits invalidate redo). ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices. ",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "message": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "author": {
+        "type": "string",
+        "maxLength": 100
+      },
+      "reason": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.1.0"
+}

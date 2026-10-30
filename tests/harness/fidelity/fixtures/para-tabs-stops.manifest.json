@@ -1,0 +1,13 @@
+{
+  "fixture": "para-tabs-stops",
+  "family": "paragraph-layout",
+  "motivatingPathology": "Glossaries and ledgers align columns with tab stops: left, center, right, and decimal stops at fixed positions, with tab characters between runs carrying name, value, and amount. Decimal stops align figures on the point, so losing the stop type misaligns every number. The engine must carry all four stop types, their positions, and the in-run tab characters through the round trip without converting stops to spaces or dropping the decimal type.",
+  "knownLimitations": "One paragraph with three tab characters exercises the shape; tab leaders with dot fills are not covered. A clear stop appears never, so stop-clearing behavior is out of scope. Hanging-indent interaction with tabs is not exercised. Positional tab stops beyond the four basic types are absent.",
+  "scopeExclusions": "This fixture does not exercise spacing, indents, justification, borders, or flow controls; those live in sibling fixtures. Table-based alignment is the alternative mechanism and is covered by the table fixtures, not here. Rendered column alignment is not measured; only markup preservation and schema validity are asserted.",
+  "ecma376Difficulty": "Tab stops are positional contracts between the pPr tabs list and tab characters inside runs: the stop type decides alignment geometry and the position is an absolute twip value. A writer that expands tabs to spaces, or that drops stop types it never renders, keeps the characters while destroying the columns. Both the stop list and the tab characters must round-trip exactly.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Tab stops with in-run tab characters are Word-legal and safe, so the engine preserves them: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

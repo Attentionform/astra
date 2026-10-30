@@ -1,0 +1,13 @@
+{
+  "fixture": "revision-nested-change",
+  "family": "tracked-revisions",
+  "motivatingPathology": "Real review histories nest: one reviewer deletes a sentence while another inserts a correction inside the deleted span before the first change is accepted. Word records this as a w:ins element inside a w:del element, two live ranges occupying the same text. Flattening rewriters either eject the inner insertion or merge the ranges into one authorship, destroying who did what. The engine must preserve the nesting exactly while nearby sentences mutate.",
+  "knownLimitations": "One insertion nested in one deletion is exercised; deeper nesting of three or more ranges and sibling nests in the same paragraph are not covered. The nested ranges share one paragraph, so ranges spanning paragraph boundaries are out of scope. Accept and reject semantics for nested ranges are not executed; only markup preservation is asserted.",
+  "scopeExclusions": "This fixture does not exercise move-source and move-destination ranges, property-level revision markup, comments, or multi-author soup across paragraphs. Rendering of nested change indicators belongs to editors, not to this structural gate. Revision markup inside tables or headers is covered by other fixtures or future growth.",
+  "ecma376Difficulty": "Range nesting breaks the flat-run mental model: content inside w:del is simultaneously deleted text and a container for live w:ins content, so text extraction, run counting, and accept/reject logic must all recurse. Schema-wise the nesting is legal but rare, which means most writers never test it and fail by flattening. Preserving it requires treating tracked ranges as a tree rather than a sequence of siblings.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Insertion-inside-deletion nesting is Word-legal and safe, so the engine preserves it untouched: only the two mutated sentences change and the package validates clean."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "run-emphasis-stack",
+  "family": "run-typography",
+  "motivatingPathology": "Review copy stacks emphasis: bold with complex-script bold, italic with complex-script italic, double underline, single strike, and small caps in one run, beside all-caps with double strike and a red wave underline in the next. Each toggle is an independent empty element, and underline carries both style and color. The engine must carry the full stack in schema order through the round trip without dropping a toggle, flattening small caps into caps, or losing the wave color.",
+  "knownLimitations": "Two runs exercise the stacks; outline, shadow, emboss, and imprint emphasis live in the neighboring highlight fixture. Underline styles beyond double and wave are not covered. Strike and double strike appear once each; their combination with revision markup is out of scope. Character spacing siblings are not exercised here.",
+  "scopeExclusions": "This fixture does not exercise colors, fonts, sizes, shading, or vertical alignment; those live in sibling fixtures. Paragraph-level emphasis never exists; emphasis is run-scoped by design. Emphasis on East Asian runs is not covered. Rendered emphasis painting is never compared; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Emphasis toggles must serialize in schema order inside rPr: bold and italic pairs before caps variants before strike variants before underline. A writer that emits underline first, or that merges small caps into caps because it models only one, keeps the words while changing the voice. Nine toggles across two runs must each round-trip exactly.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Stacked run emphasis is Word-legal and safe, so the engine preserves every toggle: the paragraph node checksum is identical after the round trip and the package validates clean."
+  }
+}

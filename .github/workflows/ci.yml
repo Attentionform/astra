@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+
+    - name: Upgrade npm (lockfile v3 optional-platform fix)
+      run: npm install -g npm@^11
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build monorepo packages
+      run: npm run build:packages
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.403'
+        cache: true
+        cache-dependency-path: packages/ooxml-validator/native/packages.lock.json
+
+    - name: Build native validator binary
+      run: npm run build:native --workspace=@attentionform/ooxml-validator
+
+    - name: Schema freshness gate (regenerate-and-diff)
+      run: npm run gen:schemas && git diff --exit-code -- schemas/mcp
+
+    - name: Typecheck
+      run: npx tsc --noEmit
+
+    - name: Lint (errors fail the build)
+      run: npx eslint . --quiet
+
+    - name: Install LibreOffice & Poppler (headless export dependencies)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libreoffice-writer libreoffice-calc poppler-utils
+
+    - name: Run unit tests
+      run: npx vitest run
+
+    - name: Validate OOXML documents
+      run: npm run validate:docs

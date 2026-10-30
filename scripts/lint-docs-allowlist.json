@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "note": "Each entry names a file fragment plus a regex. A hit is skipped when both match. Regexes use bracket tricks so this file itself carries no literal hit.",
+  "entries": [
+    {
+      "file": "docs/security.md",
+      "match": "l[o0]op",
+      "why": "manual redirect prose; grandfathered"
+    },
+    {
+      "file": "docs/mcp-specification.md",
+      "match": "ASTRA[_]ALLOWED[_]DIR",
+      "why": "normative ignore note; canonical location is mcp-server README"
+    },
+    {
+      "file": "docs/security.md",
+      "match": "ASTRA[_]ALLOWED[_]DIR",
+      "why": "jail note; grandfathered pending consolidation"
+    },
+    {
+      "file": "packages/mcp-server/README.md",
+      "match": "ASTRA[_]ALLOWED[_]DIR",
+      "why": "canonical ignore note"
+    }
+  ]
+}

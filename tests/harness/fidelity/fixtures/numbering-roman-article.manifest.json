@@ -1,0 +1,13 @@
+{
+  "fixture": "numbering-roman-article",
+  "family": "numbering",
+  "motivatingPathology": "Legal drafts number articles in Roman capitals: a two-level abstract definition with upper-Roman Article text at level zero and decimal Section text combining both levels at level one, consumed by two article paragraphs. Multi-level text with cross-level placeholders exercises the template engine behind numbering. The engine must carry the abstract definition with both level texts, indents, and justification plus the concrete reference through the round trip without flattening the Roman format or dropping the composite template.",
+  "knownLimitations": "Two levels with two paragraphs exercise the shape; deeper hierarchies and restart overrides live in sibling fixtures. Number formats beyond upper-Roman and decimal are not covered. Restart overrides applied to Roman levels are not exercised. Style-linked numbering is absent. Rendered numeral values are never compared, only markup preservation.",
+  "scopeExclusions": "This fixture does not exercise bullet definitions, start overrides, or level-text overrides; those live in sibling fixtures. Paragraph text carrying the numbers is ordinary body copy. Picture bullets and legal-numbering hybrids are not covered. Rendered article numbers are never measured; only markup preservation and schema validity are.",
+  "ecma376Difficulty": "Multi-level numbering binds abstract templates with placeholder text to concrete num references, with per-level start, format, text, justification, and indent siblings in schema order. A writer that keeps the body while dropping the numbering part, or that reorders level children, unnumbers the articles while the text still validates. Templates, references, and levels must round-trip together.",
+  "licenseProvenance": "Hand-built for this corpus from the ECMA-376 transitional schema; no third-party source material; fixture bytes under the repository license.",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "Roman article numbering with composite level text is Word-legal and safe, so the engine preserves it: the numbering part stays semantically identical and the package validates clean."
+  }
+}

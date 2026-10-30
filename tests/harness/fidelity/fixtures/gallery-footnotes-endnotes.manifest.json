@@ -1,0 +1,14 @@
+{
+  "fixture": "gallery-footnotes-endnotes",
+  "family": "gallery-baseline",
+  "motivatingPathology": "This baseline carries footnote and endnote parts plus a settings part, exercising reference integrity between body markers and note content stored in separate XML parts. Notes are the classic multi-part reference web: body reference marks must keep matching note ids in two other parts. Mutating two body sentences must not disturb any marker, any note, or the settings part that configures them.",
+  "knownLimitations": "The notes come as the source wrote them; continuation, separator, and special note kinds are covered only if present, which is not asserted. Note content itself is never mutated, so note-editing paths are untested here. Custom note numbering formats beyond the source are not characterized. Mutation targets stay unformatted paragraphs by rule; replace now carries the first run's properties onto rewritten text, so the rule is conservative rather than required.",
+  "scopeExclusions": "This fixture does not isolate note pathologies; a minimized footnote fixture is future growth. Note rendering, separator layout, and numbering restarts for notes belong to layout, not to this structural gate. Comments, which share the reference-web shape, are a separate future fixture.",
+  "ecma376Difficulty": "Notes split one logical construct across three parts: the body holds reference marks, footnotes and endnotes parts hold the content keyed by matching ids, and the settings part configures numbering. A writer that edits body text without carrying the reference marks, or that drops parts it never parsed, orphans notes while the body validates. Integrity means preserving ids across parts the mutation never touches.",
+  "licenseProvenance": "Copied byte-identical from the in-repo test gallery; same repository license as the gallery source; no new provenance claims.",
+  "sourceDocument": "test-gallery/T8_footnotes_endnotes.docx",
+  "disposition": {
+    "verdict": "conform",
+    "reason": "The gallery file is Word-legal throughout, so the engine preserves every part: only the two mutated sentences change, all other parts are byte-identical, and the package validates clean."
+  }
+}
