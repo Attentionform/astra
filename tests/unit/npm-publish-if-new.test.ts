@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, it, expect } from 'vitest';
-import { isPublished, publishIfNew, publishedVersions, type NpmResult, type NpmRunner } from '../../scripts/npm-publish-if-new.js';
+import { VISIBILITY_ATTEMPTS, VISIBILITY_WAIT_MS, isPublished, publishIfNew, publishedVersions, type NpmResult, type NpmRunner } from '../../scripts/npm-publish-if-new.js';
 import { judgePlatforms, platformState } from '../../scripts/validator-platform-status.js';
 
 const ok = (stdout = ''): NpmResult => ({ status: 0, stdout, stderr: '' });
@@ -77,6 +77,41 @@ describe('publishIfNew', () => {
   it('fails when npm publish fails', () => {
     const run: NpmRunner = (args) => (args[0] === 'view' ? notFound : { status: 1, stdout: '', stderr: 'npm error E403' });
     expect(() => publishIfNew({ dir: packageDir(), run, wait: () => {} })).toThrow(/npm publish failed/);
+  });
+
+  it('waits long enough for a new package: 10 seconds apart, for at least 10 minutes', () => {
+    expect(VISIBILITY_WAIT_MS).toBe(10_000);
+    expect(VISIBILITY_ATTEMPTS * VISIBILITY_WAIT_MS).toBeGreaterThanOrEqual(10 * 60 * 1000);
+  });
+
+  it('stops asking the moment the version is served, however late that is within the budget', () => {
+    let publishedAt = -1;
+    let views = 0;
+    const run: NpmRunner = (args) => {
+      if (args[0] === 'publish') {
+        publishedAt = views;
+        return ok();
+      }
+      views++;
+      // Served on the 25th question after the publish, about four minutes in.
+      return publishedAt >= 0 && views - publishedAt >= 25 ? ok('0.1.0\n') : notFound;
+    };
+    let waits = 0;
+    expect(publishIfNew({ dir: packageDir(), run, wait: () => waits++ })).toBe('published');
+    expect(waits).toBe(24);
+    expect(views - publishedAt).toBe(25);
+  });
+
+  it('with the default budget, gives up only after every question has been asked', () => {
+    let views = 0;
+    const run: NpmRunner = (args) => {
+      if (args[0] === 'view') views++;
+      return args[0] === 'view' ? notFound : ok();
+    };
+    let waits = 0;
+    expect(() => publishIfNew({ dir: packageDir(), run, wait: () => waits++ })).toThrow(/does not serve it yet/);
+    expect(waits).toBe(VISIBILITY_ATTEMPTS - 1);
+    expect(views).toBe(VISIBILITY_ATTEMPTS + 1); // one question before the publish, then every attempt
   });
 
   it('fails when the registry never serves the new version', () => {

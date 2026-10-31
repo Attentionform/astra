@@ -47,6 +47,14 @@ export function publishedVersions(name: string, run: NpmRunner = runNpm): string
 
 export type PublishOutcome = 'published' | 'skipped' | 'dry-run';
 
+/**
+ * After a publish succeeds, npm still has to process the new version before it serves it. For a new
+ * package that took about 1 minute (a tiny package) to 3 minutes (a 35 MB binary), so ask every 10
+ * seconds for up to 10 minutes. The loop ends the moment the version is visible.
+ */
+export const VISIBILITY_ATTEMPTS = 60;
+export const VISIBILITY_WAIT_MS = 10_000;
+
 export interface PublishOptions {
   dir: string;
   dryRun?: boolean;
@@ -58,7 +66,7 @@ export interface PublishOptions {
 }
 
 export function publishIfNew(options: PublishOptions): PublishOutcome {
-  const { dir, dryRun = false, provenance = false, run = runNpm, attempts = 6, wait = () => sleepSync(5000) } = options;
+  const { dir, dryRun = false, provenance = false, run = runNpm, attempts = VISIBILITY_ATTEMPTS, wait = () => sleepSync(VISIBILITY_WAIT_MS) } = options;
   const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as { name: string; version: string };
 
   if (!dryRun && isPublished(pkg.name, pkg.version, run)) {
