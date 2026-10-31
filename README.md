@@ -24,6 +24,13 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/@attentionform/astra"><img src="https://img.shields.io/npm/v/@attentionform/astra?logo=npm&label=astra&color=CB3837" alt="Command line on npm: @attentionform/astra" /></a>
+  <a href="https://www.npmjs.com/package/@attentionform/astra-mcp-server"><img src="https://img.shields.io/npm/v/@attentionform/astra-mcp-server?logo=npm&label=astra-mcp-server&color=CB3837" alt="MCP server on npm: @attentionform/astra-mcp-server" /></a>
+  <a href="https://www.npmjs.com/package/@attentionform/astra-engine"><img src="https://img.shields.io/npm/v/@attentionform/astra-engine?logo=npm&label=astra-engine&color=CB3837" alt="TypeScript engine on npm: @attentionform/astra-engine" /></a>
+  <a href="https://www.npmjs.com/package/@attentionform/ooxml-validator"><img src="https://img.shields.io/npm/v/@attentionform/ooxml-validator?logo=npm&label=ooxml-validator&color=CB3837" alt="Schema validator on npm: @attentionform/ooxml-validator" /></a>
+</p>
+
+<p align="center">
   <a href="#quickstart">Quickstart</a> &nbsp;·&nbsp;
   <a href="#what-people-use-it-for">Use cases</a> &nbsp;·&nbsp;
   <a href="#our-own-validator">Validator</a> &nbsp;·&nbsp;
