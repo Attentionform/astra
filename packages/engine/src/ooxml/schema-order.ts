@@ -479,6 +479,13 @@ export function canonicalizeDocumentDom(doc: Document): void {
  * in sync. Valid documents are untouched.
  */
 export function dedupeDrawingDocPrIds(doc: Document): void {
+  // The closest w:drawing above an element owns it. A drawing inside a text box therefore owns its own
+  // ids, and the outer drawing does not renumber them again on every pass.
+  const nearestDrawing = (el: Element): Element | null => {
+    let node: Node | null = el.parentNode;
+    while (node && (node as Element).tagName !== 'w:drawing') node = node.parentNode;
+    return node as Element | null;
+  };
   const idOf = (el: Element): number => {
     const raw = parseInt(el.getAttribute('id') || '0', 10);
     return isNaN(raw) ? 0 : raw;
@@ -499,7 +506,10 @@ export function dedupeDrawingDocPrIds(doc: Document): void {
     const owned: Element[] = [];
     for (const tag of ['wp:docPr', 'pic:cNvPr']) {
       const els = drawing.getElementsByTagName(tag);
-      for (let j = 0; j < els.length; j++) owned.push(els[j] as unknown as Element);
+      for (let j = 0; j < els.length; j++) {
+        const el = els[j] as unknown as Element;
+        if (nearestDrawing(el) === drawing) owned.push(el);
+      }
     }
     if (owned.length === 0) continue;
     const current = idOf(owned[0]);
