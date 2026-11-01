@@ -201,3 +201,40 @@ describe('strip-macros leaves no reference to a removed part', () => {
     expect(text(buffer, 'word/document.xml')).not.toContain('w:control');
   });
 });
+
+describe('strip-macros on a macro-enabled document leaves a plain document package', () => {
+  const VBA_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+  const VBA_DATA_REL = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
+
+  function docm(): Buffer {
+    const z = new AdmZip(
+      fixture({
+        body: '<w:p><w:r><w:t>text</w:t></w:r></w:p>',
+        rels: [`<Relationship Id="rId91" Type="${VBA_REL}" Target="vbaProject.bin"/>`],
+        parts: {
+          'word/vbaProject.bin': 'binary',
+          'word/_rels/vbaProject.bin.rels':
+            `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${VBA_DATA_REL}" Target="vbaData.xml"/></Relationships>`,
+          'word/vbaData.xml': '<?xml version="1.0" encoding="UTF-8"?><wne:vbaSuppData xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"/>',
+        },
+      })
+    );
+    let ct = z.getEntry('[Content_Types].xml')!.getData().toString('utf8');
+    ct = ct
+      .replace('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', 'application/vnd.ms-word.document.macroEnabled.main+xml')
+      .replace('<Default Extension="bin" ContentType="application/octet-stream"/>', '<Default Extension="bin" ContentType="application/vnd.ms-office.vbaProject"/>')
+      .replace('</Types>', '<Override PartName="/word/vbaData.xml" ContentType="application/vnd.ms-word.vbaData+xml"/></Types>');
+    z.updateFile('[Content_Types].xml', Buffer.from(ct, 'utf8'));
+    return z.toBuffer();
+  }
+
+  it('removes the VBA data part and the rels part of the project, and the main part is no longer macro-enabled', () => {
+    const out = stripMacroPartsFromBuffer(docm()).buffer;
+    const list = names(out);
+    expect(list.filter((n) => /vba/i.test(n))).toEqual([]);
+    const ct = text(out, '[Content_Types].xml');
+    expect(ct).not.toMatch(/macroEnabled|vbaProject|vbaData/);
+    expect(ct).toContain('wordprocessingml.document.main+xml');
+    expect(text(out, 'word/_rels/document.xml.rels')).not.toContain('vbaProject');
+  });
+});

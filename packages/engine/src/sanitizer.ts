@@ -902,6 +902,29 @@ export function applyMacroStrip(store: MacroEntryStore): { removed: string[]; ed
     const companion = `${dir}${stem}.xml`;
     if (nameSet.has(companion)) remove.add(companion);
   }
+  // The rels part of a removed part goes with it, and so does a VBA data part (word/vbaData.xml) that only
+  // that rels part names. A package that keeps them has parts nothing points at.
+  const removedVbaProject = [...remove].some((n) => isVbaProjectBinName(macroBasename(n)));
+  for (const b of [...remove]) {
+    const slash = b.lastIndexOf('/');
+    const dir = slash >= 0 ? b.slice(0, slash + 1) : '';
+    const relsName = `${dir}_rels/${slash >= 0 ? b.slice(slash + 1) : b}.rels`;
+    if (!nameSet.has(relsName)) continue;
+    const relsText = store.readText(relsName);
+    remove.add(relsName);
+    if (!relsText) continue;
+    for (const rel of parseMacroRels(relsText)) {
+      if (!/vbadata/i.test(rel.type) || /^[a-z][a-z0-9+.-]*:/i.test(rel.target)) continue;
+      const segments = (rel.target.startsWith('/') ? rel.target.slice(1) : `${dir}${rel.target}`).split('/');
+      const resolved: string[] = [];
+      for (const seg of segments) {
+        if (seg === '..') resolved.pop();
+        else if (seg !== '.' && seg !== '') resolved.push(seg);
+      }
+      const target = resolved.join('/');
+      if (nameSet.has(target)) remove.add(target);
+    }
+  }
   const removeBases = new Set<string>();
   for (const n of remove) {
     const b = macroBasename(n);
@@ -957,8 +980,18 @@ export function applyMacroStrip(store: MacroEntryStore): { removed: string[]; ed
     if (cur) {
       const withSlash = new Set(removed.map((n) => `/${n}`));
       const r = stripMacroContentTypeOverrides(cur, withSlash);
-      if (r.xml !== cur) {
-        store.writeText('[Content_Types].xml', r.xml);
+      let ctXml = r.xml;
+      if (removedVbaProject) {
+        // Without its VBA project the main part is a plain document: a macro-enabled content type on a
+        // package that has no macros makes Word refuse the file.
+        ctXml = ctXml
+          .replace('application/vnd.ms-word.document.macroEnabled.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml')
+          .replace('application/vnd.ms-word.template.macroEnabledTemplate.main+xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml');
+        const binLeft = names.some((n) => !remove.has(n) && /\.bin$/i.test(n));
+        if (!binLeft) ctXml = ctXml.replace(/<Default\b[^>]*\bContentType="application\/vnd\.ms-office\.vbaProject"[^>]*\/>/g, '');
+      }
+      if (ctXml !== cur) {
+        store.writeText('[Content_Types].xml', ctXml);
         edited.push('[Content_Types].xml');
       }
     }
