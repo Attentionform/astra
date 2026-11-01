@@ -55,10 +55,41 @@ export interface DuplicateParaId {
 }
 
 /**
+ * True when the two paragraphs sit in different branches of one
+ * mc:AlternateContent (their closest shared ancestor is that element). Only one
+ * branch is ever read, and Word writes the same paragraph ids in the mc:Choice
+ * copy and in the mc:Fallback copy of a text box, so such a pair is one
+ * paragraph written twice and not a collision.
+ */
+function areAlternativeBranches(a: Element, b: Element): boolean {
+  const ancestorsOfA = new Set<Node>();
+  for (let node = a.parentNode; node; node = node.parentNode) ancestorsOfA.add(node);
+  for (let node = b.parentNode; node; node = node.parentNode) {
+    if (ancestorsOfA.has(node)) return node.nodeType === 1 && (node as Element).tagName === 'mc:AlternateContent';
+  }
+  return false;
+}
+
+/** Largest group of equal ids whose pairs are all checked; a bigger group is reported as it was. */
+const MAX_MIRRORED_GROUP = 32;
+
+function allAlternativeBranches(group: Element[]): boolean {
+  if (group.length > MAX_MIRRORED_GROUP) return false;
+  for (let i = 0; i < group.length; i++) {
+    for (let j = i + 1; j < group.length; j++) {
+      if (!areAlternativeBranches(group[i], group[j])) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Live-DOM scan for duplicated w14:paraId values. Groups by exact string
  * (mirroring the session-id map), skips missing/invalid ids. Covers both
  * load-time duplicates and edit-introduced ones with no load-time state to
  * go stale. Header/footer parts are out of scope (never session-mapped).
+ * An id shared only by the alternative branches of an mc:AlternateContent is
+ * not a duplicate; every other repeat still is.
  */
 export function findDuplicateParaIds(documentDom: Document): DuplicateParaId[] {
   const out: DuplicateParaId[] = [];
@@ -75,6 +106,7 @@ export function findDuplicateParaIds(documentDom: Document): DuplicateParaId[] {
     }
     for (const [paraId, els] of seen) {
       if (els.length < 2) continue;
+      if (allAlternativeBranches(els)) continue;
       out.push({ paraId, count: els.length, xPaths: els.slice(1).map(paragraphXPath) });
     }
   } catch {
