@@ -571,6 +571,7 @@ function isMacroRelType(type: string): boolean {
 }
 
 interface ParsedMacroRel {
+  id: string;
   type: string;
   target: string;
   targetBase: string;
@@ -585,10 +586,12 @@ function parseMacroRels(text: string): ParsedMacroRel[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const tag = m[0];
+    const idMatch = /\sId="([^"]*)"/.exec(tag);
     const typeMatch = /Type="([^"]*)"/.exec(tag);
     const targetMatch = /Target="([^"]*)"/.exec(tag);
     const target = targetMatch ? targetMatch[1] : '';
     out.push({
+      id: idMatch ? idMatch[1] : '',
       type: typeMatch ? typeMatch[1] : '',
       target,
       targetBase: macroBasename(target),
@@ -725,9 +728,9 @@ function stripMacroRelationshipElements(
   xml: string,
   removedBasenames: Set<string>,
   context = 'rels part'
-): { xml: string; removed: number } {
+): { xml: string; removed: number; ids: string[] } {
   assertNoForbiddenMarkup(xml, context);
-  const none = { xml, removed: 0 };
+  const none = { xml, removed: 0, ids: [] as string[] };
   if (!xml.includes('Relationship')) return none;
   const { head, body } = splitXmlProlog(xml);
   const doc = parseFailClosedXml(body, context);
@@ -741,8 +744,113 @@ function stripMacroRelationshipElements(
     if ((type && isMacroRelType(type)) || (base && removedBasenames.has(base))) doomed.push(el);
   }
   if (doomed.length === 0) return none;
+  const ids = doomed.map((el) => el.getAttribute('Id') ?? '').filter((id) => id !== '');
   for (const el of doomed) el.parentNode?.removeChild(el);
-  return { xml: serializeWithProlog(head, doc), removed: doomed.length };
+  return { xml: serializeWithProlog(head, doc), removed: doomed.length, ids };
+}
+
+const DOC_REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const CHART_NS = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+const OFFICE_NS = 'urn:schemas-microsoft-com:office:office';
+
+/** The part a `.rels` entry belongs to (`word/_rels/document.xml.rels` gives `word/document.xml`); null for the package root. */
+function relsOwnerPart(relsName: string): string | null {
+  const m = /^(.*\/)?_rels\/([^/]+)\.rels$/i.exec(relsName);
+  return m ? `${m[1] ?? ''}${m[2]}` : null;
+}
+
+/** Refusal for a reference to a removed relationship that no known carrier rule covers. */
+function macroReferenceError(part: string, detail: string): Error {
+  const remedy =
+    'Pass --allow-macros to keep the macro parts, or remove the element that points at the macro part in Word and retry.';
+  const err = new Error(
+    `E_VALIDATION: refusing to strip macro parts: ${part} still refers to a removed relationship (${detail}). Remedy: ${remedy}`
+  );
+  (err as unknown as { code?: string }).code = 'E_VALIDATION';
+  (err as unknown as { remedy?: string }).remedy = remedy;
+  return err;
+}
+
+/**
+ * Checks that an element which a strip is about to delete as the carrier of a
+ * removed relationship: `w:control` (ActiveX control), `c:externalData` (chart
+ * data link) or `o:OLEObject` (embedded object; the preview picture around it
+ * stays). Anything else is refused, never guessed.
+ */
+function strippedReferenceCarrier(el: Element, attr: Attr, part: string): Element {
+  if (el.namespaceURI === W_NS && el.localName === 'control') return el;
+  if (el.namespaceURI === CHART_NS && el.localName === 'externalData') return el;
+  if (el.namespaceURI === OFFICE_NS && el.localName === 'OLEObject') return el;
+  throw macroReferenceError(part, `${el.nodeName} ${attr.name}="${attr.value}"`);
+}
+
+/** True when the subtree holds a text run (`w:t`, `a:t`, `m:t`) with text in it. */
+function holdsRunText(root: Element): boolean {
+  const stack: Node[] = [root];
+  while (stack.length > 0) {
+    const node = stack.pop() as Node;
+    if (node.nodeType !== 1) continue;
+    const el = node as Element;
+    if (el.localName === 't' && (el.textContent ?? '').trim() !== '') return true;
+    for (let c = el.firstChild; c; c = c.nextSibling) stack.push(c);
+  }
+  return false;
+}
+
+/**
+ * Removes the elements of a kept part that still point at relationships the
+ * strip deleted, so no dangling reference survives. Each removal is limited to
+ * a known carrier that holds no text run; a `w:pict` or `w:object` left empty
+ * is dropped; anything else is refused.
+ */
+function stripDanglingMacroReferences(
+  xml: string,
+  ids: ReadonlySet<string>,
+  part: string
+): { xml: string; removed: number } {
+  const none = { xml, removed: 0 };
+  let mentioned = false;
+  for (const id of ids) {
+    if (xml.includes(`"${id}"`) || xml.includes(`'${id}'`)) {
+      mentioned = true;
+      break;
+    }
+  }
+  if (!mentioned) return none;
+  const { head, body } = splitXmlProlog(xml);
+  const doc = parseFailClosedXml(body, part);
+  const doomed = new Set<Element>();
+  const stack: Node[] = [doc.documentElement];
+  while (stack.length > 0) {
+    const node = stack.pop() as Node;
+    if (node.nodeType !== 1) continue;
+    const el = node as Element;
+    for (let i = 0; i < el.attributes.length; i++) {
+      const attr = el.attributes.item(i) as Attr;
+      if (attr.namespaceURI === DOC_REL_NS && ids.has(attr.value)) {
+        doomed.add(strippedReferenceCarrier(el, attr, part));
+      }
+    }
+    for (let c = el.firstChild; c; c = c.nextSibling) stack.push(c);
+  }
+  if (doomed.size === 0) return none;
+  for (const el of doomed) {
+    if (holdsRunText(el)) throw macroReferenceError(part, `${el.nodeName} holds text that removal would delete`);
+  }
+  for (const el of doomed) {
+    let parent = el.parentNode;
+    parent?.removeChild(el);
+    while (parent && parent.nodeType === 1) {
+      const p = parent as Element;
+      const emptyContainer = p.namespaceURI === W_NS && (p.localName === 'pict' || p.localName === 'object');
+      let hasElement = false;
+      for (let c = p.firstChild; c; c = c.nextSibling) if (c.nodeType === 1) hasElement = true;
+      if (!emptyContainer || hasElement) break;
+      parent = p.parentNode;
+      parent?.removeChild(p);
+    }
+  }
+  return { xml: serializeWithProlog(head, doc), removed: doomed.size };
 }
 
 /**
@@ -799,9 +907,21 @@ export function applyMacroStrip(store: MacroEntryStore): { removed: string[]; ed
     const b = macroBasename(n);
     if (b) removeBases.add(b);
   }
+  // Relationship ids the strip takes away, per kept part: the part's XML must lose the elements that use them.
+  const orphanedIds = new Map<string, Set<string>>();
+  const noteOrphanedIds = (relsFile: string, ids: Iterable<string>): void => {
+    const owner = relsOwnerPart(relsFile);
+    if (!owner || !nameSet.has(owner) || remove.has(owner) || !/\.xml$/i.test(owner)) return;
+    const set = orphanedIds.get(owner) ?? new Set<string>();
+    for (const id of ids) if (id !== '') set.add(id);
+    if (set.size > 0) orphanedIds.set(owner, set);
+  };
   for (const [file, rels] of relsByFile) {
     if (remove.has(file) || rels.length === 0) continue;
-    if (rels.every((r) => r.targetBase !== '' && removeBases.has(r.targetBase))) remove.add(file);
+    if (rels.every((r) => r.targetBase !== '' && removeBases.has(r.targetBase))) {
+      remove.add(file);
+      noteOrphanedIds(file, rels.map((r) => r.id));
+    }
   }
   for (const n of remove) {
     try {
@@ -820,6 +940,16 @@ export function applyMacroStrip(store: MacroEntryStore): { removed: string[]; ed
     if (r.xml !== cur) {
       store.writeText(file, r.xml);
       edited.push(file);
+    }
+    noteOrphanedIds(file, r.ids);
+  }
+  for (const [owner, ids] of orphanedIds) {
+    const cur = store.readText(owner);
+    if (!cur) continue;
+    const r = stripDanglingMacroReferences(cur, ids, owner);
+    if (r.xml !== cur) {
+      store.writeText(owner, r.xml);
+      if (!edited.includes(owner)) edited.push(owner);
     }
   }
   if (nameSet.has('[Content_Types].xml') && !remove.has('[Content_Types].xml')) {

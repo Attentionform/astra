@@ -132,8 +132,9 @@ Opens a `.docx` file into an isolated in-memory editing session.
 | `allowMacros` | `boolean` | No | Preserve macro parts byte-for-byte. |
 | `stripMacros` | `boolean` | No | Strip macro parts upon loading. |
 | `author` | `string` | No | Default author for tracked changes and comments in this session that do not name one (falls back to the server's `ASTRA_AUTHOR`, then `ASTra`). An operation's own `author` wins. |
+| `validationTimeoutMs` | `integer` | No | How long to wait for the validator when the file is opened, in milliseconds. `0` skips the check. Default 5000, or the server flag `--open-validation-timeout` / `ASTRA_OPEN_VALIDATION_TIMEOUT_MS`. |
 
-**Returns:** `{ ok: true, sessionId, revision, summary, evicted }`
+**Returns:** `{ ok: true, sessionId, revision, summary, evicted, validation }`. `validation` is `{ status: "valid" }`, `{ status: "invalid", preExistingErrors, messages, baselineComparable, note }` when the file already has validator errors, `{ status: "timed-out" }` or `{ status: "skipped" }`.
 
 ---
 
@@ -201,8 +202,9 @@ Validates all modified XML parts against ECMA-376 schema and commits changes to 
 | `author` | `string` | No | Author name for document history. |
 | `allowMacros` | `boolean` | No | Explicit macro policy to keep macros on save. |
 | `stripMacros` | `boolean` | No | Explicit macro policy to strip macros on save. |
+| `strict` | `boolean` | No | Refuse every validator error, including errors the file already had when it was opened. Default: off, or the server flag `--strict-validation` / `ASTRA_STRICT_VALIDATION=1`. |
 
-**Returns:** `{ ok: true, sessionId, path, revision, commitOid }`
+**Returns:** `{ ok: true, sessionId, path, revision, commitOid, validation }`. When the file already had validator errors and the edit added none, `validation` is `{ ok: false, tolerated: true, preExistingErrors, introducedErrors: 0, messages }`; otherwise `{ ok: true }`.
 
 ---
 
