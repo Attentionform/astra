@@ -8,6 +8,7 @@ import * as fsp from 'fs/promises';
 import {
   BASELINE_MAX_ERRORS,
   buildBaseline,
+  judgeAgainstBaseline,
   validateDocxBuffer,
   type BaselineVerdict,
   type ValidationBaseline,
@@ -77,6 +78,23 @@ export async function resolveBaseline(handle: DocHandle): Promise<ValidationBase
   } catch {
     return null;
   }
+}
+
+/**
+ * Verdict for a package that revert_document or redo_document restores. Such a state was saved before,
+ * so it is allowed to carry the errors the file had when it was opened, as well as the errors of the
+ * saved state of the session. Anything beyond both is refused.
+ */
+export async function judgeRestoredPackage(handle: DocHandle, result: ValidationResult): Promise<BaselineVerdict> {
+  if (result.ok) return { kind: 'clean' };
+  if (strictValidationDefault()) return { kind: 'incomparable', reason: 'no-baseline' };
+  const current = await resolveBaseline(handle);
+  const opened = handle.openBaseline ?? null;
+  if (current === null && opened === null) return { kind: 'incomparable', reason: 'no-baseline' };
+  const counts: Record<string, number> = { ...(current?.counts ?? {}) };
+  for (const [k, v] of Object.entries(opened?.counts ?? {})) counts[k] = Math.max(counts[k] ?? 0, v);
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  return judgeAgainstBaseline(result, { counts, total });
 }
 
 interface MessageSource {
@@ -182,6 +200,7 @@ export async function validateAtOpen(handle: DocHandle, timeoutMs: number): Prom
   }
   const baseline = buildBaseline(result);
   handle.validationBaseline = baseline;
+  handle.openBaseline = baseline;
   if (result.ok) return { status: 'valid' };
   const comparable = baseline !== null;
   const stricter = 'The validator is stricter than Word, so Word may still open the file.';

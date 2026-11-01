@@ -32,12 +32,14 @@ import {
   BASELINE_MAX_ERRORS,
   judgeAgainstBaseline,
   repairDocxBuffer,
+  commitStateIfDiffersFromHead,
   type BaselineVerdict,
   type ValidationResult,
 } from '@attentionform/astra-engine';
 import { introducedError, resolveBaseline, strictValidationDefault } from '../baseline-gate';
 import {
   canonicalizeForMcp,
+  collectTrackedExtrasForGit,
   getMcpAllowedRoots,
   type DocHandle,
   type McpSessionStore,
@@ -382,6 +384,7 @@ export async function handleNormalizeDocument(
       revision: number;
       dirty: boolean;
       normalized: string[];
+      preStateCommit?: string;
       remaining: number;
       rolledBack: { rule: string; reason: string }[];
       validation: AuditValidation & { tolerated?: true; preExistingErrors?: number; introducedErrors?: 0 };
@@ -402,6 +405,9 @@ export async function handleNormalizeDocument(
       const before = handle.parser.capturePackageSnapshot();
       const beforeRevision = handle.revision;
       let normalized: string[];
+      // The state before the change, for the history: one revert returns to it.
+      const preXml = handle.parser.readDocumentXml();
+      const preExtras = collectTrackedExtrasForGit(handle.parser);
       let remaining = -1;
       let rolledBack: { rule: string; reason: string }[] = [];
       try {
@@ -452,6 +458,12 @@ export async function handleNormalizeDocument(
           'Fix the flagged content in Word and retry (nothing was kept).'
         );
       }
+      // With a history repository and a change made, record the state before it (when it differs from the head).
+      // The next save_document records the result, so one revert_document returns to this state.
+      const preStateCommit =
+        normalized.length > 0
+          ? await commitStateIfDiffersFromHead(handle.filePath, preXml, 'normalize_document: state before repairs', preExtras)
+          : null;
       const revision = store.bumpRevision(handle);
       store.refreshByteSize(handle);
       const redoClearedDepth = handle.redoStack.length;
@@ -464,6 +476,7 @@ export async function handleNormalizeDocument(
         revision,
         dirty: store.isDirty(handle),
         normalized,
+        ...(preStateCommit ? { preStateCommit: preStateCommit.slice(0, 7) } : {}),
         remaining,
         rolledBack,
         validation:

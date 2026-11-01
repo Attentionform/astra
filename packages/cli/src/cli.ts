@@ -10,7 +10,7 @@
  *   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
  *     (ops path `-` reads ops JSON from stdin; see `batch --help`)
  *     (ops support CLI-level `insert type:heading level:1..3` and `{action:'clearDoc'}`; see `batch --schema`)
- *   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--backup[=<path>]] (repair-as-action for legacy files; `validate` stays read-only, no --fix alias)
+ *   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]] (repair-as-action for legacy files; `validate` stays read-only, no --fix alias)
  *   export   <docx> [--format html|markdown|md|pdf] [-o <outPath>]
  *   search   <docx> <query> [--limit <n>]
  *   create   <out.docx> [--template report|memo|blank] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]

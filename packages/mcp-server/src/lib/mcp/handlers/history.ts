@@ -9,7 +9,6 @@ import {
   getHistory,
   getSidecarHistoryWarning,
   isTrackedPackageFile,
-  validateDocxBuffer,
   writeFileNoFollow,
 } from '@attentionform/astra-engine';
 import type { McpSessionStore } from '../../session-store';
@@ -24,7 +23,7 @@ import {
   unknownSessionError,
 } from '../errors';
 import type { McpErrorShape } from '../errors';
-import { adoptBaseline } from '../baseline-gate';
+import { adoptBaseline, judgeRestoredPackage, validateForBaseline } from '../baseline-gate';
 import {
   AUDIT_FILES_MAX,
   COMMIT_OID_RE,
@@ -343,8 +342,8 @@ export async function handleRevertDocument(
         handle.parser.restorePackageSnapshot(merged);
         await refreshHandleAstInPlace(handle);
         const buf = handle.parser.rezip();
-        const candidate = await validateDocxBuffer(buf);
-        if (!candidate.ok) {
+        const candidate = await validateForBaseline(buf);
+        if (!candidate.ok && (await judgeRestoredPackage(handle, candidate)).kind !== 'tolerated') {
           throw invalidRestoreError('revert_document', candidate.errors, 'restore candidate', collectTableNodeIdsInOrder(handle.ast));
         }
         // M1: lstat the leaf (refuse symlinks incl. dangling) before mkdir
@@ -554,8 +553,8 @@ export async function handleRedoDocument(
         handle.parser.restorePackageSnapshot(new Map<string, Buffer>(snap));
         await refreshHandleAstInPlace(handle);
         const buf = handle.parser.rezip();
-        const candidate = await validateDocxBuffer(buf);
-        if (!candidate.ok) {
+        const candidate = await validateForBaseline(buf);
+        if (!candidate.ok && (await judgeRestoredPackage(handle, candidate)).kind !== 'tolerated') {
           throw invalidRestoreError('redo_document', candidate.errors, 'redo candidate', collectTableNodeIdsInOrder(handle.ast));
         }
         // The candidate is valid: consume the stack entry (depth changes only

@@ -420,14 +420,16 @@ Scrub metadata, revision IDs, authors, comments, and PII from a document session
 ---
 
 ### `normalize_document`
-Canonical repair for an open session with schema sequence sorts and tag normalizations.
+Canonical repair for an open session. Runs the allowlist normalizer (schema sequence sorts and tag normalizations), then repairs known validator error kinds one rule at a time: element order, decimal sizes, on/off values, smart tags, duplicate shape types and a few others. A repair that changes the visible text or adds a validator error is dropped and listed in `rolledBack`. The tool does not claim the file is valid: `remaining` counts the validator errors left.
+
+When the document has a history repository and the state before the repairs differs from the head, that state is committed first (`preStateCommit`). The next `save_document` records the result, so one `revert_document` with `steps: 1` returns to the state before the repairs.
 
 **Parameters:**
 | Parameter | Type | Required | Description |
 |---|---|:---:|---|
 | `sessionId` | `string` | Yes | Active session identifier. |
 
-**Returns:** `{ ok: true, sessionId, revision, dirty, normalized, validation: { valid: true } }`
+**Returns:** `{ ok: true, sessionId, revision, dirty, normalized, remaining, rolledBack, preStateCommit?, validation }`. `normalized` lists every rewrite. `remaining` is the number of validator errors left, or `-1` when the validator did not run. `rolledBack` is `[{ rule, reason }]`.
 
 ---
 

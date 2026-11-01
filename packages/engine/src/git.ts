@@ -1141,3 +1141,35 @@ export async function checkoutCommit(
   const extra = new Map<string, Buffer>(extraBlobs);
   return { xml, extra };
 }
+
+/**
+ * Records the state a command is about to change, so one revert returns to it. Does nothing (returns
+ * null) when the document has no usable history, or when the head of the history already holds exactly
+ * this document.xml and these tracked files. Never throws: a history that cannot be read or written
+ * leaves the command to carry on, and the caller reports null.
+ */
+export async function commitStateIfDiffersFromHead(
+  docPath: string,
+  xmlContent: string,
+  message: string,
+  extraFiles: Record<string, Buffer> = {},
+  author?: string
+): Promise<string | null> {
+  try {
+    const entries = await getHistory(docPath);
+    if (entries.length === 0) return null;
+    const head = await checkoutCommit(docPath, entries[0].oid);
+    const names = new Set([...head.extra.keys(), ...Object.keys(extraFiles)]);
+    let same = head.xml === xmlContent;
+    for (const name of names) {
+      if (!same) break;
+      const a = head.extra.get(name);
+      const b = extraFiles[name];
+      if (!a || !b || !a.equals(b)) same = false;
+    }
+    if (same) return null;
+    return await commitChange(docPath, xmlContent, message, extraFiles, undefined, author);
+  } catch {
+    return null;
+  }
+}

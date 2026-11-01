@@ -253,6 +253,8 @@ export interface DocHandle {
    * cannot be compared (cut short, or an exception).
    */
   validationBaseline?: ValidationBaseline | null;
+  /** The baseline at open, kept when a save replaces `validationBaseline`: a revert may return to a state with these errors. */
+  openBaseline?: ValidationBaseline | null;
   /** sha256 of the file bytes read at open, to tell whether the file on disk is still the opened one. */
   openSha256?: string;
 }

@@ -1,9 +1,11 @@
-import { BASELINE_MAX_ERRORS, DocxParser, repairDocxBuffer } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, DocxParser, commitStateIfDiffersFromHead, repairDocxBuffer } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, applyNormalizerForDisplay, formatNormalizedInline, previewNormalizedForDisplay, print, printJson, printStderr, type NormalizedRewrite } from './output';
 import { classifyFileReadError, failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
+import * as path from 'path';
 import { readDocx, writeDocx } from './io';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
+import { extrasRecord, hasHistorySidecar, recordBatchRevision, trackedExtras } from './history-support';
 import { type BackupState, ensureBackupCopy, resolveBackupPath, truncLine } from './batch-cmd';
 
 /**
@@ -19,6 +21,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   let outPath: string | undefined;
   let dryRun = false;
   let strict = false;
+  let noHistory = false;
   let backupGiven = false;
   let backupRaw: string | undefined;
   for (let i = 0; i < args.length; i++) {
@@ -35,6 +38,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
       outPath = v;
     } else if (a === '--dry-run') dryRun = true;
     else if (a === '--strict') strict = true;
+    else if (a === '--no-history') noHistory = true;
     else if (a === '--backup') {
       backupGiven = true;
       const nextBackup = args[i + 1];
@@ -132,11 +136,40 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   }
   const backupCode = await ensureBackupCopy(out, file, buf, target, backupState);
   if (backupCode !== undefined) return backupCode;
+  // History: with a history repository and an in-place write, record the state before the change (when it
+  // differs from the head) and then the result, so one revert returns the original.
+  const recordHistory = !noHistory && normalized.length > 0 && path.resolve(target) === path.resolve(file) && hasHistorySidecar(file);
+  let before: DocxParser | undefined;
+  if (recordHistory) {
+    try {
+      before = new DocxParser(buf);
+    } catch {
+      before = undefined;
+    }
+  }
   try {
     await writeDocx(target, buffer);
   } catch (err: unknown) {
     const rawMsg = err instanceof Error ? err.message : String(err);
     return failWithCode(out, rawMsg, 'E_IO', undefined, 'check the output directory is writable, then retry (nothing was written)', err);
+  }
+  let history: Awaited<ReturnType<typeof recordBatchRevision>> = null;
+  if (recordHistory) {
+    if (before) {
+      await commitStateIfDiffersFromHead(
+        file,
+        before.readDocumentXml(),
+        'normalize: state before repairs',
+        extrasRecord(trackedExtras(before.capturePackageSnapshot())),
+      );
+    }
+    history = await recordBatchRevision({
+      file,
+      target,
+      parser: new DocxParser(buffer),
+      message: `normalize: ${normalized.length} rewrite${normalized.length === 1 ? '' : 's'}`,
+      noHistory,
+    });
   }
   if (tolerated) printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(tolerated)}`);
   print(out, `NORMALIZED ${file} -> ${target} (${formatNormalizedInline(normalized)})`);
@@ -149,6 +182,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     normalized,
     remaining,
     rolledBack,
+    ...(history ? { history } : {}),
     ...toleratedFields(tolerated),
     ...(backupState.path !== undefined ? { backup: backupState.path } : {}),
   });

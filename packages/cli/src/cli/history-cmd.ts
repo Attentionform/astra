@@ -7,7 +7,10 @@ import {
   getHistoryCommitCount,
   getRepoDir,
   initAstraRepo,
+  BASELINE_MAX_ERRORS,
+  buildBaseline,
   isTrackedPackageFile,
+  judgeAgainstBaseline,
   validateDocxBuffer,
 } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
@@ -267,8 +270,10 @@ async function restoreAndCommit(opts: RestoreOptions): Promise<{ commitOid: stri
   snapshot.set('word/document.xml', Buffer.from(target.xml, 'utf8'));
   parser.restorePackageSnapshot(snapshot);
   const buf = parser.rezip();
-  const candidate = await validateDocxBuffer(buf);
-  if (!candidate.ok) {
+  // A recorded state may carry the errors it was written with (the validator is stricter than Word). It is
+  // refused only when its result cannot be compared: cut short, an exception, or a duplicate paragraph id.
+  const candidate = await validateDocxBuffer(buf, { maxErrors: BASELINE_MAX_ERRORS });
+  if (!candidate.ok && judgeAgainstBaseline(candidate, buildBaseline(candidate)).kind !== 'tolerated') {
     const first = candidate.errors[0];
     const detail = first?.description ? `: ${first.description}` : '';
     throw Object.assign(

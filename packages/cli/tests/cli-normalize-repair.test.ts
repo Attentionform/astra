@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { run } from '../src/cli';
-import { AdmZip, DocxParser } from '@attentionform/astra-engine';
+import { AdmZip, DocxParser, getHistoryCommitCount, getRepoDir } from '@attentionform/astra-engine';
 import { useReproducibleOutput } from '../../../tests/helpers/reproducible';
 
 useReproducibleOutput();
@@ -78,5 +78,52 @@ describe('normalize repairs known validator error kinds', () => {
     const out = path.join(dir, 'never.docx');
     await expect(run(['normalize', file, '--out', out, '--dry-run'])).resolves.toBe(0);
     expect(fs.existsSync(out)).toBe(false);
+  });
+});
+
+const docXml = (file: string): string => new AdmZip(fs.readFileSync(file)).getEntry('word/document.xml')?.getData().toString('utf8') ?? '';
+const commits = (file: string): Promise<number> => getHistoryCommitCount(getRepoDir(file));
+
+describe('normalize and the history repository', () => {
+  it('records the state before the repairs and the result, and one revert returns the original text and tags', async () => {
+    const { dir, file } = smartTagDocx();
+    await run(['history', file, '--init']);
+    const ops = path.join(dir, 'ops.json');
+    fs.writeFileSync(ops, JSON.stringify({ operations: [{ action: 'insert', type: 'paragraph', anchor: 'end', position: 'after', text: 'edited outside history' }] }));
+    await run(['batch', file, ops, '--no-history']); // the file now differs from the head of the history
+    const before = await commits(file);
+    await expect(run(['--json', 'normalize', file])).resolves.toBe(0);
+    expect(await commits(file)).toBe(before + 2);
+    expect(docXml(file)).not.toContain('smartTag');
+
+    await expect(run(['revert', file, '--steps', '1'])).resolves.toBe(0);
+    expect(docXml(file)).toContain('smartTag');
+    expect(docXml(file)).toContain('edited outside history');
+  });
+
+  it('records only the result when the file equals the head of the history', async () => {
+    const { file } = smartTagDocx();
+    await run(['history', file, '--init']);
+    const before = await commits(file);
+    await expect(run(['normalize', file])).resolves.toBe(0);
+    expect(await commits(file)).toBe(before + 1);
+  });
+
+  it('records nothing with --no-history, with --out, or without a history repository', async () => {
+    const a = smartTagDocx();
+    await run(['history', a.file, '--init']);
+    const n = await commits(a.file);
+    await expect(run(['normalize', a.file, '--no-history'])).resolves.toBe(0);
+    expect(await commits(a.file)).toBe(n);
+
+    const b = smartTagDocx();
+    await run(['history', b.file, '--init']);
+    const m = await commits(b.file);
+    await expect(run(['normalize', b.file, '--out', path.join(b.dir, 'copy.docx')])).resolves.toBe(0);
+    expect(await commits(b.file)).toBe(m);
+
+    const c = smartTagDocx();
+    await expect(run(['normalize', c.file])).resolves.toBe(0);
+    expect(fs.existsSync(getRepoDir(c.file))).toBe(false);
   });
 });

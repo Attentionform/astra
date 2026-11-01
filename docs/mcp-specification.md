@@ -659,7 +659,7 @@ Removes personally identifiable metadata, editing session traces, revision histo
 ---
 
 #### `normalize_document`
-Repairs XML namespace declarations, sorts element sequences into schema order, and eliminates redundant styling runs.
+Repairs XML namespace declarations, sorts element sequences into schema order, eliminates redundant styling runs, and repairs known validator error kinds one rule at a time. A repair that changes the visible text or adds a validator error is dropped and listed in `rolledBack`. With a history repository, the state before the repairs is committed when it differs from the head, so one `revert_document` returns to it.
 
 **Input Parameters:**
 | Parameter | Type | Required | Description |
@@ -672,7 +672,10 @@ Repairs XML namespace declarations, sorts element sequences into schema order, a
   "ok": true,
   "sessionId": "sess_4f3a2b1c-8e9d-7c6b-5a4f-3e2d1c0b9a8f",
   "revision": 4,
-  "normalized": true
+  "dirty": true,
+  "normalized": ["word/document.xml: Unwrapped w:smartTag at /w:document[1]/w:body[1]/w:p[3]/w:smartTag[1]"],
+  "remaining": 0,
+  "rolledBack": []
 }
 ```
 

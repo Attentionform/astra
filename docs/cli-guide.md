@@ -61,7 +61,7 @@ Commands (exit 0 ok · 1 operational failure · 2 usage):
   validate <docx> [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]
   sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only]
   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
-  normalize <docx> [--out <docx>] [--dry-run] [--strict] [--backup[=<path>]]
+  normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]]
   export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force]
   search   <docx> <query> [--limit <n>]
   create   <out.docx> [--template report|memo|blank] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
@@ -405,7 +405,11 @@ A table hit adds the cells that hold the match, such as `t_001 RegionRevenueNort
 
 ### 4.9 Structure Normalization (`astra normalize`)
 
-Normalizes and repairs XML namespace declarations, sorts element sequences into ISO/IEC 29500 order, and eliminates redundant styling runs.
+Normalizes and repairs XML namespace declarations, sorts element sequences into ISO/IEC 29500 order, and eliminates redundant styling runs. It then repairs known validator error kinds one rule at a time: element order in settings, styles, section properties, tables and runs; decimal values in integer attributes; on/off attribute values; smart tags; duplicate shape types and a few others.
+
+Each repair is checked alone. A repair that changes the visible text or adds a validator error is dropped and listed under `rolledBack` in the `--json` output. `remaining` is the number of validator errors left (`-1` when the validator did not run). `normalize` does not claim the result is valid. `--dry-run` lists the allowlist rewrites only and does not run the repair rules.
+
+With a history repository and an in-place write, `normalize` commits the state before the repairs (when it differs from the head) and then the result, so `astra revert <docx> --steps 1` returns the original. `--no-history` turns this off. Without a repository the `--backup` copy is the way back.
 
 ```bash
 astra normalize legacy_doc.docx --out clean_doc.docx
