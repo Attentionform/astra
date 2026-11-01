@@ -176,11 +176,11 @@ describe('section break properties and page setup targeting', () => {
       expect(ast.sections[i].pageSetup?.orientation).toBe('landscape');
     }
 
-    const bytesBefore = parser.rezip();
+    const bytesBefore = parser.rezip({ reproducible: true });
     expect(() => {
       executePageSetup({ action: 'pageSetup', sectionIndex: 9, orientation: 'portrait' }, ast, parser);
     }).toThrow(/E_VALIDATION.*out of range/);
-    const bytesAfter = parser.rezip();
+    const bytesAfter = parser.rezip({ reproducible: true });
     expect(bytesBefore.equals(bytesAfter)).toBe(true);
 
     const flatValidation = validateOperationStrict({
