@@ -8,7 +8,7 @@ import { ReplaceOperation, executeReplace } from './operations/replace';
 import { StyleOperation, executeStyle } from './operations/style';
 import { ClearFormatOperation, executeClearFormat } from './operations/clearFormat';
 import { DeleteOperation, executeDelete } from './operations/delete';
-import { InsertOperation, executeInsert } from './operations/insert';
+import { InsertOperation, ParaIdScanCache, executeInsert } from './operations/insert';
 import { MoveOperation, executeMove } from './operations/move';
 import { TableOperation, executeTable } from './operations/table';
 import { SectionOperation, executeSection } from './operations/section';
@@ -384,6 +384,8 @@ export class OperationEngine {
   };
 
   private history: BaseOperation[] = [];
+  /** Paragraph ids in use, shared by consecutive insert operations of one batch; null whenever anything else ran. */
+  private insertParaIds: ParaIdScanCache | null = null;
 
   constructor(ast: DocumentAST, parser?: DocxParser, options?: OperationEngineOptions) {
     this.ast = ast;
@@ -407,6 +409,7 @@ export class OperationEngine {
   }
 
   public async execute(op: BaseOperation): Promise<{ warnings: string[] }> {
+    this.insertParaIds = null;
     this.validateOperation(op);
     // Anchor 'start'/'end' resolves against the live AST at execution time.
     this.resolveAnchorAlias(op);
@@ -443,6 +446,7 @@ export class OperationEngine {
 
   // 4.3 Batch Execution (Track-B: sequential defaults true; quotas throw E_QUOTA)
   public async executeBatch(batch: BatchPayload): Promise<ExecutionResult> {
+    this.insertParaIds = null;
     const result: ExecutionResult = {
       success: true,
       appliedCount: 0,
@@ -750,6 +754,7 @@ export class OperationEngine {
    * legacy path, the same text as the removed console.warn.
    */
   private async restoreAfterFailedBatch(snapshot: DocumentAST, pkgSnap?: Map<string, Buffer>): Promise<string | null> {
+    this.insertParaIds = null;
     if (this.parser && pkgSnap) {
       this.parser.restorePackageSnapshot(pkgSnap);
       // Also re-points the parser's bare-rezip numbering cache at this.ast
@@ -1118,6 +1123,7 @@ export class OperationEngine {
     const action = this.resolveAction(op);
     const fields = op as unknown as Record<string, unknown> & { action: string; operation?: string };
     assertNoCellAddress(action, fields, this.ast);
+    if (action !== 'insert') this.insertParaIds = null;
     switch (action) {
       case 'replace': return executeReplace(op as ReplaceOperation, this.ast);
       case 'style': return executeStyle(op as StyleOperation, this.ast);
@@ -1147,14 +1153,17 @@ export class OperationEngine {
             fields[canonical] = legacyValue;
             delete fields[legacy];
           }
+          this.insertParaIds = null;
           return await executeImage(op as unknown as ImageOperation, this.ast, this.parser, allowedDir);
         }
         if (insertType === 'chart') {
           fields['action'] = 'chart';
           fields['operation'] = 'insert';
+          this.insertParaIds = null;
           return await executeChart(op as unknown as ChartOperation, this.ast, this.parser, this.activeGuide);
         }
-        return await executeInsert(op as InsertOperation, this.ast, this.parser, this.activeGuide);
+        this.insertParaIds ??= { set: null };
+        return await executeInsert(op as InsertOperation, this.ast, this.parser, this.activeGuide, this.insertParaIds);
       }
       case 'delete': return executeDelete(op as DeleteOperation, this.ast, this.parser);
       case 'move': return executeMove(op as MoveOperation, this.ast, this.parser);

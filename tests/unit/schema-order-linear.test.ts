@@ -93,7 +93,7 @@ const REVIEWED: Record<string, number> = {
   'operations/clearFormat.ts': 2,
   'operations/image.ts': 1,
   'operations/table.ts': 1,
-  'parser.ts': 3,
+  'parser.ts': 2,
 };
 const MUTATION = /\.(setAttribute|setAttributeNS|removeAttribute|removeChild|appendChild|insertBefore|replaceChild|remove|setAttributeNode)\(|\.textContent\s*=[^=]|\.nodeValue\s*=[^=]|\.data\s*=[^=]/;
 

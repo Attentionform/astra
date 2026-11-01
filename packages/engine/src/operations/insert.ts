@@ -430,7 +430,28 @@ function validateTableCellPadding(val: unknown): ResolvedCellPadding {
   );
 }
 
-export async function executeInsert(op: InsertOperation, ast: DocumentAST, parser?: DocxParser, guide?: StyleGuideConfig): Promise<void> {  let anchorSection: Section | null = null;
+/**
+ * Holder for the set of paragraph ids already used in the document. The engine hands the same
+ * holder to consecutive insert operations of one batch so the document is scanned once for the run;
+ * it drops the holder before any other kind of operation, because only an insert is known to add
+ * every id it creates to the set and to remove no paragraph.
+ */
+export interface ParaIdScanCache {
+  set: Set<string> | null;
+}
+
+function scanUsedParaIds(doc: Document): Set<string> {
+  const used = new Set<string>();
+  const allParas = doc.getElementsByTagName('w:p');
+  const count = allParas.length;
+  for (let i = 0; i < count; i++) {
+    const v = (allParas[i] as unknown as Element).getAttribute?.('w14:paraId');
+    if (v && isValidParaId(v)) used.add(v.toUpperCase());
+  }
+  return used;
+}
+
+export async function executeInsert(op: InsertOperation, ast: DocumentAST, parser?: DocxParser, guide?: StyleGuideConfig, paraIdCache?: ParaIdScanCache): Promise<void> {  let anchorSection: Section | null = null;
   let anchorIndex = -1;
   let anchorNode: Node | undefined;
 
@@ -1110,12 +1131,8 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
   // Every insert root (paragraph-style w:p roots, table-cell w:p
   // descendants, caller-supplied xml fragments) leaves here with valid
   // w14:paraIds already stamped; caller-supplied valid ids are preserved.
-  const usedParaIds = new Set<string>();
-  const allParas = doc.getElementsByTagName('w:p');
-  for (let i = 0; i < allParas.length; i++) {
-    const v = (allParas[i] as unknown as Element).getAttribute?.('w14:paraId');
-    if (v && isValidParaId(v)) usedParaIds.add(v.toUpperCase());
-  }
+  const usedParaIds = paraIdCache?.set ?? scanUsedParaIds(doc);
+  if (paraIdCache) paraIdCache.set = usedParaIds;
 
   const baseSeed = deriveInsertSeed(op);
   for (let k = 0; k < createdElements.length; k++) {

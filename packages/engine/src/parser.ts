@@ -1053,11 +1053,14 @@ export class DocxParser {
     }
     let id: string;
     let attempt = 0;
-    const fallbackSeed = `parser-fallback:${allParas.length}:${this.documentDom.documentElement?.textContent?.length ?? 0}`;
+    let fallbackSeed: string | null = null;
     do {
       if (seed) id = generateValidParaId(seed, attempt);
-      else if (resolveReproducibleMode(undefined)) id = generateValidParaId(fallbackSeed, attempt);
-      else id = generateValidParaId();
+      else if (resolveReproducibleMode(undefined)) {
+        // Only an unseeded call needs it; the text length of the whole document is not free.
+        fallbackSeed ??= `parser-fallback:${allParas.length}:${this.documentDom.documentElement?.textContent?.length ?? 0}`;
+        id = generateValidParaId(fallbackSeed, attempt);
+      } else id = generateValidParaId();
       attempt++;
     } while (used.has(id));
     return id;
@@ -2803,17 +2806,25 @@ export class DocxParser {
       return;
     }
     try {
+      let datesChanged = false;
       for (const tag of ['w:ins', 'w:del']) {
-        const els = this.documentDom.getElementsByTagName(tag);
-        for (let i = 0; i < els.length; i++) {
-          const el = els[i] as Element;
+        const list = this.documentDom.getElementsByTagName(tag);
+        const els: Element[] = [];
+        for (let i = 0; i < list.length; i++) els.push(list[i] as Element);
+        for (const el of els) {
           const v = el.getAttribute?.('w:date');
-          if (v && pinIsos.has(v)) el.setAttribute('w:date', nowIso);
+          if (v && pinIsos.has(v)) {
+            el.setAttribute('w:date', nowIso);
+            datesChanged = true;
+          }
         }
       }
-      try {
-        this.zip.updateFile('word/document.xml', Buffer.from(this.readDocumentXml(), 'utf8'));
-      } catch { /* best-effort — never block save */ }
+      // The document was written from the same DOM a moment ago; write it again only if a date changed.
+      if (datesChanged) {
+        try {
+          this.zip.updateFile('word/document.xml', Buffer.from(this.readDocumentXml(), 'utf8'));
+        } catch { /* best-effort — never block save */ }
+      }
     } catch { /* best-effort — never block save */ }
     try {
       const adapter = this.getZipAdapter();
