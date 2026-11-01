@@ -15,6 +15,7 @@ import {
   isPathInsideDir as isMcpPathInsideDir,
   isTrackedPackageFile,
   type StyleGuideConfig,
+  type ValidationBaseline,
 } from '@attentionform/astra-engine';
 
 /**
@@ -245,6 +246,14 @@ export interface DocHandle {
   styleGuide?: StyleGuideConfig;
   /** Raw guide ref the session guide was resolved from (name or file path). */
   styleGuideRef?: string;
+  /**
+   * Validator errors the saved state of the session already has, by signature. `undefined` means the
+   * open did not finish a check (timed out or skipped); `null` means a check ran but its result
+   * cannot be compared (cut short, or an exception).
+   */
+  validationBaseline?: ValidationBaseline | null;
+  /** sha256 of the file bytes read at open, to tell whether the file on disk is still the opened one. */
+  openSha256?: string;
 }
 
 /**

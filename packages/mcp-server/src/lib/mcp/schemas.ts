@@ -31,6 +31,9 @@ export const OpenDocumentSchema = z
     // Default author for tracked changes and comments that do not name one (falls back to
     // ASTRA_AUTHOR on the server, then "ASTra"). An operation's own author always wins.
     author: z.string().trim().min(1).max(128).optional(),
+    // How long open waits for the validator, in milliseconds; 0 skips the check. Omitted: the server
+    // default (--open-validation-timeout, ASTRA_OPEN_VALIDATION_TIMEOUT_MS, else 5000).
+    validationTimeoutMs: z.number().int().min(0).max(600000).optional(),
   })
   .strict();
 
@@ -105,6 +108,9 @@ export const SaveDocumentSchema = z
     // together fail with E_VALIDATION. Omitted keeps the session disposition.
     allowMacros: z.boolean().optional(),
     stripMacros: z.boolean().optional(),
+    // strict:true refuses every validator error, including errors the file already had when it was
+    // opened. Omitted: the server default (--strict-validation / ASTRA_STRICT_VALIDATION=1, else off).
+    strict: z.boolean().optional(),
   })
   .strict();
 

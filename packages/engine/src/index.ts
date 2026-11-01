@@ -30,6 +30,7 @@ export * from './ooxml/schema-order';
 export * from './ooxml/styles';
 export * from './ooxml/typography';
 export * from './ooxml/validator-gate';
+export * from './ooxml/validation-baseline';
 export * from './ooxml/guideline-bank';
 export * from './ooxml/track-changes-emitter';
 export * from './ooxml/comments';

@@ -3390,7 +3390,7 @@ export class DocxParser {
    * working unchanged — while direct-`rezip()` writers get the thrown
    * E_VALIDATION. Integrity/XXE/macro throws still propagate, as before.
    */
-  public async validateOOXML(options?: { officeVersion?: 'Office2019' | 'Microsoft365' }): Promise<ValidationResult> {
+  public async validateOOXML(options?: { officeVersion?: 'Office2019' | 'Microsoft365'; maxErrors?: number }): Promise<ValidationResult> {
     let buf: Buffer;
     try {
       buf = this.rezip();

@@ -2,6 +2,8 @@
 // Zero logic edits (pathDirname + restore helpers live in ../diff and are imported).
 import * as fsp from 'fs/promises';
 import {
+  BASELINE_MAX_ERRORS,
+  judgeAgainstBaseline,
   assertWriteTargetNoSymlink,
   chartXmlGetterForAst,
   commitChange,
@@ -26,6 +28,14 @@ import {
   invalidInput,
 } from '../errors';
 import type { McpErrorShape } from '../errors';
+import {
+  adoptBaseline,
+  introducedError,
+  resolveBaseline,
+  strictValidationDefault,
+  validationField,
+  withToleratedNote,
+} from '../baseline-gate';
 import {
   AUDIT_NODE_IDS_MAX,
   diffChangedValuesAcrossParse,
@@ -64,6 +74,10 @@ export async function executeSaveDocument(
   revision: number;
   commitOid: string;
   commitMessage: string;
+  /** Result of the validator gate: clean, or tolerated with the number of errors the file already had. */
+  validation:
+    | { ok: true }
+    | { ok: false; tolerated: true; preExistingErrors: number; introducedErrors: 0; messages: string[] };
   /** R-1: pending tracked revisions (w:ins + w:del) in the saved package. */
   revisionsPending: number;
   /** R-1: accept remedy, present only when revisionsPending > 0. */
@@ -129,8 +143,17 @@ export async function executeSaveDocument(
     // escapes via nearest-ancestor canonicalization). Throws E_SANDBOX.
     const rawTarget = parsed.data.outPath ?? handle.filePath;
     const target = validateSaveTarget(rawTarget);
-    const validation = await handle.parser.validateOOXML();
-    if (!validation.ok) {
+    const strict = parsed.data.strict ?? strictValidationDefault();
+    const validation = await handle.parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS });
+    // A file that already had validator errors may be saved when this edit adds none (not in strict
+    // mode). Anything that cannot be compared is refused exactly as before.
+    const verdict = validation.ok
+      ? ({ kind: 'clean' } as const)
+      : strict
+        ? ({ kind: 'incomparable', reason: 'no-baseline' } as const)
+        : judgeAgainstBaseline(validation, await resolveBaseline(handle));
+    if (verdict.kind === 'introduced') throw introducedError('save_document', verdict);
+    if (verdict.kind !== 'clean' && verdict.kind !== 'tolerated') {
       const first = validation.errors[0] as unknown as
         | { description?: unknown; message?: unknown; xPath?: unknown; path?: unknown }
         | undefined;
@@ -212,7 +235,8 @@ export async function executeSaveDocument(
       opsSinceSave <= 0
         ? `save_document: rev ${handle.revision} (initial baseline)`
         : `save_document: rev ${handle.revision} (${opsSinceSave} ops since last save)`;
-    const commitMessage = sanitizeCommitMessage(parsed.data.message, fallbackMessage);
+    const baseMessage = sanitizeCommitMessage(parsed.data.message, fallbackMessage);
+    const commitMessage = verdict.kind === 'tolerated' ? withToleratedNote(baseMessage, verdict.preExisting) : baseMessage;
     const authorName = sanitizeCommitAuthor(parsed.data.author);
     let commitOid: string;
     try {
@@ -264,6 +288,8 @@ export async function executeSaveDocument(
       const auditOps = handle.pendingAudit.ops;
       // Successful save re-syncs the saved marker (clears dirty).
       store.markSaved(handle);
+      // The saved state is the new baseline: later saves are compared with what was just written.
+      adoptBaseline(handle, validation);
       store.recordCommitMeta(commitOid, {
         author: authorName,
         timestampMs: Date.now(),
@@ -311,6 +337,7 @@ export async function executeSaveDocument(
       commitOid,
       commitMessage,
       revisionsPending: saveRevisionsPending,
+      validation: validationField(validation, verdict),
       ...(saveRevisionsRemedy ? { revisionsRemedy: saveRevisionsRemedy } : {}),
       changedValues,
       changedValuesTruncated,
@@ -356,6 +383,10 @@ export async function handleSaveDocument(
   revision: number;
   commitOid: string;
   commitMessage: string;
+  /** Result of the validator gate: clean, or tolerated with the number of errors the file already had. */
+  validation:
+    | { ok: true }
+    | { ok: false; tolerated: true; preExistingErrors: number; introducedErrors: 0; messages: string[] };
   /** R-1: pending tracked revisions (w:ins + w:del) in the saved package. */
   revisionsPending: number;
   /** R-1: accept remedy, present only when revisionsPending > 0. */

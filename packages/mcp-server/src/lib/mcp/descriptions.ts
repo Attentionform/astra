@@ -34,6 +34,9 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'the full dump, unchanged, so existing clients never break). ' +
       'Example input {"path":"documents/report.docx"} -> {"ok":true,"sessionId":"sess_abc","revision":1,"evicted":[]}. ' +
       'Open first; keep the sessionId for every later call. ' +
+      'The response also carries validation: {status:"valid"}, {status:"invalid",preExistingErrors,messages,baselineComparable,note} when the file already has validator errors ' +
+      '(edits that add no new error can still be saved), {status:"timed-out"} or {status:"skipped"}. ' +
+      'The check waits validationTimeoutMs (default 5000 ms; 0 skips it; server flag --open-validation-timeout, env ASTRA_OPEN_VALIDATION_TIMEOUT_MS) and never refuses the open. ' +
       'Macro/active content refuses by default (E_VALIDATION naming the parts): pass {"allowMacros":true} to preserve or {"stripMacros":true} to strip (never both). ' +
       'Session ids are server-minted (sess_<uuid>, DEPRECATED to supply sessionId: client-supplied values are ' +
       'rejected with E_VALIDATION; deterministic ids are test-only via --allow-client-session-ids). ' +
@@ -120,6 +123,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'blank/omitted falls back to ASTra Agent). Over-long message/author fail at the handler with E_VALIDATION ' +
       'plus a shorten-and-retry remedy (never a bare MCP -32602: caps are enforced in the handler, not the wire schema). ' +
       'A successful save clears the session dirty flag (revision is re-synced to the file on disk). ' +
+      'A file that already had validator errors when it was opened is saved when the edit adds none: the envelope then carries validation:{ok:false,tolerated:true,preExistingErrors,introducedErrors:0,messages}. ' +
+      'An edit that adds an error is refused with E_VALIDATION naming both numbers. Pass {"strict":true} (or start the server with --strict-validation, or set ASTRA_STRICT_VALIDATION=1) to refuse every validator error as before. ' +
       'The success envelope also carries revisionsPending (w:ins+w:del left in the saved package) plus a revisionsRemedy naming accept when >0. ' +
       'The success envelope also carries advisory changedValues [{nodeId,before,after}] (old saved text -> new live text, ' +
       `bounded: at most ${CHANGED_VALUES_MAX} entries, each side at most ${CHANGED_VALUE_TEXT_MAX} chars, truncated flag honest; ` +

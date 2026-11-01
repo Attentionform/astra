@@ -24,6 +24,7 @@ import {
   unknownSessionError,
 } from '../errors';
 import type { McpErrorShape } from '../errors';
+import { adoptBaseline } from '../baseline-gate';
 import {
   AUDIT_FILES_MAX,
   COMMIT_OID_RE,
@@ -397,6 +398,8 @@ export async function handleRevertDocument(
           affectedNodeIds: diffIdTexts(liveBefore.texts, liveAfter.order, liveAfter.texts),
         });
         store.markSaved(handle);
+        // The restored package is the saved state now: later saves are compared with it.
+        adoptBaseline(handle, candidate);
         return {
           ok: true as const,
           sessionId: handle.sessionId,
@@ -602,6 +605,8 @@ export async function handleRedoDocument(
           affectedNodeIds: diffIdTexts(redoBefore.texts, redoAfter.order, redoAfter.texts),
         });
         store.markSaved(handle);
+        // The restored package is the saved state now: later saves are compared with it.
+        adoptBaseline(handle, candidate);
         return {
           ok: true as const,
           sessionId: handle.sessionId,

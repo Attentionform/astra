@@ -14,6 +14,7 @@ import {
   invalidInput,
 } from '../errors';
 import type { McpErrorShape } from '../errors';
+import { openValidationTimeoutMs, validateAtOpen, type OpenValidationField } from '../baseline-gate';
 import { OpenDocumentSchema, InspectDocumentSchema } from '../schemas';
 
 // ── Style palette passthrough (wires to backend/ooxml/styles.ts) ────────────
@@ -61,7 +62,7 @@ export function extractStylePalette(parser: DocxParser): StylePalette {
 export async function handleOpenDocument(
   store: McpSessionStore,
   input: unknown
-): Promise<{ ok: true; sessionId: string; revision: number; summary: unknown; evicted: string[]; pendingNormalizations: string[] } | McpErrorShape> {
+): Promise<{ ok: true; sessionId: string; revision: number; summary: unknown; evicted: string[]; pendingNormalizations: string[]; validation: OpenValidationField } | McpErrorShape> {
   const parsed = OpenDocumentSchema.safeParse(input);
   if (!parsed.success) {
     const detail = parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
@@ -125,7 +126,9 @@ export async function handleOpenDocument(
     // previewed here (dry-run, nothing written) so migration operators see
     // ordering repairs at open instead of discovering them at save.
     const pendingNormalizations = readPendingNormalizations(handle);
-    return { ok: true, sessionId: handle.sessionId, revision: handle.revision, summary, evicted, pendingNormalizations };
+    // Validate the file as opened, so a later save can tell errors it already had from new ones.
+    const validation = await validateAtOpen(handle, parsed.data.validationTimeoutMs ?? openValidationTimeoutMs());
+    return { ok: true, sessionId: handle.sessionId, revision: handle.revision, summary, evicted, pendingNormalizations, validation };
   } catch (err: unknown) {
     return mcpErrorFrom(err, 'E_IO', 'Check the .docx path is readable and retry open_document.');
   }

@@ -29,6 +29,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 // ── Engine wiring: local lib imports ─────────
+import { setOpenValidationTimeoutMs, setStrictValidationDefault } from './lib/mcp/baseline-gate';
 import {
   createMcpSessionStore,
   hasClientSessionIdHatch,
@@ -137,6 +138,11 @@ export function buildUsageText(): string {
     '                          Permit client-supplied open_document/new_document',
     '                          sessionId (deterministic ids for tests; default:',
     '                          rejected with E_VALIDATION)',
+    '  --strict-validation     A save refuses every validator error, including errors the file',
+    '                          already had when opened (also ASTRA_STRICT_VALIDATION=1)',
+    '  --open-validation-timeout <ms>',
+    '                          How long open_document waits for the validator (default 5000;',
+    '                          0 skips; also ASTRA_OPEN_VALIDATION_TIMEOUT_MS)',
     '  --dump-schemas <dir>    Write one JSON schema per served tool into <dir>',
     '                          (each stamped with the server version); refreshes',
     '                          file-based client copies; server never starts',
@@ -334,7 +340,16 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--allow-client-session-ids') continue;
+    if (arg === '--allow-client-session-ids' || arg === '--strict-validation') continue;
+    if (arg === '--open-validation-timeout' || arg.startsWith('--open-validation-timeout=')) {
+      const value = arg.includes('=') ? arg.slice(arg.indexOf('=') + 1) : args[i + 1];
+      if (value === undefined || !/^\d+$/.test(value)) {
+        process.stderr.write(buildUsageText() + '\n');
+        return CLI_USAGE_ERROR;
+      }
+      if (!arg.includes('=')) i++;
+      continue;
+    }
     if (arg === '--dump-schemas' || arg === '--check-schemas') {
       const value = args[i + 1];
       if (!value || value.startsWith('-')) {
@@ -375,6 +390,9 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     }
   }
   initAllowedDirs(argv);
+  if (args.includes('--strict-validation')) setStrictValidationDefault(true);
+  const openTimeout = takeDirFlag(argv, '--open-validation-timeout');
+  if (openTimeout !== undefined) setOpenValidationTimeoutMs(Number(openTimeout));
   const dumpDir = takeDirFlag(argv, '--dump-schemas');
   if (dumpDir !== undefined) {
     const resolved = path.resolve(dumpDir);

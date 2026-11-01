@@ -29,7 +29,12 @@ import {
   sanitizeDocxBuffer,
   toError,
   validateSanitizeOptionsStrict,
+  BASELINE_MAX_ERRORS,
+  judgeAgainstBaseline,
+  type BaselineVerdict,
+  type ValidationResult,
 } from '@attentionform/astra-engine';
+import { introducedError, resolveBaseline, strictValidationDefault } from '../baseline-gate';
 import {
   canonicalizeForMcp,
   getMcpAllowedRoots,
@@ -154,6 +159,13 @@ async function forkValidation(handle: DocHandle): Promise<AuditValidation> {
   const fork = new DocxParser(buf);
   const validation = await fork.validateOOXML();
   return toAuditValidation(validation);
+}
+
+/** Same fork, with the full error list so the result can be compared with the baseline. */
+async function forkValidationFull(handle: DocHandle): Promise<ValidationResult> {
+  const buf = serializeSessionFork(handle.parser, handle.ast);
+  const fork = new DocxParser(buf);
+  return fork.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS });
 }
 
 /**
@@ -369,7 +381,7 @@ export async function handleNormalizeDocument(
       revision: number;
       dirty: boolean;
       normalized: string[];
-      validation: AuditValidation;
+      validation: AuditValidation & { tolerated?: true; preExistingErrors?: number; introducedErrors?: 0 };
       revisionsPending: number;
       revisionsRemedy?: string;
       redoCleared?: boolean;
@@ -400,14 +412,21 @@ export async function handleNormalizeDocument(
         throw err;
       }
       await refreshSessionAst(handle);
-      const validation = await forkValidation(handle);
-      if (!validation.valid) {
+      const fullResult = await forkValidationFull(handle);
+      const verdict: BaselineVerdict = fullResult.ok
+        ? { kind: 'clean' }
+        : strictValidationDefault()
+          ? { kind: 'incomparable', reason: 'no-baseline' }
+          : judgeAgainstBaseline(fullResult, await resolveBaseline(handle));
+      const validation = toAuditValidation(fullResult);
+      if (!validation.valid && verdict.kind !== 'tolerated') {
         try {
           handle.parser.restorePackageSnapshot(before);
           await refreshSessionAst(handle);
         } catch {
           /* restore is best-effort; the refusal below carries the verdict */
         }
+        if (verdict.kind === 'introduced') throw introducedError('normalize_document', verdict);
         const first = validation.errors[0];
         const desc = first ? first.description : 'OOXML invalid';
         throw toError(
@@ -428,7 +447,10 @@ export async function handleNormalizeDocument(
         revision,
         dirty: store.isDirty(handle),
         normalized,
-        validation,
+        validation:
+          verdict.kind === 'tolerated'
+            ? { ...validation, tolerated: true as const, preExistingErrors: verdict.preExisting, introducedErrors: 0 as const }
+            : validation,
         revisionsPending,
         ...(pendingRemedy ? { revisionsRemedy: pendingRemedy } : {}),
         ...(redoClearedDepth > 0

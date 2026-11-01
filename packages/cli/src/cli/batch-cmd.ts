@@ -1,6 +1,7 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { BatchOperationsSchema, DocxParser, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
+import { BASELINE_MAX_ERRORS, BatchOperationsSchema, DocxParser, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, formatNormalizedInline, mergeNormalized, previewNormalizedForDisplay, print, printJson, printStderr, readEngineNormalized, readParserNormalizations, stringifyJsonPayload } from './output';
 import { classifyFileReadError, cleanCliMessage, extractEngineRemedy, failWithCode, inferBatchCode, readErrRemedyProp, remedyForPostBatchValidation, rewriteMcpRemedies, withGatedEngineOutput, type KnownCliCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -164,6 +165,8 @@ export interface RunBatchJobCtx {
   target: string;
   sequential: boolean | undefined;
   skipValidate: boolean;
+  /** --strict: refuse every validator error, including errors the file already had. */
+  strict: boolean;
   flagCeilings: ZipCeilingOverrides;
   dryRun: boolean;
   backupState: BackupState;
@@ -428,6 +431,7 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
   let outPath: string | undefined;
   let sequential: boolean | undefined;
   let skipValidate = false;
+  let strict = false;
   let maxRatioRaw: string | undefined;
   let maxBytesRaw: string | undefined;
   let targetTextRaw: string | undefined;
@@ -453,6 +457,7 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
     else if (a === '--sequential') sequential = true;
     else if (a === '--no-sequential') sequential = false;
     else if (a === '--no-validate') skipValidate = true;
+    else if (a === '--strict') strict = true;
     else if (a === '--dry-run') dryRun = true;
     else if (a === '--force') force = true;
     else if (a === '--reproducible') reproducible = true;
@@ -640,6 +645,7 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
         outPath,
         sequential,
         skipValidate,
+        strict,
         flagCeilings,
         dryRun,
         backupGiven,
@@ -885,6 +891,7 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
       target: job.target,
       sequential,
       skipValidate,
+      strict,
       flagCeilings,
       dryRun,
       backupState,
@@ -912,6 +919,8 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
   const target = ctx.target;
   const sequential = ctx.sequential;
   const skipValidate = ctx.skipValidate;
+  // Set when the gate let errors the file already had pass; reported with the result.
+  let tolerated: ToleratedVerdict | undefined;
   const flagCeilings = ctx.flagCeilings;
   const rowSuffix = ctx.rowLabel !== undefined ? ` [${ctx.rowLabel}]` : '';
   // CLI-level op extensions (heading/clearDoc) expand before the engine gate.
@@ -1008,11 +1017,15 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       // R-8: flag/file ceilings scope the DocxParser zip-bomb gate.
       const cleared = await withZipCeilingEnv(ceilings, () => new DocxParser(working, ctx.macroOpts));
       if (!skipValidate) {
-        const validation = await withGatedEngineOutput(out, () => cleared.validateOOXML());
-        if (!validation.ok) {
+        const validation = await withGatedEngineOutput(out, () => cleared.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
+        const verdict = await judgeGate(validation, ctx.strict, () => docx);
+        if (verdict.kind === 'tolerated') tolerated = verdict;
+        if (refuses(verdict)) {
           return failWithCode(
             out,
-            'clearDoc applied but post-batch validation failed, nothing written.',
+            verdict.kind === 'introduced'
+              ? `clearDoc applied but ${introducedText(verdict, String((validation.errors[0] as { description?: unknown } | undefined)?.description ?? 'OOXML invalid').slice(0, 500))}`
+              : 'clearDoc applied but post-batch validation failed, nothing written.',
             'E_VALIDATION',
             undefined,
             'pick a valid .docx and retry',
@@ -1043,6 +1056,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       const clearNormalized = mergeNormalized(clearGateNormalized, readParserNormalizations(cleared));
       await writeDocx(target, clearBytes);
       print(out, `BATCH OK ${file} -> ${target} (applied=${clearCount} cleared=${clearCount} ${formatNormalizedInline(clearNormalized)})${rowSuffix}`);
+      if (tolerated) printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(tolerated)}`);
       printJson(out, {
         ok: true,
         file,
@@ -1051,6 +1065,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
         cleared: clearCount,
         skippedIds: [],
         normalized: clearNormalized,
+        ...toleratedFields(tolerated),
         ...(ctx.rowLabel !== undefined ? { row: ctx.rowLabel } : {}),
         ...(ctx.backupState.path !== undefined ? { backup: ctx.backupState.path } : {}),
         ...(ctx.reproducible ? { reproducible: true } : {}),
@@ -1140,8 +1155,9 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
             err
           );
         }
-        const validation = await withGatedEngineOutput(out, () => postParser.validateOOXML());
-        if (!validation.ok) {
+        const validation = await withGatedEngineOutput(out, () => postParser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
+        const dryVerdict = await judgeGate(validation, ctx.strict, () => docx);
+        if (refuses(dryVerdict)) {
           const firstGate = validation.errors[0] as
             | { description?: unknown; message?: unknown; xpath?: unknown; xPath?: unknown; path?: unknown }
             | undefined;
@@ -1151,7 +1167,9 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
             (firstGate ? JSON.stringify(firstGate) : 'OOXML invalid');
           return failWithCode(
             out,
-            `dry run: batch would apply but post-batch validation fails, nothing written: ${String(firstGateDesc).slice(0, 500)}.`,
+            dryVerdict.kind === 'introduced'
+              ? `dry run: batch would apply but ${introducedText(dryVerdict, String(firstGateDesc).slice(0, 500))}`
+              : `dry run: batch would apply but post-batch validation fails, nothing written: ${String(firstGateDesc).slice(0, 500)}.`,
             'E_VALIDATION',
             undefined,
             remedyForPostBatchValidation(firstGate?.xPath ?? firstGate?.xpath ?? firstGate?.path, firstGateDesc),
@@ -1183,8 +1201,10 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       return EXIT_OK;
     }
     if (!skipValidate) {
-      const validation = await withGatedEngineOutput(out, () => parser.validateOOXML());
-      if (!validation.ok) {
+      const validation = await withGatedEngineOutput(out, () => parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
+      const verdict = await judgeGate(validation, ctx.strict, () => docx);
+      if (verdict.kind === 'tolerated') tolerated = verdict;
+      if (refuses(verdict)) {
         const first = validation.errors[0] as
           | { description?: unknown; message?: unknown; xpath?: unknown; xPath?: unknown; path?: unknown }
           | undefined;
@@ -1194,7 +1214,9 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
           (first ? JSON.stringify(first) : 'OOXML invalid');
         return failWithCode(
           out,
-          `batch applied but post-batch validation failed, nothing written: ${String(firstDesc).slice(0, 500)}.`,
+          verdict.kind === 'introduced'
+            ? `batch applied but ${introducedText(verdict, String(firstDesc).slice(0, 500))}`
+            : `batch applied but post-batch validation failed, nothing written: ${String(firstDesc).slice(0, 500)}.`,
           'E_VALIDATION',
           undefined,
           remedyForPostBatchValidation(first?.xPath ?? first?.xpath ?? first?.path, firstDesc),
@@ -1233,6 +1255,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       printStderr(`${CLI_NAME}: WARNING: ${w}`);
     }
     for (const s of staleRefs) print(out, `possibly-stale ${s.nodeId}: "${truncLine(s.preview, 120)}"`);
+    if (tolerated) printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(tolerated)}`);
     printJson(out, {
       ok: true,
       file,
@@ -1241,6 +1264,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       cleared: clearCount,
       skippedIds: res.skippedIds,
       normalized: batchNormalized,
+      ...toleratedFields(tolerated),
       ...(batchWarnings.length > 0 ? { warnings: batchWarnings } : {}),
       ...(staleRefs.length > 0 ? { possiblyStaleBodyRefs: staleRefs } : {}),
       ...(ctx.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(ctx.styleGuide) } : {}),
@@ -1297,6 +1321,7 @@ export interface StreamCmdArgs {
   outPath: string | undefined;
   sequential: boolean | undefined;
   skipValidate: boolean;
+  strict: boolean;
   flagCeilings: ZipCeilingOverrides;
   dryRun: boolean;
   backupGiven: boolean;
@@ -1321,6 +1346,7 @@ export interface StreamSessionOpts {
   target: string;
   sequential: boolean | undefined;
   skipValidate: boolean;
+  strict?: boolean;
   flagCeilings: ZipCeilingOverrides;
   backupState: BackupState;
   backupSource: Buffer;
@@ -1481,6 +1507,7 @@ export async function cmdBatchStream(out: GlobalOpts, args: StreamCmdArgs): Prom
     target,
     sequential: args.sequential,
     skipValidate: args.skipValidate,
+    strict: args.strict,
     flagCeilings: args.flagCeilings,
     backupState: {
       path: args.backupGiven ? resolveBackupPath(file, args.backupRaw) : undefined,
@@ -1539,6 +1566,8 @@ export async function runStreamSession(
   let batchesFailed = 0;
   let consecutiveFailures = 0;
   let revision = 0;
+  // Bytes of the last successful write: the baseline for the next gate.
+  let lastWritten: Buffer | undefined;
   let lineIndex = -1;
   const breakerArmed = maxErrors > 0;
   const breakerTripped = (): boolean => breakerArmed && consecutiveFailures >= maxErrors;
@@ -1558,8 +1587,13 @@ export async function runStreamSession(
   > => {
     try {
       if (!skipValidate) {
-        const validation = await withGatedEngineOutput(out, () => parser.validateOOXML());
-        if (!validation.ok) {
+        const validation = await withGatedEngineOutput(out, () => parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
+        // The baseline is the file as it was last written (or the input before the first write).
+        const verdict = await judgeGate(validation, opts.strict === true, () => lastWritten ?? backupSource);
+        if (verdict.kind === 'tolerated') {
+          printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(verdict)}`);
+        }
+        if (refuses(verdict)) {
           const first = validation.errors[0] as
             | { description?: unknown; message?: unknown; xpath?: unknown; xPath?: unknown; path?: unknown }
             | undefined;
@@ -1570,7 +1604,10 @@ export async function runStreamSession(
           return {
             ok: false,
             code: 'E_VALIDATION',
-            message: `stream save gated: post-batch validation failed, nothing new written: ${String(firstDesc).slice(0, 500)}.`,
+            message:
+              verdict.kind === 'introduced'
+                ? `stream save gated: ${introducedText(verdict, String(firstDesc).slice(0, 500))}`
+                : `stream save gated: post-batch validation failed, nothing new written: ${String(firstDesc).slice(0, 500)}.`,
             remedy: remedyForPostBatchValidation(first?.xPath ?? first?.xpath ?? first?.path, firstDesc),
           };
         }
@@ -1582,6 +1619,7 @@ export async function runStreamSession(
       }
       const finalBytes = parser.rezip({ reproducible });
       await writeDocx(target, finalBytes);
+      lastWritten = finalBytes;
       revision += 1;
       return { ok: true };
     } catch (err: unknown) {

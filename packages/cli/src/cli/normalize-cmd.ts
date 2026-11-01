@@ -1,8 +1,9 @@
-import { DocxParser } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, DocxParser } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, applyNormalizerForDisplay, formatNormalizedInline, previewNormalizedForDisplay, print, printJson, printStderr, type NormalizedRewrite } from './output';
 import { classifyFileReadError, failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { readDocx, writeDocx } from './io';
+import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
 import { type BackupState, ensureBackupCopy, resolveBackupPath, truncLine } from './batch-cmd';
 
 /**
@@ -17,6 +18,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   let file: string | undefined;
   let outPath: string | undefined;
   let dryRun = false;
+  let strict = false;
   let backupGiven = false;
   let backupRaw: string | undefined;
   for (let i = 0; i < args.length; i++) {
@@ -32,6 +34,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
       if (v.length === 0) return usage(out, 'normalize --out requires a value (output .docx path)');
       outPath = v;
     } else if (a === '--dry-run') dryRun = true;
+    else if (a === '--strict') strict = true;
     else if (a === '--backup') {
       backupGiven = true;
       const nextBackup = args[i + 1];
@@ -76,10 +79,13 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     return EXIT_OK;
   }
   const { buffer, normalized } = applyNormalizerForDisplay(buf);
+  let tolerated: ToleratedVerdict | undefined;
   try {
     const gate = new DocxParser(buffer);
-    const validation = await withGatedEngineOutput(out, () => gate.validateOOXML());
-    if (!validation.ok) {
+    const validation = await withGatedEngineOutput(out, () => gate.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
+    const verdict = await judgeGate(validation, strict, () => buf);
+    if (verdict.kind === 'tolerated') tolerated = verdict;
+    if (refuses(verdict)) {
       const first = validation.errors[0] as
         | { description?: unknown; message?: unknown; xpath?: unknown; xPath?: unknown; path?: unknown }
         | undefined;
@@ -89,7 +95,9 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
         (first ? JSON.stringify(first) : 'OOXML invalid');
       return failWithCode(
         out,
-        `normalize applied but validation still fails, nothing written: ${String(firstDesc).slice(0, 500)}.`,
+        verdict.kind === 'introduced'
+          ? `normalize applied but ${introducedText(verdict, String(firstDesc).slice(0, 500))}`
+          : `normalize applied but validation still fails, nothing written: ${String(firstDesc).slice(0, 500)}.`,
         'E_VALIDATION',
         undefined,
         'fix the flagged content in Word and retry',
@@ -116,6 +124,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     const rawMsg = err instanceof Error ? err.message : String(err);
     return failWithCode(out, rawMsg, 'E_IO', undefined, 'check the output directory is writable, then retry (nothing was written)', err);
   }
+  if (tolerated) printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(tolerated)}`);
   print(out, `NORMALIZED ${file} -> ${target} (${formatNormalizedInline(normalized)})`);
   for (const n of normalized) print(out, `normalized: ${truncLine(n, 500)}`);
   printJson(out, {
@@ -123,6 +132,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     file,
     output: target,
     normalized,
+    ...toleratedFields(tolerated),
     ...(backupState.path !== undefined ? { backup: backupState.path } : {}),
   });
   return EXIT_OK;
