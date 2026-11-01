@@ -1,6 +1,6 @@
 import { createWordElement } from '../ooxml/ns';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { DocumentAST } from '../ast';
+import { DocumentAST, NumberingSource } from '../ast';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { createHash } from 'crypto';
 
@@ -118,6 +118,54 @@ export class NumberingManipulator {
       if (id != null && id !== '') {
         (this.ast.numbering.concreteNum as Record<string, Element>)[id] = el as unknown as Element;
       }
+    }
+    this.ast.numbering.source = this.readSource(doc.documentElement, xmlStr);
+  }
+
+  /**
+   * Remembers the root element and the children that are not definitions, and
+   * fingerprints the part and the definitions as read. Without a fingerprint
+   * (the definitions cannot be serialized) the part is always rewritten.
+   */
+  private readSource(root: Element, partText: string): NumberingSource {
+    const rootAttributes: NumberingSource['rootAttributes'] = [];
+    for (let i = 0; i < root.attributes.length; i++) {
+      const attribute = root.attributes.item(i);
+      if (attribute) rootAttributes.push({ name: attribute.name, value: attribute.value });
+    }
+    const serializer = new XMLSerializer();
+    const leading: string[] = [];
+    const trailing: string[] = [];
+    let seenDefinition = false;
+    for (let node = root.firstChild; node; node = node.nextSibling) {
+      if (node.nodeType !== 1) continue;
+      const tag = (node as Element).tagName;
+      if (tag === 'w:abstractNum' || tag === 'w:num') {
+        seenDefinition = true;
+        continue;
+      }
+      (seenDefinition ? trailing : leading).push(serializer.serializeToString(node));
+    }
+    let definitionsHash = '';
+    try {
+      definitionsHash = hashText(this.serializeDefinitions() ?? '');
+    } catch { /* unreadable definitions: no fingerprint, the part is rewritten on save */ }
+    return { rootAttributes, leading, trailing, partHash: hashText(partText), definitionsHash };
+  }
+
+  /**
+   * True when the part currently in the package is the one that was read and
+   * the definitions in the AST serialize to what they did then. The part can
+   * then stay as it is, byte for byte.
+   */
+  public isUnchangedSincePartWasRead(currentPartText: string | null): boolean {
+    const source = this.ast.numbering?.source;
+    if (!source || source.definitionsHash === '' || currentPartText == null) return false;
+    if (hashText(currentPartText) !== source.partHash) return false;
+    try {
+      return hashText(this.serializeDefinitions() ?? '') === source.definitionsHash;
+    } catch {
+      return false;
     }
   }
 
@@ -400,6 +448,28 @@ export class NumberingManipulator {
    * emitted instead so the file always parses.
    */
   public serializeNumbering(): string | null {
+    const definitions = this.serializeDefinitions();
+    if (definitions === null) return null;
+    const source = this.ast.numbering?.source;
+    const attributes = [...(source?.rootAttributes ?? [])];
+    if (!attributes.some(attribute => attribute.name === 'xmlns:w')) {
+      attributes.unshift({ name: 'xmlns:w', value: NUMBERING_NS });
+    }
+    const rootAttributes = attributes
+      .map(attribute => ` ${attribute.name}="${escapeAttributeValue(attribute.value)}"`)
+      .join('');
+    return (
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<w:numbering${rootAttributes}>` +
+      (source?.leading ?? []).join('') +
+      definitions +
+      (source?.trailing ?? []).join('') +
+      `</w:numbering>`
+    );
+  }
+
+  /** The w:abstractNum elements followed by the w:num elements, or null when there are none. */
+  private serializeDefinitions(): string | null {
     const abstract = (this.ast.numbering?.abstractNum ?? {}) as Record<string, Element>;
     const concrete = (this.ast.numbering?.concreteNum ?? {}) as Record<string, Element>;
     const absIds = Object.keys(abstract);
@@ -471,11 +541,20 @@ export class NumberingManipulator {
       }
     }
 
-    return (
-      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
-      `<w:numbering xmlns:w="${NUMBERING_NS}">` +
-      parts.join('') +
-      `</w:numbering>`
-    );
+    return parts.join('');
   }
+}
+
+function hashText(text: string): string {
+  return createHash('sha1').update(text, 'utf8').digest('hex');
+}
+
+function escapeAttributeValue(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\t/g, '&#9;')
+    .replace(/\n/g, '&#10;')
+    .replace(/\r/g, '&#13;');
 }

@@ -105,9 +105,26 @@ export interface StylesMap {
   };
 }
 
+/**
+ * What the numbering part looked like when it was read, so that it can be
+ * written back the way it was: the attributes of its root element (namespace
+ * declarations and mc:Ignorable), the children that are neither
+ * w:abstractNum nor w:num (w:numPicBullet before the definitions,
+ * w:numIdMacAtCleanup after them), and two hashes that tell whether the part
+ * and the definitions are still the ones that were read.
+ */
+export interface NumberingSource {
+  rootAttributes: Array<{ name: string; value: string }>;
+  leading: string[];
+  trailing: string[];
+  partHash: string;
+  definitionsHash: string;
+}
+
 export interface NumberingMap {
   abstractNum: Record<string, Element>;
   concreteNum: Record<string, Element>;
+  source?: NumberingSource;
 }
 
 export interface RelationshipsMap {
@@ -199,6 +216,15 @@ export function cloneAST(ast: DocumentAST): DocumentAST {
   }
   for (const [k, el] of Object.entries(ast.numbering?.concreteNum ?? {})) {
     cloneNumbering.concreteNum[k] = cloneXmlElement(el);
+  }
+  const numberingSource = ast.numbering?.source;
+  if (numberingSource) {
+    cloneNumbering.source = {
+      ...numberingSource,
+      rootAttributes: numberingSource.rootAttributes.map(attribute => ({ ...attribute })),
+      leading: [...numberingSource.leading],
+      trailing: [...numberingSource.trailing],
+    };
   }
 
   const cloneRelationships: RelationshipsMap = {};

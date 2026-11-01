@@ -2991,6 +2991,10 @@ export class DocxParser {
    * removes all three so the package stays clean.
    */
   private syncNumberingToZip(ast: DocumentAST): void {
+    // The part is as it was read and no definition changed: leave its bytes alone.
+    if (new NumberingManipulator(ast).isUnchangedSincePartWasRead(this.getZipAdapter().readTextOrNull('word/numbering.xml'))) {
+      return;
+    }
     let payload: string | null = null;
     try {
       payload = new NumberingManipulator(ast).serializeNumbering();
