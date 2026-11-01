@@ -15,8 +15,11 @@
  *   with a test: w:shd without w:val -> w:val="clear".
  * Pass 3 — sequence sort. Containers w:pPr / w:rPr / w:tblPr / w:tcPr are
  *   stable-sorted by index in the canonical order arrays from schema-order.ts
- *   (TCPR_CHILD_ORDER et al). Unknown tags sort last (rank 999, stable, so
- *   their relative order is preserved and none is ever dropped).
+ *   (TCPR_CHILD_ORDER et al). Only the elements the order array lists are
+ *   moved, and only among the places those elements already occupy. An element
+ *   the array does not list (w:ins or w:del on a paragraph mark, mc:AlternateContent,
+ *   a w14 effect) keeps its place and is never dropped. This is the same rule
+ *   as sortChildrenBySchema, so the two sorts agree on every container.
  *
  * Invariants: idempotent (second run is a fixpoint with an empty log);
  * every rewrite is logged per item with its xPath, enclosing node id when
@@ -59,9 +62,6 @@ const SORT_CONTAINERS: ReadonlyArray<{ tag: string; order: readonly string[] }> 
   { tag: 'w:tcBorders', order: ['w:top', 'w:left', 'w:bottom', 'w:right', 'w:insideH', 'w:insideV', 'w:tl2br', 'w:tr2bl'] },
   { tag: 'w:pBdr', order: ['w:top', 'w:left', 'w:bottom', 'w:right', 'w:between', 'w:bar'] },
 ];
-
-/** Unknown-tag sort rank: after every known schema child, stable. */
-const UNKNOWN_TAG_RANK = 999;
 
 /**
  * Location of one rewrite: the changed node's xPath plus the enclosing
@@ -150,9 +150,9 @@ function passInfills(doc: Document, entries: string[]): void {
 
 /**
  * Pass 3: stable sequence sort of one container's element children.
- * Unknown tags rank last (stable — relative order preserved, never dropped).
- * Non-element nodes (whitespace) stay pinned at their indices. Returns the
- * before/after child-tag sequences plus whether the container moved.
+ * Elements the order array lists are sorted among the places they occupy;
+ * unlisted elements and non-element nodes (whitespace) stay where they are.
+ * Returns the before/after child-tag sequences plus whether the container moved.
  */
 function sortContainerChildren(
   container: Element,
@@ -160,26 +160,25 @@ function sortContainerChildren(
 ): { reordered: boolean; before: string[]; after: string[] } {
   const nodes: Node[] = [];
   for (let i = 0; i < container.childNodes.length; i++) nodes.push(container.childNodes[i]);
+  const before: string[] = [];
   const slots: number[] = [];
-  const elements: Element[] = [];
+  const listed: Element[] = [];
   for (let i = 0; i < nodes.length; i++) {
-    if (nodes[i].nodeType === 1) {
+    if (nodes[i].nodeType !== 1) continue;
+    const el = nodes[i] as Element;
+    before.push(el.tagName);
+    if (order.indexOf(el.tagName) !== -1) {
       slots.push(i);
-      elements.push(nodes[i] as Element);
+      listed.push(el);
     }
   }
-  const before = elements.map((el) => el.tagName);
-  if (elements.length <= 1) return { reordered: false, before, after: before };
-  const rank = (tag: string): number => {
-    const idx = order.indexOf(tag);
-    return idx === -1 ? UNKNOWN_TAG_RANK : idx;
-  };
-  const sorted = elements
+  if (listed.length <= 1) return { reordered: false, before, after: before };
+  const sorted = listed
     .map((el, pos) => ({ el, pos }))
-    .sort((a, b) => rank(a.el.tagName) - rank(b.el.tagName) || a.pos - b.pos);
+    .sort((a, b) => order.indexOf(a.el.tagName) - order.indexOf(b.el.tagName) || a.pos - b.pos);
   let changed = false;
-  for (let i = 0; i < elements.length; i++) {
-    if (sorted[i].el !== elements[i]) {
+  for (let i = 0; i < listed.length; i++) {
+    if (sorted[i].el !== listed[i]) {
       changed = true;
       break;
     }
@@ -189,7 +188,8 @@ function sortContainerChildren(
   for (let i = 0; i < slots.length; i++) next[slots[i]] = sorted[i].el;
   while (container.firstChild) container.removeChild(container.firstChild);
   for (const node of next) container.appendChild(node);
-  return { reordered: true, before, after: sorted.map((s) => s.el.tagName) };
+  const after = next.filter((node) => node.nodeType === 1).map((node) => (node as Element).tagName);
+  return { reordered: true, before, after };
 }
 
 /** Pass 3 driver over the four whitelisted containers. */

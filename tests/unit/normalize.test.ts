@@ -139,7 +139,7 @@ describe('allowlist normalizer', () => {
     expect(previewNormalizations({ 'word/document.xml': xml })).toEqual([]);
   });
 
-  it('keeps unknown tags verbatim and sorts them last, stable', () => {
+  it('keeps unknown tags verbatim and in their places', () => {
     const part = [
       '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">',
       '<w:body><w:p><w:pPr><w:zzzCustom/><w:zzzSecond/><w:jc w:val="center"/></w:pPr>',
@@ -155,11 +155,59 @@ describe('allowlist normalizer', () => {
       const c = pPr.childNodes[i];
       if (c.nodeType === 1) tags.push((c as Element).tagName);
     }
-    expect(tags).toEqual(['w:jc', 'w:zzzCustom', 'w:zzzSecond']);
+    expect(tags).toEqual(['w:zzzCustom', 'w:zzzSecond', 'w:jc']);
     expect(textsOf(out)).toEqual(['hi']);
-    expect(normalized).toEqual([
-      'Reordered w:pPr into schema order at /w:document[1]/w:body[1]/w:p[1]/w:pPr[1]: [w:zzzCustom,w:zzzSecond,w:jc] \u2192 [w:jc,w:zzzCustom,w:zzzSecond]',
+    expect(normalized).toEqual([]);
+    expect(out).toBe(part);
+  });
+
+  const wrap = (body: string): string =>
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+    'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" ' +
+    'xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:body>' + body + '</w:body></w:document>';
+  const childTags = (xml: string, tag: string): string[] => {
+    const el = parseXml(xml).getElementsByTagName(tag)[0] as unknown as Element;
+    const tags: string[] = [];
+    for (let i = 0; i < el.childNodes.length; i++) {
+      const c = el.childNodes[i];
+      if (c.nodeType === 1) tags.push((c as Element).tagName);
+    }
+    return tags;
+  };
+
+  it('keeps a tracked-change mark first in the paragraph-mark run properties', () => {
+    const part = wrap(
+      '<w:p><w:pPr><w:rPr><w:ins w:id="0" w:author="a" w:date="2025-01-01T00:00:00Z"/>' +
+      '<w:rFonts w:ascii="Calibri"/><w:sz w:val="22"/></w:rPr></w:pPr><w:r><w:t>x</w:t></w:r></w:p>',
+    );
+    const res = normalizePackage({ 'word/document.xml': part });
+    expect(res.normalized).toEqual([]);
+    expect(res.parts['word/document.xml']).toBe(part);
+  });
+
+  it('keeps an mc:AlternateContent where it is inside run properties', () => {
+    const part = wrap(
+      '<w:p><w:r><w:rPr><mc:AlternateContent><mc:Choice Requires="w16se"/><mc:Fallback>' +
+      '<w:rFonts w:ascii="Segoe UI Emoji"/></mc:Fallback></mc:AlternateContent><w:sz w:val="24"/></w:rPr>' +
+      '<w:t>x</w:t></w:r></w:p>',
+    );
+    const res = normalizePackage({ 'word/document.xml': part });
+    expect(childTags(res.parts['word/document.xml'], 'w:rPr')).toEqual(['mc:AlternateContent', 'w:sz']);
+    expect(res.normalized).toEqual([]);
+  });
+
+  it('sorts the listed elements among their places and leaves the others in theirs', () => {
+    const part = wrap(
+      '<w:p><w:r><w:rPr><w:sz w:val="24"/><w14:glow/><w:rFonts w:ascii="Calibri"/><w:b/></w:rPr><w:t>x</w:t></w:r></w:p>',
+    );
+    const first = normalizePackage({ 'word/document.xml': part });
+    expect(childTags(first.parts['word/document.xml'], 'w:rPr')).toEqual(['w:rFonts', 'w14:glow', 'w:b', 'w:sz']);
+    expect(first.normalized).toEqual([
+      'Reordered w:rPr into schema order at /w:document[1]/w:body[1]/w:p[1]/w:r[1]/w:rPr[1]: ' +
+        '[w:sz,w14:glow,w:rFonts,w:b] → [w:rFonts,w14:glow,w:b,w:sz]',
     ]);
+    const second = normalizePackage({ 'word/document.xml': first.parts['word/document.xml'] });
+    expect(second.normalized).toEqual([]);
   });
 
   it('never adopts unverified aliases: tblBdr and pBdr stay untouched', () => {
