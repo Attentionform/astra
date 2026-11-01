@@ -265,6 +265,19 @@ export function appendInSchemaOrder(parent: Element, newChild: Element, order: r
   parent.appendChild(newChild);
 }
 
+/**
+ * Copies the elements with a tag name out of the live list xmldom returns.
+ * Every read of a live list first checks whether the document changed and
+ * walks the whole document again if it did, so a loop that edits the document
+ * while reading `.length` costs (elements x document size).
+ */
+function snapshot(doc: Document, tagName: string): Element[] {
+  const list = doc.getElementsByTagName(tagName);
+  const out: Element[] = [];
+  for (let i = 0; i < list.length; i++) out.push(list[i] as unknown as Element);
+  return out;
+}
+
 export function sortChildrenBySchema(element: Element, order: readonly string[]): void {
   const recognizedIndices: number[] = [];
   const recognizedElements: Element[] = [];
@@ -283,6 +296,18 @@ export function sortChildrenBySchema(element: Element, order: readonly string[])
   }
 
   if (recognizedElements.length <= 1) return;
+
+  // Already in schema order: leave the document untouched. Removing and
+  // appending the children again changes nothing in the output but makes
+  // xmldom treat the document as modified.
+  let alreadySorted = true;
+  for (let i = 1; i < recognizedElements.length; i++) {
+    if (order.indexOf(recognizedElements[i - 1].tagName) > order.indexOf(recognizedElements[i].tagName)) {
+      alreadySorted = false;
+      break;
+    }
+  }
+  if (alreadySorted) return;
 
   recognizedElements.sort((a, b) => {
     return order.indexOf(a.tagName) - order.indexOf(b.tagName);
@@ -373,44 +398,36 @@ export function ensureTableGrid(tbl: Element, doc: Document): void {
  */
 export function canonicalizeDocumentDom(doc: Document): void {
   // 1. Canonicalize all Run Properties (<w:rPr>)
-  const rPrNodes = doc.getElementsByTagName('w:rPr');
-  for (let i = 0; i < rPrNodes.length; i++) {
-    sortChildrenBySchema(rPrNodes[i], RPR_CHILD_ORDER);
+  for (const el of snapshot(doc, 'w:rPr')) {
+    sortChildrenBySchema(el, RPR_CHILD_ORDER);
   }
 
   // 2. Canonicalize all Paragraph Properties (<w:pPr>)
-  const pPrNodes = doc.getElementsByTagName('w:pPr');
-  for (let i = 0; i < pPrNodes.length; i++) {
-    sortChildrenBySchema(pPrNodes[i], PPR_CHILD_ORDER);
+  for (const el of snapshot(doc, 'w:pPr')) {
+    sortChildrenBySchema(el, PPR_CHILD_ORDER);
   }
 
   // 3. Canonicalize all Table Properties (<w:tblPr>) & Table Borders (<w:tblBorders>)
-  const tblPrNodes = doc.getElementsByTagName('w:tblPr');
-  for (let i = 0; i < tblPrNodes.length; i++) {
-    sortChildrenBySchema(tblPrNodes[i], TBLPR_CHILD_ORDER);
+  for (const el of snapshot(doc, 'w:tblPr')) {
+    sortChildrenBySchema(el, TBLPR_CHILD_ORDER);
   }
 
-  const tblBordersNodes = doc.getElementsByTagName('w:tblBorders');
-  for (let i = 0; i < tblBordersNodes.length; i++) {
-    sortChildrenBySchema(tblBordersNodes[i], TBLBORDERS_CHILD_ORDER);
+  for (const el of snapshot(doc, 'w:tblBorders')) {
+    sortChildrenBySchema(el, TBLBORDERS_CHILD_ORDER);
   }
 
   // 4. Canonicalize all Table Cell Properties (<w:tcPr>) & Table Row Properties (<w:trPr>)
-  const trPrNodes = doc.getElementsByTagName('w:trPr');
-  for (let i = 0; i < trPrNodes.length; i++) {
-    sortChildrenBySchema(trPrNodes[i], TRPR_CHILD_ORDER);
+  for (const el of snapshot(doc, 'w:trPr')) {
+    sortChildrenBySchema(el, TRPR_CHILD_ORDER);
   }
 
-  const tcPrNodes = doc.getElementsByTagName('w:tcPr');
-  for (let i = 0; i < tcPrNodes.length; i++) {
-    sortChildrenBySchema(tcPrNodes[i], TCPR_CHILD_ORDER);
+  for (const el of snapshot(doc, 'w:tcPr')) {
+    sortChildrenBySchema(el, TCPR_CHILD_ORDER);
   }
 
   // 5. Ensure Table Cell Margins (<w:tcMar> and <w:tblCellMar>) have required w:type="dxa"
   for (const tagName of ['w:tcMar', 'w:tblCellMar']) {
-    const marNodes = doc.getElementsByTagName(tagName);
-    for (let i = 0; i < marNodes.length; i++) {
-      const mar = marNodes[i];
+    for (const mar of snapshot(doc, tagName)) {
       for (let j = 0; j < mar.childNodes.length; j++) {
         const child = mar.childNodes[j];
         if (child.nodeType === 1) {
@@ -424,29 +441,24 @@ export function canonicalizeDocumentDom(doc: Document): void {
   }
 
   // 6. Ensure all Tables (<w:tbl>) have a valid <w:tblGrid>
-  const tblNodes = doc.getElementsByTagName('w:tbl');
-  for (let i = 0; i < tblNodes.length; i++) {
-    ensureTableGrid(tblNodes[i], doc);
+  for (const tbl of snapshot(doc, 'w:tbl')) {
+    ensureTableGrid(tbl, doc);
   }
 
   // 7. Normalize invalid justification ('justify' -> 'both') according to ECMA-376 ST_Jc
-  const jcNodes = doc.getElementsByTagName('w:jc');
-  for (let i = 0; i < jcNodes.length; i++) {
-    if (jcNodes[i].getAttribute('w:val') === 'justify') {
-      jcNodes[i].setAttribute('w:val', 'both');
+  for (const jc of snapshot(doc, 'w:jc')) {
+    if (jc.getAttribute('w:val') === 'justify') {
+      jc.setAttribute('w:val', 'both');
     }
   }
 
   // 8. Canonicalize all Numbering Properties (<w:numPr>)
-  const numPrNodes = doc.getElementsByTagName('w:numPr');
-  for (let i = 0; i < numPrNodes.length; i++) {
-    sortChildrenBySchema(numPrNodes[i], NUMPR_CHILD_ORDER);
+  for (const el of snapshot(doc, 'w:numPr')) {
+    sortChildrenBySchema(el, NUMPR_CHILD_ORDER);
   }
 
   // 9. Sanitize internal id leakage in w14:paraId (e.g. 'p_001', 'p_002')
-  const pNodes = doc.getElementsByTagName('w:p');
-  for (let i = 0; i < pNodes.length; i++) {
-    const p = pNodes[i];
+  for (const p of snapshot(doc, 'w:p')) {
     if (p.hasAttribute('w14:paraId')) {
       const val = p.getAttribute('w14:paraId');
       if (val && /^p_\d+$/i.test(val)) {
@@ -483,9 +495,7 @@ export function dedupeDrawingDocPrIds(doc: Document): void {
   if (maxId === 0) return;
 
   const used = new Set<number>();
-  const drawings = doc.getElementsByTagName('w:drawing');
-  for (let i = 0; i < drawings.length; i++) {
-    const drawing = drawings[i] as unknown as Element;
+  for (const drawing of snapshot(doc, 'w:drawing')) {
     const owned: Element[] = [];
     for (const tag of ['wp:docPr', 'pic:cNvPr']) {
       const els = drawing.getElementsByTagName(tag);
