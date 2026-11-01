@@ -85,7 +85,7 @@ ASTra integrates `@attentionform/ooxml-validator` directly into its serializatio
 
 ### 4. Token-Optimized Outline Notation (TOON)
 Converts verbose OpenXML markup into dense, tabular outlines tailored for LLM context windows:
-- **`compact`**: Terse pipe-delimited outline displaying node IDs, types, and text (~90%+ token reduction).
+- **`compact`**: Terse pipe-delimited outline displaying node IDs, types, and text (about 89 % median reduction; 45 % of documents reach 90 %).
 - **`standard`**: Compact outline plus inline styling flags (`[B]`, `[I]`, `[C:hex]`, `[SZ:n]`, `[HDR]`, `[ZEBRA]`).
 - **`full`**: Deep structural dump including margins, borders, and XML property trees (section-scoped).
 

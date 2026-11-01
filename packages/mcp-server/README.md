@@ -16,7 +16,11 @@ No installation required. Pass your document directory via `--allowed-dir`:
 npx -y @attentionform/astra-mcp-server --allowed-dir /path/to/your/documents
 ```
 
-> **Security Note:** ASTra enforces strict directory sandboxing. The server will only read and write files within directories explicitly declared via `--allowed-dir` (or the `ASTRA_EXTRA_DOC_ROOTS` environment variable). The path must be absolute and exist on disk.
+> **Security Note:** ASTra enforces strict directory sandboxing. The server will only read and write files within directories explicitly declared via `--allowed-dir` (or the `ASTRA_EXTRA_DOC_ROOTS` environment variable). The path must be absolute and exist on disk. The named folders are the whole boundary: the system temp folder is not added. A symbolic link at or above a named folder is followed; a link below it that points outside it is refused.
+
+**Validation.** `open_document` checks the file and reports `valid`, `invalid`, `timed-out` or `skipped`; it never refuses the open. A save is allowed when it adds no validator error beyond the ones the file had. Server flags: `--strict-validation` (also `ASTRA_STRICT_VALIDATION=1`) refuses every error; `--open-validation-timeout <ms>` (also `ASTRA_OPEN_VALIDATION_TIMEOUT_MS`) sets the wait at open, default 5000.
+
+**Macros and size limits.** `open_document` takes `allowMacros` (keep macro parts) or `stripMacros` (remove the parts and every reference to them). The zip-bomb ceilings are `ASTRA_MAX_RATIO` (default 100) and `ASTRA_MAX_UNCOMPRESSED_BYTES`, read from the environment.
 
 ### Global Installation
 

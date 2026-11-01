@@ -35,7 +35,8 @@ ASTra enforces a strict directory jail to isolate file operations:
 ### 2.1 The `--allowed-dir` Boundary
 - **Explicit Allowlist**: The MCP server and CLI require one or more root directories declared via `--allowed-dir <path>` or the `ASTRA_EXTRA_DOC_ROOTS` environment variable.
 - **Path Canonicalization**: Before any read, write, or export operation, paths are resolved using strict canonicalization (`fs.realpathSync` for existing paths, or verified ancestor walks for newly created files).
-- **Symlink Jail Traversal Defenses**: If a symlink points outside the declared allowed directories, ASTra detects the boundary escape and refuses access with an `E_SANDBOX` error.
+- **The Named Folders Are the Whole Boundary**: With `--allowed-dir` or `ASTRA_EXTRA_DOC_ROOTS`, only those folders are allowed. The system temp folder and the `documents/` folder under the working folder are not added. Without either, the server keeps its default folders.
+- **Symlink Jail Traversal Defenses**: A symbolic link at or above a declared folder is the user's choice and is followed. A symbolic link below a declared folder that points outside it is refused with an `E_SANDBOX` error.
 - **Refusal to Overwrite**: Fresh document creation (`create` / `new_document`) refuses to overwrite existing files unless the `--force` parameter is explicitly passed.
 
 ### 2.2 Transient Workspace Isolation

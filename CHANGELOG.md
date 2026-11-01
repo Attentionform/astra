@@ -6,6 +6,22 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+### Changed
+
+- **Saving a document that already has validator errors.** `open_document` reports the file's validity and never refuses the open. A save is allowed when it adds no error beyond the ones the file had; `strict` (`--strict-validation`, `ASTRA_STRICT_VALIDATION=1`, CLI `--strict`) keeps the earlier behavior. The validator list is no longer cut at 200 errors for this comparison.
+- **`normalize` repairs known validator error kinds**: element order in settings, styles, section properties, tables and runs; decimal values in integer attributes; on/off attribute values; smart tags; duplicate shape types and a few others. A repair that changes the visible text or adds an error is dropped. The output gains `remaining` and `rolledBack`. `--dry-run` does not run the repairs.
+- **`--allowed-dir` names the whole boundary.** The system temp folder and `documents/` are no longer added. A symbolic link at or above a named folder no longer blocks writing; a link below it that points outside it is still refused.
+- **`astra batch` records a history revision** when the document has a history repository and the result is written to the input file. `--no-history` turns it off.
+
+### Fixed
+
+- Saves and inserts on large documents no longer take quadratic time (live node lists, repeated paragraph-id scans, a second serialization of the main document).
+- `numbering.xml` keeps its root element and extra children; the normalizer no longer moves elements it does not list; paragraph ids shared by `mc:Choice` and `mc:Fallback` are no longer reported as duplicates.
+- `--strip-macros` removes the references to removed parts, so the result validates.
+- Parts stored in UTF-16 are read as UTF-16; the XML safety check looks at markup only, so text that mentions XSLT is no longer refused.
+- `dedupeDrawingDocPrIds` gives the same result on every pass for nested drawings.
+- A `bookmark` created with `name` gets that name; before, the executor read only `bookmarkName`. When both are given, `bookmarkName` wins.
+
 ## [0.1.0] - 2026-10-31
 
 First public release.

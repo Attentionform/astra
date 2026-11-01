@@ -81,7 +81,7 @@ Add to `.cursor/mcp.json` in your workspace root:
 
 ASTra restricts the server to the folders you name, so an AI client cannot read or write other files on your computer. If a path is outside those folders, the request is refused and nothing happens:
 
-- **Directory Allowlist:** The server will only read or write `.docx` files located inside directories explicitly declared via `--allowed-dir <path>` (repeatable) or the `ASTRA_EXTRA_DOC_ROOTS` environment variable.
+- **Directory Allowlist:** The server will only read or write `.docx` files located inside directories explicitly declared via `--allowed-dir <path>` (repeatable) or the `ASTRA_EXTRA_DOC_ROOTS` environment variable. The named folders are the whole boundary: the system temp folder is not added. A symbolic link at or above a named folder is followed; a link below it that points outside it is refused.
 - **Path Canonicalization:** All incoming file paths are resolved to their real canonical paths. Path traversal attempts (e.g. `../../etc/passwd` or hidden directory symlinks) are caught and refused with error code `E_SANDBOX`.
 - **Absolute Paths Required:** Because clients often spawn the MCP server from disparate working directories, `--allowed-dir` must always be an absolute path and must exist prior to server launch.
 

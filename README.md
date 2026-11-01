@@ -131,7 +131,16 @@ Restart the client, then ask something like:
 
 > Open `proposal.docx`, tighten the executive summary to three sentences, add a risks table after section 2, and save it.
 
-The `--allowed-dir` option is a hard boundary: the server cannot read or write files outside that folder. All 19 tools and their parameters are described in the [MCP Specification](docs/mcp-specification.md).
+The folders named with `--allowed-dir` (or `ASTRA_EXTRA_DOC_ROOTS`) are the whole boundary: the server cannot read or write files outside them, and the system temp folder is not added. A symbolic link at or above a named folder is your choice and is followed. A link below a named folder that points outside it is refused.
+
+How the tools treat a file that already has validator errors:
+
+- `open_document` checks the file and reports `valid`, `invalid`, `timed-out` or `skipped`. It never refuses the open. Use `validationTimeoutMs` (or the server flag `--open-validation-timeout`) to change the wait; `0` skips the check.
+- A save is allowed when it adds no validator error beyond the ones the file had. Use `strict` on `save_document`, the server flag `--strict-validation` or `ASTRA_STRICT_VALIDATION=1` to refuse every error.
+- `normalize_document` repairs known error kinds (element order, decimal sizes, smart tags and a few others). It drops any repair that changes the visible text or adds an error, and reports `remaining` and `rolledBack`. It does not claim the file is valid.
+- `--strip-macros` removes the macro parts and every reference to them, and refuses what it does not know.
+
+All 19 tools and their parameters are described in the [MCP Specification](docs/mcp-specification.md).
 
 ### Use the command line
 
