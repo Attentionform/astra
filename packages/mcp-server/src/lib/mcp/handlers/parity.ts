@@ -31,6 +31,7 @@ import {
   validateSanitizeOptionsStrict,
   BASELINE_MAX_ERRORS,
   judgeAgainstBaseline,
+  repairDocxBuffer,
   type BaselineVerdict,
   type ValidationResult,
 } from '@attentionform/astra-engine';
@@ -381,6 +382,8 @@ export async function handleNormalizeDocument(
       revision: number;
       dirty: boolean;
       normalized: string[];
+      remaining: number;
+      rolledBack: { rule: string; reason: string }[];
       validation: AuditValidation & { tolerated?: true; preExistingErrors?: number; introducedErrors?: 0 };
       revisionsPending: number;
       revisionsRemedy?: string;
@@ -399,9 +402,23 @@ export async function handleNormalizeDocument(
       const before = handle.parser.capturePackageSnapshot();
       const beforeRevision = handle.revision;
       let normalized: string[];
+      let remaining = -1;
+      let rolledBack: { rule: string; reason: string }[] = [];
       try {
-        handle.parser.rezip();
+        const rezipped = handle.parser.rezip();
         normalized = readParserNormalizations(handle.parser);
+        // Repair rules run on the rezipped bytes; each kept rule adds no validator error and keeps the visible text.
+        const repair = await repairDocxBuffer(rezipped);
+        remaining = repair.remaining;
+        rolledBack = repair.rolledBack;
+        if (repair.normalized.length > 0) {
+          const repairedParts = new Map<string, Buffer>();
+          for (const entry of new AdmZip(repair.buffer).getEntries()) {
+            if (!entry.isDirectory) repairedParts.set(entry.entryName, Buffer.from(entry.getData()));
+          }
+          handle.parser.restorePackageSnapshot(repairedParts);
+          normalized = [...normalized, ...repair.normalized];
+        }
       } catch (err: unknown) {
         try {
           handle.parser.restorePackageSnapshot(before);
@@ -447,6 +464,8 @@ export async function handleNormalizeDocument(
         revision,
         dirty: store.isDirty(handle),
         normalized,
+        remaining,
+        rolledBack,
         validation:
           verdict.kind === 'tolerated'
             ? { ...validation, tolerated: true as const, preExistingErrors: verdict.preExisting, introducedErrors: 0 as const }

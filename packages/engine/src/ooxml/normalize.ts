@@ -236,7 +236,7 @@ function validationFailure(partName: string, detail: string): Error {
 }
 
 /** Strict part parse: XXE sweep, then syntax errors fail closed first. */
-function parsePartStrict(partName: string, xml: string): Document | null {
+export function parsePartStrict(partName: string, xml: string): Document | null {
   if (!xml || !xml.includes('<')) return null;
   assertNoXxe(xml, partName);
   let failed = false;

@@ -1,4 +1,4 @@
-import { BASELINE_MAX_ERRORS, DocxParser } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, DocxParser, repairDocxBuffer } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, applyNormalizerForDisplay, formatNormalizedInline, previewNormalizedForDisplay, print, printJson, printStderr, type NormalizedRewrite } from './output';
 import { classifyFileReadError, failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -78,7 +78,21 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     printJson(out, { ok: true, dryRun: true, file, output: target, normalized: wouldBe });
     return EXIT_OK;
   }
-  const { buffer, normalized } = applyNormalizerForDisplay(buf);
+  const base = applyNormalizerForDisplay(buf);
+  let buffer = base.buffer;
+  let normalized: string[] = base.normalized;
+  let remaining = -1;
+  let rolledBack: { rule: string; reason: string }[] = [];
+  try {
+    // Repair rules: each kept rule adds no validator error and keeps the visible text.
+    const repair = await withGatedEngineOutput(out, () => repairDocxBuffer(buffer));
+    buffer = repair.buffer;
+    normalized = [...normalized, ...repair.normalized];
+    remaining = repair.remaining;
+    rolledBack = repair.rolledBack;
+  } catch {
+    /* a package the repair cannot read keeps the plain normalizer result; the gate below judges it */
+  }
   let tolerated: ToleratedVerdict | undefined;
   try {
     const gate = new DocxParser(buffer);
@@ -127,11 +141,14 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   if (tolerated) printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(tolerated)}`);
   print(out, `NORMALIZED ${file} -> ${target} (${formatNormalizedInline(normalized)})`);
   for (const n of normalized) print(out, `normalized: ${truncLine(n, 500)}`);
+  for (const r of rolledBack) print(out, `repair dropped: ${r.rule}: ${r.reason}`);
   printJson(out, {
     ok: true,
     file,
     output: target,
     normalized,
+    remaining,
+    rolledBack,
     ...toleratedFields(tolerated),
     ...(backupState.path !== undefined ? { backup: backupState.path } : {}),
   });

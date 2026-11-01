@@ -254,8 +254,11 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'Output bytes match CLI normalize on the same input. When the package is still invalid afterwards, ' +
       'the session is restored untouched and the call fails with E_VALIDATION plus a fix-and-retry remedy ' +
       '(same contract as CLI normalize writing nothing on failure). ' +
-      'Returns {ok:true,sessionId,revision,dirty,normalized,validation:{valid:true,...}} where normalized ' +
-      'lists every rewrite once, plus the standard redoCleared signal when a redo chain is dropped. ' +
+      'After the normalizer it repairs known validator error kinds one rule at a time; a rule that adds a ' +
+      'validator error or changes the visible text is dropped and listed in rolledBack. ' +
+      'Returns {ok:true,sessionId,revision,dirty,normalized,remaining,rolledBack,validation:{valid:true,...}} where normalized ' +
+      'lists every rewrite once and remaining counts the validator errors left (-1 when the validator did not run), ' +
+      'plus the standard redoCleared signal when a redo chain is dropped. ' +
       'Example {"sessionId":"sess_abc"} -> {"ok":true,"normalized":[...]}. Save after to persist. ' +
       'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions.'
   ),
