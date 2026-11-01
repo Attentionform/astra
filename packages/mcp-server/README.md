@@ -206,7 +206,7 @@ Validates all modified XML parts against ECMA-376 schema and commits changes to 
 | `author` | `string` | No | Author name for document history. |
 | `allowMacros` | `boolean` | No | Explicit macro policy to keep macros on save. |
 | `stripMacros` | `boolean` | No | Explicit macro policy to strip macros on save. |
-| `strict` | `boolean` | No | Refuse every validator error, including errors the file already had when it was opened. Default: off, or the server flag `--strict-validation` / `ASTRA_STRICT_VALIDATION=1`. |
+| `strict` | `boolean` | No | Refuse every validator error, including errors the file already had when it was opened. Also refuses paragraphs that share a `w14:paraId`, which a save otherwise renumbers. Default: off, or the server flag `--strict-validation` / `ASTRA_STRICT_VALIDATION=1`. |
 
 **Returns:** `{ ok: true, sessionId, path, revision, commitOid, validation }`. When the file already had validator errors and the edit added none, `validation` is `{ ok: false, tolerated: true, preExistingErrors, introducedErrors: 0, messages }`; otherwise `{ ok: true }`.
 

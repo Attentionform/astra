@@ -12,6 +12,7 @@ import { cmdCreate } from './create-cmd';
 import { cmdImport } from './import-cmd';
 import { cmdStats } from './stats-cmd';
 import { cmdVisual } from './visual-cmd';
+import { setDuplicateParaIdPolicy } from '@attentionform/astra-engine';
 import { cmdHistory, cmdPreviewRevert, cmdRedo, cmdRevert } from './history-cmd';
 
 /**
@@ -29,6 +30,8 @@ export async function run(argv: string[]): Promise<number> {
   }
   const [cmd, ...cmdArgs] = rest;
   if (cmd === undefined) return usage(out);
+  // A save repairs paragraphs that share a w14:paraId and logs each one; --strict keeps the refusal.
+  setDuplicateParaIdPolicy(cmdArgs.includes('--strict') ? 'refuse' : 'renumber');
   try {
     switch (cmd) {
       case 'inspect':

@@ -116,6 +116,40 @@ export function findDuplicateParaIds(documentDom: Document): DuplicateParaId[] {
 }
 
 /**
+ * The paragraphs a renumber changes: in every group of equal ids the first
+ * paragraph (document order) keeps its id, and so does a later one that is the
+ * other branch of an mc:AlternateContent with a paragraph that kept it. Every
+ * other paragraph of the group is returned with its id and its xPath. A document
+ * for which this returns nothing is one the duplicate guard accepts.
+ */
+export function findParagraphsToRenumber(documentDom: Document): { element: Element; paraId: string; xPath: string }[] {
+  const out: { element: Element; paraId: string; xPath: string }[] = [];
+  try {
+    const all = documentDom.getElementsByTagName('w:p');
+    const seen = new Map<string, Element[]>();
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i] as unknown as Element;
+      const v = el.getAttribute?.('w14:paraId');
+      if (!v || !isValidParaId(v)) continue;
+      const group = seen.get(v);
+      if (group) group.push(el);
+      else seen.set(v, [el]);
+    }
+    for (const [paraId, els] of seen) {
+      if (els.length < 2 || allAlternativeBranches(els)) continue;
+      const kept: Element[] = [els[0]];
+      for (const el of els.slice(1)) {
+        if (els.length <= MAX_MIRRORED_GROUP && kept.some((k) => areAlternativeBranches(k, el))) kept.push(el);
+        else out.push({ element: el, paraId, xPath: paragraphXPath(el) });
+      }
+    }
+  } catch {
+    return out;
+  }
+  return out;
+}
+
+/**
  * Clock/seed injection for snapshot + node ids (test hook + deterministic default).
  * Injected clock returns ms since epoch; injected random returns [0,1).
  * When no injection is set, reproducible mode pins to the deterministic epoch

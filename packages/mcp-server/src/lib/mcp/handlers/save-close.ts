@@ -7,6 +7,8 @@ import {
   assertWriteTargetNoSymlink,
   chartXmlGetterForAst,
   commitChange,
+  commitStateIfDiffersFromHead,
+  refreshAstInPlace,
   getEngineErrorCode,
   lintDocumentStyle,
   macroChoiceError,
@@ -144,7 +146,14 @@ export async function executeSaveDocument(
     const rawTarget = parsed.data.outPath ?? handle.filePath;
     const target = validateSaveTarget(rawTarget);
     const strict = parsed.data.strict ?? strictValidationDefault();
-    const validation = await handle.parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS });
+    // Paragraphs that share a w14:paraId are renumbered by the validation below (and logged); strict keeps the refusal.
+    // The state before is kept for the history so one revert returns the repeated ids.
+    const paraIdPolicy = strict ? 'refuse' : 'renumber';
+    const dupPreState =
+      paraIdPolicy === 'renumber' && handle.parser.getDuplicateParaIds().length > 0
+        ? { xml: handle.parser.readDocumentXml(), extras: collectTrackedExtrasForGit(handle.parser) }
+        : null;
+    const validation = await handle.parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, duplicateParaIds: paraIdPolicy });
     // A file that already had validator errors may be saved when this edit adds none (not in strict
     // mode). Anything that cannot be compared is refused exactly as before.
     const verdict = validation.ok
@@ -170,6 +179,15 @@ export async function executeSaveDocument(
         // relationships each name their own fix).
         remedy: remedyForValidationError(xp, desc),
       });
+    }
+    if (dupPreState) {
+      try {
+        await ensureGitRepo(target, dupPreState.xml, dupPreState.extras);
+        await commitStateIfDiffersFromHead(target, dupPreState.xml, 'save_document: state before duplicate paragraph ids were renumbered', dupPreState.extras);
+      } catch {
+        /* history is best effort here; the save below records its own commit */
+      }
+      if (handle.parser.lastParaIdRenumbering.length > 0) await refreshAstInPlace(handle.ast, handle.parser);
     }
     // Display-only: the gate above rezips through the core (healing +
     // logging) — capture its log before the save rezip below replaces the

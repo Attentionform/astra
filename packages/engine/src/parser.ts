@@ -57,6 +57,7 @@ import {
   parserNowMs,
   parserRandomUnit,
   findDuplicateParaIds,
+  findParagraphsToRenumber,
 } from './parser/para-ids';
 import type { DuplicateParaId } from './parser/para-ids';
 import { buildEmbeddedNodePages } from './parser/node-pages';
@@ -182,6 +183,21 @@ export function guardFailureToValidationErrors(
     });
   }
   return null;
+}
+
+/**
+ * What a save does with paragraphs that share a w14:paraId. `refuse` stops the save
+ * with the duplicate guard error; `renumber` gives each later copy a new id and logs it.
+ * The library default is `refuse`. The CLI and the MCP server switch to `renumber`
+ * unless strict validation is on.
+ */
+export type DuplicateParaIdPolicy = 'refuse' | 'renumber';
+let duplicateParaIdPolicy: DuplicateParaIdPolicy = 'refuse';
+export function setDuplicateParaIdPolicy(policy: DuplicateParaIdPolicy): void {
+  duplicateParaIdPolicy = policy;
+}
+export function getDuplicateParaIdPolicy(): DuplicateParaIdPolicy {
+  return duplicateParaIdPolicy;
 }
 
 export class DocxParser {
@@ -504,6 +520,8 @@ export class DocxParser {
    * Read-only snapshot for the future envelope/CLI display slice.
    */
   public lastNormalizations: string[] = [];
+  /** The duplicate-paraId renumbering the last save applied (empty when none). */
+  public lastParaIdRenumbering: string[] = [];
 
   /** Test hook: forget the cached AST (forces bare rezip to preserve zip as-is). */
   public clearCachedNumberingAst(): void {
@@ -2520,6 +2538,46 @@ export class DocxParser {
   }
 
   /**
+   * Gives every repeated w14:paraId paragraph after the first a new unique id and
+   * returns one log line per change (xPath, old id, new id). The first paragraph
+   * of a group keeps its id, and so does the other branch of a mirrored
+   * mc:AlternateContent text box. Ids come from the same generator as minted
+   * ids, seeded by the old id and the paragraph position, so two runs give the
+   * same result. Only word/document.xml is scanned, as the guard is. Returns an
+   * empty list, and changes nothing, when there is nothing to renumber.
+   */
+  public renumberDuplicateParaIds(): string[] {
+    const todo = findParagraphsToRenumber(this.documentDom);
+    if (todo.length === 0) return [];
+    const used = new Set<string>();
+    const paras = this.documentDom.getElementsByTagName('w:p');
+    for (let i = 0; i < paras.length; i++) {
+      const v = (paras[i] as unknown as Element).getAttribute?.('w14:paraId');
+      if (v) used.add(v.toUpperCase());
+    }
+    const log: string[] = [];
+    for (const item of todo) {
+      let id: string;
+      let attempt = 0;
+      do {
+        id = generateValidParaId(`renumber_${item.paraId}_${item.xPath}`, attempt);
+        attempt++;
+      } while (used.has(id.toUpperCase()));
+      used.add(id.toUpperCase());
+      item.element.setAttributeNS(W14_NS, 'w14:paraId', id);
+      const sessionId = item.element.getAttribute('data-astra-id');
+      if (sessionId) {
+        item.element.setAttribute('data-astra-id', id);
+        if (this.nodeMap.get(sessionId) === item.element) this.nodeMap.delete(sessionId);
+        this.nodeMap.set(id, item.element);
+      }
+      log.push(`Renumbered duplicate w14:paraId "${item.paraId}" to "${id}" at ${item.xPath}`);
+    }
+    this.lastParaIdRenumbering = log;
+    return log;
+  }
+
+  /**
    * Fail-closed duplicate-paraId refusal for the save path. A repeated
    * native id ships downstream merge/migration collisions no tool would
    * name, so byte-production refuses while open/inspect keep working
@@ -2600,7 +2658,7 @@ export class DocxParser {
     return { isValid: errors.length === 0, errors, warnings };
   }
 
-  public rezip(astOrOptions?: DocumentAST | { skipValidation?: boolean; validate?: boolean; reproducible?: boolean; noReproducible?: boolean; ast?: DocumentAST }, options?: { skipValidation?: boolean; validate?: boolean; reproducible?: boolean; noReproducible?: boolean }): Buffer {
+  public rezip(astOrOptions?: DocumentAST | { skipValidation?: boolean; validate?: boolean; reproducible?: boolean; noReproducible?: boolean; duplicateParaIds?: DuplicateParaIdPolicy; ast?: DocumentAST }, options?: { skipValidation?: boolean; validate?: boolean; reproducible?: boolean; noReproducible?: boolean; duplicateParaIds?: DuplicateParaIdPolicy }): Buffer {
     // Backward-compatible arg resolution: supports rezip(), rezip({ skipValidation }),
     // rezip(ast), and rezip(ast, { skipValidation }). Deterministic by default;
     // explicit reproducible:false or noReproducible:true opts out to wall-clock.
@@ -2645,6 +2703,13 @@ export class DocxParser {
     // Duplicate-paraId gate first: the live-DOM scan mutates zero state, so
     // refusal leaves the session untouched (verified: open/inspect/retry
     // keep working after a refused save).
+    // With the renumber policy a repeated id is repaired (and logged) instead of refused.
+    const policyOpt =
+      (astOrOptions as { duplicateParaIds?: DuplicateParaIdPolicy } | undefined)?.duplicateParaIds ??
+      options?.duplicateParaIds;
+    const paraIdPolicy: DuplicateParaIdPolicy = policyOpt === 'renumber' || policyOpt === 'refuse' ? policyOpt : duplicateParaIdPolicy;
+    this.lastParaIdRenumbering = [];
+    const renumbered = !skipContentGuards && paraIdPolicy === 'renumber' ? this.renumberDuplicateParaIds() : [];
     if (!skipContentGuards) this.assertNoDuplicateParaIds();
 
     // R-10: save ingress drops rogue entries first, so the XXE sweep,
@@ -2685,7 +2750,7 @@ export class DocxParser {
     // canonicalization and the strict gate. Syntax errors already failed
     // closed in the integrity guard above. No-op passes mutate nothing, so
     // clean documents serialize byte-identical with an empty log.
-    const normalized: string[] = [];
+    const normalized: string[] = [...renumbered];
     normalized.push(...normalizeDocumentDom(this.documentDom));
     if (this.stylesDom) {
       for (const line of normalizeDocumentDom(this.stylesDom)) normalized.push(`word/styles.xml: ${line}`);
@@ -3391,10 +3456,10 @@ export class DocxParser {
    * working unchanged — while direct-`rezip()` writers get the thrown
    * E_VALIDATION. Integrity/XXE/macro throws still propagate, as before.
    */
-  public async validateOOXML(options?: { officeVersion?: 'Office2019' | 'Microsoft365'; maxErrors?: number }): Promise<ValidationResult> {
+  public async validateOOXML(options?: { officeVersion?: 'Office2019' | 'Microsoft365'; maxErrors?: number; duplicateParaIds?: DuplicateParaIdPolicy }): Promise<ValidationResult> {
     let buf: Buffer;
     try {
-      buf = this.rezip();
+      buf = options?.duplicateParaIds ? this.rezip({ duplicateParaIds: options.duplicateParaIds }) : this.rezip();
     } catch (err) {
       const mapped = guardFailureToValidationErrors(err);
       if (mapped) return { ok: false, errors: mapped } as unknown as ValidationResult;

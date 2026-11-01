@@ -1,8 +1,8 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { recordBatchRevision } from './history-support';
+import { extrasRecord, hasHistorySidecar, recordBatchRevision, trackedExtras } from './history-support';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
-import { BASELINE_MAX_ERRORS, BatchOperationsSchema, DocxParser, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, BatchOperationsSchema, DocxParser, commitStateIfDiffersFromHead, getDuplicateParaIdPolicy, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, formatNormalizedInline, mergeNormalized, previewNormalizedForDisplay, print, printJson, printStderr, readEngineNormalized, readParserNormalizations, stringifyJsonPayload } from './output';
 import { classifyFileReadError, cleanCliMessage, extractEngineRemedy, failWithCode, inferBatchCode, readErrRemedyProp, remedyForPostBatchValidation, rewriteMcpRemedies, withGatedEngineOutput, type KnownCliCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -1093,6 +1093,16 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     }
     // R-8: flag/file ceilings scope the DocxParser zip-bomb gate for this load.
     const parser = await withZipCeilingEnv(ceilings, () => new DocxParser(working, ctx.macroOpts));
+    // A document with repeated paragraph ids is repaired when it is saved. When the result goes into the
+    // input file and a history repository exists, the state before is recorded so one revert returns it.
+    const dupPreState =
+      ctx.noHistory !== true &&
+      getDuplicateParaIdPolicy() === 'renumber' &&
+      path.resolve(target) === path.resolve(file) &&
+      hasHistorySidecar(file) &&
+      parser.getDuplicateParaIds().length > 0
+        ? { xml: parser.readDocumentXml(), extras: extrasRecord(trackedExtras(parser.capturePackageSnapshot())) }
+        : null;
     const ast = await withGatedEngineOutput(out, () => parser.getAST());
     const engine = new OperationEngine(ast, parser, ctx.styleGuide !== undefined ? { styleGuide: ctx.styleGuide } : undefined);
     if (checked === null) {
@@ -1268,6 +1278,9 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     const gateNormalized = skipValidate ? [] : readParserNormalizations(parser);
     const finalBytes = parser.rezip({ reproducible: ctx.reproducible });
     const batchNormalized = mergeNormalized(readEngineNormalized(res), gateNormalized, readParserNormalizations(parser));
+    if (dupPreState && batchNormalized.some((l) => l.startsWith('Renumbered duplicate'))) {
+      await commitStateIfDiffersFromHead(file, dupPreState.xml, 'batch: state before duplicate paragraph ids were renumbered', dupPreState.extras);
+    }
     await writeDocx(target, finalBytes);
     const history = await recordBatchRevision({ file, target, parser, message: batchRevisionMessage(res.appliedCount, engineOps), noHistory: ctx.noHistory === true });
     print(out, `BATCH OK ${file} -> ${target} (applied=${res.appliedCount}${cleared}${skipped} ${formatNormalizedInline(batchNormalized)})${rowSuffix}`);

@@ -29,7 +29,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 // ── Engine wiring: local lib imports ─────────
-import { setOpenValidationTimeoutMs, setStrictValidationDefault } from './lib/mcp/baseline-gate';
+import { setDuplicateParaIdPolicy } from '@attentionform/astra-engine';
+import { setOpenValidationTimeoutMs, setStrictValidationDefault, strictValidationDefault } from './lib/mcp/baseline-gate';
 import {
   createMcpSessionStore,
   hasClientSessionIdHatch,
@@ -391,6 +392,8 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
   initAllowedDirs(argv);
   if (args.includes('--strict-validation')) setStrictValidationDefault(true);
+  // A save repairs paragraphs that share a w14:paraId and logs each one; strict validation keeps the refusal.
+  setDuplicateParaIdPolicy(strictValidationDefault() ? 'refuse' : 'renumber');
   const openTimeout = takeDirFlag(argv, '--open-validation-timeout');
   if (openTimeout !== undefined) setOpenValidationTimeoutMs(Number(openTimeout));
   const dumpDir = takeDirFlag(argv, '--dump-schemas');
