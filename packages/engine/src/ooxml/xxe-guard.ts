@@ -108,25 +108,41 @@ const XSLT_NS_RE = /http:\/\/www\.w3\.org\/1999\/XSL\/Transform/i;
 /** `<?xml-stylesheet ...?>` processing instruction (not the `<?xml ...?>` declaration). */
 const STYLESHEET_PI_RE = /<\?xml-stylesheet(?=[\s?])/i;
 
-/** True when the raw input carries an XInclude directive. */
+/** Tags and processing instructions only: comments, CDATA sections and character data are dropped. */
+const MARKUP_TAG_RE = /<(?:[^>"']|"[^"]*"|'[^']*')*>/g;
+
+function markupOf(xml: string): string {
+  const withoutLiterals = xml.replace(/<!--[\s\S]*?-->/g, '').replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+  return (withoutLiterals.match(MARKUP_TAG_RE) ?? []).join('\n');
+}
+
+/**
+ * Runs the pattern on the raw input first (markup is part of the raw input, so
+ * a raw miss is a miss) and only then on the markup alone, so that a clean
+ * part costs one scan and text that merely mentions a construct is not refused.
+ */
+function inMarkup(xml: unknown, pattern: RegExp): boolean {
+  if (typeof xml !== 'string' || xml.length === 0) return false;
+  if (!pattern.test(xml)) return false;
+  return pattern.test(markupOf(xml));
+}
+
+/** True when the input carries an XInclude directive in its markup. */
 export function containsXInclude(xml: unknown): boolean {
-  if (typeof xml !== 'string' || xml.length === 0) return false;
-  return XINCLUDE_RE.test(xml);
+  return inMarkup(xml, XINCLUDE_RE);
 }
 
-/** True when the raw input carries XSLT (element use or namespace declaration). */
+/** True when the input carries XSLT in its markup (element use or namespace declaration). */
 export function containsXslt(xml: unknown): boolean {
-  if (typeof xml !== 'string' || xml.length === 0) return false;
-  return XSLT_ELEMENT_RE.test(xml) || XSLT_NS_RE.test(xml);
+  return inMarkup(xml, XSLT_ELEMENT_RE) || inMarkup(xml, XSLT_NS_RE);
 }
 
-/** True when the raw input carries an xml-stylesheet processing instruction. */
+/** True when the input carries an xml-stylesheet processing instruction. */
 export function containsStylesheetPI(xml: unknown): boolean {
-  if (typeof xml !== 'string' || xml.length === 0) return false;
-  return STYLESHEET_PI_RE.test(xml);
+  return inMarkup(xml, STYLESHEET_PI_RE);
 }
 
-/** True when any XXE-adjacent vector (XInclude, XSLT, stylesheet PI) is present. */
+/** True when any XXE-adjacent vector (XInclude, XSLT, stylesheet PI) is present in the markup. */
 export function containsXxeAdjacent(xml: unknown): boolean {
   return containsXInclude(xml) || containsXslt(xml) || containsStylesheetPI(xml);
 }
