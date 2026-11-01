@@ -137,6 +137,31 @@ describe('rules added after the first measurement', () => {
   it('paragraph-bare-run-content leaves a w:br inside a run alone', () => {
     expect(run('paragraph-bare-run-content', 'word/document.xml', doc('<w:p><w:r><w:br/></w:r></w:p>')).log).toEqual([]);
   });
+
+  const W10 = 'xmlns:w10="urn:schemas-microsoft-com:office:word"';
+  const withW10 = (inner: string) => `<w:document ${W} ${W10}><w:body><w:p><w:r><w:pict>${inner}</w:pict></w:r></w:p></w:body></w:document>`;
+
+  it('vml-wrap-inline removes a w10:wrap of type inline and keeps the other wrap types', () => {
+    const r = runTwice('vml-wrap-inline', 'word/document.xml', withW10('<w10:wrap type="inline"/><w10:wrap type="square"/>'));
+    expect(r.log).toHaveLength(1);
+    expect(r.xml).not.toContain('type="inline"');
+    expect(r.xml).toContain('<w10:wrap type="square"/>');
+  });
+
+  it('vml-wrap-inline leaves a w10:wrap with a valid type alone', () => {
+    expect(run('vml-wrap-inline', 'word/document.xml', withW10('<w10:wrap type="topAndBottom"/>')).log).toEqual([]);
+  });
+
+  it('color-default-value gives a w:color without w:val the value auto and keeps the other attributes', () => {
+    const r = runTwice('color-default-value', 'word/document.xml', doc('<w:p><w:r><w:rPr><w:color w:themeColor="accent1"/></w:rPr><w:t>x</w:t></w:r></w:p>'));
+    expect(r.log).toHaveLength(1);
+    expect(r.xml).toContain('w:val="auto"');
+    expect(r.xml).toContain('w:themeColor="accent1"');
+  });
+
+  it('color-default-value leaves a w:color that has a w:val alone', () => {
+    expect(run('color-default-value', 'word/document.xml', doc('<w:p><w:r><w:rPr><w:color w:val="FF0000"/></w:rPr><w:t>x</w:t></w:r></w:p>')).log).toEqual([]);
+  });
 });
 
 describe('every rule leaves a valid part byte for byte', () => {

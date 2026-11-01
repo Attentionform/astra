@@ -401,6 +401,34 @@ export const REPAIR_RULES: readonly RepairRule[] = [
       return log;
     },
   },
+  {
+    id: 'vml-wrap-inline',
+    description: 'remove a w10:wrap whose type is "inline", which is not a wrap type; the shape then has no wrap element',
+    appliesTo: isMainOrHdrFtr,
+    apply(doc) {
+      const log: string[] = [];
+      for (const el of snapshot(doc, 'w10:wrap')) {
+        if (el.getAttribute('type') !== 'inline' || !el.parentNode) continue;
+        log.push(`Removed w10:wrap type="inline" at ${xpathOf(el)}`);
+        el.parentNode.removeChild(el);
+      }
+      return log;
+    },
+  },
+  {
+    id: 'color-default-value',
+    description: 'give a w:color without w:val the value "auto", which is what a missing value means',
+    appliesTo: (p) => /^word\/[^/]+\.xml$/.test(p),
+    apply(doc) {
+      const log: string[] = [];
+      for (const el of snapshot(doc, 'w:color')) {
+        if (el.hasAttribute('w:val')) continue;
+        el.setAttribute('w:val', 'auto');
+        log.push(`Set w:val="auto" on w:color at ${xpathOf(el)}`);
+      }
+      return log;
+    },
+  },
 ];
 
 // ── runner ───────────────────────────────────────────────────────────────
