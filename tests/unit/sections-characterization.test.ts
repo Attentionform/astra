@@ -16,7 +16,9 @@
  * The golden file was first written from the code before the parser read the
  * file's sections. One frozen value has changed since, on purpose: for a file
  * whose only sectPr besides the body's sits inside a table cell, the page setup
- * used to come from that stray element and now comes from the body's. To rewrite
+ * used to come from that stray element and now comes from the body's. A second value
+ * changed because a save keeps word/numbering.xml byte for byte when no list changed
+ * (python-docx/three-sections: the saved bytes, "noop"). To rewrite
  * it after an intended change: ASTRA_UPDATE_GOLDEN=1 npx vitest run tests/unit/sections-characterization.test.ts
  */
 import { describe, it, expect, afterAll } from 'vitest';
