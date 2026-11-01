@@ -7,7 +7,7 @@
  *   validate <docx> [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]
  *   sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only]
  *     (bare sanitize = metadata preset: zero-retention + accept-all-revisions + strip-comments + neutral author, body text kept; --redact-pii/--client-safe also redact body PII)
- *   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--sequential|--no-sequential] [--no-validate] [--strict] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
+ *   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
  *     (ops path `-` reads ops JSON from stdin; see `batch --help`)
  *     (ops support CLI-level `insert type:heading level:1..3` and `{action:'clearDoc'}`; see `batch --schema`)
  *   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--backup[=<path>]] (repair-as-action for legacy files; `validate` stays read-only, no --fix alias)

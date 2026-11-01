@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import {
   DocxParser,
   checkoutCommit,
@@ -16,6 +14,7 @@ import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } fro
 import { failHuman, readErrRemedyProp } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { readDocx, writeDocx } from './io';
+import { capCommitMessage, extrasRecord, hasHistorySidecar, sidecarGitState, trackedExtras } from './history-support';
 
 // ── Passive Git sidecar commands (history / preview-revert / revert / redo) ──
 // The CLI never creates the `.astra/` sidecar on its own: reads refuse when it
@@ -29,8 +28,6 @@ import { readDocx, writeDocx } from './io';
 type SidecarCommits = Awaited<ReturnType<typeof getHistory>>;
 type CommitPackage = Awaited<ReturnType<typeof checkoutCommit>>;
 
-/** Commit-message cap for CLI-authored history commits (same cap the MCP history writer uses). */
-const HISTORY_COMMIT_MESSAGE_MAX = 500;
 /** Human-output cap for file lists; --json keeps the full list. */
 const HISTORY_FILES_SHOWN = 5;
 /** A revert commit's subject carries the short oid of the state it restored. */
@@ -44,10 +41,6 @@ function commitSubject(message: unknown): string {
   return String(message ?? '').split(/\r?\n/)[0].trim();
 }
 
-function capCommitMessage(message: string): string {
-  return message.slice(0, HISTORY_COMMIT_MESSAGE_MAX);
-}
-
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
@@ -56,40 +49,6 @@ function shownList(names: readonly string[], cap = HISTORY_FILES_SHOWN): string 
   const shown = names.slice(0, cap).join(', ');
   const more = names.length > cap ? `; +${names.length - cap} more` : '';
   return `${shown}${more}`;
-}
-
-/** Sidecar `.git` state: a real repo directory, a stray non-directory entry, or absent. */
-type SidecarGitState = 'repo' | 'stray' | 'absent';
-
-/**
- * Classify the sidecar's `.git` entry. `stray` is a refusal state: a `.git`
- * FILE (e.g. a leftover `gitdir:` link) redirects the repository elsewhere;
- * isomorphic-git follows it, so writes would land outside the sidecar and
- * reads would loop back to the "no sidecar" gate — never treat it as absent.
- * Symlinks are followed like isomorphic-git does: a link to a real directory
- * is a usable repo; a link to a file or a broken link is stray.
- */
-function sidecarGitState(file: string): SidecarGitState {
-  const gitPath = path.join(getRepoDir(file), '.git');
-  let entry: fs.Stats;
-  try {
-    entry = fs.lstatSync(gitPath);
-  } catch {
-    return 'absent';
-  }
-  if (entry.isSymbolicLink()) {
-    try {
-      return fs.statSync(gitPath).isDirectory() ? 'repo' : 'stray';
-    } catch {
-      return 'stray';
-    }
-  }
-  return entry.isDirectory() ? 'repo' : 'stray';
-}
-
-/** Is a valid sidecar chain present for this document? */
-function hasHistorySidecar(file: string): boolean {
-  return sidecarGitState(file) === 'repo';
 }
 
 /** Refusal for a `.git`-not-a-directory sidecar (stray file, not a repo). */
@@ -126,19 +85,6 @@ function sidecarGate(out: GlobalOpts, cmd: string, file: string): number | null 
       `Remedy: create it explicitly with \`${CLI_NAME} history <docx> --init\` (alias --track; ` +
       `opt-in checkpointing — ordinary commands never create it), then retry`,
   );
-}
-
-/** Tracked package files (everything but document.xml) from a live snapshot. */
-function trackedExtras(snapshot: Map<string, Buffer>): Map<string, Buffer> {
-  const out = new Map<string, Buffer>();
-  for (const [name, buf] of snapshot) {
-    if (name !== 'word/document.xml' && isTrackedPackageFile(name)) out.set(name, buf);
-  }
-  return out;
-}
-
-function extrasRecord(extras: Map<string, Buffer>): Record<string, Buffer> {
-  return Object.fromEntries(extras);
 }
 
 /** Byte-diff two package views; word/document.xml first, then sorted extras. */

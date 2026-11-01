@@ -1,5 +1,6 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
+import { recordBatchRevision } from './history-support';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
 import { BASELINE_MAX_ERRORS, BatchOperationsSchema, DocxParser, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, formatNormalizedInline, mergeNormalized, previewNormalizedForDisplay, print, printJson, printStderr, readEngineNormalized, readParserNormalizations, stringifyJsonPayload } from './output';
@@ -167,6 +168,8 @@ export interface RunBatchJobCtx {
   skipValidate: boolean;
   /** --strict: refuse every validator error, including errors the file already had. */
   strict: boolean;
+  /** --no-history: do not record a history revision, even when the document has a history repository. */
+  noHistory?: boolean;
   flagCeilings: ZipCeilingOverrides;
   dryRun: boolean;
   backupState: BackupState;
@@ -432,6 +435,7 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
   let sequential: boolean | undefined;
   let skipValidate = false;
   let strict = false;
+  let noHistory = false;
   let maxRatioRaw: string | undefined;
   let maxBytesRaw: string | undefined;
   let targetTextRaw: string | undefined;
@@ -458,6 +462,7 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
     else if (a === '--no-sequential') sequential = false;
     else if (a === '--no-validate') skipValidate = true;
     else if (a === '--strict') strict = true;
+    else if (a === '--no-history') noHistory = true;
     else if (a === '--dry-run') dryRun = true;
     else if (a === '--force') force = true;
     else if (a === '--reproducible') reproducible = true;
@@ -646,6 +651,7 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
         sequential,
         skipValidate,
         strict,
+        noHistory,
         flagCeilings,
         dryRun,
         backupGiven,
@@ -892,6 +898,7 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
       sequential,
       skipValidate,
       strict,
+      noHistory,
       flagCeilings,
       dryRun,
       backupState,
@@ -910,6 +917,16 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
     printJson(out, { ok: true, matrix: true, file, rows: jobs.map((j) => j.target), dryRun });
   }
   return EXIT_OK;
+}
+
+/** History message of a batch: the number of operations and up to five distinct action names in order of first use. */
+function batchRevisionMessage(applied: number, ops: readonly unknown[]): string {
+  const names: string[] = [];
+  for (const op of ops) {
+    const action = (op as { action?: unknown } | null)?.action;
+    if (typeof action === 'string' && !names.includes(action) && names.length < 5) names.push(action);
+  }
+  return `batch: ${applied} operation(s)${names.length > 0 ? ` (${names.join(', ')})` : ''}`;
 }
 
 export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise<number> {
@@ -1055,6 +1072,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       const clearBytes = cleared.rezip({ reproducible: ctx.reproducible });
       const clearNormalized = mergeNormalized(clearGateNormalized, readParserNormalizations(cleared));
       await writeDocx(target, clearBytes);
+      const clearHistory = await recordBatchRevision({ file, target, parser: cleared, message: 'batch: clear document', noHistory: ctx.noHistory === true });
       print(out, `BATCH OK ${file} -> ${target} (applied=${clearCount} cleared=${clearCount} ${formatNormalizedInline(clearNormalized)})${rowSuffix}`);
       if (tolerated) printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(tolerated)}`);
       printJson(out, {
@@ -1066,6 +1084,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
         skippedIds: [],
         normalized: clearNormalized,
         ...toleratedFields(tolerated),
+        ...(clearHistory ? { history: clearHistory } : {}),
         ...(ctx.rowLabel !== undefined ? { row: ctx.rowLabel } : {}),
         ...(ctx.backupState.path !== undefined ? { backup: ctx.backupState.path } : {}),
         ...(ctx.reproducible ? { reproducible: true } : {}),
@@ -1250,6 +1269,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     const finalBytes = parser.rezip({ reproducible: ctx.reproducible });
     const batchNormalized = mergeNormalized(readEngineNormalized(res), gateNormalized, readParserNormalizations(parser));
     await writeDocx(target, finalBytes);
+    const history = await recordBatchRevision({ file, target, parser, message: batchRevisionMessage(res.appliedCount, engineOps), noHistory: ctx.noHistory === true });
     print(out, `BATCH OK ${file} -> ${target} (applied=${res.appliedCount}${cleared}${skipped} ${formatNormalizedInline(batchNormalized)})${rowSuffix}`);
     for (const w of batchWarnings) {
       printStderr(`${CLI_NAME}: WARNING: ${w}`);
@@ -1265,6 +1285,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       skippedIds: res.skippedIds,
       normalized: batchNormalized,
       ...toleratedFields(tolerated),
+      ...(history ? { history } : {}),
       ...(batchWarnings.length > 0 ? { warnings: batchWarnings } : {}),
       ...(staleRefs.length > 0 ? { possiblyStaleBodyRefs: staleRefs } : {}),
       ...(ctx.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(ctx.styleGuide) } : {}),
@@ -1322,6 +1343,7 @@ export interface StreamCmdArgs {
   sequential: boolean | undefined;
   skipValidate: boolean;
   strict: boolean;
+  noHistory: boolean;
   flagCeilings: ZipCeilingOverrides;
   dryRun: boolean;
   backupGiven: boolean;
@@ -1347,6 +1369,7 @@ export interface StreamSessionOpts {
   sequential: boolean | undefined;
   skipValidate: boolean;
   strict?: boolean;
+  noHistory?: boolean;
   flagCeilings: ZipCeilingOverrides;
   backupState: BackupState;
   backupSource: Buffer;
@@ -1508,6 +1531,7 @@ export async function cmdBatchStream(out: GlobalOpts, args: StreamCmdArgs): Prom
     sequential: args.sequential,
     skipValidate: args.skipValidate,
     strict: args.strict,
+    noHistory: args.noHistory,
     flagCeilings: args.flagCeilings,
     backupState: {
       path: args.backupGiven ? resolveBackupPath(file, args.backupRaw) : undefined,
@@ -1620,6 +1644,7 @@ export async function runStreamSession(
       const finalBytes = parser.rezip({ reproducible });
       await writeDocx(target, finalBytes);
       lastWritten = finalBytes;
+      await recordBatchRevision({ file, target, parser, message: `batch (stream): ${batchesApplied} batch(es)`, noHistory: opts.noHistory === true });
       revision += 1;
       return { ok: true };
     } catch (err: unknown) {
