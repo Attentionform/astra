@@ -329,6 +329,77 @@ export const REPAIR_RULES: readonly RepairRule[] = [
       return log;
     },
   },
+  {
+    id: 'settings-legacy-smarttags',
+    description: 'remove w:smartTagType and w:doNotEmbedSmartTags from w:settings, which the validator rejects at every position',
+    appliesTo: (p) => p === 'word/settings.xml',
+    apply(doc) {
+      const root = doc.documentElement;
+      if (!root || root.tagName !== 'w:settings') return [];
+      const log: string[] = [];
+      for (const tag of ['w:smartTagType', 'w:doNotEmbedSmartTags']) {
+        for (const el of snapshot(doc, tag)) {
+          if (el.parentNode !== root) continue;
+          log.push(`Removed ${tag} at ${xpathOf(el)}`);
+          root.removeChild(el);
+        }
+      }
+      return log;
+    },
+  },
+  {
+    id: 'style-table-defaults',
+    description: 'remove table width, layout and bidiVisual from a style when they hold the default value; the validator rejects them in a style',
+    appliesTo: (p) => p === 'word/styles.xml',
+    apply(doc) {
+      const log: string[] = [];
+      const isDefault = (el: Element): boolean => {
+        switch (el.tagName) {
+          case 'w:tblW':
+            return (el.getAttribute('w:w') ?? '0') === '0' && ['auto', 'nil', ''].includes(el.getAttribute('w:type') ?? '');
+          case 'w:tblLayout':
+            return (el.getAttribute('w:type') ?? 'autofit') === 'autofit';
+          case 'w:bidiVisual':
+            return ['0', 'false', 'off'].includes(el.getAttribute('w:val') ?? '');
+          default:
+            return false;
+        }
+      };
+      for (const pr of snapshot(doc, 'w:tblPr')) {
+        const parent = pr.parentNode;
+        if (!parent || !isElement(parent) || parent.tagName !== 'w:style') continue;
+        for (let i = pr.childNodes.length - 1; i >= 0; i--) {
+          const kid = pr.childNodes[i];
+          if (isElement(kid) && isDefault(kid)) {
+            log.push(`Removed default ${kid.tagName} at ${xpathOf(kid)}`);
+            pr.removeChild(kid);
+          }
+        }
+      }
+      return log;
+    },
+  },
+  {
+    id: 'paragraph-bare-run-content',
+    description: 'put a w:br, w:tab, w:drawing, w:pict or w:sym that sits directly in a paragraph into a run',
+    appliesTo: isMainOrHdrFtr,
+    apply(doc) {
+      const log: string[] = [];
+      const bare = new Set(['w:br', 'w:tab', 'w:drawing', 'w:pict', 'w:sym']);
+      for (const p of snapshot(doc, 'w:p')) {
+        for (let i = 0; i < p.childNodes.length; i++) {
+          const kid = p.childNodes[i];
+          if (!isElement(kid) || !bare.has(kid.tagName)) continue;
+          const run = doc.createElement('w:r');
+          p.insertBefore(run, kid);
+          p.removeChild(kid);
+          run.appendChild(kid);
+          log.push(`Put ${kid.tagName} into a run at ${xpathOf(run)}`);
+        }
+      }
+      return log;
+    },
+  },
 ];
 
 // ── runner ───────────────────────────────────────────────────────────────

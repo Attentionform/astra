@@ -106,11 +106,45 @@ describe('repair rules', () => {
   });
 });
 
+describe('rules added after the first measurement', () => {
+  it('settings-legacy-smarttags removes w:smartTagType and w:doNotEmbedSmartTags and keeps the rest', () => {
+    const r = runTwice('settings-legacy-smarttags', 'word/settings.xml', `<w:settings ${W}><w:zoom w:percent="100"/><w:smartTagType w:namespaceuri="urn:x" w:name="y"/><w:doNotEmbedSmartTags/><w:decimalSymbol w:val="."/></w:settings>`);
+    expect(r.xml).not.toContain('smartTag');
+    expect(r.xml).not.toContain('doNotEmbedSmartTags');
+    expect(r.xml).toContain('<w:zoom w:percent="100"/>');
+    expect(r.xml).toContain('<w:decimalSymbol w:val="."/>');
+  });
+
+  it('style-table-defaults removes default table width, layout and bidiVisual from a style, not other values', () => {
+    const r = runTwice('style-table-defaults', 'word/styles.xml', `<w:styles ${W}><w:style w:type="table" w:styleId="A"><w:name w:val="A"/><w:tblPr><w:bidiVisual w:val="off"/><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single"/></w:tblBorders><w:tblLayout w:type="autofit"/></w:tblPr></w:style><w:style w:type="table" w:styleId="B"><w:name w:val="B"/><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblLayout w:type="fixed"/></w:tblPr></w:style></w:styles>`);
+    expect(r.xml).not.toContain('w:bidiVisual');
+    expect(r.xml).toContain('<w:tblW w:w="5000" w:type="pct"/>');
+    expect(r.xml).toContain('<w:tblLayout w:type="fixed"/>');
+    expect(r.xml).toContain('<w:tblBorders>');
+    expect((r.xml.match(/<w:tblW /g) ?? []).length).toBe(1);
+  });
+
+  it('style-table-defaults leaves a table in the document alone', () => {
+    const xml = doc('<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="autofit"/></w:tblPr></w:tbl>');
+    expect(run('style-table-defaults', 'word/styles.xml', xml).log).toEqual([]);
+  });
+
+  it('paragraph-bare-run-content puts a bare w:br, w:tab and w:drawing into runs and keeps the order and the text', () => {
+    const r = runTwice('paragraph-bare-run-content', 'word/document.xml', doc('<w:p><w:r><w:t>a</w:t></w:r><w:br/><w:tab/><w:r><w:t>b</w:t></w:r><w:drawing/></w:p>'));
+    expect(r.xml).toContain('<w:p><w:r><w:t>a</w:t></w:r><w:r><w:br/></w:r><w:r><w:tab/></w:r><w:r><w:t>b</w:t></w:r><w:r><w:drawing/></w:r></w:p>');
+  });
+
+  it('paragraph-bare-run-content leaves a w:br inside a run alone', () => {
+    expect(run('paragraph-bare-run-content', 'word/document.xml', doc('<w:p><w:r><w:br/></w:r></w:p>')).log).toEqual([]);
+  });
+});
+
 describe('every rule leaves a valid part byte for byte', () => {
   const valid = doc('<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>ok</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1" w:right="1" w:bottom="1" w:left="1"/></w:sectPr>');
   for (const r of REPAIR_RULES) {
     it(r.id, () => {
-      expect(run(r.id, r.id === 'settings-order' ? 'word/settings.xml' : r.id === 'style-order' ? 'word/styles.xml' : r.id === 'font-family-case' ? 'word/fontTable.xml' : 'word/document.xml', valid).log).toEqual([]);
+      const part = ['word/settings.xml', 'word/styles.xml', 'word/fontTable.xml', 'word/document.xml'].find((n) => r.appliesTo(n)) as string;
+      expect(run(r.id, part, valid).log).toEqual([]);
     });
   }
 });
