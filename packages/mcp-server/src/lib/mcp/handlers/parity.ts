@@ -508,7 +508,7 @@ export function readImportMarkdownFile(rawPath: unknown, roots: string[] = getMc
     throw toError(
       'E_SANDBOX',
       `import path is outside the allowed directories (${roots.join(', ')})`,
-      'Place the Markdown file under documents/ or the system temp dir, or set ASTRA_EXTRA_DOC_ROOTS.'
+      'Place the Markdown file inside one of the allowed directories, or name its folder with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS.'
     );
   }
   const base = path.basename(canonical);

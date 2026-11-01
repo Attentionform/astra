@@ -164,8 +164,15 @@ describe('MCP/engine wide-narrow parity on one explicit root', () => {
         const mcpAllows = mcp === 'ALLOW';
         // .pdf diverges by design (MCP: E_VALIDATION on extension; engine
         // rejects non-docx too) — both refuse, codes may differ. What must
-        // never happen: one side allows what the other refuses.
-        expect(mcpAllows, `parity allow for ${candidate}`).toBe(engine === 'ALLOW');
+        // never happen: the MCP side allows what the engine refuses. The
+        // engine also keeps the system temp folder as a root when a folder is
+        // named; the MCP server does not, so it may refuse what the engine
+        // allows (only paths in the system temp folder outside the named one).
+        if (mcpAllows) expect(engine, `parity allow for ${candidate}`).toBe('ALLOW');
+        if (engine === 'ALLOW' && !mcpAllows) {
+          expect(path.resolve(candidate).startsWith(path.resolve(os.tmpdir()) + path.sep), `only temp paths diverge: ${candidate}`).toBe(true);
+          expect(path.resolve(candidate).startsWith(path.resolve(dir) + path.sep), `not under the named folder: ${candidate}`).toBe(false);
+        }
       }
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

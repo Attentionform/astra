@@ -14,6 +14,7 @@ import {
   initAstraRepo,
   isPathInsideDir as isMcpPathInsideDir,
   isTrackedPackageFile,
+  setTrustedWriteRootsProvider,
   type StyleGuideConfig,
   type ValidationBaseline,
 } from '@attentionform/astra-engine';
@@ -483,6 +484,11 @@ export interface McpSessionStats {
  * sandbox/paths), so MCP/engine verdicts can never disagree on semantics.
  */
 export function getMcpAllowedRoots(): string[] {
+  // Folders the user named (--allowed-dir, ASTRA_EXTRA_DOC_ROOTS) are the
+  // whole jail: the working folder and the system temp folder only apply when
+  // nothing was named.
+  const named = getExistingExtraRoots();
+  if (named.length > 0) return [...new Set(named)];
   const roots: string[] = [];
   try {
     roots.push(path.resolve(process.cwd(), 'documents'));
@@ -504,9 +510,11 @@ export function getMcpAllowedRoots(): string[] {
   } catch {
     /* ignore */
   }
-  for (const p of getExistingExtraRoots()) roots.push(p);
   return [...new Set(roots)];
 }
+
+// The symlink walk of every write stops at the folders the user allowed.
+setTrustedWriteRootsProvider(getMcpAllowedRoots);
 
 /**
  * H2: explicit-flag/env extra roots that actually exist as directories.
@@ -631,7 +639,7 @@ export function validateDocPath(rawPath: unknown): string {
       new Error(`Document path is outside the allowed directories (${getMcpAllowedRoots().join(', ')})`),
       {
         code: 'E_SANDBOX',
-        remedy: 'Place the .docx under documents/ or the system temp dir, or set ASTRA_EXTRA_DOC_ROOTS.',
+        remedy: 'Place the .docx inside one of the allowed directories, or name its folder with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS.',
       }
     );
   }

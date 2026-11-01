@@ -114,7 +114,7 @@ export function validateExportTarget(rawPath: unknown, expectedFormat: 'html' | 
       new Error(`Export path is outside allowed directories (${allowedRoots.join(', ')})`),
       {
         code: 'E_SANDBOX',
-        remedy: 'Place output under documents/ or the system temp dir, or set ASTRA_EXTRA_DOC_ROOTS.',
+        remedy: 'Place output inside one of the allowed directories, or name its folder with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS.',
       }
     );
   }

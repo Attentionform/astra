@@ -100,6 +100,28 @@ export function assertInside(
   return canonicalCandidate;
 }
 
+let trustedRootsProvider: (() => readonly string[]) | undefined;
+
+/**
+ * Registers the folders a host trusts as roots for writing (the folders the
+ * user allowed). The symlink walk of assertWriteTargetNoSymlink stops there.
+ * Without a provider the walk goes to the filesystem root as before.
+ */
+export function setTrustedWriteRootsProvider(provider: (() => readonly string[]) | undefined): void {
+  trustedRootsProvider = provider;
+}
+
+function currentTrustedRoots(): Set<string> {
+  const roots = new Set<string>();
+  if (!trustedRootsProvider) return roots;
+  try {
+    for (const root of trustedRootsProvider()) roots.add(path.resolve(root));
+  } catch {
+    /* a failing provider trusts nothing */
+  }
+  return roots;
+}
+
 /**
  * M1 dangling-symlink save guard (single source of truth for all file-writing
  * paths: MCP save/export/new-document/history-revert/redo — primary plus
@@ -117,11 +139,18 @@ export function assertInside(
  * links are seen). Missing components (not-yet-created save targets) are
  * skipped; the post-mkdir re-check covers races. Regular files and real dirs
  * pass untouched, so live targets stay writable.
+ *
+ * The walk ends at a trusted root (see setTrustedWriteRootsProvider): the
+ * root itself and everything above it are the user's choice of folder, so a
+ * link there (macOS /tmp and /var, a synced or external drive) is not
+ * examined. Links below the root are still refused.
  */
 export function assertWriteTargetNoSymlink(resolvedTarget: string): void {
   const abs = path.resolve(resolvedTarget);
+  const trustedRoots = currentTrustedRoots();
   let cur = abs;
   for (;;) {
+    if (trustedRoots.has(cur)) return;
     let st: fs.Stats;
     try {
       st = fs.lstatSync(cur);
