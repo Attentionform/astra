@@ -20,6 +20,7 @@ export interface HyperlinkOperation extends BaseOperation {
   text?: string;
   url?: string;       // For external hyperlinks
   bookmarkName?: string; // For internal bookmark anchors
+  name?: string; // Alias of bookmarkName (bookmark only; bookmarkName wins)
 }
 
 export function executeHyperlink(op: HyperlinkOperation, ast: DocumentAST, parser?: DocxParser): void {
@@ -50,8 +51,9 @@ export function executeHyperlink(op: HyperlinkOperation, ast: DocumentAST, parse
     let bmId = allocateNextBookmarkId(doc);
     if (bmId <= 0) bmId = allocateNextBookmarkId(doc);
     // Default name derives from the unique id (Date.now() names collided
-    // within the same millisecond); explicit bookmarkName is kept as given.
-    const bName = op.bookmarkName || `bm_${bmId}`;
+    // within the same millisecond); an explicit name is kept as given.
+    // `name` is the alias the operation schema accepts; bookmarkName wins.
+    const bName = op.bookmarkName || op.name || `bm_${bmId}`;
 
     const bmStart = createWordElement(doc, 'w:bookmarkStart');
     bmStart.setAttribute('w:id', String(bmId));
