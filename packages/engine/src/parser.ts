@@ -16,6 +16,7 @@ import { clampZipEntryTimes, checkZipBombCeilings, resolveDeterministicZipDate, 
 import { deterministicRevisionIso, resolveDefaultAuthor } from './ooxml/track-changes-emitter';
 import { newDocumentParts, newDocumentTitle, NEW_DOCUMENT_CONTENT_TYPE_OVERRIDES, NEW_DOCUMENT_ROOT_RELS, NEW_DOCUMENT_DOCUMENT_RELS } from './ooxml/new-document-parts';
 import { assertNoXxe, assertNoXxeAdjacent } from './ooxml/xxe-guard';
+import { decodeXmlPart } from './ooxml/part-text';
 import { headerFooterRefIds, pruneOrphanedHeaderFooters, type PruneResult } from './parser/header-footer-prune';
 import { isRogueZipEntry, isBlockedExecutableEntry } from './sanitizer';
 import {
@@ -628,7 +629,7 @@ export class DocxParser {
       const name = entry.entryName;
       if (isRogueZipEntry(name) || isBlockedExecutableEntry(name)) continue;
       if (name.endsWith('.xml') || name.endsWith('.rels')) {
-        const text = readPartData(entry, name).toString('utf8');
+        const text = decodeXmlPart(readPartData(entry, name));
         assertNoXxe(text, name);
         assertNoXxeAdjacent(text, name);
       }
@@ -2568,7 +2569,7 @@ export class DocxParser {
       // read here (their bytes must not fail or pass the integrity gate).
       if (isRogueZipEntry(name) || isBlockedExecutableEntry(name)) continue;
       if (name.endsWith('.xml') || name.endsWith('.rels')) {
-        const content = readPartData(entry, name).toString('utf8');
+        const content = decodeXmlPart(readPartData(entry, name));
         try {
           let hasError = false;
           let errorMessage = '';
@@ -2665,7 +2666,7 @@ export class DocxParser {
       const name = entry.entryName;
       if (isRogueZipEntry(name) || isBlockedExecutableEntry(name)) continue;
       if (name.endsWith('.xml') || name.endsWith('.rels')) {
-        const text = readPartData(entry, name).toString('utf8');
+        const text = decodeXmlPart(readPartData(entry, name));
         assertNoXxe(text, name);
         assertNoXxeAdjacent(text, name);
       }
