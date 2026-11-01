@@ -1828,13 +1828,22 @@ export function sanitizeCorePropertiesXml(
       'cp:keywords',
       'dc:description',
       'cp:category',
-      'dcterms:created',
-      'dcterms:modified',
       'cp:revision',
     ]) {
       const r = replaceTagText(out, tag, '');
       out = r.xml;
       purgedAuthors += r.count;
+    }
+    // An empty dcterms:created / dcterms:modified is not a valid W3CDTF date and
+    // Word refuses to open the file ("The file appears to be corrupted"). Both
+    // elements are optional in core properties, so remove them instead.
+    for (const tag of ['dcterms:created', 'dcterms:modified']) {
+      const re = new RegExp(`<${tag}\\b[^>]*?(?:/>|>[\\s\\S]*?</${tag}\\s*>)`, 'g');
+      const found = out.match(re);
+      if (found) {
+        purgedAuthors += found.length;
+        out = out.replace(re, '');
+      }
     }
   }
   return { xml: out, purgedAuthors, purgedPII };

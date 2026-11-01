@@ -215,6 +215,20 @@ describe('Sprint-3 sanitizer: RSID/author/EXIF/PII purge + zero-retention', () =
     expect(r.xml).not.toContain('555.123.4567');
   });
 
+  it('zero retention removes the created and modified dates instead of leaving empty W3CDTF elements', () => {
+    const core =
+      `<cp:coreProperties xmlns:cp="x" xmlns:dc="y" xmlns:dcterms="z" xmlns:xsi="w">` +
+      `<dc:creator>A</dc:creator><cp:revision>11</cp:revision>` +
+      `<dcterms:created xsi:type="dcterms:W3CDTF">2016-03-29T20:23:00Z</dcterms:created>` +
+      `<dcterms:modified xsi:type="dcterms:W3CDTF">2019-12-19T15:58:00Z</dcterms:modified>` +
+      `</cp:coreProperties>`;
+    const r = sanitizeCorePropertiesXml(core, { zeroRetention: true });
+    expect(r.xml).not.toContain('dcterms:created');
+    expect(r.xml).not.toContain('dcterms:modified');
+    expect(r.xml).not.toContain('2016-03-29');
+    expect(r.xml).toContain('<cp:revision></cp:revision>');
+  });
+
   it('redacts docProps/custom.xml PII without touching structure', () => {
     const custom =
       `<?xml version="1.0" encoding="UTF-8"?>` +

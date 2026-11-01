@@ -211,7 +211,7 @@ describe('Input gates follow-ups: body-PII closures', () => {
     expect(r.bodyPII).toBe(2);
   });
 
-  it('core.xml under zero-retention empties creator/modified/revision instead of restamping', () => {
+  it('core.xml under zero-retention empties creator/revision and removes the dates instead of restamping', () => {
     const core =
       `<?xml version="1.0" encoding="UTF-8"?>` +
       `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" ` +
@@ -228,7 +228,8 @@ describe('Input gates follow-ups: body-PII closures', () => {
     expect(r.purgedAuthors).toBe(6); // 2 author tags + created/modified/revision/title
     expect(r.xml).toContain('<dc:creator></dc:creator>');
     expect(r.xml).toContain('<cp:lastModifiedBy></cp:lastModifiedBy>');
-    expect(r.xml).toContain('<dcterms:modified></dcterms:modified>');
+    expect(r.xml).not.toContain('dcterms:modified');
+    expect(r.xml).not.toContain('dcterms:created');
     expect(r.xml).toContain('<cp:revision></cp:revision>');
     expect(r.xml).not.toContain('Alice Doe');
     expect(r.xml).not.toContain('Bob Smith');

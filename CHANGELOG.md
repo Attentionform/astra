@@ -16,6 +16,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ### Fixed
 
+- `sanitize` with zero retention (the default for a bare `sanitize`, and `--strip-macros` runs it) no longer leaves empty `dcterms:created` and `dcterms:modified` elements in `docProps/core.xml`. An empty date is not a valid W3CDTF value and Word refused to open the file ("The file appears to be corrupted"). Both elements are now removed.
 - Saves and inserts on large documents no longer take quadratic time (live node lists, repeated paragraph-id scans, a second serialization of the main document).
 - `numbering.xml` keeps its root element and extra children; the normalizer no longer moves elements it does not list; paragraph ids shared by `mc:Choice` and `mc:Fallback` are no longer reported as duplicates.
 - `--strip-macros` removes the references to removed parts, so the result validates.
