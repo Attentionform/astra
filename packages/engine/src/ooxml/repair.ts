@@ -9,6 +9,7 @@
  *  - the rule changed something.
  * A rule that fails a gate is dropped alone and reported in `rolledBack`.
  */
+import { createWordElement } from './ns';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import AdmZip from '../adm-zip-safe';
 import { parsePartStrict } from './normalize';
@@ -390,7 +391,7 @@ export const REPAIR_RULES: readonly RepairRule[] = [
         for (let i = 0; i < p.childNodes.length; i++) {
           const kid = p.childNodes[i];
           if (!isElement(kid) || !bare.has(kid.tagName)) continue;
-          const run = doc.createElement('w:r');
+          const run = createWordElement(doc, 'w:r');
           p.insertBefore(run, kid);
           p.removeChild(kid);
           run.appendChild(kid);
