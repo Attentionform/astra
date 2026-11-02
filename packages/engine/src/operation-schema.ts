@@ -382,6 +382,7 @@ const tableOp = z.object({
   col: z.number().int().describe('Alias of colIndex (counting from 1).').optional(),
   columnIndex: z.number().int().describe('Alias of colIndex (counting from 1).').optional(),
   text: z.string().max(100_000).optional(),
+  cells: z.array(z.string().max(100_000)).max(100).describe('addRow: the text of the new cells, one entry per column from the first (also accepted inside params).').optional(),
   afterIndex: z.number().int().describe('addRow: insert after this row number; addColumn: after this column number (counting from 1; default the last).').optional(),
   index: z.number().int().describe('deleteRow/deleteColumn: the row or column number to remove (counting from 1).').optional(),
   fill: z.string().max(16).optional(),

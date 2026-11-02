@@ -1271,6 +1271,15 @@
                   "type": "string",
                   "maxLength": 100000
                 },
+                "cells": {
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 100000
+                  },
+                  "description": "addRow: the text of the new cells, one entry per column from the first (also accepted inside params)."
+                },
                 "afterIndex": {
                   "type": "integer",
                   "minimum": -9007199254740991,
