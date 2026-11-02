@@ -59,6 +59,22 @@ export const RPR_CHILD_ORDER: readonly string[] = [
   'w:eastAsianLayout',
   'w:specVanish',
   'w:oMath',
+  // Word 2010 text effects (MS-DOCX 2.6.1). They follow every w: child and
+  // come before w:rPrChange, in this order. Unlisted, they kept their slot
+  // while the listed elements moved around them, which put w:lang or w:szCs
+  // after a w14 element and made the file invalid.
+  'w14:glow',
+  'w14:shadow',
+  'w14:reflection',
+  'w14:textOutline',
+  'w14:textFill',
+  'w14:scene3d',
+  'w14:props3d',
+  'w14:ligatures',
+  'w14:numForm',
+  'w14:numSpacing',
+  'w14:stylisticSets',
+  'w14:cntxtAlts',
   'w:rPrChange'
 ];
 

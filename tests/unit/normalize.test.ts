@@ -198,13 +198,27 @@ describe('allowlist normalizer', () => {
 
   it('sorts the listed elements among their places and leaves the others in theirs', () => {
     const part = wrap(
+      '<w:p><w:r><w:rPr><w:sz w:val="24"/><mc:AlternateContent/><w:rFonts w:ascii="Calibri"/><w:b/></w:rPr><w:t>x</w:t></w:r></w:p>',
+    );
+    const first = normalizePackage({ 'word/document.xml': part });
+    expect(childTags(first.parts['word/document.xml'], 'w:rPr')).toEqual(['w:rFonts', 'mc:AlternateContent', 'w:b', 'w:sz']);
+    expect(first.normalized).toEqual([
+      'Reordered w:rPr into schema order at /w:document[1]/w:body[1]/w:p[1]/w:r[1]/w:rPr[1]: ' +
+        '[w:sz,mc:AlternateContent,w:rFonts,w:b] → [w:rFonts,mc:AlternateContent,w:b,w:sz]',
+    ]);
+    const second = normalizePackage({ 'word/document.xml': first.parts['word/document.xml'] });
+    expect(second.normalized).toEqual([]);
+  });
+
+  it('puts the w14 text effects after every w: run property, where the schema has them', () => {
+    const part = wrap(
       '<w:p><w:r><w:rPr><w:sz w:val="24"/><w14:glow/><w:rFonts w:ascii="Calibri"/><w:b/></w:rPr><w:t>x</w:t></w:r></w:p>',
     );
     const first = normalizePackage({ 'word/document.xml': part });
-    expect(childTags(first.parts['word/document.xml'], 'w:rPr')).toEqual(['w:rFonts', 'w14:glow', 'w:b', 'w:sz']);
+    expect(childTags(first.parts['word/document.xml'], 'w:rPr')).toEqual(['w:rFonts', 'w:b', 'w:sz', 'w14:glow']);
     expect(first.normalized).toEqual([
       'Reordered w:rPr into schema order at /w:document[1]/w:body[1]/w:p[1]/w:r[1]/w:rPr[1]: ' +
-        '[w:sz,w14:glow,w:rFonts,w:b] → [w:rFonts,w14:glow,w:b,w:sz]',
+        '[w:sz,w14:glow,w:rFonts,w:b] → [w:rFonts,w:b,w:sz,w14:glow]',
     ]);
     const second = normalizePackage({ 'word/document.xml': first.parts['word/document.xml'] });
     expect(second.normalized).toEqual([]);

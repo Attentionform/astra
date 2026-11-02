@@ -24,7 +24,8 @@ export interface ClearFormatResult {
  *     the old 13-tag hand list missed (w:shd/w:bdr/w:kern/w:position/
  *     w:spacing/w:w/w:effect/w:fitText/w:rtl/w:cs/w:em/w:lang/
  *     w:eastAsianLayout/w:specVanish/w:oMath/w:rStyle/w:outline/w:shadow/
- *     w:emboss/w:imprint/w:noProof/w:snapToGrid/w:vanish/w:webHidden/etc.).
+ *     w:emboss/w:imprint/w:noProof/w:snapToGrid/w:vanish/w:webHidden/etc.,
+ *     and the Word 2010 text effects w14:glow/w14:shadow/w14:ligatures/etc.).
  *   - Ctrl+Q clears PARAGRAPH direct formatting: w:jc (alignment), w:ind
  *     (indentation), w:pBdr (paragraph borders), w:spacing (before/after/
  *     line). pStyle resets to Normal; numbering/tabs/shading and other pPr
