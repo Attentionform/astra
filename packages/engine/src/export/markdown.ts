@@ -4,6 +4,7 @@ import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { ommlToLatex } from '../ooxml/omml';
 import { readTableMerges } from './table-merges';
+import { effectiveRunItalic, useStylesForExport } from './style-italic';
 
 /** Loose node view for exporters (mirrors html.ts ExportNodeLike; tolerates
  * partial/test-built nodes such as `{ xml }` passed for callout bodies). */
@@ -115,6 +116,35 @@ interface MdParagraph {
   commentIds: string[];
 }
 
+interface RunFlags {
+  mono: boolean;
+  bold: boolean;
+  italic: boolean;
+}
+
+/** Text of a run that holds nothing but text and tabs; null when it holds anything else (a break, a note reference, math). */
+function simpleRunText(run: Element): string | null {
+  let text = '';
+  for (let i = 0; i < run.childNodes.length; i++) {
+    const c = run.childNodes[i] as Element;
+    if (!c || c.nodeType !== 1) continue;
+    if (c.tagName === 'w:rPr') continue;
+    if (c.tagName === 'w:t') text += c.textContent || '';
+    else if (c.tagName === 'w:tab') text += ' ';
+    else return null;
+  }
+  return text;
+}
+
+/** One run of text with its emphasis, as Markdown. */
+function styledRunText(runText: string, flags: RunFlags): string {
+  if (flags.mono || flags.bold || flags.italic) {
+    if (runText.trim().length > 0) return mdStyledSpan(runText, flags.bold, flags.italic, flags.mono);
+    return runText.replace(/\r\n|\r|\n/g, ' ');
+  }
+  return mdEscapeRunText(runText.replace(/\r\n|\r|\n/g, ' '));
+}
+
 function mdChildrenText(
   parent: Element,
   ctx: { footnoteIds: string[]; commentIds: string[] },
@@ -122,11 +152,35 @@ function mdChildrenText(
   raw = false
 ): string {
   let out = '';
+  // Neighbouring text runs with the same emphasis are written as one span: `*a*` next to `*b*` would
+  // read as `*a**b*`, which Markdown shows with literal asterisks.
+  let pending: { flags: RunFlags; text: string } | null = null;
+  const flushPending = (): void => {
+    if (!pending) return;
+    out += styledRunText(pending.text, pending.flags);
+    pending = null;
+  };
   for (let i = 0; i < parent.childNodes.length; i++) {
     const ch = parent.childNodes[i] as Element;
     if (!ch || ch.nodeType !== 1) continue;
+    if (!raw && ch.tagName === 'w:r') {
+      const text = simpleRunText(ch);
+      if (text !== null) {
+        const flags: RunFlags = { mono: isMonospaceRun(ch), bold: isBoldRun(ch), italic: effectiveRunItalic(ch, ast) };
+        const open: { flags: RunFlags; text: string } | null = pending;
+        if (open && open.flags.mono === flags.mono && open.flags.bold === flags.bold && open.flags.italic === flags.italic) {
+          open.text += text;
+        } else {
+          flushPending();
+          pending = { flags, text };
+        }
+        continue;
+      }
+    }
+    flushPending();
     out += mdChildText(ch, ctx, ast, raw);
   }
+  flushPending();
   return out;
 }
 
@@ -171,16 +225,6 @@ function isBoldRun(el: Element): boolean {
   const b = rPr.getElementsByTagName('w:b')[0];
   if (!b) return false;
   const val = (b.getAttribute('w:val') || '').toLowerCase();
-  return !(val === '0' || val === 'false' || val === 'off' || val === 'none');
-}
-
-function isItalicRun(el: Element): boolean {
-  if (!el || typeof el.getElementsByTagName !== 'function') return false;
-  const rPr = el.getElementsByTagName('w:rPr')[0];
-  if (!rPr) return false;
-  const i = rPr.getElementsByTagName('w:i')[0];
-  if (!i) return false;
-  const val = (i.getAttribute('w:val') || '').toLowerCase();
   return !(val === '0' || val === 'false' || val === 'off' || val === 'none');
 }
 
@@ -230,7 +274,7 @@ function mdChildText(
     const parts: string[] = [];
     const isMono = isMonospaceRun(el);
     const isBold = isBoldRun(el);
-    const isItalic = isItalicRun(el);
+    const isItalic = effectiveRunItalic(el, ast);
     let runText = '';
 
     const flushText = () => {
@@ -999,6 +1043,7 @@ export function convertAstToMarkdown(
     parser = parserOrOptions as DocxParser | undefined;
     options = maybeOptions;
   }
+  useStylesForExport(ast, parser);
   const imageMode = options?.imageMode ?? 'embed';
   if (imageMode !== 'embed' && imageMode !== 'file') {
     throw new Error(

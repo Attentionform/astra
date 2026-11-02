@@ -5,6 +5,7 @@ import { assertNoXxe } from '../ooxml/xxe-guard';
 import { ommlToMathmlDisplay } from '../ooxml/omml';
 import { isMonospaceRun, hasListNumbering, isOrderedListItem, codeBlockLanguage } from './markdown';
 import { readTableMerges, type TableMerges } from './table-merges';
+import { effectiveRunItalic, useStylesForExport } from './style-italic';
 
 /** Narrow export duck-typing without behavior change (replaces `any`). */
 export type ExportNodeLike = {
@@ -152,7 +153,7 @@ function isDivider(node: ExportNodeLike, text?: string): boolean {
   return false;
 }
 
-function renderRun(r: Element): string {
+function renderRun(r: Element, ast?: DocumentAST): string {
   const rPr = r.getElementsByTagName('w:rPr')[0];
   const styles: string[] = [];
   if (rPr) {
@@ -164,14 +165,12 @@ function renderRun(r: Element): string {
       }
     }
 
-    const i = rPr.getElementsByTagName('w:i')[0];
-    if (i) {
-      const iVal = i.getAttribute('w:val');
-      if (iVal !== '0' && iVal !== 'false' && iVal !== 'off') {
-        styles.push('font-style: italic;');
-      }
-    }
+  }
 
+  // Italic: the run's own formatting, else its paragraph style and character style.
+  if (effectiveRunItalic(r, ast)) styles.push('font-style: italic;');
+
+  if (rPr) {
     const u = rPr.getElementsByTagName('w:u')[0];
     if (u) {
       const uVal = u.getAttribute('w:val');
@@ -356,7 +355,7 @@ function renderParagraphChild(
       const latex = Array.from((runMaths[k] as Element).getElementsByTagName('m:t')).map(t => (t as Element).textContent || '').join('');
       extra += `<span class="equation">${latex ? `[Equation: ${escapeHtml(latex)}]` : '[Equation]'}</span>`;
     }
-    const html = renderRun(el) + extra;
+    const html = renderRun(el, ast) + extra;
     if (!html) return '';
     return html;
   }
@@ -945,6 +944,7 @@ export function convertAstToHtml(
     options = optionsOrParser as { printMode?: boolean } | undefined;
     if (looksLikeParser(maybeParser)) parser = maybeParser as DocxParser;
   }
+  useStylesForExport(ast, parser);
   const noteBodies = extractHtmlNoteBodies(parser, ast);
   let bodyContent = '';
   const footnoteOrder: string[] = [];

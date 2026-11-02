@@ -2450,6 +2450,21 @@ export class DocxParser {
       .filter((v): v is string => !!v);
   }
 
+  /**
+   * Every `w:style` element of word/styles.xml by `w:styleId` (a new map each call; empty when the part is
+   * missing). For reading only: the HTML and Markdown exports resolve formatting that comes from a style,
+   * such as the italic of a Subtitle paragraph, from it.
+   */
+  public getStyleElements(): Map<string, Element> {
+    const out = new Map<string, Element>();
+    if (!this.stylesDom) return out;
+    for (const style of Array.from(this.stylesDom.getElementsByTagName('w:style'))) {
+      const id = style.getAttribute('w:styleId');
+      if (id && !out.has(id)) out.set(id, style);
+    }
+    return out;
+  }
+
   public deleteRootNode(nodeId: string): void {
     const node = this.nodeMap.get(nodeId);
     if (!node) throw new Error(`Node ${nodeId} not found`);
