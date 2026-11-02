@@ -267,7 +267,7 @@ export function commandHelpText(cmd: string): string | undefined {
       `Usage: ${CLI_NAME} search <docx> <query> [--limit <n>] [--allow-macros] [--strip-macros]`,
       '',
       'Case-insensitive full-text search over document nodes. Prints `<node-id> <snippet>` per hit plus a match footer.',
-      '  --limit <n>   max hits, integer 1..100 (default 20)',
+      '  --limit <n>   max hits shown, integer 1..100 (default 20). When more nodes match, the footer reads `N of M matches` and --json carries `total` (all matches) and `truncated`.',
       '  --allow-macros  preserve macro/active-content parts byte-identical (default refuses E_VALIDATION naming the parts)',
       '  --strip-macros  remove macro/active-content parts and continue (never with --allow-macros)',
       'Reuses the engine AST search (same node ids as `inspect`/`batch` targets). A table hit adds `[cells: <tableId>:r2c1, ...]` (JSON: `cells`), usable as the target of replace/style/namedStyle/clearFormat/hyperlink/bookmark/comment.',

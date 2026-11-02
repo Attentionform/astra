@@ -50,7 +50,9 @@ export async function cmdSearch(out: GlobalOpts, args: string[]): Promise<number
     // snippet windowing + output shaping (no new cross-package edges).
     const parser = new DocxParser(buf, macroOptsFromFlags({ allowMacros, stripMacros }));
     const ast = await parser.getAST();
-    const hits = parser.searchNodesInAST(ast, query).slice(0, limit);
+    const allHits = parser.searchNodesInAST(ast, query);
+    const total = allHits.length;
+    const hits = allHits.slice(0, limit);
     const needle = query.toLowerCase();
     const shaped = hits.map((h) => {
       const cells = h.type === 'table' ? cellAddressesMatching(h, (cell) => cell.toLowerCase().includes(needle)) : [];
@@ -62,8 +64,14 @@ export async function cmdSearch(out: GlobalOpts, args: string[]): Promise<number
       };
     });
     for (const h of shaped) print(out, `${h.id} ${h.snippet}${h.cells ? ` [cells: ${h.cells.join(', ')}]` : ''}`);
-    print(out, shaped.length === 1 ? '1 match' : `${shaped.length} matches`);
-    printJson(out, { ok: true, file, query, count: shaped.length, hits: shaped });
+    // `--limit` cuts the list, not the count: say how many there are, so a cut list is not read as the whole.
+    if (total > shaped.length) {
+      const advice = limit < 100 ? 'raise --limit (1..100) to see more' : 'the limit is 100';
+      print(out, `${shaped.length} of ${total} matches; ${advice}`);
+    } else {
+      print(out, shaped.length === 1 ? '1 match' : `${shaped.length} matches`);
+    }
+    printJson(out, { ok: true, file, query, count: shaped.length, total, truncated: total > shaped.length, hits: shaped });
     return EXIT_OK;
   } catch (err: unknown) {
     return failHuman(out, err, { file, fallbackCode: 'E_VALIDATION' });
