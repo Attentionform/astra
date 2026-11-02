@@ -590,6 +590,29 @@ function applySpanStyle(
   }
 }
 
+/** Keys inside `params` or `properties` that the style op does not read, in order of first appearance. */
+function unknownStyleBagKeys(op: StyleOperation): string[] {
+  const keys: string[] = [];
+  for (const bag of [op.params, op.properties]) {
+    if (typeof bag !== 'object' || bag === null || Array.isArray(bag)) continue;
+    for (const key of Object.keys(bag as Record<string, unknown>)) {
+      if (!READ_STYLE_KEYS.has(key) && !keys.includes(key)) keys.push(key);
+    }
+  }
+  return keys;
+}
+
+/**
+ * One advisory sentence per key inside `params` or `properties` that the style op ignores, with the closest
+ * style key when there is one. The op still applies the keys it knows; the sentence tells the caller about the rest.
+ */
+export function unknownStyleKeyWarnings(op: StyleOperation): string[] {
+  return unknownStyleBagKeys(op).map((key) => {
+    const near = closestNames(key, [...READ_STYLE_KEYS], KEY_WORDS);
+    return `style: "${key}" is not a style key, so it was ignored.${near.length > 0 ? ` Did you mean "${near[0]}"?` : ''}`;
+  });
+}
+
 export function executeStyle(op: StyleOperation, ast: DocumentAST): void {
   const targets = Array.isArray(op.target) ? op.target : [op.target];
   if (targets.length === 0 || !targets[0]) throw new Error("Style operation requires a target");
@@ -623,11 +646,7 @@ export function executeStyle(op: StyleOperation, ast: DocumentAST): void {
     (key) => !SELECTOR_ONLY_KEYS.has(key) && sentinel[key] !== undefined && sentinel[key] !== null
   );
   if (!appliesSomething) {
-    const rawBags: Record<string, unknown> = {
-      ...(typeof op.params === 'object' && op.params !== null ? (op.params as Record<string, unknown>) : {}),
-      ...(typeof op.properties === 'object' && op.properties !== null ? (op.properties as Record<string, unknown>) : {}),
-    };
-    const unknownKeys = Object.keys(rawBags).filter((k) => !READ_STYLE_KEYS.has(k));
+    const unknownKeys = unknownStyleBagKeys(op);
     const suggestions: string[] = [];
     for (const key of unknownKeys) {
       const near = closestNames(key, [...READ_STYLE_KEYS], KEY_WORDS);

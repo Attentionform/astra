@@ -5,7 +5,7 @@ import { DocxParser } from './parser';
 import { getEngineErrorCode, toError } from './errors';
 import { BaseOperation, assertNoCellAddress, parseCellAddress, syncCellStandIns } from './operations/base';
 import { ReplaceOperation, executeReplace } from './operations/replace';
-import { StyleOperation, executeStyle } from './operations/style';
+import { StyleOperation, executeStyle, unknownStyleKeyWarnings } from './operations/style';
 import { ClearFormatOperation, executeClearFormat } from './operations/clearFormat';
 import { DeleteOperation, executeDelete } from './operations/delete';
 import { InsertOperation, ParaIdScanCache, executeInsert } from './operations/insert';
@@ -1268,7 +1268,12 @@ export class OperationEngine {
     if (action !== 'insert') this.insertParaIds = null;
     switch (action) {
       case 'replace': return executeReplace(op as ReplaceOperation, this.ast);
-      case 'style': return executeStyle(op as StyleOperation, this.ast);
+      case 'style': {
+        executeStyle(op as StyleOperation, this.ast);
+        // A key the op does not read is still dropped, as before, but the caller is told which one.
+        const ignored = unknownStyleKeyWarnings(op as StyleOperation);
+        return ignored.length > 0 ? { warnings: ignored } : undefined;
+      }
       case 'clearFormat': return executeClearFormat(op as ClearFormatOperation, this.ast);
       case 'insert': {
         // M3 backward-compat: insert+type:image/chart rewrites to the
