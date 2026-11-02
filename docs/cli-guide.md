@@ -88,6 +88,8 @@ Inspect --visual adds spatial telemetry (<500 tok) + one headless page render (-
 Visual renders the saved on-disk file (MCP visual_inspect renders session state incl. unsaved edits: save first for matching renders); inspect --visual is the same renderer as visual (alias: same --page/--format yields identical bytes).
 ```
 
+A document that carries macro parts (a `.docm` or `.dotm`, or a `.docx` with a macro binary) is refused by every command that opens it, and the refusal names the parts. Pass `--allow-macros` to keep the parts as they are or `--strip-macros` to remove them; the two together are a usage error (exit 2). `inspect`, `validate`, `visual`, `batch`, `sanitize`, `stats`, `search`, `export` (HTML and Markdown), `normalize`, `history`, `preview-revert`, `revert` and `redo` take both flags. A result that keeps macro parts has to be named `.docm` or `.dotm` (`sanitize` and `normalize` check this before they write). A result without them is a plain document: `normalize --strip-macros` needs `--out <name>.docx`, and `revert` and `redo` (which write the file in place) refuse `--strip-macros` for a `.docm` or `.dotm`.
+
 The following flags apply to every subcommand:
 
 | Flag | Description |

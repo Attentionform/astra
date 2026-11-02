@@ -3,7 +3,7 @@ import { CLI_NAME, EXIT_OK, type GlobalOpts, applyNormalizerForDisplay, formatNo
 import { classifyFileReadError, failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import * as path from 'path';
-import { readDocx, writeDocx } from './io';
+import { macroFlagsUsageError, macroOptsFromFlags, macroOutputRefusal, macroStripNameRefusal, readDocx, writeDocx } from './io';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
 import { extrasRecord, hasHistorySidecar, recordBatchRevision, trackedExtras } from './history-support';
 import { type BackupState, ensureBackupCopy, resolveBackupPath, truncLine } from './batch-cmd';
@@ -24,6 +24,8 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   let noHistory = false;
   let backupGiven = false;
   let backupRaw: string | undefined;
+  let allowMacros = false;
+  let stripMacros = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--out') {
@@ -39,6 +41,8 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     } else if (a === '--dry-run') dryRun = true;
     else if (a === '--strict') strict = true;
     else if (a === '--no-history') noHistory = true;
+    else if (a === '--allow-macros') allowMacros = true;
+    else if (a === '--strip-macros') stripMacros = true;
     else if (a === '--backup') {
       backupGiven = true;
       const nextBackup = args[i + 1];
@@ -54,7 +58,17 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     else return usage(out, 'normalize takes exactly one <docx> argument');
   }
   if (!file) return usage(out, 'normalize requires exactly one <docx> argument');
+  if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
+  const macroOpts = macroOptsFromFlags({ allowMacros, stripMacros });
   const target = outPath ?? file;
+  if (stripMacros && !dryRun) {
+    const nameRefusal = macroStripNameRefusal(
+      'normalize',
+      target,
+      `write the result to a .docx with --out <name>.docx, or use --allow-macros to keep the macro parts in the .docm`,
+    );
+    if (nameRefusal !== null) return usage(out, nameRefusal);
+  }
   const backupState: BackupState = {
     path: backupGiven && !dryRun ? resolveBackupPath(file, backupRaw) : undefined,
     done: false,
@@ -71,7 +85,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   if (dryRun) {
     let wouldBe: NormalizedRewrite[];
     try {
-      wouldBe = previewNormalizedForDisplay(buf);
+      wouldBe = previewNormalizedForDisplay(buf, macroOpts);
     } catch (err: unknown) {
       const read = classifyFileReadError(err, file);
       if (read !== undefined) return failWithCode(out, read.message, read.code, undefined, read.remedy, err);
@@ -82,7 +96,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     printJson(out, { ok: true, dryRun: true, file, output: target, normalized: wouldBe });
     return EXIT_OK;
   }
-  const base = applyNormalizerForDisplay(buf);
+  const base = applyNormalizerForDisplay(buf, macroOpts);
   let buffer = base.buffer;
   let normalized: string[] = base.normalized;
   let remaining = -1;
@@ -99,7 +113,9 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   }
   let tolerated: ToleratedVerdict | undefined;
   try {
-    const gate = new DocxParser(buffer);
+    const gate = new DocxParser(buffer, macroOpts);
+    const nameRefusal = macroOutputRefusal('normalize', target, gate.getMacroParts(), stripMacros);
+    if (nameRefusal !== null) return usage(out, nameRefusal);
     const validation = await withGatedEngineOutput(out, () => gate.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
     const verdict = await judgeGate(validation, strict, () => buf);
     if (verdict.kind === 'tolerated') tolerated = verdict;
@@ -125,6 +141,10 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   } catch (err: unknown) {
     const read = classifyFileReadError(err, file);
     if (read !== undefined) return failWithCode(out, read.message, read.code, undefined, read.remedy, err);
+    // The macro refusal carries its own remedy (the two flags); keep it instead of the generic one below.
+    if (err instanceof Error && err.message.includes('macro/active content parts')) {
+      return failHuman(out, err, { file, fallbackCode: 'E_VALIDATION' });
+    }
     return failWithCode(
       out,
       err instanceof Error ? err.message : String(err),
@@ -142,7 +162,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   let before: DocxParser | undefined;
   if (recordHistory) {
     try {
-      before = new DocxParser(buf);
+      before = new DocxParser(buf, macroOpts);
     } catch {
       before = undefined;
     }
@@ -166,7 +186,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     history = await recordBatchRevision({
       file,
       target,
-      parser: new DocxParser(buffer),
+      parser: new DocxParser(buffer, macroOpts),
       message: `normalize: ${normalized.length} rewrite${normalized.length === 1 ? '' : 's'}`,
       noHistory,
     });

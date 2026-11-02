@@ -71,9 +71,12 @@ export function previewNormalizedForDisplay(
 }
 
 /** Display-only repair entry: core parse + rezip (the hook heals), or passthrough on failure. */
-export function applyNormalizerForDisplay(buf: Buffer): { buffer: Buffer; normalized: NormalizedRewrite[] } {
+export function applyNormalizerForDisplay(
+  buf: Buffer,
+  macroOpts?: { allowMacros?: boolean; stripMacros?: boolean }
+): { buffer: Buffer; normalized: NormalizedRewrite[] } {
   try {
-    const parser = new DocxParser(buf);
+    const parser = new DocxParser(buf, macroOpts);
     const out = parser.rezip();
     return { buffer: out, normalized: readParserNormalizations(parser) };
   } catch {

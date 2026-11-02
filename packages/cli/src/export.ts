@@ -28,6 +28,8 @@ export interface ExportOptions {
   imageMode?: 'embed' | 'file';
   /** Markdown file mode: relative folder for image files (default media). */
   assetPrefix?: string;
+  /** Macro choice for the HTML and Markdown paths (the PDF path never opens the package for editing). */
+  macroOpts?: { allowMacros: true } | { stripMacros: true };
 }
 
 // Q0a: jail primitives live in @attentionform/astra-engine sandbox/paths (imported above).
@@ -205,7 +207,7 @@ export async function executeExport(
   }
 
   const buf = await fsp.readFile(resolvedDocx);
-  const parser = new DocxParser(buf);
+  const parser = new DocxParser(buf, options?.macroOpts);
   const ast = await parser.getAST();
 
   if (format === 'html') {

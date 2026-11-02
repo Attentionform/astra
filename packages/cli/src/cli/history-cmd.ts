@@ -16,7 +16,7 @@ import {
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, readErrRemedyProp } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
-import { readDocx, writeDocx } from './io';
+import { macroFlagsUsageError, macroOptsFromFlags, macroStripNameRefusal, readDocx, writeDocx } from './io';
 import { capCommitMessage, extrasRecord, hasHistorySidecar, sidecarGitState, trackedExtras } from './history-support';
 
 // ── Passive Git sidecar commands (history / preview-revert / revert / redo) ──
@@ -181,9 +181,15 @@ function nothingToRedoError(): Error {
   );
 }
 
+type MacroOpts = ReturnType<typeof macroOptsFromFlags>;
+
+/** revert and redo write the working file in place, so a macro-enabled name cannot take the stripped result. */
+const STRIP_IN_PLACE_REMEDY = 'use --allow-macros to keep the macro parts in the file';
+
 interface ParsedDocSteps {
   file: string;
   steps: number;
+  macroOpts: MacroOpts;
 }
 
 /**
@@ -215,9 +221,15 @@ function gitRefPositionalRemedy(cmd: string, token: string): string {
 function parseDocStepsArgs(out: GlobalOpts, cmd: string, args: string[]): ParsedDocSteps | number {
   let file: string | undefined;
   let stepsRaw: string | undefined;
+  let allowMacros = false;
+  let stripMacros = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === '--steps') {
+    if (a === '--allow-macros') {
+      allowMacros = true;
+    } else if (a === '--strip-macros') {
+      stripMacros = true;
+    } else if (a === '--steps') {
       const value = args[++i];
       if (value === undefined) return usage(out, `${cmd} --steps requires a value`);
       stepsRaw = value;
@@ -234,13 +246,14 @@ function parseDocStepsArgs(out: GlobalOpts, cmd: string, args: string[]): Parsed
     }
   }
   if (!file) return usage(out, `${cmd} requires <docx>`);
+  if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
   let steps = 1;
   if (stepsRaw !== undefined) {
     const n = Number(stepsRaw);
     if (!Number.isInteger(n) || n < 1) return usage(out, `${cmd} --steps must be an integer >= 1 (got "${stepsRaw}")`);
     steps = n;
   }
-  return { file, steps };
+  return { file, steps, macroOpts: macroOptsFromFlags({ allowMacros, stripMacros }) };
 }
 
 interface RestoreOptions {
@@ -332,9 +345,9 @@ async function restoreAndCommit(opts: RestoreOptions): Promise<{ commitOid: stri
 
 // ── history ─────────────────────────────────────────────────────────────────
 
-async function initHistorySidecar(out: GlobalOpts, file: string): Promise<number> {
+async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: MacroOpts): Promise<number> {
   const buf = await readDocx(file);
-  const parser = new DocxParser(buf);
+  const parser = new DocxParser(buf, macroOpts);
   const xml = parser.readDocumentXml();
   const extras = extrasRecord(trackedExtras(parser.capturePackageSnapshot()));
   try {
@@ -378,13 +391,19 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
   if (hasHelpFlag(args)) return printCommandHelp(out, 'history');
   let file: string | undefined;
   let init = false;
+  let allowMacros = false;
+  let stripMacros = false;
   for (const a of args) {
     if (a === '--init' || a === '--track') init = true;
+    else if (a === '--allow-macros') allowMacros = true;
+    else if (a === '--strip-macros') stripMacros = true;
     else if (a.startsWith('--')) return usage(out, `history: unknown flag "${a}"`);
     else if (!file) file = a;
     else return usage(out, 'history takes exactly one <docx> argument');
   }
   if (!file) return usage(out, 'history requires <docx>');
+  if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
+  const macroOpts = macroOptsFromFlags({ allowMacros, stripMacros });
   try {
     if (init) {
       const state = sidecarGitState(file);
@@ -393,12 +412,12 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
       if (state === 'stray') {
         return failHuman(out, strayGitEntryError('history', file), { file, fallbackCode: 'E_IO' });
       }
-      if (state !== 'repo') return await initHistorySidecar(out, file);
+      if (state !== 'repo') return await initHistorySidecar(out, file, macroOpts);
       // Kill-mid-init repair: an existing sidecar with 0 commits (unborn HEAD)
       // is not a usable history — `--init` records the baseline over it instead
       // of dead-ending every command on the unreadable chain.
       if ((await getHistoryCommitCount(getRepoDir(file))) === 0) {
-        return await initHistorySidecar(out, file);
+        return await initHistorySidecar(out, file, macroOpts);
       }
     }
     const gate = sidecarGate(out, 'history', file);
@@ -446,12 +465,12 @@ export async function cmdPreviewRevert(out: GlobalOpts, args: string[]): Promise
   if (hasHelpFlag(args)) return printCommandHelp(out, 'preview-revert');
   const parsed = parseDocStepsArgs(out, 'preview-revert', args);
   if (typeof parsed === 'number') return parsed;
-  const { file, steps } = parsed;
+  const { file, steps, macroOpts } = parsed;
   const gate = sidecarGate(out, 'preview-revert', file);
   if (gate !== null) return gate;
   try {
     const buf = await readDocx(file);
-    const parser = new DocxParser(buf);
+    const parser = new DocxParser(buf, macroOpts);
     const commits = await readCommits('preview-revert', file);
     if (steps >= commits.length) throw stepsDepthError('preview-revert', steps, commits.length);
     const targetOid = commits[steps].oid;
@@ -506,12 +525,14 @@ export async function cmdRevert(out: GlobalOpts, args: string[]): Promise<number
   if (hasHelpFlag(args)) return printCommandHelp(out, 'revert');
   const parsed = parseDocStepsArgs(out, 'revert', args);
   if (typeof parsed === 'number') return parsed;
-  const { file, steps } = parsed;
+  const { file, steps, macroOpts } = parsed;
+  const stripRefusal = macroOpts !== undefined && 'stripMacros' in macroOpts ? macroStripNameRefusal('revert', file, STRIP_IN_PLACE_REMEDY) : null;
+  if (stripRefusal !== null) return usage(out, stripRefusal);
   const gate = sidecarGate(out, 'revert', file);
   if (gate !== null) return gate;
   try {
     const buf = await readDocx(file);
-    const parser = new DocxParser(buf);
+    const parser = new DocxParser(buf, macroOpts);
     const commits = await readCommits('revert', file);
     if (steps >= commits.length) throw stepsDepthError('revert', steps, commits.length);
     const headOid = commits[0].oid;
@@ -544,17 +565,25 @@ export async function cmdRevert(out: GlobalOpts, args: string[]): Promise<number
 export async function cmdRedo(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'redo');
   let file: string | undefined;
+  let allowMacros = false;
+  let stripMacros = false;
   for (const a of args) {
-    if (a.startsWith('--')) return usage(out, `redo: unknown flag "${a}"`);
+    if (a === '--allow-macros') allowMacros = true;
+    else if (a === '--strip-macros') stripMacros = true;
+    else if (a.startsWith('--')) return usage(out, `redo: unknown flag "${a}"`);
     else if (!file) file = a;
     else return usage(out, 'redo takes exactly one <docx> argument');
   }
   if (!file) return usage(out, 'redo requires <docx>');
+  if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
+  const macroOpts = macroOptsFromFlags({ allowMacros, stripMacros });
+  const stripRefusal = stripMacros ? macroStripNameRefusal('redo', file, STRIP_IN_PLACE_REMEDY) : null;
+  if (stripRefusal !== null) return usage(out, stripRefusal);
   const gate = sidecarGate(out, 'redo', file);
   if (gate !== null) return gate;
   try {
     const buf = await readDocx(file);
-    const parser = new DocxParser(buf);
+    const parser = new DocxParser(buf, macroOpts);
     const commits = await readCommits('redo', file);
     const head = commits[0];
     // Stateless redo: the redoable state is the parent (pre-revert state) of a

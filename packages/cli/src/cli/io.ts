@@ -94,6 +94,41 @@ export function macroFlagsUsageError(): string {
 }
 
 /**
+ * A package that still holds macro parts has to be saved as .docm or .dotm; Word refuses a .docx that has them.
+ * Returns the refusal text when the output name does not fit the parts that stay in the file, else null.
+ */
+export function macroOutputRefusal(
+  command: string,
+  output: string,
+  macroParts: readonly string[],
+  stripped: boolean,
+): string | null {
+  // With --strip-macros every macro part is removed or cleaned out of its relationships, so nothing stays.
+  // A relationships file that only points at a macro part is not a macro part itself: the macro binary or
+  // ActiveX file is what Word refuses in a .docx.
+  const kept = stripped ? [] : macroParts.filter((part) => !part.endsWith('.rels'));
+  if (kept.length === 0 || /\.(docm|dotm)$/i.test(output)) return null;
+  const shown = kept.slice(0, 3).join(', ') + (kept.length > 3 ? `, +${kept.length - 3} more` : '');
+  return (
+    `${command}: the output keeps macro parts (${shown}) so it must be named .docm or .dotm; ` +
+    `Word does not open a .docx that holds them. Remedy: name the output "${path.basename(output)}" with a .docm extension, ` +
+    `or add --strip-macros to remove the macro parts`
+  );
+}
+
+/**
+ * `--strip-macros` leaves a plain document, so it cannot be written under a macro-enabled name (.docm, .dotm):
+ * Word would refuse the file. Returns the refusal text for such a target, else null.
+ */
+export function macroStripNameRefusal(command: string, target: string, remedy: string): string | null {
+  if (!/\.(docm|dotm)$/i.test(target)) return null;
+  return (
+    `${command}: --strip-macros removes the macro parts, so the result is a plain document and cannot be written ` +
+    `to "${path.basename(target)}", a macro-enabled name. Remedy: ${remedy}`
+  );
+}
+
+/**
  * Scope ceiling overrides around a DocxParser load. The engine resolves
  * ceilings from env at check time (pre-read + central-directory gates), so
  * temporarily setting the env is the non-invasive plumb for CLI flags.

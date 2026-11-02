@@ -4,7 +4,7 @@ import { AdmZip, assertValidDocx, clampZipEntryTimes, SANITIZER_DEFAULT_AUTHOR, 
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
-import { macroFlagsUsageError, readDocx, writeDocx } from './io';
+import { macroFlagsUsageError, macroOutputRefusal, readDocx, writeDocx } from './io';
 
 // ── R-9 sanitize disclosure + metadata-only helpers (sanitize path only) ───
 // Bare sanitize keeps body text (purgePII false for body). The SANITIZED
@@ -180,24 +180,6 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
-/**
- * A package that still holds macro parts has to be saved as .docm or .dotm; Word refuses a .docx that has them.
- * Returns the refusal text when the output name does not fit the parts that stay in the file, else null.
- */
-function macroOutputRefusal(output: string, report: { macroParts: readonly string[] }, stripped: boolean): string | null {
-  // With --strip-macros every macro part is removed or cleaned out of its relationships, so nothing stays.
-  // A relationships file that only points at a macro part is not a macro part itself: the macro binary or
-  // ActiveX file is what Word refuses in a .docx.
-  const kept = stripped ? [] : report.macroParts.filter((part) => !part.endsWith('.rels'));
-  if (kept.length === 0 || /\.(docm|dotm)$/i.test(output)) return null;
-  const shown = kept.slice(0, 3).join(', ') + (kept.length > 3 ? `, +${kept.length - 3} more` : '');
-  return (
-    `sanitize: the output keeps macro parts (${shown}) so it must be named .docm or .dotm; ` +
-    `Word does not open a .docx that holds them. Remedy: name the output "${path.basename(output)}" with a .docm extension, ` +
-    `or add --strip-macros to remove the macro parts`
-  );
-}
-
 export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'sanitize');
   let input: string | undefined;
@@ -283,7 +265,7 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
         ...(stripMacros ? { stripMacros: true } : {}),
       }).options;
       const { buffer, report } = sanitizeDocxBuffer(buf, opts);
-      const refusal = macroOutputRefusal(output, report, stripMacros);
+      const refusal = macroOutputRefusal('sanitize', output, report.macroParts, stripMacros);
       if (refusal) return usage(out, refusal);
       await assertValidDocx(buffer, 'Sanitized document');
       await writeDocx(output, buffer);
@@ -336,7 +318,7 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
       purgePII: false,
     }).options;
     const { buffer: intermediate, report } = sanitizeDocxBuffer(buf, optsNoBody);
-    const refusal = macroOutputRefusal(output, report, stripMacros);
+    const refusal = macroOutputRefusal('sanitize', output, report.macroParts, stripMacros);
     if (refusal) return usage(out, refusal);
     let finalBuffer = intermediate;
     try {
