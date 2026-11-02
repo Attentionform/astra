@@ -405,9 +405,10 @@ describe('D1 BX-08: TOON revision counter + bounded map', () => {
     expect(t1b).toBe(t1);
     expect(gen.getRevision()).toBe(rev0 + 1);
 
-    // Flood with section-scoped keys: cache must stay bounded.
+    // Flood with section-scoped keys: cache must stay bounded. (An id that matches nothing is an error,
+    // so the keys differ by the length option of one real section.)
     for (let i = 0; i < 30; i++) {
-      gen.generateToon(ast, `ghost_${i}`);
+      gen.generateToon(ast, ast.sections[0].id, { maxTextLength: 10 + i });
     }
     expect(gen.getCacheStats().entries).toBeLessThanOrEqual(
       gen.getCacheStats().maxEntries + 1

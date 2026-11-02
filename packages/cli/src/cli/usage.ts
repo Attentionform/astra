@@ -106,7 +106,7 @@ export function commandHelpText(cmd: string): string | undefined {
       '',
       'Print the TOON row table for a .docx plus a footer (rows/sections/nodes, words, estimated pages).',
       '  --fidelity compact|standard|full   detail tier (default standard)',
-      '  --section <id>                     restrict to one section',
+      '  --section <id>                     restrict to one section or one node: a section id (listed in the sections=N [..] footer) or a node id; a node id prefix needs 4 characters or more; an id that matches nothing is an error that lists the section ids',
       '  --max-text <n>                     integer 1..10000, caps per-node text',
       '  --width <n>                        integer 1..10000, word-wrap the Text column with hanging indent (other columns never wrap; human stdout only, --json toon stays unwrapped)',
       '  --wrap                             wrap at the terminal width (auto-detect, default 80 when piped); explicit --width wins (same human-only scope)',

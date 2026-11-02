@@ -1,4 +1,5 @@
 import { XMLSerializer } from '@xmldom/xmldom';
+import { toError } from './errors';
 import { DocumentAST, Section, Node, HeadingNode } from './ast';
 import { hasListNumbering, isOrderedListItem } from './export/markdown';
 
@@ -798,6 +799,25 @@ function fingerprintFmt(node: Node): string {
   }
 }
 
+/** A node id prefix shorter than this is not enough to name a node. */
+export const MIN_NODE_ID_PREFIX_LENGTH = 4;
+
+/**
+ * The sections a `sectionId` selects, shared by the table and its checksum so both see the same rows:
+ * an exact section id; else the node with exactly that id; else, for an id of at least
+ * MIN_NODE_ID_PREFIX_LENGTH characters, the nodes whose id starts with it. Empty when nothing matches.
+ */
+export function resolveSectionScope(sections: readonly Section[], sectionId: string): Section[] {
+  const exact = sections.filter((s) => s.id === sectionId);
+  if (exact.length > 0) return exact;
+  const pick = (test: (nodeId: string) => boolean): Section[] =>
+    sections.map((s) => ({ ...s, nodes: s.nodes.filter((n) => test(n.id)) })).filter((s) => s.nodes.length > 0);
+  const byNode = pick((id) => id === sectionId);
+  if (byNode.length > 0) return byNode;
+  if (sectionId.length >= MIN_NODE_ID_PREFIX_LENGTH) return pick((id) => id.startsWith(sectionId));
+  return [];
+}
+
 export class ToonGenerator {
   private cache: Map<string, ToonTable> = new Map();
   private checksumCache: Map<string, string> = new Map();
@@ -848,23 +868,12 @@ export class ToonGenerator {
   }
 
   /**
-   * H1: mirror generateToon's sectionsToProcess resolution.
-   * generateToon falls back to node-scoped filtering
-   * (n.id === sectionId || n.id.startsWith(sectionId)) when no section id
-   * matches. The checksum must see the same rows or a node-scoped call
-   * computes an empty fingerprint and serves stale TOON after p_001 edits.
+   * H1: the checksum must see the same rows as generateToon, or a node-scoped call computes an empty
+   * fingerprint and serves stale TOON after an edit. Both use resolveSectionScope.
    */
   private resolveSectionsForChecksum(ast: DocumentAST, sectionId?: string): Section[] {
     if (!sectionId) return ast.sections;
-    if (ast.sections.some((s) => s.id === sectionId)) {
-      return ast.sections.filter((s) => s.id === sectionId);
-    }
-    return ast.sections
-      .map((s) => ({
-        ...s,
-        nodes: s.nodes.filter((n) => n.id === sectionId || n.id.startsWith(sectionId)),
-      }))
-      .filter((s) => s.nodes.length > 0);
+    return resolveSectionScope(ast.sections, sectionId);
   }
 
   private storeCached(cacheKey: string, table: ToonTable, checksum: string): void {
@@ -936,20 +945,17 @@ export class ToonGenerator {
     const rows: ToonRow[] = [];
 
     // 2.3 Section-Scoped Generation
-    const sectionsToProcess = resolvedSectionId
-      ? (ast.sections.some(s => s.id === resolvedSectionId)
-          ? ast.sections.filter(s => s.id === resolvedSectionId)
-          : ast.sections
-              .map(s => ({ ...s, nodes: s.nodes.filter(n => n.id === resolvedSectionId || n.id.startsWith(resolvedSectionId)) }))
-              .filter(s => s.nodes.length > 0))
-      : ast.sections;
+    const sectionsToProcess = resolvedSectionId ? resolveSectionScope(ast.sections, resolvedSectionId) : ast.sections;
 
-    if (fidelity === 'full' && resolvedSectionId && sectionsToProcess.length === 0) {
-      const available = ast.sections.map(s => s.id).join(', ') || '(no sections)';
-      throw new Error(
-        `TOON full fidelity: sectionId '${resolvedSectionId}' matched no section or node. ` +
-          `Available section ids: ${available}. ` +
-          `Remedy: call toon({ fidelity: 'standard' }) to list sections, then retry full with a valid sectionId.`
+    if (resolvedSectionId && sectionsToProcess.length === 0) {
+      // A long document has many sections: list the first ones and the count of the rest.
+      const SHOWN = 20;
+      const ids = ast.sections.map((s) => s.id);
+      const available = ids.length === 0 ? '(no sections)' : ids.slice(0, SHOWN).join(', ') + (ids.length > SHOWN ? `, +${ids.length - SHOWN} more` : '');
+      throw toError(
+        'E_VALIDATION',
+        `sectionId '${resolvedSectionId}' matched no section or node. Available section ids: ${available}.`,
+        `use a section id from the list or a node id from astra inspect (a node id prefix needs at least ${MIN_NODE_ID_PREFIX_LENGTH} characters)`
       );
     }
 

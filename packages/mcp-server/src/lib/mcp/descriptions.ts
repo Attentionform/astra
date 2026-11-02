@@ -65,7 +65,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'fidelity marker stays lossy by design (TOON is a lossy projection). Docs under ~2000 tokens return the full TOON ' +
       '(unchanged); larger docs default to the first ~50-node window ' +
       '{totalNodes,returnedNodes,offset,limit,hasMore,nextOffset,toonText} with a navigation remedy. ' +
-      'Full fidelity requires sectionId; full-fidelity errors name the available section ids. ' +
+      'Full fidelity requires sectionId; sectionId is a section id or a node id (a node id prefix needs 4 characters or more), and an id that matches nothing is an error that names the available section ids. ' +
       'Example {"sessionId":"sess_abc","fidelity":"standard"} -> TOON text + palette. ' +
       'Use the palette style names verbatim (e.g. Corporate Callout); never invent styles. ' +
       'When the session carries a style guide, the envelope also includes its compact styleGuide summary ' +

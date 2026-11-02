@@ -29,7 +29,11 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--fidelity') fidelityRaw = args[++i];
-    else if (a === '--section') sectionId = args[++i];
+    else if (a === '--section') {
+      const value = args[++i];
+      if (value === undefined || value.length === 0) return usage(out, 'inspect --section requires a value (a section id or a node id)');
+      sectionId = value;
+    }
     else if (a === '--max-text') maxTextRaw = args[++i];
     else if (a === '--width') widthRaw = args[++i];
     else if (a.startsWith('--width=')) widthRaw = a.slice('--width='.length);
@@ -135,7 +139,13 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
     const pureCanonical = canonicalBannerMatch ? canonicalText.slice(canonicalBannerMatch[0].length) : canonicalText;
     if (!out.json) printStderr(fidelityBanner);
     print(out, pureToon.trimEnd());
-    print(out, `rows=${table.rows.length} sections=${ast.sections.length} nodes=${summary.nodes.length}`);
+    // The ids that --section accepts, so a caller never has to guess them (a long list is cut).
+    const SECTION_IDS_SHOWN = 8;
+    const sectionIds = ast.sections.map((s) => s.id);
+    const sectionIdsShown =
+      sectionIds.slice(0, SECTION_IDS_SHOWN).join(', ') +
+      (sectionIds.length > SECTION_IDS_SHOWN ? `, +${sectionIds.length - SECTION_IDS_SHOWN} more` : '');
+    print(out, `rows=${table.rows.length} sections=${ast.sections.length} [${sectionIdsShown}] nodes=${summary.nodes.length}`);
     print(out, `words=${stats.words} paragraphs=${stats.paragraphs} pages~${stats.pages} (est, 500 wpp)`);
     // Would-be normalizations: the allowlist healing a save would apply
     // (dry-run preview over a DOM clone, nothing written). Clean documents
@@ -205,6 +215,7 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
       fidelity: table.tier,
       rowCount: table.rows.length,
       sections: ast.sections.length,
+      sectionIds: ast.sections.map((s) => s.id),
       nodes: summary.nodes.length,
       words: stats.words,
       paragraphs: stats.paragraphs,
