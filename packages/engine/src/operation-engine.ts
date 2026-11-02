@@ -1179,6 +1179,54 @@ export class OperationEngine {
     }
   }
 
+  /** Every block the document holds now, to tell the blocks that an operation adds from those it found. */
+  private blockNodes(): Set<unknown> {
+    return new Set(this.ast.sections.flatMap((section) => section.nodes));
+  }
+
+  /**
+   * Two tables with no paragraph between them touch in Word (LibreOffice leaves a gap, which hid it), and a
+   * table has no spacing of its own. A callout is a one-cell table. After an operation added a table or a
+   * callout, an empty paragraph goes between it and a table that sits right before or after it. The
+   * paragraph is an ordinary one: a caller can restyle or delete it.
+   */
+  private async separateTouchingTables(known: Set<unknown>): Promise<void> {
+    const elementAfter = (el: Element): Element | null => {
+      let next = el.nextSibling;
+      while (next && next.nodeType !== 1) next = next.nextSibling;
+      return next as Element | null;
+    };
+    // Each gap goes before the second table of a touching pair: an insert after the first table would join
+    // the chain of inserts anchored to it and land behind the callout that was just added.
+    const gaps: Array<{ before: string }> = [];
+    for (const section of this.ast.sections) {
+      const nodes = section.nodes;
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (known.has(node) || node.type !== 'table') continue;
+        const before = nodes[i - 1];
+        if (before && before.type === 'table' && elementAfter(before.xml as Element) === (node.xml as Element)) gaps.push({ before: node.id });
+        const after = nodes[i + 1];
+        if (after && after.type === 'table' && elementAfter(node.xml as Element) === (after.xml as Element)) gaps.push({ before: after.id });
+      }
+    }
+    for (const gap of gaps) {
+      const id = this.freeBlockId(`${gap.before}_gap`);
+      await executeInsert(
+        { action: 'insert', type: 'paragraph', anchor: gap.before, position: 'before', text: '', id } as InsertOperation,
+        this.ast, this.parser, this.activeGuide, { set: null },
+      );
+      executeStyle({ action: 'style', target: id, spacingAfter: 0 } as StyleOperation, this.ast);
+    }
+  }
+
+  private freeBlockId(base: string): string {
+    const taken = new Set(this.ast.sections.flatMap((section) => section.nodes.map((n) => n.id)));
+    let id = base;
+    for (let n = 2; taken.has(id); n++) id = `${base}${n}`;
+    return id;
+  }
+
   private async routeOperationCore(op: BaseOperation, allowedDir?: string): Promise<unknown> {
     // R-4: promote the params.id alias before any executor reads op.id.
     OperationEngine.normalizeClientIdAlias(op);
@@ -1225,6 +1273,12 @@ export class OperationEngine {
           return await executeChart(op as unknown as ChartOperation, this.ast, this.parser, this.activeGuide);
         }
         this.insertParaIds ??= { set: null };
+        if (insertType === 'table') {
+          const known = this.blockNodes();
+          const inserted = await executeInsert(op as InsertOperation, this.ast, this.parser, this.activeGuide, this.insertParaIds);
+          await this.separateTouchingTables(known);
+          return inserted;
+        }
         return await executeInsert(op as InsertOperation, this.ast, this.parser, this.activeGuide, this.insertParaIds);
       }
       case 'delete': return executeDelete(op as DeleteOperation, this.ast, this.parser);
@@ -1239,7 +1293,12 @@ export class OperationEngine {
       case 'headerFooter': return executeHeaderFooter(op as HeaderFooterOperation, this.ast, this.parser);
       case 'chart': return executeChart(op as ChartOperation, this.ast, this.parser, this.activeGuide);
       case 'image': return executeImage(op as ImageOperation, this.ast, this.parser, allowedDir);
-      case 'callout': return executeCallout(op as CalloutOperation, this.ast, this.parser, this.activeGuide);
+      case 'callout': {
+        const known = this.blockNodes();
+        const inserted = await executeCallout(op as CalloutOperation, this.ast, this.parser, this.activeGuide);
+        await this.separateTouchingTables(known);
+        return inserted;
+      }
       case 'footnote': return executeFootnote(op as FootnoteOperation, this.ast, this.parser);
       case 'endnote': return executeEndnote(op as EndnoteOperation, this.ast, this.parser);
       case 'watermark': return executeWatermark(op as WatermarkOperation, this.ast, this.parser);
