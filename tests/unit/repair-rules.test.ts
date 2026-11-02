@@ -224,6 +224,33 @@ describe('cell-valign-duplicate, shading-empty-fill and the order of the Word ex
     expect(tags).toEqual(['w:decimalSymbol', 'w:listSeparator', 'w14:docId', 'w14:discardImageEditingData', 'w14:defaultImageDpi']);
   });
 
+  it('paragraph-properties-first moves w:pPr to the start of the paragraph and keeps text', () => {
+    const r = runTwice('paragraph-properties-first', 'word/document.xml', doc('<w:p><w:r><w:t>hello</w:t></w:r><w:pPr><w:jc w:val="center"/></w:pPr></w:p>'));
+    expect(r.xml).toContain('<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>hello</w:t></w:r></w:p>');
+    expect(r.log).toHaveLength(1);
+  });
+
+  it('paragraph-properties-first leaves a paragraph with two w:pPr elements alone', () => {
+    const xml = doc('<w:p><w:r><w:t>two</w:t></w:r><w:pPr><w:jc w:val="left"/></w:pPr><w:pPr><w:jc w:val="right"/></w:pPr></w:p>');
+    expect(run('paragraph-properties-first', 'word/document.xml', xml).log).toEqual([]);
+  });
+
+  it('cell-margins-order puts w:tcMar children in schema order', () => {
+    const r = runTwice('cell-margins-order', 'word/document.xml', cell('<w:tcMar><w:bottom w:w="120" w:type="dxa"/><w:top w:w="100" w:type="dxa"/><w:right w:w="80" w:type="dxa"/><w:left w:w="60" w:type="dxa"/></w:tcMar>'));
+    expect(r.xml.indexOf('<w:top')).toBeLessThan(r.xml.indexOf('<w:left'));
+    expect(r.xml.indexOf('<w:left')).toBeLessThan(r.xml.indexOf('<w:bottom'));
+    expect(r.xml.indexOf('<w:bottom')).toBeLessThan(r.xml.indexOf('<w:right'));
+    expect(r.log).toHaveLength(1);
+  });
+
+  it('cell-margins-order handles start and end attributes and leaves ordered margins alone', () => {
+    const r = runTwice('cell-margins-order', 'word/document.xml', cell('<w:tcMar><w:end w:w="80" w:type="dxa"/><w:start w:w="60" w:type="dxa"/><w:top w:w="100" w:type="dxa"/><w:bottom w:w="120" w:type="dxa"/></w:tcMar>'));
+    expect(r.xml.indexOf('<w:top')).toBeLessThan(r.xml.indexOf('<w:start'));
+    expect(r.xml.indexOf('<w:start')).toBeLessThan(r.xml.indexOf('<w:bottom'));
+    expect(r.xml.indexOf('<w:bottom')).toBeLessThan(r.xml.indexOf('<w:end'));
+    expect(run('cell-margins-order', 'word/document.xml', cell('<w:tcMar><w:top w:w="10" w:type="dxa"/><w:left w:w="10" w:type="dxa"/></w:tcMar>')).log).toEqual([]);
+  });
+
   it('all three repairs in one package keep the visible text and leave the package valid', async () => {
     const input = packageWith({
       'word/document.xml': doc(

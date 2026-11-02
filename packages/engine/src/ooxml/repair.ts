@@ -138,6 +138,15 @@ const INTEGER_ATTRIBUTES: Record<string, readonly string[]> = {
 };
 const MARGIN_SIDES = new Set(['w:top', 'w:left', 'w:bottom', 'w:right', 'w:start', 'w:end']);
 
+const TCMAR_CHILD_RANK: Record<string, number> = {
+  'w:top': 0,
+  'w:left': 1,
+  'w:start': 1,
+  'w:bottom': 2,
+  'w:right': 3,
+  'w:end': 3,
+};
+
 const ON_OFF_ONLY = new Set(['w:bidiVisual', 'w:cantSplit', 'w:noWrap', 'w:tblHeader', 'w:qFormat', 'w:unhideWhenUsed', 'w:semiHidden']);
 
 const textOf = (el: Element) => el.textContent ?? '';
@@ -190,6 +199,23 @@ export const REPAIR_RULES: readonly RepairRule[] = [
         if (rpr && kids[0] !== rpr) {
           r.insertBefore(rpr, kids[0]);
           log.push(`Moved w:rPr to the start of ${xpathOf(r)}`);
+        }
+      }
+      return log;
+    },
+  },
+  {
+    id: 'paragraph-properties-first',
+    description: 'move w:pPr to the start of its paragraph',
+    appliesTo: isMainOrHdrFtr,
+    apply(doc) {
+      const log: string[] = [];
+      for (const p of snapshot(doc, 'w:p')) {
+        const kids = elementChildren(p);
+        const pprs = kids.filter((k) => k.tagName === 'w:pPr');
+        if (pprs.length === 1 && kids[0] !== pprs[0]) {
+          p.insertBefore(pprs[0], kids[0]);
+          log.push(`Moved w:pPr to the start of ${xpathOf(p)}`);
         }
       }
       return log;
@@ -459,6 +485,12 @@ export const REPAIR_RULES: readonly RepairRule[] = [
       }
       return log;
     },
+  },
+  {
+    id: 'cell-margins-order',
+    description: 'put the children of w:tcMar in schema order',
+    appliesTo: (p) => /^word\/[^/]+\.xml$/.test(p),
+    apply: (doc) => sortAll(doc, 'w:tcMar', (t) => TCMAR_CHILD_RANK[t], 'Reordered'),
   },
 ];
 
