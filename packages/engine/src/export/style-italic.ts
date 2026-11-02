@@ -1,12 +1,12 @@
 /**
- * Italic of a run for the HTML and Markdown exports, from the run, its character style and its paragraph
- * style. A Subtitle or Quote paragraph is italic through its style, with no `w:i` on any run, so reading
- * run properties alone exported it as plain text.
+ * Italic of a run for the HTML and Markdown exports, from the run, its character style, its paragraph
+ * style, its enclosing table style and docDefaults. A Subtitle or Quote paragraph, a styled table, or
+ * a document default sets italic without `w:i` on individual runs.
  *
  * Italic is a toggle property (ECMA-376 17.7.3): direct formatting on the run (`w:i` on or off) decides
- * alone. Without it, the paragraph style and the character style toggle each other, so a paragraph style
- * that is italic and a character style that is italic give plain text. Within one style, the closest
- * definition in the `w:basedOn` chain wins.
+ * alone. Without it, the four style levels (docDefaults, table style, paragraph style and character style)
+ * toggle each other, combining by exclusive or. Within one style, the closest definition in the
+ * `w:basedOn` chain wins.
  *
  * The styles come from the parser that an export is given (`DocxParser.getStyleElements`), so a style
  * edited in a session and not yet saved is read as it is now. An export without a parser reads direct
@@ -20,16 +20,25 @@ const BASED_ON_LIMIT = 24;
 interface StyleLookup {
   elements: Map<string, Element>;
   italic: Map<string, boolean>;
+  docDefaults?: Element;
+  docDefaultsItalic?: boolean;
 }
 
 const lookups = new WeakMap<DocumentAST, StyleLookup>();
 
 /** Set (or, without a parser, clear) the styles that `effectiveRunItalic` reads for this AST. Call at the start of an export. */
 export function useStylesForExport(ast: DocumentAST, parser: unknown): void {
-  const source = parser as { getStyleElements?: () => Map<string, Element> } | null | undefined;
+  const source = parser as {
+    getStyleElements?: () => Map<string, Element>;
+    getDocDefaultsElement?: () => Element | undefined;
+  } | null | undefined;
   if (source && typeof source.getStyleElements === 'function') {
     try {
-      lookups.set(ast, { elements: source.getStyleElements(), italic: new Map() });
+      const elements = source.getStyleElements();
+      const docDefaults = typeof source.getDocDefaultsElement === 'function'
+        ? source.getDocDefaultsElement()
+        : (elements.get('docDefaults')?.tagName === 'w:docDefaults' ? elements.get('docDefaults') : undefined);
+      lookups.set(ast, { elements, italic: new Map(), docDefaults });
       return;
     } catch {
       /* fall through: an export never fails for want of styles */
@@ -83,6 +92,40 @@ export function italicOfStyle(lookup: StyleLookup | undefined, styleId: string |
   return result;
 }
 
+/** Italic setting from `w:docDefaults/w:rPrDefault/w:rPr`, if any. */
+export function italicOfDocDefaults(lookup: StyleLookup | undefined): boolean {
+  if (!lookup) return false;
+  if (lookup.docDefaultsItalic !== undefined) return lookup.docDefaultsItalic;
+  const defaults = lookup.docDefaults ?? (lookup.elements.get('docDefaults')?.tagName === 'w:docDefaults' ? lookup.elements.get('docDefaults') : undefined);
+  if (!defaults) {
+    lookup.docDefaultsItalic = false;
+    return false;
+  }
+  const rPrDefault = directChild(defaults, 'w:rPrDefault');
+  const rPr = directChild(rPrDefault, 'w:rPr');
+  lookup.docDefaultsItalic = directItalic(rPr) === true;
+  return lookup.docDefaultsItalic;
+}
+
+const PART_ROOT_TAGS = new Set(['w:body', 'w:hdr', 'w:ftr', 'w:footnote', 'w:endnote', 'w:comment', 'w:document']);
+
+/** The `w:tblStyle` id of the enclosing table that holds a run, if inside a table. */
+function tableStyleIdOf(run: Element): string | undefined {
+  let node: Node | null = run.parentNode;
+  while (node) {
+    const el = node as Element;
+    if (el.nodeType === 1) {
+      if (el.tagName === 'w:tbl') {
+        const tblPr = directChild(el, 'w:tblPr');
+        return directChild(tblPr, 'w:tblStyle')?.getAttribute('w:val') ?? undefined;
+      }
+      if (PART_ROOT_TAGS.has(el.tagName)) return undefined;
+    }
+    node = node.parentNode;
+  }
+  return undefined;
+}
+
 /** The `w:pStyle` id of the paragraph that holds a run. */
 function paragraphStyleIdOf(run: Element): string | undefined {
   let node: Node | null = run.parentNode;
@@ -91,14 +134,17 @@ function paragraphStyleIdOf(run: Element): string | undefined {
   return directChild(pPr, 'w:pStyle')?.getAttribute('w:val') ?? undefined;
 }
 
-/** Whether a run shows italic: its own formatting, else its paragraph style against its character style. */
+/** Whether a run shows italic: its own formatting, else the toggle of docDefaults, table style, paragraph style and character style. */
 export function effectiveRunItalic(run: Element, ast?: DocumentAST): boolean {
   const rPr = run.getElementsByTagName('w:rPr')[0];
   const direct = directItalic(rPr);
   if (direct !== undefined) return direct;
   const lookup = ast ? lookups.get(ast) : undefined;
   if (!lookup) return false;
+  const fromDocDefaults = italicOfDocDefaults(lookup);
+  const fromTable = italicOfStyle(lookup, tableStyleIdOf(run));
   const fromParagraph = italicOfStyle(lookup, paragraphStyleIdOf(run));
   const fromCharacter = italicOfStyle(lookup, rPr ? directChild(rPr, 'w:rStyle')?.getAttribute('w:val') : undefined);
-  return fromParagraph !== fromCharacter;
+  const count = (fromDocDefaults ? 1 : 0) + (fromTable ? 1 : 0) + (fromParagraph ? 1 : 0) + (fromCharacter ? 1 : 0);
+  return count % 2 === 1;
 }

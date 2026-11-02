@@ -2458,11 +2458,17 @@ export class DocxParser {
   public getStyleElements(): Map<string, Element> {
     const out = new Map<string, Element>();
     if (!this.stylesDom) return out;
+    const docDefaults = this.stylesDom.getElementsByTagName('w:docDefaults')[0];
+    if (docDefaults && !out.has('docDefaults')) out.set('docDefaults', docDefaults);
     for (const style of Array.from(this.stylesDom.getElementsByTagName('w:style'))) {
       const id = style.getAttribute('w:styleId');
       if (id && !out.has(id)) out.set(id, style);
     }
     return out;
+  }
+
+  public getDocDefaultsElement(): Element | undefined {
+    return this.stylesDom?.getElementsByTagName('w:docDefaults')[0];
   }
 
   public deleteRootNode(nodeId: string): void {

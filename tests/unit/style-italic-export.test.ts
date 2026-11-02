@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DocxParser, convertAstToHtml, convertAstToMarkdown } from '@attentionform/astra-engine';
+import { effectiveRunItalic, useStylesForExport } from '../../packages/engine/src/export/style-italic';
 
 /**
  * A paragraph style such as Subtitle or Quote is italic through the style; no run carries `w:i`. The HTML and
@@ -30,17 +31,52 @@ const EXTRA_STYLES = `
 <w:style w:type="paragraph" w:customStyle="1" w:styleId="QuoteOff"><w:name w:val="Quote Off"/><w:basedOn w:val="Quote"/><w:rPr><w:i w:val="0"/></w:rPr></w:style>
 <w:style w:type="paragraph" w:customStyle="1" w:styleId="LoopA"><w:name w:val="Loop A"/><w:basedOn w:val="LoopB"/></w:style>
 <w:style w:type="paragraph" w:customStyle="1" w:styleId="LoopB"><w:name w:val="Loop B"/><w:basedOn w:val="LoopA"/></w:style>
-<w:style w:type="character" w:customStyle="1" w:styleId="Emph"><w:name w:val="Emph"/><w:rPr><w:i/></w:rPr></w:style>`;
+<w:style w:type="character" w:customStyle="1" w:styleId="Emph"><w:name w:val="Emph"/><w:rPr><w:i/></w:rPr></w:style>
+<w:style w:type="table" w:customStyle="1" w:styleId="TableItalic"><w:name w:val="Table Italic"/><w:basedOn w:val="TableNormal"/><w:rPr><w:i/></w:rPr></w:style>
+<w:style w:type="table" w:customStyle="1" w:styleId="TableItalicChild"><w:name w:val="Table Italic Child"/><w:basedOn w:val="TableItalic"/></w:style>
+<w:style w:type="table" w:customStyle="1" w:styleId="TableItalicOff"><w:name w:val="Table Italic Off"/><w:basedOn w:val="TableItalic"/><w:rPr><w:i w:val="0"/></w:rPr></w:style>`;
 
-function docx(paragraphs: string[]): Buffer {
+const table = (style: string | undefined, rows: { pStyle?: string; runs: Run[] }[][]): string =>
+  `<w:tbl>${style ? `<w:tblPr><w:tblStyle w:val="${style}"/></w:tblPr>` : ''}${rows
+    .map(
+      (cells) =>
+        `<w:tr>${cells
+          .map((cell) => `<w:tc>${para(cell.pStyle, cell.runs)}</w:tc>`)
+          .join('')}</w:tr>`
+    )
+    .join('')}</w:tbl>`;
+
+function docx(elements: string[]): Buffer {
   const zip = new AdmZip(DocxParser.createNewDocument('blank').rezip());
   const styles = zip.readAsText('word/styles.xml');
   zip.updateFile('word/styles.xml', Buffer.from(styles.replace('</w:styles>', `${EXTRA_STYLES}</w:styles>`), 'utf8'));
   const xml = zip.readAsText('word/document.xml');
   const start = xml.indexOf('<w:body>') + '<w:body>'.length;
   const end = xml.lastIndexOf('<w:sectPr');
-  zip.updateFile('word/document.xml', Buffer.from(xml.slice(0, start) + paragraphs.join('') + xml.slice(end), 'utf8'));
+  zip.updateFile('word/document.xml', Buffer.from(xml.slice(0, start) + elements.join('') + xml.slice(end), 'utf8'));
   return zip.toBuffer();
+}
+
+function docxWithDocDefaults(docDefaultsRPr: string, elements: string[]): Buffer {
+  const zip = new AdmZip(DocxParser.createNewDocument('blank').rezip());
+  let styles = zip.readAsText('word/styles.xml');
+  if (docDefaultsRPr) {
+    styles = styles.replace(/<w:rPrDefault>\s*<w:rPr>/, `<w:rPrDefault><w:rPr>${docDefaultsRPr}`);
+  }
+  styles = styles.replace('</w:styles>', `${EXTRA_STYLES}</w:styles>`);
+  zip.updateFile('word/styles.xml', Buffer.from(styles, 'utf8'));
+  const xml = zip.readAsText('word/document.xml');
+  const start = xml.indexOf('<w:body>') + '<w:body>'.length;
+  const end = xml.lastIndexOf('<w:sectPr');
+  zip.updateFile('word/document.xml', Buffer.from(xml.slice(0, start) + elements.join('') + xml.slice(end), 'utf8'));
+  return zip.toBuffer();
+}
+
+async function exportBothWithDocDefaults(docDefaultsRPr: string, elements: string[]): Promise<{ html: string; md: string }> {
+  const parser = new DocxParser(docxWithDocDefaults(docDefaultsRPr, elements));
+  const ast = await parser.getAST();
+  const page = convertAstToHtml(ast, 'T', parser);
+  return { html: page.slice(page.indexOf('<body'), page.indexOf('</body>')), md: convertAstToMarkdown(ast, parser) };
 }
 
 async function exportBoth(paragraphs: string[]): Promise<{ html: string; md: string }> {
@@ -139,6 +175,83 @@ describe('Markdown spans', () => {
   it('a Subtitle after a heading reads back as Subtitle text in italic', async () => {
     const { md } = await exportBoth([para('Heading1', [{ t: 'Chapter' }]), para('Subtitle', [{ t: 'a line below' }])]);
     expect(md).toMatch(/# Chapter\n+\*a line below\*/);
+  });
+});
+
+async function runItalicInTable(tblStyle: string | undefined, pStyle: string | undefined, runs: Run[]): Promise<boolean[]> {
+  const parser = new DocxParser(docx([table(tblStyle, [[{ pStyle, runs }]])]));
+  const ast = await parser.getAST();
+  useStylesForExport(ast, parser);
+  const dom = (parser as unknown as { documentDom: Document }).documentDom;
+  const runEls = Array.from(dom.getElementsByTagName('w:r'));
+  return runEls.map((r) => effectiveRunItalic(r, ast));
+}
+
+describe('italic from table styles', () => {
+  it('a table style with italic renders cells in italic', async () => {
+    const [isItalic] = await runItalicInTable('TableItalic', undefined, [{ t: 'table cell' }]);
+    expect(isItalic).toBe(true);
+  });
+
+  it('follows the basedOn chain of table styles', async () => {
+    const [isItalic] = await runItalicInTable('TableItalicChild', undefined, [{ t: 'inherited cell' }]);
+    expect(isItalic).toBe(true);
+  });
+
+  it('a table style that turns italic off in its chain is plain', async () => {
+    const [isItalic] = await runItalicInTable('TableItalicOff', undefined, [{ t: 'plain cell' }]);
+    expect(isItalic).toBe(false);
+  });
+
+  it('a paragraph style that turns italic off over a table style that turns it on (toggle)', async () => {
+    const [isItalic] = await runItalicInTable('TableItalic', 'Quote', [{ t: 'toggled upright' }]);
+    expect(isItalic).toBe(false);
+  });
+
+  it('direct italic on a run beats the table style', async () => {
+    const [off, on] = await runItalicInTable('TableItalic', undefined, [
+      { t: 'off', i: 'off' },
+      { t: 'on', i: 'on' },
+    ]);
+    expect(off).toBe(false);
+    expect(on).toBe(true);
+  });
+});
+
+describe('italic from docDefaults', () => {
+  it('docDefaults with italic makes plain paragraphs italic', async () => {
+    const { html, md } = await exportBothWithDocDefaults('<w:i/>', [
+      para(undefined, [{ t: 'default text' }]),
+    ]);
+    expect(html).toContain(`<span style="${ITALIC}">default text</span>`);
+    expect(md).toContain('*default text*');
+  });
+
+  it('an italic paragraph style toggles docDefaults italic back to plain', async () => {
+    const { html, md } = await exportBothWithDocDefaults('<w:i/>', [
+      para('Quote', [{ t: 'quote in default' }]),
+    ]);
+    expect(html).not.toContain(ITALIC);
+    expect(md).toContain('quote in default');
+    expect(md).not.toContain('*quote in default*');
+  });
+
+  it('an italic table style toggles docDefaults italic back to plain', async () => {
+    const { html, md } = await exportBothWithDocDefaults('<w:i/>', [
+      table('TableItalic', [[{ runs: [{ t: 'cell in default' }] }]]),
+    ]);
+    expect(html).not.toContain(ITALIC);
+    expect(md).toContain('cell in default');
+    expect(md).not.toContain('*cell in default*');
+  });
+
+  it('direct formatting beats docDefaults', async () => {
+    const { html, md } = await exportBothWithDocDefaults('<w:i/>', [
+      para(undefined, [{ t: 'upright by hand', i: 'off' }]),
+    ]);
+    expect(html).not.toContain(ITALIC);
+    expect(md).toContain('upright by hand');
+    expect(md).not.toContain('*upright by hand*');
   });
 });
 
