@@ -41,13 +41,14 @@ function fastestMs(fn: () => void, times = 7): number {
 }
 
 describe('canonicalisation cost grows linearly', () => {
-  it('doubling the document multiplies the time by less than 3 (a quadratic loop gives about 4)', () => {
-    const small = makeDocument(150);
-    const large = makeDocument(300);
+  it('four times the document multiplies the time by less than 8 (linear gives about 4, a quadratic loop about 16)', () => {
+    const small = makeDocument(100);
+    const large = makeDocument(400);
     canonicalizePartXml(makeDocument(20)); // warm up
-    const t1 = fastestMs(() => canonicalizePartXml(small));
-    const t2 = fastestMs(() => canonicalizePartXml(large));
-    expect(t2 / t1).toBeLessThan(3);
+    const t1 = fastestMs(() => canonicalizePartXml(small), 5);
+    const t2 = fastestMs(() => canonicalizePartXml(large), 5);
+    // 8 is the geometric middle between the two outcomes, so a slow runner has room in both directions.
+    expect(t2 / t1).toBeLessThan(8);
   });
 
   it('sorts out-of-order run properties and keeps in-order input as it is', () => {
