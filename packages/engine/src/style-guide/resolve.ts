@@ -21,6 +21,7 @@ import {
   parseStyleGuide,
 } from './parser';
 import type { StyleGuideConfig } from './types';
+import { createDefaultStyleGuide } from './defaults';
 import { canonicalizeForAsset, isPathInsideDir } from '../sandbox/paths';
 import { toError } from '../errors';
 
@@ -47,6 +48,17 @@ function hasScheme(ref: string): boolean {
 function failValidation(message: string, remedy: string): never {
   throw toError('E_VALIDATION', message, remedy);
 }
+
+/** The names of the built-in guide that every document gets when it is given none (`DEFAULT_STYLE_GUIDE`). */
+export const BUILT_IN_GUIDE_NAMES = ['default', 'Default Corporate'] as const;
+
+/** Shown as the `filePath` of the built-in guide, which is not read from a file. */
+export const BUILT_IN_GUIDE_PATH = '(built-in: Default Corporate)';
+
+const isBuiltInGuideName = (ref: string): boolean => {
+  const key = ref.trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+  return key === 'default' || key === 'default corporate';
+};
 
 /** Absolute path candidates for a bundled guide name, first hit wins. */
 export function bundledGuideCandidates(name: string): string[] {
@@ -142,13 +154,10 @@ function resolveBundledGuide(name: string): ResolvedStyleGuide {
       );
     }
   }
-  const available = listBundledGuides();
+  const available = [...listBundledGuides(), 'default'];
   failValidation(
-    `unknown style guide '${trimmed}': no bundled guide found` +
-      (available.length > 0 ? ` (available: ${available.join(', ')})` : ' (no bundled guides installed)'),
-    available.length > 0
-      ? `pass one of: ${available.join(', ')}, or a file path to a style-guide.md`
-      : `pass a file path to a style-guide.md holding the guide markdown`,
+    `unknown style guide '${trimmed}': no bundled guide found (available: ${available.join(', ')})`,
+    `pass one of: ${available.join(', ')} ("default" is the built-in Default Corporate guide), or a file path to a style-guide.md`,
   );
 }
 
@@ -211,6 +220,10 @@ export function resolveStyleGuide(
   const trimmed = ref.trim();
   if (hasScheme(trimmed) || isFileGuideRef(trimmed)) {
     return resolveFileGuide(trimmed, opts);
+  }
+  // The guide that a document gets when none is given can also be asked for by name.
+  if (isBuiltInGuideName(trimmed)) {
+    return { config: createDefaultStyleGuide(), warnings: [], filePath: BUILT_IN_GUIDE_PATH };
   }
   return resolveBundledGuide(trimmed);
 }
