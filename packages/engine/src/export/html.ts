@@ -596,6 +596,45 @@ function tableCellFacts(tc: Element): { text: string; bg?: string; color?: strin
   return { text, bg, color };
 }
 
+function findParentTr(el: Element | null | undefined): Element | null {
+  let curr = el;
+  while (curr) {
+    if (curr.nodeType === 1 && (curr as Element).tagName === 'w:tr') return curr as Element;
+    curr = curr.parentNode as Element | null;
+  }
+  return null;
+}
+
+function rowGridBeforeAfter(tr: Element): { before: number; after: number } {
+  let before = 0;
+  let after = 0;
+  for (let i = 0; i < tr.childNodes.length; i++) {
+    const c = tr.childNodes[i];
+    if (c.nodeType === 1 && (c as Element).tagName === 'w:trPr') {
+      const trPr = c as Element;
+      for (let j = 0; j < trPr.childNodes.length; j++) {
+        const p = trPr.childNodes[j];
+        if (p.nodeType !== 1) continue;
+        const el = p as Element;
+        if (el.tagName === 'w:gridBefore') {
+          const val = parseInt(el.getAttribute('w:val') || '0', 10);
+          if (Number.isFinite(val) && val > 0) before = val;
+        } else if (el.tagName === 'w:gridAfter') {
+          const val = parseInt(el.getAttribute('w:val') || '0', 10);
+          if (Number.isFinite(val) && val > 0) after = val;
+        }
+      }
+      break;
+    }
+  }
+  return { before, after };
+}
+
+function emptyGridCell(count: number): string {
+  if (count <= 0) return '';
+  return count > 1 ? `<td colspan="${count}"></td>` : '<td></td>';
+}
+
 /**
  * A table that has merged cells: shown cells carry `colspan` / `rowspan`, covered cells are left out.
  * The header is the first row, plus the rows below it that a header cell spans (a cell cannot span
@@ -614,6 +653,9 @@ function renderMergedTableHtml(merges: TableMerges): string {
     if (rIdx === headRows) html += '</thead>\n<tbody>\n';
     const inHead = rIdx < headRows;
     html += '<tr>';
+    const tr = findParentTr(row[0]?.tc);
+    const { before, after } = tr ? rowGridBeforeAfter(tr) : { before: 0, after: 0 };
+    if (before > 0) html += emptyGridCell(before);
     for (const cell of row) {
       if (cell.covered) continue;
       const facts = tableCellFacts(cell.tc);
@@ -633,6 +675,7 @@ function renderMergedTableHtml(merges: TableMerges): string {
       const tag = inHead ? 'th' : 'td';
       html += `<${tag}${spans}${styleAttr}>${escapeHtml(joined)}</${tag}>`;
     }
+    if (after > 0) html += emptyGridCell(after);
     html += '</tr>\n';
   });
   html += headRows >= rows.length ? '</thead>\n</table>\n' : '</tbody>\n</table>\n';
@@ -693,10 +736,12 @@ export function renderTable(node: ExportNodeLike): string {
 
   // Direct XML DOM table extraction with cell colors (<w:shd>, <w:color>)
   const nodeXmlEl = node.xml as unknown as Element | undefined;
+  let rowOffsets: Array<{ before: number; after: number }> = [];
   if (nodeXmlEl && typeof (nodeXmlEl as Element).getElementsByTagName === 'function') {
     const trs = ownElements(nodeXmlEl as Element, 'w:tr');
     const tableData: string[][] = [];
     const extractedColors: Array<Array<{ bg?: string; color?: string }>> = [];
+    const extractedOffsets: Array<{ before: number; after: number }> = [];
 
     for (let rIdx = 0; rIdx < trs.length; rIdx++) {
       const tr = trs[rIdx];
@@ -713,6 +758,7 @@ export function renderTable(node: ExportNodeLike): string {
       if (rowCells.length > 0) {
         tableData.push(rowCells);
         extractedColors.push(rowColors);
+        extractedOffsets.push(rowGridBeforeAfter(tr));
       }
     }
 
@@ -720,6 +766,7 @@ export function renderTable(node: ExportNodeLike): string {
       headers = tableData[0];
       rows = tableData.slice(1);
       cellColors = extractedColors;
+      rowOffsets = extractedOffsets;
     }
   }
 
@@ -759,8 +806,12 @@ export function renderTable(node: ExportNodeLike): string {
     const dataRows = headers.length > 0 ? rows : rows.slice(1);
     const headerColors = cellColors[0] || [];
     const dataColors = cellColors.slice(1);
+    const headerOffset = rowOffsets[0] || { before: 0, after: 0 };
 
     tableHtml += `<table class="doc-table">\n<thead>\n<tr>`;
+    if (headerOffset.before > 0) {
+      tableHtml += emptyGridCell(headerOffset.before);
+    }
     headerRow.forEach((h: string, idx: number) => {
       const c = headerColors[idx];
       const bgStyle = c?.bg ? `background-color: ${c.bg};` : 'background-color: #F1F5F9;';
@@ -768,9 +819,16 @@ export function renderTable(node: ExportNodeLike): string {
       const styleAttr = ` style="${bgStyle} ${colorStyle}"`;
       tableHtml += `<th${styleAttr}>${escapeHtml(h)}</th>`;
     });
+    if (headerOffset.after > 0) {
+      tableHtml += emptyGridCell(headerOffset.after);
+    }
     tableHtml += `</tr>\n</thead>\n<tbody>\n`;
     dataRows.forEach((row: string[], rIdx: number) => {
+      const offset = rowOffsets[rIdx + 1] || { before: 0, after: 0 };
       tableHtml += `<tr>`;
+      if (offset.before > 0) {
+        tableHtml += emptyGridCell(offset.before);
+      }
       const rowColorList = dataColors[rIdx] || [];
       row.forEach((c: string, cIdx: number) => {
         const colorInfo = rowColorList[cIdx];
@@ -779,6 +837,9 @@ export function renderTable(node: ExportNodeLike): string {
         const styleAttr = (bgStyle || colorStyle) ? ` style="${bgStyle} ${colorStyle}"` : '';
         tableHtml += `<td${styleAttr}>${escapeHtml(c)}</td>`;
       });
+      if (offset.after > 0) {
+        tableHtml += emptyGridCell(offset.after);
+      }
       tableHtml += `</tr>\n`;
     });
     tableHtml += `</tbody>\n</table>\n`;

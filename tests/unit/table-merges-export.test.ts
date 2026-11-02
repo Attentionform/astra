@@ -281,3 +281,91 @@ describe('readTableMerges', () => {
     expect(r.hasMerges).toBe(false);
   });
 });
+
+describe('Gap 6: gridBefore and gridAfter in HTML export', () => {
+  function docxWithCustomTable(tblString: string): Buffer {
+    const zip = new AdmZip(DocxParser.createNewDocument('blank').rezip());
+    const xml = zip.readAsText('word/document.xml');
+    const start = xml.indexOf('<w:body>') + '<w:body>'.length;
+    const end = xml.lastIndexOf('<w:sectPr');
+    zip.updateFile('word/document.xml', Buffer.from(xml.slice(0, start) + tblString + '<w:p/>' + xml.slice(end), 'utf8'));
+    return zip.toBuffer();
+  }
+
+  function tblXmlWithOffsets(rows: Array<{ cells: Cell[]; gridBefore?: number; gridAfter?: number }>): string {
+    return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr>${rows
+      .map((row) => {
+        let trPr = '';
+        if (row.gridBefore !== undefined) trPr += `<w:gridBefore w:val="${row.gridBefore}"/>`;
+        if (row.gridAfter !== undefined) trPr += `<w:gridAfter w:val="${row.gridAfter}"/>`;
+        const prXml = trPr.length > 0 ? `<w:trPr>${trPr}</w:trPr>` : '';
+        return `<w:tr>${prXml}${row.cells.map(tcXml).join('')}</w:tr>`;
+      })
+      .join('')}</w:tbl>`;
+  }
+
+  it('emits an empty leading cell for a row with gridBefore 1', async () => {
+    const tbl = tblXmlWithOffsets([
+      { cells: [{ t: 'H1' }, { t: 'H2' }, { t: 'H3' }] },
+      { cells: [{ t: 'b' }, { t: 'c' }], gridBefore: 1 },
+    ]);
+    const parser = new DocxParser(docxWithCustomTable(tbl));
+    const ast = await parser.getAST();
+    const html = convertAstToHtml(ast, 'T', parser);
+    const rows = bodyRows(html);
+    expect(rows[1]).toBe('<tr><td></td><td>b</td><td>c</td></tr>');
+  });
+
+  it('emits a trailing cell with colspan=2 for a row with gridAfter 2', async () => {
+    const tbl = tblXmlWithOffsets([
+      { cells: [{ t: 'H1' }, { t: 'H2' }, { t: 'H3' }] },
+      { cells: [{ t: 'a' }], gridAfter: 2 },
+    ]);
+    const parser = new DocxParser(docxWithCustomTable(tbl));
+    const ast = await parser.getAST();
+    const html = convertAstToHtml(ast, 'T', parser);
+    const rows = bodyRows(html);
+    expect(rows[1]).toBe('<tr><td>a</td><td colspan="2"></td></tr>');
+  });
+
+  it('keeps byte-identical output for rows without gridBefore and gridAfter', async () => {
+    const plainRows: Cell[][] = [
+      [{ t: 'H1' }, { t: 'H2' }],
+      [{ t: 'D1' }, { t: 'D2' }],
+    ];
+    const withOffsets = tblXmlWithOffsets([
+      { cells: [{ t: 'H1' }, { t: 'H2' }] },
+      { cells: [{ t: 'D1' }, { t: 'D2' }] },
+    ]);
+    const parser1 = new DocxParser(docxWithTable(plainRows));
+    const parser2 = new DocxParser(docxWithCustomTable(withOffsets));
+    const html1 = convertAstToHtml(await parser1.getAST(), 'T', parser1);
+    const html2 = convertAstToHtml(await parser2.getAST(), 'T', parser2);
+    expect(html2).toBe(html1);
+  });
+
+  it('maintains equal column counts across rows in a table with cell merges plus gridBefore', async () => {
+    const tbl = tblXmlWithOffsets([
+      { cells: [{ t: 'A', gs: 2 }, { t: 'B' }] },
+      { cells: [{ t: 'c' }, { t: 'd' }], gridBefore: 1 },
+    ]);
+    const parser = new DocxParser(docxWithCustomTable(tbl));
+    const ast = await parser.getAST();
+    const html = convertAstToHtml(ast, 'T', parser);
+    const rows = bodyRows(html);
+    expect(rows[0]).toBe('<tr><th colspan="2">A</th><th>B</th></tr>');
+    expect(rows[1]).toBe('<tr><td></td><td>c</td><td>d</td></tr>');
+  });
+
+  it('leaves Markdown export unchanged for tables with gridBefore and gridAfter', async () => {
+    const tbl = tblXmlWithOffsets([
+      { cells: [{ t: 'H1' }, { t: 'H2' }, { t: 'H3' }] },
+      { cells: [{ t: 'b' }, { t: 'c' }], gridBefore: 1 },
+    ]);
+    const parser = new DocxParser(docxWithCustomTable(tbl));
+    const ast = await parser.getAST();
+    const md = convertAstToMarkdown(ast, parser);
+    expect(md).toContain('| H1 | H2 | H3 |');
+    expect(md).toContain('| b | c |');
+  });
+});
