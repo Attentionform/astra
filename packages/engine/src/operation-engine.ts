@@ -70,6 +70,16 @@ export class EngineValidationError extends Error {
   }
 }
 
+interface StructuralViolation {
+  element: Element;
+  kind: string;
+  message: string;
+  remedy: string;
+}
+
+/** Faults found before a batch ran: the offending element and the kinds of fault it had. */
+type StructuralBaseline = Map<Element, Set<string>>;
+
 /**
  * Single-envelope throw for structural refusals: the message text stays
  * byte-identical (callers match on it), while `.code`/`.remedy` ride along
@@ -548,6 +558,8 @@ export class OperationEngine {
     const dryRun = batch.dryRun === true;
     const dryRunBefore = dryRun ? snapshotNodeText(this.ast) : null;
     const dryRunTouched = dryRun ? collectBatchTouchedIds(sortedOps, this.ast) : null;
+    // B-1: faults the document already has do not refuse this batch; only faults it adds do.
+    const structuralBaseline = this.structuralBaselineFor(sortedOps);
 
     try {
       for (let i = 0; i < sortedOps.length; i++) {
@@ -633,7 +645,7 @@ export class OperationEngine {
       // rezip per the stage-B measurement ledger) is deliberately NOT run
       // per batch — it would double batch cost for interactive paths.
       if (this.batchTouchesStructuredContent(sortedOps)) {
-        this.assertStructuredContentValid();
+        this.assertStructuredContentValid(structuralBaseline);
       }
       // Operations that add, delete or move a section break paragraph change
       // where the file's sections end: bring the model's sections in line.
@@ -834,8 +846,13 @@ export class OperationEngine {
 
   /**
    * B-1 validate-on-batch gate (cheap O(N) DOM scan, no XSD, no rezip).
-   * Throws loudly on the first structural violation so the batch catch block
-   * rolls back instead of reporting success=true over invalid bytes:
+   * Throws loudly on the first structural violation the batch ADDED so the
+   * batch catch block rolls back instead of reporting success=true over
+   * invalid bytes. A violation that was already in the document before the
+   * batch (`baseline`, the same element with the same kind of fault) is not the
+   * batch's doing and does not refuse it: a document with one broken table
+   * still takes an edit to a good table, while an edit that breaks a table,
+   * or adds a new broken one, is still refused. The checks:
    * - every w:tbl has >= 1 w:tr, every w:tr has >= 1 w:tc, every w:tc has
    *   >= 1 w:p (direct children only — nested tables must not satisfy the
    *   outer cell), and gridSpan values stay >= 1;
@@ -844,7 +861,16 @@ export class OperationEngine {
    * - every c:chart reference carries its r:id (unresolvable chart refs fail
    *   validation at save).
    */
-  private assertStructuredContentValid(): void {
+  private assertStructuredContentValid(baseline: StructuralBaseline | null = null): void {
+    for (const v of this.findStructuralViolations()) {
+      if (baseline?.get(v.element)?.has(v.kind)) continue;
+      throw structuralRefusal(v.message, v.remedy);
+    }
+  }
+
+  /** The structural faults in the document now, in document order, one entry per fault. */
+  private findStructuralViolations(): StructuralViolation[] {
+    const found: StructuralViolation[] = [];
     const direct = (parent: Element, tag: string): Element[] => {
       const out: Element[] = [];
       const kids = parent.childNodes;
@@ -863,35 +889,45 @@ export class OperationEngine {
         for (const tbl of tables) {
           const rows = direct(tbl, 'w:tr');
           if (rows.length === 0) {
-            throw structuralRefusal(
-              `[B-1 structural gate] Table node '${node.id}' has no w:tr rows — refusing to commit an invalid table. Remedy: delete the empty table or add a row, then retry.`,
-              'delete the empty table or add a row, then retry'
-            );
+            found.push({
+              element: tbl,
+              kind: 'table-no-rows',
+              message: `[B-1 structural gate] Table node '${node.id}' has no w:tr rows — refusing to commit an invalid table. Remedy: delete the empty table or add a row, then retry.`,
+              remedy: 'delete the empty table or add a row, then retry',
+            });
+            continue;
           }
           for (const tr of rows) {
             const cells = direct(tr, 'w:tc');
             if (cells.length === 0) {
-              throw structuralRefusal(
-                `[B-1 structural gate] Table node '${node.id}' has a w:tr with no w:tc cells — refusing to commit an invalid table. Remedy: re-read via inspect_document and repair the row, then retry.`,
-                're-read via inspect_document and repair the row, then retry'
-              );
+              found.push({
+                element: tr,
+                kind: 'row-no-cells',
+                message: `[B-1 structural gate] Table node '${node.id}' has a w:tr with no w:tc cells — refusing to commit an invalid table. Remedy: re-read via inspect_document and repair the row, then retry.`,
+                remedy: 're-read via inspect_document and repair the row, then retry',
+              });
+              continue;
             }
             for (const tc of cells) {
               if (direct(tc, 'w:p').length === 0) {
-                throw structuralRefusal(
-                  `[B-1 structural gate] Table node '${node.id}' has a w:tc with no w:p paragraph — refusing to commit an invalid table. Remedy: write at least one paragraph into every cell, then retry.`,
-                  'write at least one paragraph into every cell, then retry'
-                );
+                found.push({
+                  element: tc,
+                  kind: 'cell-no-paragraph',
+                  message: `[B-1 structural gate] Table node '${node.id}' has a w:tc with no w:p paragraph — refusing to commit an invalid table. Remedy: write at least one paragraph into every cell, then retry.`,
+                  remedy: 'write at least one paragraph into every cell, then retry',
+                });
               }
               const tcPr = direct(tc, 'w:tcPr')[0];
               const gs = tcPr?.getElementsByTagName('w:gridSpan')[0] as Element | undefined;
               if (gs) {
                 const v = parseInt(gs.getAttribute('w:val') || '1', 10);
                 if (!Number.isFinite(v) || v < 1) {
-                  throw structuralRefusal(
-                    `[B-1 structural gate] Table node '${node.id}' has w:gridSpan w:val='${gs.getAttribute('w:val')}' (must be >= 1) — refusing to commit an invalid table.`,
-                    `set w:gridSpan w:val to an integer >= 1 on table node '${node.id}', then retry`
-                  );
+                  found.push({
+                    element: tc,
+                    kind: 'grid-span',
+                    message: `[B-1 structural gate] Table node '${node.id}' has w:gridSpan w:val='${gs.getAttribute('w:val')}' (must be >= 1) — refusing to commit an invalid table.`,
+                    remedy: `set w:gridSpan w:val to an integer >= 1 on table node '${node.id}', then retry`,
+                  });
                 }
               }
             }
@@ -901,35 +937,61 @@ export class OperationEngine {
         for (const drawing of drawings) {
           const container = (drawing.getElementsByTagName('wp:inline')[0] || drawing.getElementsByTagName('wp:anchor')[0]) as Element | undefined;
           if (!container) {
-            throw structuralRefusal(
-              `[B-1 structural gate] Node '${node.id}' has a w:drawing with no wp:inline/wp:anchor wrapper — refusing to commit an invalid drawing.`,
-              `wrap the drawing in wp:inline or wp:anchor with wp:extent, wp:docPr, and a:graphic on node '${node.id}', then retry`
-            );
+            found.push({
+              element: drawing,
+              kind: 'drawing-no-wrapper',
+              message: `[B-1 structural gate] Node '${node.id}' has a w:drawing with no wp:inline/wp:anchor wrapper — refusing to commit an invalid drawing.`,
+              remedy: `wrap the drawing in wp:inline or wp:anchor with wp:extent, wp:docPr, and a:graphic on node '${node.id}', then retry`,
+            });
+            continue;
           }
           if (container.getElementsByTagName('wp:extent').length === 0 || container.getElementsByTagName('wp:docPr').length === 0) {
-            throw structuralRefusal(
-              `[B-1 structural gate] Node '${node.id}' has a drawing missing wp:extent or wp:docPr — refusing to commit an invalid drawing.`,
-              `add wp:extent and wp:docPr to the drawing wrapper on node '${node.id}', then retry`
-            );
+            found.push({
+              element: drawing,
+              kind: 'drawing-no-extent-docpr',
+              message: `[B-1 structural gate] Node '${node.id}' has a drawing missing wp:extent or wp:docPr — refusing to commit an invalid drawing.`,
+              remedy: `add wp:extent and wp:docPr to the drawing wrapper on node '${node.id}', then retry`,
+            });
           }
           if (container.getElementsByTagName('a:graphic').length === 0) {
-            throw structuralRefusal(
-              `[B-1 structural gate] Node '${node.id}' has a drawing missing a:graphic — refusing to commit an invalid drawing.`,
-              `add a:graphic to the drawing wrapper on node '${node.id}', then retry`
-            );
+            found.push({
+              element: drawing,
+              kind: 'drawing-no-graphic',
+              message: `[B-1 structural gate] Node '${node.id}' has a drawing missing a:graphic — refusing to commit an invalid drawing.`,
+              remedy: `add a:graphic to the drawing wrapper on node '${node.id}', then retry`,
+            });
           }
         }
         const charts = Array.from(el.getElementsByTagName('c:chart')) as Element[];
         for (const chart of charts) {
           if (!chart.getAttribute('r:id')) {
-            throw structuralRefusal(
-              `[B-1 structural gate] Node '${node.id}' has a c:chart with no r:id relationship — refusing to commit an unresolvable chart.`,
-              `relink the chart part (r:id) on node '${node.id}' or remove the chart reference, then retry`
-            );
+            found.push({
+              element: chart,
+              kind: 'chart-no-rid',
+              message: `[B-1 structural gate] Node '${node.id}' has a c:chart with no r:id relationship — refusing to commit an unresolvable chart.`,
+              remedy: `relink the chart part (r:id) on node '${node.id}' or remove the chart reference, then retry`,
+            });
           }
         }
       }
     }
+    return found;
+  }
+
+  /**
+   * The structural faults the document already has, by element, taken before a
+   * batch runs. Only needed (and only computed) when the batch can reshape
+   * table, chart or drawing content.
+   */
+  private structuralBaselineFor(ops: BaseOperation[]): StructuralBaseline | null {
+    if (!this.batchTouchesStructuredContent(ops)) return null;
+    const baseline: StructuralBaseline = new Map();
+    for (const v of this.findStructuralViolations()) {
+      const kinds = baseline.get(v.element) ?? new Set<string>();
+      kinds.add(v.kind);
+      baseline.set(v.element, kinds);
+    }
+    return baseline;
   }
 
   /**
