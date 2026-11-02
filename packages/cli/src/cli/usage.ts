@@ -372,6 +372,7 @@ export function commandHelpText(cmd: string): string | undefined {
       '  --init (alias --track)  explicit opt-in: when no sidecar exists, record the current',
       '                          file state as the baseline commit. Never runs without this flag;',
       '                          ordinary create/batch/import/export commands never touch .astra/.',
+      '  Files: the history sits in .astra/<file>/ next to the document. A second file, .astra-tombstones.json, sits beside the .astra/ folder and lists the documents that have had a history, so that deleting .astra/ is noticed: when a new history is started for a document that had one, ASTra warns that the earlier history may have been removed. Keep the two together; delete both when you mean to drop the history, and add both to .gitignore if you do not want them in version control.',
       '  When no sidecar exists the read refuses (exit 2) with a remedy naming --init.',
       '  --allow-macros | --strip-macros  apply to --init, which opens the document: preserve macro/active-content parts byte-identical (default refuses E_VALIDATION naming the parts); remove macro/active-content parts and continue (never with --allow-macros)',
       'Exit 0 ok · 1 unreadable/corrupt docx or sidecar read failure · 2 bad args/absent sidecar.',
