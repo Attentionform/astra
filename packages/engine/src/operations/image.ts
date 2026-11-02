@@ -807,7 +807,8 @@ export function executeImage(op: ImageOperation, ast: DocumentAST, parser?: Docx
       const typesDoc = domParser.parseFromString(typesXml, 'text/xml');
       const typesRoot = typesDoc.documentElement;
       const defaults = Array.from(typesRoot.getElementsByTagName('Default'));
-      const alreadyDeclared = defaults.some((def) => (def as Element).getAttribute('Extension') === ext);
+      // Package extensions are not case sensitive: Default Extension="PNG" already covers .png.
+      const alreadyDeclared = defaults.some((def) => (def as Element).getAttribute('Extension')?.toLowerCase() === ext.toLowerCase());
       if (!alreadyDeclared) {
         const newDef = createContentTypesElement(typesDoc, 'Default');
         newDef.setAttribute('Extension', ext);

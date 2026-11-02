@@ -3373,7 +3373,8 @@ export class DocxParser {
     const ensureDefault = (ext: string, contentType: string) => {
       const defaults = Array.from(root.getElementsByTagName('Default'));
       for (const def of defaults) {
-        if ((def as Element).getAttribute('Extension') === ext) return;
+        // Package extensions are not case sensitive: Default Extension="PNG" already covers .png.
+        if ((def as Element).getAttribute('Extension')?.toLowerCase() === ext.toLowerCase()) return;
       }
       const created = typesDoc.createElement('Default');
       created.setAttribute('Extension', ext);
