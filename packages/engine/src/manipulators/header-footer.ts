@@ -238,7 +238,7 @@ export class HeaderFooterManipulator {
           partXmlStr = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <${rootTag} xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:p>
-    <w:pPr><w:jc w:val="${jcVal}"/></w:pPr>
+    <w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="${jcVal}"/></w:pPr>
     ${runs}
   </w:p>
 </${rootTag}>`;
@@ -246,7 +246,7 @@ export class HeaderFooterManipulator {
           partXmlStr = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:p>
-    <w:pPr><w:jc w:val="${jcVal}"/></w:pPr>
+    <w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="${jcVal}"/></w:pPr>
     <w:r><w:t xml:space="preserve">${isPageLabel ? 'Page' : safeText} </w:t></w:r>
     <w:r><w:fldChar w:fldCharType="begin"/></w:r>
     <w:r><w:instrText xml:space="preserve"> PAGE${numFormatStr} </w:instrText></w:r>
@@ -261,7 +261,7 @@ export class HeaderFooterManipulator {
           partXmlStr = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:p>
-    <w:pPr><w:jc w:val="${jcVal}"/></w:pPr>
+    <w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="${jcVal}"/></w:pPr>
     <w:r><w:t>${safeText}</w:t></w:r>
   </w:p>
 </w:hdr>`;
@@ -269,7 +269,7 @@ export class HeaderFooterManipulator {
           partXmlStr = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:p>
-    <w:pPr><w:jc w:val="${jcVal}"/></w:pPr>
+    <w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="${jcVal}"/></w:pPr>
     <w:r><w:t>${safeText}</w:t></w:r>
   </w:p>
 </w:ftr>`;

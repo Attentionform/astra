@@ -20,6 +20,22 @@ export interface ListOperation extends BaseOperation {
 const MAX_LIST_LEVEL = 9;
 
 /**
+ * List items sit close together: no space between two items of the same style, as Word's List Paragraph
+ * style does. Without it every item gets the document's paragraph spacing (6 pt after in a new document).
+ * An item that already says `w:contextualSpacing` keeps its own value. Leaving a list takes the setting off
+ * again, but only from a paragraph that was in a list.
+ */
+function syncListSpacing(doc: Document, pPr: Element, wasInList: boolean): void {
+  const existing = pPr.getElementsByTagName('w:contextualSpacing')[0];
+  const inList = pPr.getElementsByTagName('w:numPr').length > 0;
+  if (inList && !existing) {
+    pPr.appendChild(createWordElement(doc, 'w:contextualSpacing'));
+  } else if (!inList && wasInList && existing) {
+    pPr.removeChild(existing);
+  }
+}
+
+/**
  * Callers number list levels from 1 (1 is the top level), like headings; on
  * changeLevel, 0 takes the paragraph out of the list. w:ilvl counts from 0, so
  * the number a caller types is checked and converted once, before anything is
@@ -206,6 +222,7 @@ export function executeList(op: ListOperation, ast: DocumentAST): void {
       targetNode.xml.insertBefore(pPr, targetNode.xml.firstChild);
     }
 
+    const wasInList = pPr.getElementsByTagName('w:numPr').length > 0;
     if (resolvedOperation === 'remove') {
       const numPr = pPr.getElementsByTagName('w:numPr')[0];
       if (numPr) pPr.removeChild(numPr);
@@ -291,7 +308,8 @@ export function executeList(op: ListOperation, ast: DocumentAST): void {
       targetNode.metadata.listLevel = level;
       if (joinedListStyle) targetNode.metadata.listStyle = joinedListStyle;
     }
-    
+
+    syncListSpacing(doc, pPr, wasInList);
     targetNode.version += 1;
   }
 }
