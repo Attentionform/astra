@@ -98,7 +98,8 @@ function hasExistingHeaderPart(ast: DocumentAST, parser: DocxParser): boolean {
   try {
     for (const rel of Object.values(ast.relationships || {})) {
       if (rel.type === headerRelType && /(?:^|\/)header\d+\.xml$/.test(rel.target)) {
-        const zipPath = rel.target.startsWith('word/') ? rel.target : `word/${rel.target.replace(/^\//, '')}`;
+        // "header1.xml", "word/header1.xml" and "/word/header1.xml" all name the same part.
+        const zipPath = `word/${rel.target.replace(/^\/?word\//, '')}`;
         try {
           if (parser.getZipAdapter().hasFile(zipPath)) return true;
         } catch { /* treat as missing */ }

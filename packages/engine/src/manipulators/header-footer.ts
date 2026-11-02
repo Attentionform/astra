@@ -339,6 +339,16 @@ export class HeaderFooterManipulator {
               imported = baseDom.importNode(fragRoot, true) as Element;
             }
           } catch { imported = fragRoot as unknown as Element; }
+          // A shape type id may be declared once per part. When the part already declares
+          // one the fragment brings (a watermark made in Word has _x0000_t136), the shapes
+          // of the fragment use that declaration, so the fragment's copy is dropped.
+          const declaredShapeTypes = new Set(
+            Array.from(baseDom.getElementsByTagName('v:shapetype')).map((t) => t.getAttribute('id'))
+          );
+          for (const shapeType of Array.from(imported.getElementsByTagName('v:shapetype'))) {
+            const typeId = shapeType.getAttribute('id');
+            if (typeId && declaredShapeTypes.has(typeId)) shapeType.parentNode?.removeChild(shapeType);
+          }
           baseDom.documentElement.appendChild(imported);
           partXmlStr = new XMLSerializer().serializeToString(baseDom);
         }
