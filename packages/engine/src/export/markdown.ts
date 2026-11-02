@@ -3,6 +3,7 @@ import { DocxParser } from '../parser';
 import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { ommlToLatex } from '../ooxml/omml';
+import { readTableMerges } from './table-merges';
 
 /** Loose node view for exporters (mirrors html.ts ExportNodeLike; tolerates
  * partial/test-built nodes such as `{ xml }` passed for callout bodies). */
@@ -827,6 +828,47 @@ function extractFootnoteBodies(parser?: DocxParser, ast?: DocumentAST): Map<stri
 }
 
 /**
+ * A table with merged cells, read from its XML grid for Markdown. A Markdown table has one cell per column
+ * and no merges, so the text of a merged range is written once, in its first cell, and the other cells of
+ * the range are empty. The note says so. Returns undefined for a table without merges.
+ */
+function mergedTableForMarkdown(xml: unknown): { headers: string[]; rows: string[][]; note: string } | undefined {
+  const root = xml as Element | undefined;
+  if (!root || typeof root.getElementsByTagName !== 'function') return undefined;
+  const tbl = root.tagName === 'w:tbl' ? root : (root.getElementsByTagName('w:tbl')[0] as Element | undefined);
+  if (!tbl) return undefined;
+  const merges = readTableMerges(tbl);
+  if (!merges.hasMerges) return undefined;
+  const grid: string[][] = merges.rows.map((row) => {
+    const out: string[] = [];
+    for (const cell of row) {
+      const text = cell.covered
+        ? ''
+        : [cell.tc, ...cell.absorbed]
+            .map((tc) =>
+              Array.from(tc.getElementsByTagName('w:t'))
+                .map((t: Element) => t.textContent || '')
+                .join(' ')
+                .trim(),
+            )
+            .filter((t) => t.length > 0)
+            .join(' ')
+            .replace(/\|/g, '\\|');
+      out.push(text);
+      for (let i = 1; i < cell.span; i++) out.push('');
+    }
+    return out;
+  });
+  const width = grid.reduce((most, row) => Math.max(most, row.length), 0);
+  for (const row of grid) while (row.length < width) row.push('');
+  const ranges = merges.mergedRanges;
+  const note =
+    `*Note: this table has ${ranges} merged ${ranges === 1 ? 'range' : 'ranges'}. ` +
+    `Markdown cannot show merged cells, so the text of each range appears once, in its first cell.*`;
+  return { headers: grid[0] ?? [], rows: grid.slice(1), note };
+}
+
+/**
  * L-3: Render table node to Markdown string, placing caption before or after table
  * based on node.metadata?.captionPosition ('above' | 'below').
  */
@@ -906,6 +948,12 @@ export function renderTableMarkdown(node: MarkdownNodeLike): string {
     }
   }
 
+  const mergedTable = mergedTableForMarkdown(nodeXmlEl);
+  if (mergedTable) {
+    headers = mergedTable.headers;
+    rows = mergedTable.rows;
+  }
+
   const tableLines: string[] = [];
   if (headers.length > 0 || rows.length > 0) {
     const headerRow = headers.length > 0 ? headers : rows[0] || [];
@@ -923,6 +971,7 @@ export function renderTableMarkdown(node: MarkdownNodeLike): string {
   }
   if (tableLines.length > 0) {
     parts.push(tableLines.join('\n'));
+    if (mergedTable) parts.push(`\n${mergedTable.note}`);
   }
   if (caption && captionPosition === 'below') {
     parts.push(caption);
@@ -1190,6 +1239,12 @@ export function convertAstToMarkdown(
           }
         }
 
+        const convMerged = mergedTableForMarkdown(node.xml);
+        if (convMerged) {
+          headers = convMerged.headers;
+          rows = convMerged.rows;
+        }
+
         if (caption && captionPosition !== 'below') {
           lines.push(`${caption}\n`);
         }
@@ -1202,6 +1257,7 @@ export function convertAstToMarkdown(
           for (const row of dataRows) {
             lines.push(`| ${row.join(' | ')} |`);
           }
+          if (convMerged) lines.push(`\n${convMerged.note}`);
           lines.push('\n');
         }
 

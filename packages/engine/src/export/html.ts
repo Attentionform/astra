@@ -4,6 +4,7 @@ import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { ommlToMathmlDisplay } from '../ooxml/omml';
 import { isMonospaceRun, hasListNumbering, isOrderedListItem, codeBlockLanguage } from './markdown';
+import { readTableMerges, type TableMerges } from './table-merges';
 
 /** Narrow export duck-typing without behavior change (replaces `any`). */
 export type ExportNodeLike = {
@@ -566,6 +567,78 @@ export function renderCallout(node: ExportNodeLike): string {
   return `<div class="callout">${titleHtml}${bodyHtml}</div>\n`;
 }
 
+/** Text, background and text colour of one table cell, as the table export shows them. */
+function tableCellFacts(tc: Element): { text: string; bg?: string; color?: string } {
+  const textEls = Array.from(tc.getElementsByTagName('w:t'));
+  const text = textEls.map((t: Element) => t.textContent || '').join(' ').trim();
+
+  // Shading (<w:shd>)
+  let bg: string | undefined = undefined;
+  const shdEl = tc.getElementsByTagName('w:shd')[0];
+  if (shdEl) {
+    const fill = shdEl.getAttribute('w:fill');
+    if (fill && fill !== 'auto' && fill !== 'none' && fill !== 'clear') {
+      bg = `#${fill.replace(/^#/, '')}`;
+    }
+  }
+
+  // Text Color (<w:color>)
+  let color: string | undefined = undefined;
+  const colorEl = tc.getElementsByTagName('w:color')[0];
+  if (colorEl) {
+    const val = colorEl.getAttribute('w:val');
+    if (val && val !== 'auto') {
+      color = `#${val.replace(/^#/, '')}`;
+    }
+  } else if (bg && isColorDark(bg)) {
+    color = '#FFFFFF';
+  }
+  return { text, bg, color };
+}
+
+/**
+ * A table that has merged cells: shown cells carry `colspan` / `rowspan`, covered cells are left out.
+ * The header is the first row, plus the rows below it that a header cell spans (a cell cannot span
+ * across the head/body border of an HTML table).
+ */
+function renderMergedTableHtml(merges: TableMerges): string {
+  const rows = merges.rows;
+  if (rows.length === 0) return '';
+  const headRows = Math.min(
+    rows.length,
+    rows[0].reduce((most, cell) => (cell.covered ? most : Math.max(most, cell.rowspan)), 1),
+  );
+  let html = '<table class="doc-table">\n';
+  rows.forEach((row, rIdx) => {
+    if (rIdx === 0) html += '<thead>\n';
+    if (rIdx === headRows) html += '</thead>\n<tbody>\n';
+    const inHead = rIdx < headRows;
+    html += '<tr>';
+    for (const cell of row) {
+      if (cell.covered) continue;
+      const facts = tableCellFacts(cell.tc);
+      // Text of the cells that joined this one: the merged cell shows it, so the export does too.
+      const joined = [facts.text, ...cell.absorbed.map((tc) => tableCellFacts(tc).text)].filter((t) => t.length > 0).join(' ');
+      const spans = `${cell.colspan > 1 ? ` colspan="${cell.colspan}"` : ''}${cell.rowspan > 1 ? ` rowspan="${cell.rowspan}"` : ''}`;
+      let styleAttr = '';
+      if (inHead) {
+        const bgStyle = facts.bg ? `background-color: ${facts.bg};` : 'background-color: #F1F5F9;';
+        const colorStyle = facts.color ? `color: ${facts.color};` : 'color: #0F172A;';
+        styleAttr = ` style="${bgStyle} ${colorStyle}"`;
+      } else {
+        const bgStyle = facts.bg ? `background-color: ${facts.bg};` : '';
+        const colorStyle = facts.color ? `color: ${facts.color};` : '';
+        styleAttr = bgStyle || colorStyle ? ` style="${bgStyle} ${colorStyle}"` : '';
+      }
+      const tag = inHead ? 'th' : 'td';
+      html += `<${tag}${spans}${styleAttr}>${escapeHtml(joined)}</${tag}>`;
+    }
+    html += '</tr>\n';
+  });
+  html += headRows >= rows.length ? '</thead>\n</table>\n' : '</tbody>\n</table>\n';
+  return html;
+}
+
 /**
  * L-3: Render table node to HTML string, placing caption before or after table
  * based on node.metadata?.captionPosition ('above' | 'below').
@@ -632,32 +705,8 @@ export function renderTable(node: ExportNodeLike): string {
       const rowColors: Array<{ bg?: string; color?: string }> = [];
 
       for (const tc of tcs) {
-        const textEls = Array.from((tc as Element).getElementsByTagName('w:t'));
-        const cellText = textEls.map((t: Element) => t.textContent || '').join(' ').trim();
+        const { text: cellText, bg, color } = tableCellFacts(tc as Element);
         rowCells.push(cellText);
-
-        // Shading (<w:shd>)
-        let bg: string | undefined = undefined;
-        const shdEl = (tc as Element).getElementsByTagName('w:shd')[0];
-        if (shdEl) {
-          const fill = shdEl.getAttribute('w:fill');
-          if (fill && fill !== 'auto' && fill !== 'none' && fill !== 'clear') {
-            bg = `#${fill.replace(/^#/, '')}`;
-          }
-        }
-
-        // Text Color (<w:color>)
-        let color: string | undefined = undefined;
-        const colorEl = (tc as Element).getElementsByTagName('w:color')[0];
-        if (colorEl) {
-          const val = colorEl.getAttribute('w:val');
-          if (val && val !== 'auto') {
-            color = `#${val.replace(/^#/, '')}`;
-          }
-        } else if (bg && isColorDark(bg)) {
-          color = '#FFFFFF';
-        }
-
         rowColors.push({ bg, color });
       }
 
@@ -692,8 +741,20 @@ export function renderTable(node: ExportNodeLike): string {
   const captionPositionRaw = node.captionPosition || (metaRec['captionPosition'] as string | undefined) || (metaRec['captionPlacement'] as string | undefined) || 'above';
   const captionPosition: string = typeof captionPositionRaw === 'string' ? captionPositionRaw : 'above';
 
+  // A table with merged cells is drawn from the XML grid so its colspan and rowspan keep its shape.
+  let merges: TableMerges | undefined;
+  if (nodeXmlEl && typeof (nodeXmlEl as Element).getElementsByTagName === 'function') {
+    const tblEl = nodeXmlEl.tagName === 'w:tbl' ? nodeXmlEl : (nodeXmlEl.getElementsByTagName('w:tbl')[0] as Element | undefined);
+    if (tblEl) {
+      const read = readTableMerges(tblEl);
+      if (read.hasMerges) merges = read;
+    }
+  }
+
   let tableHtml = '';
-  if (headers.length > 0 || rows.length > 0) {
+  if (merges) {
+    tableHtml = renderMergedTableHtml(merges);
+  } else if (headers.length > 0 || rows.length > 0) {
     const headerRow = headers.length > 0 ? headers : rows[0] || [];
     const dataRows = headers.length > 0 ? rows : rows.slice(1);
     const headerColors = cellColors[0] || [];
