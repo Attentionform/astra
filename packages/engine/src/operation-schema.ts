@@ -141,7 +141,7 @@ const styleProperties = z.object({
   match: z.string().min(1).max(1000).optional().describe('Word-level span: style only this literal substring (run splitting); an absent match fails with E_NOT_FOUND.'),
   matchAll: z.boolean().optional().describe('Style every occurrence of match (default false: first occurrence only).'),
   matchCase: z.boolean().optional().describe('Case-sensitive match (default true: pass false for case-insensitive).'),
-}).strict();
+}).catchall(z.unknown());
 
 /** Shared image/chart compat shapes for insert rewriting (M3 backward-compat). */
 const insertChartSeries = z.object({

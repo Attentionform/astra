@@ -74,7 +74,7 @@ const ACTION_WORDS: Record<string, string> = {
 };
 
 /** Words people write for a key, mapped to the key, for the keys that are easy to misname. */
-const KEY_WORDS: Record<string, string> = {
+export const KEY_WORDS: Record<string, string> = {
   spaceafter: 'spacingAfter',
   spacebefore: 'spacingBefore',
   spacingafterpt: 'spacingAfter',

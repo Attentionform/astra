@@ -4,6 +4,7 @@ import { BaseOperation, createTextElement, validateVersion, findNode } from './b
 import { RPR_CHILD_ORDER, PPR_CHILD_ORDER, appendInSchemaOrder, sortChildrenBySchema } from '../ooxml/schema-order';
 import { parseFontSize, requireTwips } from '../operation-schema';
 import { toError } from '../errors';
+import { closestNames, KEY_WORDS } from '../operation-hints';
 
 export interface StyleProperties {
   bold?: boolean;
@@ -622,10 +623,24 @@ export function executeStyle(op: StyleOperation, ast: DocumentAST): void {
     (key) => !SELECTOR_ONLY_KEYS.has(key) && sentinel[key] !== undefined && sentinel[key] !== null
   );
   if (!appliesSomething) {
+    const rawBags: Record<string, unknown> = {
+      ...(typeof op.params === 'object' && op.params !== null ? (op.params as Record<string, unknown>) : {}),
+      ...(typeof op.properties === 'object' && op.properties !== null ? (op.properties as Record<string, unknown>) : {}),
+    };
+    const unknownKeys = Object.keys(rawBags).filter((k) => !READ_STYLE_KEYS.has(k));
+    const suggestions: string[] = [];
+    for (const key of unknownKeys) {
+      const near = closestNames(key, [...READ_STYLE_KEYS], KEY_WORDS);
+      if (near.length > 0) suggestions.push(`"${key}" (did you mean "${near[0]}"?)`);
+    }
+    const hint = suggestions.length > 0 ? ` Unknown key in params: ${suggestions.join(', ')}.` : '';
+    const remedyHint = suggestions.length > 0
+      ? ` Did you mean "${closestNames(unknownKeys[0], [...READ_STYLE_KEYS], KEY_WORDS)[0]}"?`
+      : '';
     throw toError(
       'E_VALIDATION',
-      'style op sets no style property, so nothing would change.',
-      "Pass at least one style key (for example bold, color, fontSize or alignment) flat on the op, inside \"properties\", or inside \"params\"; match, matchAll and matchCase only select text."
+      `style op sets no style property, so nothing would change.${hint}`,
+      `Pass at least one style key (for example bold, color, fontSize or alignment) flat on the op, inside "properties", or inside "params"; match, matchAll and matchCase only select text.${remedyHint}`
     );
   }
 

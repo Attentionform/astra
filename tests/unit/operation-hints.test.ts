@@ -3,8 +3,10 @@ import {
   BatchOperationsSchema,
   closestNames,
   createBlankDocxBuffer,
+  DocxParser,
   operationIssueRemedy,
 } from '@attentionform/astra-engine';
+import { executeStyle } from '../../packages/engine/src/operations/style';
 import { handleExecuteBatch } from '../../packages/mcp-server/src/lib/mcp-tool-adapter';
 import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session-store';
 
@@ -67,16 +69,22 @@ describe('unknown key', () => {
     expect(remedy).toMatch(/Keys of "style": target,.*spacingAfter/);
   });
 
-  it('"spaceAfter" inside params suggests "spacingAfter"', () => {
-    const remedy = remedyFor({ action: 'style', target: 'x', params: { spaceAfter: 120 } })!;
-    expect(remedy).toContain('"spaceAfter" in params is not a key of "style". Did you mean "spacingAfter"?');
-    expect(remedy).toMatch(/Keys of "style": target,.*spacingAfter/);
+  it('"spaceAfter" inside params suggests "spacingAfter" on execute', async () => {
+    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const ast = await parser.getAST();
+    const target = ast.sections[0].nodes[0].id;
+    expect(() => executeStyle({ action: 'style', target, params: { spaceAfter: 120 } } as never, ast)).toThrow(
+      /Did you mean "spacingAfter"/
+    );
   });
 
-  it('"spaceAfter" inside properties suggests "spacingAfter"', () => {
-    const remedy = remedyFor({ action: 'style', target: 'x', properties: { spaceAfter: 120 } })!;
-    expect(remedy).toContain('"spaceAfter" in properties is not a key of "style". Did you mean "spacingAfter"?');
-    expect(remedy).toMatch(/Keys of "style": target,.*spacingAfter/);
+  it('"spaceAfter" inside properties suggests "spacingAfter" on execute', async () => {
+    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const ast = await parser.getAST();
+    const target = ast.sections[0].nodes[0].id;
+    expect(() => executeStyle({ action: 'style', target, properties: { spaceAfter: 120 } } as never, ast)).toThrow(
+      /Did you mean "spacingAfter"/
+    );
   });
 
   it('names every unknown key, and guesses only where it can', () => {
