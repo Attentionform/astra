@@ -206,13 +206,23 @@ export const REPAIR_RULES: readonly RepairRule[] = [
   },
   {
     id: 'paragraph-properties-first',
-    description: 'move w:pPr to the start of its paragraph',
+    description: 'move w:pPr to the start of its paragraph; of two w:pPr keep the last, as Word does',
     appliesTo: isMainOrHdrFtr,
     apply(doc) {
       const log: string[] = [];
       for (const p of snapshot(doc, 'w:p')) {
-        const kids = elementChildren(p);
+        let kids = elementChildren(p);
         const pprs = kids.filter((k) => k.tagName === 'w:pPr');
+        // A paragraph holds one w:pPr. Some tools write two with different content (for example BodyText and
+        // ListParagraph with numbering). Word shows the last one and drops the earlier one when it saves
+        // the file (checked on 97 paragraphs of a corpus document), so the earlier one goes. With three or
+        // more there is no evidence of what Word does, so the paragraph is left as it is.
+        if (pprs.length === 2) {
+          p.removeChild(pprs[0]);
+          log.push(`Removed the earlier of two w:pPr in ${xpathOf(p)}; Word uses the last one`);
+          kids = elementChildren(p);
+          pprs.shift();
+        }
         if (pprs.length === 1 && kids[0] !== pprs[0]) {
           p.insertBefore(pprs[0], kids[0]);
           log.push(`Moved w:pPr to the start of ${xpathOf(p)}`);

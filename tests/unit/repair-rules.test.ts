@@ -230,8 +230,23 @@ describe('cell-valign-duplicate, shading-empty-fill and the order of the Word ex
     expect(r.log).toHaveLength(1);
   });
 
-  it('paragraph-properties-first leaves a paragraph with two w:pPr elements alone', () => {
-    const xml = doc('<w:p><w:r><w:t>two</w:t></w:r><w:pPr><w:jc w:val="left"/></w:pPr><w:pPr><w:jc w:val="right"/></w:pPr></w:p>');
+  it('paragraph-properties-first keeps the last of two w:pPr, as Word does, and the text', () => {
+    const body = '<w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="25"/></w:numPr></w:pPr><w:r><w:t>item</w:t></w:r>';
+    const r = runTwice('paragraph-properties-first', 'word/document.xml', doc(`<w:p>${body}</w:p>`));
+    expect(r.xml).toContain('<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="25"/></w:numPr></w:pPr><w:r><w:t>item</w:t></w:r></w:p>');
+    expect(r.xml).not.toContain('BodyText');
+    expect(r.log).toHaveLength(1);
+    expect(r.log[0]).toContain('Word uses the last one');
+  });
+
+  it('paragraph-properties-first moves the last of two w:pPr to the start when runs come first', () => {
+    const r = runTwice('paragraph-properties-first', 'word/document.xml', doc('<w:p><w:pPr><w:jc w:val="left"/></w:pPr><w:r><w:t>two</w:t></w:r><w:pPr><w:jc w:val="right"/></w:pPr></w:p>'));
+    expect(r.xml).toContain('<w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:t>two</w:t></w:r></w:p>');
+    expect(r.log).toHaveLength(2);
+  });
+
+  it('paragraph-properties-first leaves a paragraph with three w:pPr elements alone', () => {
+    const xml = doc('<w:p><w:r><w:t>three</w:t></w:r><w:pPr><w:jc w:val="left"/></w:pPr><w:pPr><w:jc w:val="right"/></w:pPr><w:pPr><w:jc w:val="center"/></w:pPr></w:p>');
     expect(run('paragraph-properties-first', 'word/document.xml', xml).log).toEqual([]);
   });
 
