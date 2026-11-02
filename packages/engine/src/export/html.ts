@@ -4,7 +4,7 @@ import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { ommlToMathmlDisplay } from '../ooxml/omml';
 import { isMonospaceRun, hasListNumbering, isOrderedListItem, codeBlockLanguage } from './markdown';
-import { readTableMerges, type TableMerges } from './table-merges';
+import { ownElements, readTableMerges, type TableMerges } from './table-merges';
 import { effectiveRunItalic, useStylesForExport } from './style-italic';
 import { newDocumentTitle } from '../ooxml/new-document-parts';
 
@@ -694,13 +694,13 @@ export function renderTable(node: ExportNodeLike): string {
   // Direct XML DOM table extraction with cell colors (<w:shd>, <w:color>)
   const nodeXmlEl = node.xml as unknown as Element | undefined;
   if (nodeXmlEl && typeof (nodeXmlEl as Element).getElementsByTagName === 'function') {
-    const trs = Array.from((nodeXmlEl as Element).getElementsByTagName('w:tr'));
+    const trs = ownElements(nodeXmlEl as Element, 'w:tr');
     const tableData: string[][] = [];
     const extractedColors: Array<Array<{ bg?: string; color?: string }>> = [];
 
     for (let rIdx = 0; rIdx < trs.length; rIdx++) {
-      const tr = trs[rIdx] as Element;
-      const tcs = Array.from(tr.getElementsByTagName('w:tc'));
+      const tr = trs[rIdx];
+      const tcs = ownElements(tr, 'w:tc');
       const rowCells: string[] = [];
       const rowColors: Array<{ bg?: string; color?: string }> = [];
 

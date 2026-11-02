@@ -3,7 +3,7 @@ import { DocxParser } from '../parser';
 import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { ommlToLatex } from '../ooxml/omml';
-import { readTableMerges } from './table-merges';
+import { ownElements, readTableMerges } from './table-merges';
 import { effectiveRunItalic, useStylesForExport } from './style-italic';
 
 /** Loose node view for exporters (mirrors html.ts ExportNodeLike; tolerates
@@ -972,10 +972,10 @@ export function renderTableMarkdown(node: MarkdownNodeLike): string {
   }
 
   if (headers.length === 0 && rows.length === 0 && nodeXmlEl) {
-    const trs = Array.from((nodeXmlEl as Element).getElementsByTagName('w:tr')) as Element[];
+    const trs = ownElements(nodeXmlEl as Element, 'w:tr');
     const tableData: string[][] = [];
     for (const tr of trs) {
-      const tcs = Array.from(tr.getElementsByTagName('w:tc')) as Element[];
+      const tcs = ownElements(tr, 'w:tc');
       const rowCells: string[] = [];
       for (const tc of tcs) {
         const textEls = Array.from(tc.getElementsByTagName('w:t'));
@@ -1264,10 +1264,10 @@ export function convertAstToMarkdown(
 
         // If metadata headers/rows are empty, extract directly from live XML DOM
         if (headers.length === 0 && rows.length === 0 && node.xml) {
-          const trs = Array.from(node.xml.getElementsByTagName('w:tr')) as Element[];
+          const trs = ownElements(node.xml, 'w:tr');
           const tableData: string[][] = [];
           for (const tr of trs) {
-            const tcs = Array.from(tr.getElementsByTagName('w:tc')) as Element[];
+            const tcs = ownElements(tr, 'w:tc');
             const rowCells: string[] = [];
             for (const tc of tcs) {
               const textEls = Array.from(tc.getElementsByTagName('w:t'));

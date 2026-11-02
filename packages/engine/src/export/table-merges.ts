@@ -53,7 +53,7 @@ function directChildren(parent: Element, tag: string): Element[] {
  * `w:sdt` / `w:sdtContent` / `w:ins` (a row or cell can sit in a content control). A nested table is not
  * entered, so its rows and cells stay its own.
  */
-function ownElements(root: Element, tag: string): Element[] {
+export function ownElements(root: Element, tag: string): Element[] {
   const out: Element[] = [];
   const walk = (parent: Element): void => {
     const kids = parent.childNodes;

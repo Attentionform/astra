@@ -166,6 +166,21 @@ describe('HTML export of merged cells', () => {
     expect(bodyRows(html)[0]).toBe('<tr><th colspan="2">H</th></tr>');
   });
 
+  it('does not take rows of a nested table when the outer table has no merges (HTML and Markdown)', async () => {
+    const nested = tblXml([[{ t: 'n1' }, { t: 'n2' }], [{ t: 'n3' }, { t: 'n4' }], [{ t: 'n5' }, { t: 'n6' }]]);
+    const { html, md } = await exportBoth([
+      [{ t: 'H1' }, { t: 'H2' }],
+      [{ t: 'outer', extra: nested }, { t: 'x' }],
+    ]);
+    // the outer table has two rows in HTML; the nested rows are not added
+    expect(bodyRows(html).length).toBe(2);
+    // In Markdown, exactly two table rows (header + separator + data row)
+    const mdTableLines = md.split('\n').filter((l) => l.startsWith('|'));
+    expect(mdTableLines.length).toBe(3);
+    expect(mdTableLines[0]).toContain('H1');
+    expect(mdTableLines[2]).toContain('outer');
+  });
+
   it('reads cells that sit in a content control instead of dropping them', async () => {
     const { html } = await exportBoth([
       [{ t: 'A', gs: 2, sdt: true }, { t: 'B', sdt: true }],
