@@ -19,6 +19,7 @@ export * from './ipc-validation';
 
 // Operations & Mutation Engine
 export * from './operation-schema';
+export * from './operation-hints';
 export * from './operation-engine';
 export * from './batch';
 export * from './toon';

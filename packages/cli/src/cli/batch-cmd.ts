@@ -2,11 +2,14 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { extrasRecord, hasHistorySidecar, recordBatchRevision, trackedExtras } from './history-support';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
-import { BASELINE_MAX_ERRORS, BatchOperationsSchema, DocxParser, commitStateIfDiffersFromHead, getDuplicateParaIdPolicy, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, BatchOperationsSchema, operationIssueRemedy, DocxParser, commitStateIfDiffersFromHead, getDuplicateParaIdPolicy, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, formatNormalizedInline, mergeNormalized, previewNormalizedForDisplay, print, printJson, printStderr, readEngineNormalized, readParserNormalizations, stringifyJsonPayload } from './output';
 import { classifyFileReadError, cleanCliMessage, extractEngineRemedy, failWithCode, inferBatchCode, readErrRemedyProp, remedyForPostBatchValidation, rewriteMcpRemedies, withGatedEngineOutput, type KnownCliCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { type ZipCeilingOverrides, clearDocumentBody, escapeXmlText, macroFlagsUsageError, macroOptsFromFlags, parseMaxRatioFlag, parseMaxUncompressedBytesFlag, readDocx, readStdinText, withReproducibleEnv, withAuthorEnv, withZipCeilingEnv, writeDocx } from './io';
+
+/** Where to see an example of every action; added to the hints for an operation that the schema gate refused. */
+const BATCH_SCHEMA_POINTER = `Run \`${CLI_NAME} batch --schema\` for an example of each action.`;
 
 /** Canonical per-action ops examples (`batch --schema`). */
 export function batchSchemaPayload(): Record<string, unknown> {
@@ -1009,7 +1012,10 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     const remedy =
       code === 'E_QUOTA'
         ? 'split into batches of <= 500 operations (sequential:true) with an optional positive-integer maxSteps (omit for unbounded) and retry'
-        : chartTypeSchemaRemedy(detail) ?? chartHoleSizeSchemaRemedy(detail) ?? 'single edit = 1-item batch with canonical shapes';
+        : chartTypeSchemaRemedy(detail) ??
+          chartHoleSizeSchemaRemedy(detail) ??
+          operationIssueRemedy(engineOps, checked.error.issues, { pointer: BATCH_SCHEMA_POINTER }) ??
+          'single edit = 1-item batch with canonical shapes';
     return failWithCode(out, `invalid operations: ${detail}.`, code, { issues: detail }, remedy, checked.error);
   }
   // R-8: effective ceilings — explicit CLI flags win over ops-file values,
@@ -1748,7 +1754,10 @@ export async function runStreamSession(
           remedy:
             code === 'E_QUOTA'
               ? 'split into batches of <= 500 operations (sequential:true) with an optional positive-integer maxSteps (omit for unbounded) and retry'
-              : chartTypeSchemaRemedy(detail) ?? chartHoleSizeSchemaRemedy(detail) ?? 'single edit = 1-item batch with canonical shapes',
+              : chartTypeSchemaRemedy(detail) ??
+                chartHoleSizeSchemaRemedy(detail) ??
+                operationIssueRemedy(engineOps, checked.error.issues, { pointer: BATCH_SCHEMA_POINTER }) ??
+                'single edit = 1-item batch with canonical shapes',
           rollbackTriggered: false,
         };
       }

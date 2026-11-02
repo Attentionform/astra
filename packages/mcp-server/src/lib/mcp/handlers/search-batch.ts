@@ -8,6 +8,7 @@ import {
   cellAddressesMatching,
   chartHoleSizeSchemaRemedy,
   chartTypeSchemaRemedy,
+  operationIssueRemedy,
   getEngineErrorCode,
   revisionsRemedy,
   validateOperationsStrict,
@@ -204,7 +205,13 @@ export async function handleExecuteBatch(
   const parsed = ExecuteBatchSchema.safeParse(input);
   if (!parsed.success) {
     const detail = parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
-    const remedy = chartTypeSchemaRemedy(detail) ?? chartHoleSizeSchemaRemedy(detail) ?? 'single edit = 1-item batch with canonical shapes';
+    const remedy =
+      chartTypeSchemaRemedy(detail) ??
+      chartHoleSizeSchemaRemedy(detail) ??
+      operationIssueRemedy((input as { operations?: unknown } | null | undefined)?.operations, parsed.error.issues, {
+        pointer: 'The execute_batch input schema lists the keys of each action.',
+      }) ??
+      'single edit = 1-item batch with canonical shapes';
     return invalidInput(`execute_batch: invalid operation batch. ${detail}. Remedy: ${remedy}.`);
   }
   // Second gate: shared batch schema (caps + optional maxSteps) — same source the
