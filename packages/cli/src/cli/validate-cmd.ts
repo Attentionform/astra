@@ -102,8 +102,23 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
         p = new DocxParser(buf, macroOpts);
       } catch (err: unknown) {
         // A package without [Content_Types].xml is refused at open, so it cannot be edited. A check
-        // still reports it as invalid, with the validator's own list, instead of stopping at the refusal.
-        if (err instanceof Error && /missing \[Content_Types\]\.xml/.test(err.message)) return validateDocxBuffer(buf, { maxErrors });
+        // reports it as invalid with a clear message stating the root cause.
+        if (err instanceof Error && /missing \[Content_Types\]\.xml/.test(err.message)) {
+          return {
+            file: file ?? '',
+            ok: false,
+            errors: [
+              {
+                description: '[Content_Types].xml is missing from the package root, so Word cannot find any part of this file.',
+                path: '/[Content_Types].xml',
+                errorType: 'Package',
+                id: 'Pkg_MissingContentTypes',
+                class: 'package',
+              },
+            ],
+            truncated: false,
+          };
+        }
         throw err;
       }
       try {
