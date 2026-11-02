@@ -8,6 +8,7 @@ import {
   assertValidDocx,
   assertWriteTargetNoSymlink,
   convertAstToHtml,
+  htmlDocumentTitle,
   convertAstToMarkdown,
   convertDocxToPdf,
   DocxParser,
@@ -305,7 +306,7 @@ export async function handleExportDocument(
     const ast = session.ast;
 
     if (format === 'html') {
-      const title = path.basename(session.filePath, path.extname(session.filePath));
+      const title = htmlDocumentTitle(ast, path.basename(session.filePath, path.extname(session.filePath)));
       const html = convertAstToHtml(ast, title, undefined, session.parser);
       if (targetPath) {
         // M1: dangling-symlink leaf refused before mkdir/write (same guard

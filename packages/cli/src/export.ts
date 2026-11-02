@@ -3,6 +3,7 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import {
   convertAstToHtml,
+  htmlDocumentTitle,
   convertAstToMarkdown,
   collectMarkdownImageAssets,
   assertValidDocx,
@@ -214,7 +215,7 @@ export async function executeExport(
     if (options?.imageMode !== undefined && options.imageMode !== 'embed') {
       throw new Error('E_VALIDATION: image mode applies to markdown only. Remedy: omit --image-mode or export with --format markdown.');
     }
-    const title = path.basename(resolvedDocx, path.extname(resolvedDocx));
+    const title = htmlDocumentTitle(ast, path.basename(resolvedDocx, path.extname(resolvedDocx)));
     const html = convertAstToHtml(ast, title, parser);
     await fsp.mkdir(path.dirname(destination), { recursive: true });
     const { canonicalDest: htmlDestDir } = assertDestinationJailed(destination);

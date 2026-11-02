@@ -6,6 +6,7 @@ import { ommlToMathmlDisplay } from '../ooxml/omml';
 import { isMonospaceRun, hasListNumbering, isOrderedListItem, codeBlockLanguage } from './markdown';
 import { readTableMerges, type TableMerges } from './table-merges';
 import { effectiveRunItalic, useStylesForExport } from './style-italic';
+import { newDocumentTitle } from '../ooxml/new-document-parts';
 
 /** Narrow export duck-typing without behavior change (replaces `any`). */
 export type ExportNodeLike = {
@@ -920,6 +921,22 @@ function extractHtmlNoteBodies(parser?: DocxParser, ast?: DocumentAST): Map<stri
   }
 
   return bodies;
+}
+
+/** The titles that the engine writes into the core properties of a new document, one per built-in template. */
+const TEMPLATE_PLACEHOLDER_TITLES: ReadonlySet<string> = new Set(
+  ['blank', 'report', 'memo', 'novel', 'financial', 'api-spec', 'research', 'corporate', 'bar-chart-3d'].map(newDocumentTitle),
+);
+
+/**
+ * The `<title>` of an exported page: the document's own title (`dc:title` in `docProps/core.xml`) when it holds
+ * text, else `fallback` (the callers pass the file name). Runs of white space, line breaks included, become one
+ * space. A new document carries the name of its template as its title (`Blank Document`, `Report`); that is a
+ * placeholder, not a title the author chose, so it counts as no title.
+ */
+export function htmlDocumentTitle(ast: DocumentAST, fallback: string): string {
+  const own = typeof ast.metadata?.title === 'string' ? ast.metadata.title.replace(/\s+/g, ' ').trim() : '';
+  return own.length > 0 && !TEMPLATE_PLACEHOLDER_TITLES.has(own) ? own : fallback;
 }
 
 export function convertAstToHtml(
