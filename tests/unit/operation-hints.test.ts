@@ -67,6 +67,18 @@ describe('unknown key', () => {
     expect(remedy).toMatch(/Keys of "style": target,.*spacingAfter/);
   });
 
+  it('"spaceAfter" inside params suggests "spacingAfter"', () => {
+    const remedy = remedyFor({ action: 'style', target: 'x', params: { spaceAfter: 120 } })!;
+    expect(remedy).toContain('"spaceAfter" in params is not a key of "style". Did you mean "spacingAfter"?');
+    expect(remedy).toMatch(/Keys of "style": target,.*spacingAfter/);
+  });
+
+  it('"spaceAfter" inside properties suggests "spacingAfter"', () => {
+    const remedy = remedyFor({ action: 'style', target: 'x', properties: { spaceAfter: 120 } })!;
+    expect(remedy).toContain('"spaceAfter" in properties is not a key of "style". Did you mean "spacingAfter"?');
+    expect(remedy).toMatch(/Keys of "style": target,.*spacingAfter/);
+  });
+
   it('names every unknown key, and guesses only where it can', () => {
     const remedy = remedyFor({ action: 'style', target: 'x', boldd: true, zzzz: 1 })!;
     expect(remedy).toContain('"boldd" is not a key of "style". Did you mean "bold"?');

@@ -205,14 +205,20 @@ function hintFor(operations: unknown, issue: OperationIssue): string | undefined
   }
 
   // A key that the action does not accept.
-  if (issue.code === 'unrecognized_keys' && issue.path.length === 2 && issue.keys && issue.keys.length > 0) {
+  if (
+    issue.code === 'unrecognized_keys' &&
+    (issue.path.length === 2 || (issue.path.length >= 3 && (field === 'params' || field === 'properties'))) &&
+    issue.keys &&
+    issue.keys.length > 0
+  ) {
     const action = typeof op['action'] === 'string' ? (op['action'] as string) : undefined;
     const shape = shapes.find((s) => s.action === action);
     if (!shape) return undefined;
     const parts: string[] = [];
+    const inBag = field === 'params' || field === 'properties' ? ` in ${String(field)}` : '';
     for (const key of issue.keys) {
       const near = closestNames(key, shape.keys, KEY_WORDS);
-      parts.push(`${label}: "${key}" is not a key of "${shape.action}".${near.length > 0 ? ` Did you mean ${quoted(near)}?` : ''}`);
+      parts.push(`${label}: "${key}"${inBag} is not a key of "${shape.action}".${near.length > 0 ? ` Did you mean ${quoted(near)}?` : ''}`);
     }
     const shown = shape.keys.slice(0, MAX_KEYS_LISTED).join(', ');
     parts.push(`Keys of "${shape.action}": ${shown}${shape.keys.length > MAX_KEYS_LISTED ? ', ...' : ''}.`);
