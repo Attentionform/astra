@@ -59,7 +59,7 @@ Usage: astra [--json] [--verbose] [--version] [--help] <command> [args]
 Commands (exit 0 ok · 1 operational failure · 2 usage):
   inspect  <docx> [--fidelity compact|standard|full] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]
   validate <docx> [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]
-  sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only]
+  sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--force]
   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]]
   export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force]

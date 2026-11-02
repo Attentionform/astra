@@ -1,3 +1,5 @@
+import * as fsp from 'fs/promises';
+import * as path from 'path';
 import { AdmZip, assertValidDocx, clampZipEntryTimes, SANITIZER_DEFAULT_AUTHOR, redactAttributePii, redactBodyPiiInWordText, redactTextNodePii, sanitizeAppPropertiesXml, sanitizeCorePropertiesXml, sanitizeCustomPropertiesXml, sanitizeDocxBuffer, validateSanitizeOptionsStrict } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman } from './errors';
@@ -158,6 +160,26 @@ export function collectBodyPiiLocations(inputBuf: Buffer): string[] {
   return locations;
 }
 
+/** True when both paths name one file: the same path, a link to it, or a second name (hard link) for it. */
+async function isSameFile(a: string, b: string): Promise<boolean> {
+  if (path.resolve(a) === path.resolve(b)) return true;
+  try {
+    const [sa, sb] = await Promise.all([fsp.stat(a), fsp.stat(b)]);
+    return sa.dev === sb.dev && sa.ino === sb.ino;
+  } catch {
+    return false;
+  }
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await fsp.lstat(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'sanitize');
   let input: string | undefined;
@@ -171,6 +193,7 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
   let metadataOnly = false;
   let allowMacros = false;
   let stripMacros = false;
+  let force = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--zero-retention') zeroRetention = true;
@@ -193,6 +216,7 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
     else if (a === '--metadata-only') metadataOnly = true;
     else if (a === '--allow-macros') allowMacros = true;
     else if (a === '--strip-macros') stripMacros = true;
+    else if (a === '--force') force = true;
     else if (a.startsWith('--')) return usage(out, `sanitize: unknown flag "${a}"`);
     else if (!input) input = a;
     else if (!output) output = a;
@@ -202,6 +226,13 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
   if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
   if (replacementAuthor !== undefined && replacementAuthor.trim() === '') {
     return usage(out, 'sanitize --replacement-author must be non-empty');
+  }
+  // sanitize writes a new file: never over its own input, and over another file only with --force.
+  if (await isSameFile(input, output)) {
+    return usage(out, `sanitize: <in.docx> and <out.docx> are the same file ("${path.basename(output)}"); give a different output path`);
+  }
+  if (!force && (await pathExists(output))) {
+    return usage(out, `sanitize: destination "${path.basename(output)}" already exists (refusing to overwrite without --force)`);
   }
   // Bare `sanitize in out` keeps 100% body text while still stripping
   // metadata/rsids/authors/comments/revisions (zero-retention +
