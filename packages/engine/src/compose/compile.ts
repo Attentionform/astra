@@ -356,6 +356,20 @@ export function compileMarkdownDetailed(
     return { anchor: lastInsertId, position: 'after' };
   };
 
+  /**
+   * Two tables with no paragraph between them touch in Word (LibreOffice leaves a gap, which hid it). A callout
+   * is a one-cell table, so a callout after a table, a table after a callout and two callouts in a row all
+   * need an empty paragraph between them. Blocks other than tables carry their own spacing (see the
+   * `spacingBefore: 240` after a table) and do not need one.
+   */
+  const pushTableSpacer = (): void => {
+    const id = nextId();
+    const anchor = insertAnchor();
+    ops.push({ action: 'insert', type: 'paragraph', anchor: anchor.anchor, position: anchor.position, text: '', id } as Operation);
+    ops.push({ action: 'style', target: id, spacingAfter: 0 } as Operation);
+    lastInsertId = id;
+  };
+
   const pushInsertParagraph = (text: string, spans?: SpanSegment[]): string => {
     const id = nextId();
     const anchor = insertAnchor();
@@ -675,6 +689,7 @@ export function compileMarkdownDetailed(
     if (text.length === 0) {
       fail(line, `alert [!${alertType}] needs body text`, 'write the alert text on > lines after the marker');
     }
+    if (lastBlockKind === 'table' || lastBlockKind === 'callout') pushTableSpacer();
     const anchorId = lastInsertId === null ? 'end' : lastInsertId;
     // Theme precedence for composed alerts (per-tag themes live in the
     // guide file — Markdown source stays generic, every [!TAG] is plain
@@ -925,6 +940,7 @@ export function compileMarkdownDetailed(
           }
           FOOTNOTE_REF_PATTERN.lastIndex = 0;
         }
+        if (lastBlockKind === 'table' || lastBlockKind === 'callout') pushTableSpacer();
         const id = nextId();
         const anchor = insertAnchor();
         ops.push({
