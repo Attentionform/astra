@@ -81,8 +81,11 @@ describe('Field Operations Suite (TOC & Field Codes)', () => {
     expect(tocNode).toBeDefined();
 
     const xmlStr = new XMLSerializer().serializeToString(tocNode!.xml);
-    expect(xmlStr).toContain('TOC \\o &quot;1-3&quot; \\h \\z \\u');
     expect(xmlStr).toContain('Document Outline &amp; Contents');
+    // The TOC field starts in the first entry paragraph and ends in the last one (see toc-field-structure.test.ts).
+    const allToc = ast.sections[0].nodes.filter(n => n.id.startsWith('toc_'));
+    const tocXml = allToc.map(n => new XMLSerializer().serializeToString(n.xml)).join('');
+    expect(tocXml).toContain('<w:instrText xml:space="preserve"> TOC \\o "1-3" \\h \\z \\u </w:instrText>');
   });
 
   it('inserts page number field code', async () => {

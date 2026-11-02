@@ -340,25 +340,14 @@ export class TOCManipulator {
     titleR.appendChild(titleT);
     tocContainer.appendChild(titleR);
 
-    // Simple Field Code: TOC \o "1-3" \h \z \u
-    // CT_SimpleField may only contain run-level content (w:r / w:hyperlink),
-    // never block-level w:p. Keep a single cached-result run here and emit
-    // each TOC entry as a sibling w:p below.
-    const fldSimple = createWordElement(doc, 'w:fldSimple');
+    // The TOC field is not written here. A field that ends in another paragraph cannot be a w:fldSimple, so
+    // the field starts in the first entry paragraph and ends in the last one (see below). An empty field in
+    // this paragraph, with the entries outside it, made Word build a second table of contents when it
+    // updated the fields on open.
     const topLevel = Number.isInteger(levels) && levels >= 1 && levels <= 9 ? levels : 3;
-    fldSimple.setAttribute('w:instr', `TOC \\o "1-${topLevel}" \\h \\z \\u`);
-    const cacheR = createWordElement(doc, 'w:r');
-    const cacheT = createWordElement(doc, 'w:t');
-    cacheT.setAttribute('xml:space', 'preserve');
-    cacheT.textContent = '';
-    cacheR.appendChild(cacheT);
-    fldSimple.appendChild(cacheR);
 
-    tocContainer.appendChild(fldSimple);
-
-    // TOC-01 self-check (fail-closed): the container's fldSimple must never
-    // carry a nested w:p — entries are siblings below, asserted here so a
-    // future edit cannot silently re-nest them.
+    // TOC-01 self-check (fail-closed): a w:fldSimple in the container must never carry a nested w:p. The
+    // container has none now; the check stays so that a future edit cannot nest paragraphs in one.
     try {
       assertFldSimpleHasNoParagraphs(serializer.serializeToString(tocContainer));
     } catch (err) {
@@ -385,7 +374,7 @@ export class TOCManipulator {
         hasBookmark: false,
         hasTrackedChanges: false,
         hasEquation: false,
-        hasField: true,
+        hasField: false,
         hasImage: false,
         hasHyperlink: false,
         namedStyle: 'TOCHeading',
@@ -408,6 +397,14 @@ export class TOCManipulator {
       { headingText: '2. Key Findings & Clinical Impact', level: 1, bookmarkName: '_Toc2', pageNumber: 2, nodeId: 'p_2', pageEstimate: true, pageSource: 'estimate' },
       { headingText: '3. Evidence-Based Interventions', level: 1, bookmarkName: '_Toc3', pageNumber: 3, nodeId: 'p_3', pageEstimate: true, pageSource: 'estimate' }
     ];
+
+    const fieldChar = (type: 'begin' | 'separate' | 'end'): Element => {
+      const r = createWordElement(doc, 'w:r');
+      const fc = createWordElement(doc, 'w:fldChar');
+      fc.setAttribute('w:fldCharType', type);
+      r.appendChild(fc);
+      return r;
+    };
 
     let entryIdx = 1;
     for (const entry of displayEntries) {
@@ -438,6 +435,19 @@ export class TOCManipulator {
       itemPPr.appendChild(tabs);
 
       itemP.appendChild(itemPPr);
+
+      // The TOC field starts in the first entry; its result is the entries themselves.
+      const isFirstEntry = entryIdx === 2;
+      if (isFirstEntry) {
+        itemP.appendChild(fieldChar('begin'));
+        const instrR = createWordElement(doc, 'w:r');
+        const instr = createWordElement(doc, 'w:instrText');
+        instr.setAttribute('xml:space', 'preserve');
+        instr.textContent = ` TOC \\o "1-${topLevel}" \\h \\z \\u `;
+        instrR.appendChild(instr);
+        itemP.appendChild(instrR);
+        itemP.appendChild(fieldChar('separate'));
+      }
 
       // Hyperlink wrapping title + tab leader + page number
       const hyperlink = createWordElement(doc, 'w:hyperlink');
@@ -470,6 +480,10 @@ export class TOCManipulator {
 
       itemP.appendChild(hyperlink);
 
+      // ... and ends in the last one.
+      const isLastEntry = entryIdx - 1 === displayEntries.length;
+      if (isLastEntry) itemP.appendChild(fieldChar('end'));
+
       const entryXmlString = serializer.serializeToString(itemP);
       const entryChecksum = await calculateNodeChecksum(entryXmlString);
 
@@ -484,7 +498,7 @@ export class TOCManipulator {
           hasBookmark: false,
           hasTrackedChanges: false,
           hasEquation: false,
-          hasField: false,
+          hasField: isFirstEntry || isLastEntry,
           hasImage: false,
           hasHyperlink: true,
           namedStyle: `TOC${entry.level}`,
