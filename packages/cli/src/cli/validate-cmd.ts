@@ -1,4 +1,4 @@
-import { DocxParser, chartXmlGetterForAst, lintDocumentStyle, resolveStyleGuide, summarizeStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { DocxParser, chartXmlGetterForAst, lintDocumentStyle, resolveStyleGuide, summarizeStyleGuide, validateDocxBuffer, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, failWithCode, inferBatchCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -77,7 +77,15 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
     // Word may reject as it stands still reads VALID here.
     let pendingNormalizations: string[] = [];
     const result = await withZipCeilingEnv(ceilings, async () => {
-      const p = new DocxParser(buf, macroOpts);
+      let p: DocxParser;
+      try {
+        p = new DocxParser(buf, macroOpts);
+      } catch (err: unknown) {
+        // A package without [Content_Types].xml is refused at open, so it cannot be edited. A check
+        // still reports it as invalid, with the validator's own list, instead of stopping at the refusal.
+        if (err instanceof Error && /missing \[Content_Types\]\.xml/.test(err.message)) return validateDocxBuffer(buf);
+        throw err;
+      }
       try {
         pendingNormalizations = p.getPendingNormalizations();
       } catch {

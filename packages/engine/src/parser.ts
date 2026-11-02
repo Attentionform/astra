@@ -664,7 +664,11 @@ export class DocxParser {
     
     const entry = this.zip.getEntry('word/document.xml');
     if (!entry) throw toError('E_VALIDATION', 'Invalid DOCX: missing word/document.xml', 're-export the file from Word (or pick a valid .docx) and retry');
-    
+    // Without [Content_Types].xml no part has a type and Word does not open the file. Refuse it here, like a
+    // missing main part, rather than edit and save it still broken. `astra validate` does not come through
+    // here and keeps reporting the file as invalid.
+    if (!this.zip.getEntry('[Content_Types].xml')) throw toError('E_VALIDATION', 'Invalid DOCX: missing [Content_Types].xml', 're-export the file from Word (or pick a valid .docx) and retry');
+
     const xmlStr = readPartData(entry, 'word/document.xml').toString('utf8');
 
     assertNoXxe(xmlStr, 'word/document.xml');

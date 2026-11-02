@@ -17,6 +17,9 @@ describe('Phase 10: Legal Features', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-legal-'));
     tempFilePath = path.join(tmpDir, 'legal_test.docx');
     const zip = new AdmZip();
+    // A package needs its content types; a package without them is refused at open.
+    zip.addFile('[Content_Types].xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`, 'utf8'));
     zip.addFile('word/document.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
   <w:body>
