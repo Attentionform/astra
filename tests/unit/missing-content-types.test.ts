@@ -90,11 +90,12 @@ describe('a package without [Content_Types].xml', () => {
       const ops = path.join(dir, 'ops.json');
       fs.writeFileSync(ops, JSON.stringify({ operations: [{ action: 'insert', type: 'paragraph', anchor: 'end', position: 'after', text: 'x' }] }));
       const out = path.join(dir, 'out.docx');
+      const before = fs.readFileSync(file);
       const c = capture();
       expect(await run(['batch', file, ops, '--out', out])).toBe(1);
       expect(c.lines()).toContain('missing [Content_Types].xml');
       expect(fs.existsSync(out)).toBe(false);
-      expect(fs.readFileSync(file).equals(withoutPart('[Content_Types].xml'))).toBe(true);
+      expect(fs.readFileSync(file).equals(before)).toBe(true);
     });
 
     it('the MCP open_document refuses and creates no session', async () => {
