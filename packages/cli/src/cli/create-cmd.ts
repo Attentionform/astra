@@ -10,6 +10,22 @@ import { writeDocx } from './io';
 export const CREATE_TEMPLATES = ['report', 'memo', 'blank'] as const;
 export type CreateTemplate = (typeof CREATE_TEMPLATES)[number];
 
+/**
+ * A note for a template that comes with text of its own, or undefined for `blank`. `report` holds a whole sample
+ * report with invented figures, and composed Markdown is added after the sample text of `report` and `memo`; only
+ * on `blank` does it replace the two prompt lines. Printed so that nobody shares a file that still holds the sample.
+ */
+export function templateSampleNote(template: string, composed: boolean): string | undefined {
+  const after = composed ? ' The Markdown you composed is added after that text, not in place of it.' : '';
+  if (template === 'report') {
+    return `--template report includes sample content (a Q3 financial report with invented figures).${after} Replace or delete it before you share the file, or use --template blank.`;
+  }
+  if (template === 'memo') {
+    return `--template memo includes a heading and a placeholder line.${after} Replace or delete them before you share the file, or use --template blank.`;
+  }
+  return undefined;
+}
+
 export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'create');
   let dest: string | undefined;
@@ -161,10 +177,13 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
     await writeDocx(dest, parser.rezip());
     const fromMdSuffix = mdSource !== undefined ? `, fromMd=${path.basename(fromMdRaw as string)}, applied=${appliedCount}` : '';
     print(out, `CREATED ${dest} (template=${template}${fromMdSuffix})`);
+    const templateNote = templateSampleNote(template, mdSource !== undefined);
+    if (templateNote !== undefined && !out.json) printStderr(`${CLI_NAME}: NOTE: ${templateNote}`);
     printJson(out, {
       ok: true,
       file: dest,
       template,
+      ...(templateNote !== undefined ? { templateNote } : {}),
       ...(mdSource !== undefined ? { fromMd: fromMdRaw, appliedCount, valid: true } : {}),
       ...(allowedDirRaw !== undefined ? { allowedDir: allowedDirRaw } : {}),
       ...(styleGuide === 'legacy' ? { styleGuide: 'legacy' } : styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(styleGuide) } : {}),

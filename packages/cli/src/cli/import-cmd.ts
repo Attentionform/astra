@@ -6,7 +6,7 @@ import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } fro
 import { failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { writeDocx } from './io';
-import { CREATE_TEMPLATES, type CreateTemplate } from './create-cmd';
+import { CREATE_TEMPLATES, templateSampleNote, type CreateTemplate } from './create-cmd';
 
 export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'import');
@@ -164,12 +164,15 @@ export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number
     }
     await writeDocx(dest, parser.rezip());
     print(out, `IMPORTED ${src} -> ${dest} (template=${template}, applied=${composed.appliedCount})`);
+    const templateNote = templateSampleNote(template, true);
+    if (templateNote !== undefined && !out.json) printStderr(`${CLI_NAME}: NOTE: ${templateNote}`);
     printJson(out, {
       ok: true,
       command: 'import',
       src,
       file: dest,
       template,
+      ...(templateNote !== undefined ? { templateNote } : {}),
       appliedCount: composed.appliedCount,
       valid: true,
       ...(allowedDirRaw !== undefined ? { allowedDir: allowedDirRaw } : {}),
