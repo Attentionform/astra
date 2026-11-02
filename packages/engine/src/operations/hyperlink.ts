@@ -65,8 +65,12 @@ export function executeHyperlink(op: HyperlinkOperation, ast: DocumentAST, parse
     // DEFECT-01 (ECMA-376 §17.3.1.22): w:pPr must be the first child of w:p.
     // Inserting bookmarkStart as firstChild before an existing pPr violates
     // the schema (validator: unexpected pPr). Insert after pPr when present.
-    const pPrList = targetNode.xml.getElementsByTagName('w:pPr');
-    const pPrEl = pPrList.length > 0 ? (pPrList[0] as unknown as Element) : undefined;
+    // Only the paragraph's own w:pPr counts. getElementsByTagName also finds the w:pPr of a
+    // paragraph inside a text box or drawing in one of its runs, and that one is not a child
+    // of this paragraph, so inserting next to it fails with "child not in parent".
+    const pPrEl = Array.from(targetNode.xml.childNodes).find(
+      (n): n is Element => n.nodeType === 1 && (n as Element).tagName === 'w:pPr'
+    );
     if (pPrEl?.nextSibling) {
       targetNode.xml.insertBefore(bmStart, pPrEl.nextSibling);
     } else if (pPrEl) {
