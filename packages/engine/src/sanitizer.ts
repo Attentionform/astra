@@ -88,6 +88,30 @@ export { assertNoForbiddenMarkup } from './ooxml/xxe-guard';
 
 export const SANITIZER_DEFAULT_AUTHOR = '';
 
+/**
+ * What the PII pass looks for, and what it does not, in words for a person to read. It follows the patterns
+ * below (`EMAIL_RE`, `PHONE_RE`, the labeled phone and SSN rules, `SSN_RE`, `CREDIT_CARD_RE`); change both together.
+ */
+export const PII_COVERAGE: { readonly checked: readonly string[]; readonly notChecked: readonly string[] } = {
+  checked: [
+    'email addresses',
+    'phone numbers (formatted, or digits after a label such as "phone", "tel", "mobile", "fax", "call" or "contact")',
+    'US Social Security numbers (123-45-6789, or 9 digits after "SSN" or "Social Security")',
+    'runs of 13 to 19 digits (card numbers)',
+  ],
+  notChecked: [
+    'other national ID numbers (for example CPF and CNPJ)',
+    'names',
+    'postal addresses',
+    'other digit runs without a label',
+  ],
+};
+
+/** One sentence that states `PII_COVERAGE`, for a note beside the sanitize summary. */
+export function piiCoverageSentence(): string {
+  return `The PII check looks for ${PII_COVERAGE.checked.join('; ')}. It does not look for ${PII_COVERAGE.notChecked.join('; ')}.`;
+}
+
 export const SanitizeOptionsSchema = z
   .object({
     zeroRetention: z.boolean().optional(),

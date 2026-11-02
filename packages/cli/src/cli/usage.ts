@@ -156,6 +156,7 @@ export function commandHelpText(cmd: string): string | undefined {
       '  --strip-macros            remove macro/active-content parts and continue (never with --allow-macros)',
       '  --force                   replace <out.docx> when it already exists (default: refuse, exit 2). <out.docx> is never the same file as <in.docx>, with or without --force.',
       '  Body PII redactions are disclosed as bodyRedactions=N with node locations on the SANITIZED line (and bodyPII in --json); bare keeps body text (bodyRedactions=0).',
+      '  The PII check looks for email addresses, phone numbers (formatted, or digits after a label such as "phone" or "tel"), US Social Security numbers and runs of 13 to 19 digits (card numbers). It does not look for other national ID numbers (for example CPF and CNPJ), names, addresses or unlabeled digit runs, so pii=0 and bodyRedactions=0 mean that none of these patterns was found. A NOTE on stderr repeats this (--json: piiCoverage).',
       'Bare and --metadata-only always warn (body text kept); partial redaction flags warn when markup survives. Under --json the same survivors are carried as warnings:[...] (absent only when fully redacted and clean).',
       'Exit 0 ok · 1 IO failure · 2 bad flag/args or an output that exists (without --force) or is the input.',
     ].join('\n'),

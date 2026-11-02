@@ -1,10 +1,22 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { AdmZip, assertValidDocx, clampZipEntryTimes, SANITIZER_DEFAULT_AUTHOR, redactAttributePii, redactBodyPiiInWordText, redactTextNodePii, sanitizeAppPropertiesXml, sanitizeCorePropertiesXml, sanitizeCustomPropertiesXml, sanitizeDocxBuffer, validateSanitizeOptionsStrict } from '@attentionform/astra-engine';
+import { AdmZip, assertValidDocx, clampZipEntryTimes, SANITIZER_DEFAULT_AUTHOR, PII_COVERAGE, piiCoverageSentence, redactAttributePii, redactBodyPiiInWordText, redactTextNodePii, sanitizeAppPropertiesXml, sanitizeCorePropertiesXml, sanitizeCustomPropertiesXml, sanitizeDocxBuffer, validateSanitizeOptionsStrict } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { macroFlagsUsageError, macroOutputRefusal, readDocx, writeDocx } from './io';
+
+/**
+ * The note that follows a sanitize summary. `pii=0 bodyRedactions=0` alone reads as "no personal data", but it
+ * only means that none of the patterns the check knows was found, so the note names them, and says what the
+ * two counts count.
+ */
+function piiNote(report: { purgedPII: number; bodyPII: number }, bodyChecked: boolean): string {
+  const counts = bodyChecked
+    ? `pii=${report.purgedPII} counts document properties and bodyRedactions=${report.bodyPII} counts body text.`
+    : `pii=${report.purgedPII} counts document properties only; the body text was not checked.`;
+  return `${CLI_NAME}: sanitize NOTE: ${piiCoverageSentence()} ${counts}`;
+}
 
 // ── R-9 sanitize disclosure + metadata-only helpers (sanitize path only) ───
 // Bare sanitize keeps body text (purgePII false for body). The SANITIZED
@@ -298,12 +310,14 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
           `${CLI_NAME}: sanitize WARNING: ${survivors.join(' + ')}. Remedy: re-run with --client-safe (or --accept-all-revisions --strip-comments) for a fully clean file`
         );
       }
+      if (!out.json) printStderr(piiNote(report, true));
       printJson(out, {
         ok: true,
         input,
         output,
         report,
         bodyLocations,
+        piiCoverage: PII_COVERAGE,
         ...(survivors.length > 0 ? { warnings: survivors } : {}),
       });
       return EXIT_OK;
@@ -391,6 +405,7 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
     }
     survivors.push('body PII survives (body text kept; re-run without --metadata-only with --redact-pii or --client-safe to redact)');
     if (!out.json) {
+      printStderr(piiNote(report, false));
       printStderr(
         `${CLI_NAME}: sanitize WARNING: ${survivors.join(' + ')}. Remedy: re-run without --metadata-only (with --redact-pii or --client-safe) for full body redaction`
       );
@@ -402,6 +417,7 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
       report,
       bodyLocations,
       metadataOnly: true,
+      piiCoverage: PII_COVERAGE,
       warnings: survivors,
     });
     return EXIT_OK;
