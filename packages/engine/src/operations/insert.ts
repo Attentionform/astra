@@ -622,8 +622,12 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
       spacing.setAttribute('w:before', '120');
       spacing.setAttribute('w:after', '120');
       pPr.appendChild(spacing);
+      // Word draws a paragraph border outside the indent, by the border's `w:space` (4 pt = 80 twips). An
+      // indent of that size on both sides puts the box on the text margins; a left indent alone (180) pushed
+      // the box 5 pt right of the margin and let it hang 4 pt past the right margin.
       const ind = createWordElement(doc, 'w:ind');
-      ind.setAttribute('w:left', '180');
+      ind.setAttribute('w:left', '80');
+      ind.setAttribute('w:right', '80');
       pPr.appendChild(ind);
       sortChildrenBySchema(pPr, PPR_CHILD_ORDER);
       newNodeXml.appendChild(pPr);
