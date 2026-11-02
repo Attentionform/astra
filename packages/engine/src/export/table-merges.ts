@@ -8,9 +8,10 @@
  * origin that owns a rectangle (`colspan` x `rowspan`) or a covered cell that belongs to the rectangle
  * of an origin.
  *
- * A covered cell can still hold text in the XML (the engine's `mergeCells` keeps it, and a renderer shows
- * it inside the merged cell), so each shown cell lists the covered cells that joined it in `absorbed`, and
- * the exports write their text after its own.
+ * A covered cell can still hold text in the XML (the engine's `mergeCells` keeps it). A renderer shows the
+ * text of a cell that was merged into the shown cell from its own row (horizontal merge) inside the shown
+ * cell, and hides the text of a cell that lies below it (vertical merge). `absorbed` lists the covered cells
+ * of the first kind, so the exports write their text after the shown cell's own and drop the rest.
  */
 
 export interface MergeCell {
@@ -24,7 +25,7 @@ export interface MergeCell {
   rowspan: number;
   /** True when the cell belongs to the rectangle of an origin cell and is not shown. */
   covered: boolean;
-  /** The covered cells (`w:tc`) that joined this cell's rectangle, in document order. */
+  /** The covered cells (`w:tc`) of the same row that joined this cell, in document order; a renderer shows their text in it. */
   absorbed: Element[];
 }
 
@@ -122,13 +123,14 @@ export function readTableMerges(tbl: Element): TableMerges {
           owner.rowspan += 1;
           grewInRow.set(owner, rowIndex);
         }
-        owner.absorbed.push(tc);
         chain = { head: owner, counts: false };
       } else if (h === 'continue' && chain) {
         // Joins the cell on its left.
         cell.covered = true;
-        if (chain.counts) chain.head.colspan += span;
-        chain.head.absorbed.push(tc);
+        if (chain.counts) {
+          chain.head.colspan += span;
+          chain.head.absorbed.push(tc);
+        }
       } else {
         // A shown cell. A marker that has nothing to join is read as a plain cell.
         claims.push({ from, to, startsVertical: v === 'restart' });

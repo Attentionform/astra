@@ -106,7 +106,10 @@ describe('HTML export of merged cells', () => {
       [{ t: 'i' }, { t: 'j' }, { t: 'k', h: 'restart', v: 'continue' }, { t: 'l', h: 'continue', v: 'continue' }],
     ]);
     const rows = bodyRows(html);
-    expect(rows[1]).toBe('<tr><td>e</td><td>f</td><td colspan="2" rowspan="2">g h k l</td></tr>');
+    // A renderer shows the text of the cell merged in from the same row ("h") and hides the cells below ("k", "l").
+    expect(rows[1]).toBe('<tr><td>e</td><td>f</td><td colspan="2" rowspan="2">g h</td></tr>');
+    expect(html).not.toContain('>k<');
+    expect(html).not.toContain('l</td>');
     expect(rows[2]).toBe('<tr><td>i</td><td>j</td></tr>');
   });
 
@@ -205,19 +208,20 @@ describe('Markdown export of merged cells', () => {
     expect(md).toContain('| H1 | H2 |\n| --- | --- |\n| X | y |\n|  | z |');
   });
 
-  it('counts ranges in the note and joins the text of covered cells once', async () => {
+  it('counts ranges in the note and joins the text of a same-row covered cell once', async () => {
     const { md } = await exportBoth([
       [{ t: 'h1', h: 'restart' }, { t: 'h2', h: 'continue' }, { t: 'h3' }, { t: 'h4' }],
       [{ t: 'a', v: 'restart' }, { t: 'b' }, { t: 'c' }, { t: 'd' }],
       [{ t: 'a2', v: 'continue' }, { t: 'e' }, { t: 'f' }, { t: 'g' }],
     ]);
     expect(md).toContain('| h1 h2 |  | h3 | h4 |');
-    expect(md).toContain('| a a2 | b | c | d |');
+    // The text of a cell merged in from below is hidden by a renderer, so it is not written.
+    expect(md).toContain('| a | b | c | d |');
     expect(md).toContain('|  | e | f | g |');
     expect(md).toContain('this table has 2 merged ranges.');
-    // The text of a covered cell is written once, in the cell it joined.
+    // The text of a cell merged in from the same row is written once, in the cell it joined.
     expect(md.split('h2').length - 1).toBe(1);
-    expect(md.split('a2').length - 1).toBe(1);
+    expect(md).not.toContain('a2');
   });
 
   it('escapes a pipe in merged text', async () => {
