@@ -34,9 +34,12 @@ import {
 export function buildCliVisualTelemetry(ast: DocumentAST, summary: unknown, page = 1, renderTotalPages?: number): VisualTelemetry {
   const nodePages = (summary as unknown as { nodePages?: Record<string, number> })?.nodePages;
   const totalPages = (summary as unknown as { totalPages?: number })?.totalPages;
+  // The structural summary labels its embedded map `estimate` (word/line heuristic); a map without that label
+  // came from a renderer.
+  const source = (summary as unknown as { pageMapSource?: string })?.pageMapSource === 'estimate' ? ('estimate' as const) : ('renderer' as const);
   const pageMap =
     nodePages && typeof totalPages === 'number'
-      ? { totalPages, nodePages, source: 'renderer' as const, isEstimate: false }
+      ? { totalPages, nodePages, source, isEstimate: source === 'estimate' }
       : undefined;
   return buildVisualTelemetry(ast, { page, pageMap, renderTotalPages });
 }

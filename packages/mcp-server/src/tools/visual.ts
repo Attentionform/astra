@@ -428,13 +428,17 @@ export async function handleVisualInspect(
         const summary = handle.parser.getStructuralSummary() as unknown as {
           nodePages?: Record<string, number>;
           totalPages?: number;
+          pageMapSource?: 'renderer' | 'estimate';
         } | null;
         if (summary && summary.nodePages && Object.keys(summary.nodePages).length > 0) {
+          // The structural summary labels its embedded map `estimate` (word/line heuristic); a map without that
+          // label came from a renderer.
+          const embeddedSource = summary.pageMapSource === 'estimate' ? 'estimate' : 'renderer';
           embeddedMap = {
             totalPages: typeof summary.totalPages === 'number' && summary.totalPages >= 1 ? Math.floor(summary.totalPages) : 1,
             nodePages: summary.nodePages,
-            source: 'renderer',
-            isEstimate: false,
+            source: embeddedSource,
+            isEstimate: embeddedSource === 'estimate',
           };
         }
       } catch {

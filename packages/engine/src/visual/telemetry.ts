@@ -291,8 +291,13 @@ export function lintVisualDefects(ast: DocumentAST, pageMap?: VisualPageMap | nu
       }
     }
 
-    // Blank pages (large defect): numbered pages with zero nodes.
-    for (let p = 1; p <= map.totalPages; p++) {
+    // Blank pages (large defect): numbered pages with zero nodes below the last page that holds a node.
+    // A page after the last node is not a blank page in the document, so it is not reported. A document
+    // with no node at all is one blank page.
+    let highestPopulated = 0;
+    for (const page of byPage.keys()) highestPopulated = Math.max(highestPopulated, page);
+    const blankUpTo = highestPopulated === 0 ? map.totalPages : Math.min(map.totalPages, highestPopulated - 1);
+    for (let p = 1; p <= blankUpTo; p++) {
       if ((byPage.get(p) ?? []).length === 0) {
         warnings.push(`Blank page: page ${p} of ${map.totalPages} has no content nodes.`);
       }
@@ -411,7 +416,9 @@ export function generateVisualWireframe(
   const border = '+' + '-'.repeat(W - 2) + '+';
   const emptyLine = '|' + ' '.repeat(W - 2) + '|';
   const lines: string[] = [border];
-  const tag = map.isEstimate ? ' (estimate)' : '';
+  // The total is the renderer's own count when it disagreed with the map; only a total that comes from the
+  // estimate is labelled as one.
+  const tag = map.isEstimate && renderTotal === undefined ? ' (estimate)' : '';
   lines.push(`| [PAGE ${page} OF ${markerTotal}${tag}]`.padEnd(W - 1) + '|');
   lines.push(border);
 

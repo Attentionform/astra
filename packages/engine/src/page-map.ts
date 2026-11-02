@@ -60,6 +60,8 @@ export function buildPageMap(ast: DocumentAST, rendererNodePages?: Record<string
   }
   const nodePages: Record<string, number> = {};
   let currentPage = 1;
+  // The highest page that holds a node (see buildEmbeddedNodePages): a page opened after the last node is not counted.
+  let highestPage = 1;
   let estimatedLineCount = 0;
   const LINES_PER_PAGE = 45; // rough estimate for A4 with standard margins
 
@@ -71,10 +73,12 @@ export function buildPageMap(ast: DocumentAST, rendererNodePages?: Record<string
         currentPage++;
         estimatedLineCount = 0;
         nodePages[node.id] = currentPage;
+        highestPage = Math.max(highestPage, currentPage);
         continue;
       }
 
       nodePages[node.id] = currentPage;
+      highestPage = Math.max(highestPage, currentPage);
 
       // Estimate lines consumed by this node
       if (node.type === 'table') {
@@ -95,7 +99,7 @@ export function buildPageMap(ast: DocumentAST, rendererNodePages?: Record<string
   }
 
   // IN-07: heuristic fallback — always labeled as an estimate.
-  return { totalPages: currentPage, nodePages, source: 'estimate', isEstimate: true };
+  return { totalPages: highestPage, nodePages, source: 'estimate', isEstimate: true };
 }
 
 /**

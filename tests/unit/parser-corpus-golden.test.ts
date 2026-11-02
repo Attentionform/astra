@@ -17,8 +17,8 @@ import { DocxParser } from '@attentionform/astra-engine';
 import { useReproducibleOutput } from '../helpers/reproducible';
 
 const GOLDEN: Record<string, { summary: string; rezip: string }> = {
-    "test-gallery/T1_coffee_onepager.docx": { summary: "0c6a95a3f4a41185b276094e858f3659b717d0d99645dc3d780fda0db47d3c6e", rezip: "1f75a9d2494b8fcbcdf739f52cd5b03d70a1cb5bf86ff8ac91d87b5c663c7451" },
-    "test-gallery/T2_edit_target.docx": { summary: "e28e4bd458b74363745d4aa1d940c4e4bd118c6cb3604c1ba705729777e33485", rezip: "4d1ab8903092c44609d2df71b994d95ae828c86f9217f478699b9d1039550c15" },
+    "test-gallery/T1_coffee_onepager.docx": { summary: "9cb989099abd7e6b086e1e87be1579ab064dbaa7488cd5320ce90c9808c414e3", rezip: "1f75a9d2494b8fcbcdf739f52cd5b03d70a1cb5bf86ff8ac91d87b5c663c7451" },
+    "test-gallery/T2_edit_target.docx": { summary: "401ffe27e3958ec89458c115acc33ff8ae00dc499c14bf06d96de03482a14763", rezip: "4d1ab8903092c44609d2df71b994d95ae828c86f9217f478699b9d1039550c15" },
     "test-gallery/T3_proposal.docx": { summary: "28ac8edcca529108bf61e4206153fe895c9856adba9a634b60597356032a29be", rezip: "a62dabb932fcca861c2b24809bdda2045ea8b7fed14d4bdeffe102a1d1476b01" },
     "test-gallery/T4_budget.docx": { summary: "df13adbb1ccd5290708f00a4731256c4f5b0e6017f960c26d355a72931fd738e", rezip: "1005879f11c8b8bba945b26007c8266b81c7b60fdb7a9645eea87b02433bfc3f" },
     "test-gallery/T5_image_doc.docx": { summary: "6082e96492425947ef11f8eba807e3ba2cfcad6e7bf1c0ab290fb41dc42a7a9e", rezip: "4ddb552344327f07a7581c9e15791d302ab1b38aa8c6ec5382962b64a8f06a7e" },
@@ -33,6 +33,8 @@ const OPT_OUT =
   ['1', 'true', 'yes', 'on'].includes(String(process.env.ASTRA_NO_REPRODUCIBLE || '').trim().toLowerCase()) ||
   ['0', 'false', 'no', 'off'].includes(String(process.env.ASTRA_REPRODUCIBLE || '').trim().toLowerCase());
 
+// T1 and T2: the summary hashes changed once, when the page total stopped counting a page after the last node
+// (T1 reported 2 pages and T2 reported 6; they are 1 and 5). The rezip hashes did not change.
 useReproducibleOutput();
 
 describe.runIf(!OPT_OUT)('parser corpus golden', () => {

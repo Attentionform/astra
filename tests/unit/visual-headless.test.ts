@@ -390,8 +390,8 @@ describe('planted-defect catch on synthetic doc', () => {
     ];
     const ast = minimalAst(nodes);
     const map: VisualPageMap = {
-      totalPages: 3, // page 3 intentionally empty => blank-page bait.
-      nodePages: { h_chart: 1, p_chart: 1, t_wide: 1, h_orphan: 1, p_next: 2 },
+      totalPages: 3, // page 2 intentionally empty (a populated page follows it) => blank-page bait.
+      nodePages: { h_chart: 1, p_chart: 1, t_wide: 1, h_orphan: 1, p_next: 3 },
       source: 'estimate',
       isEstimate: true,
     };

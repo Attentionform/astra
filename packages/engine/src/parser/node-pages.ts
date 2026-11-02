@@ -14,6 +14,9 @@ export function buildEmbeddedNodePages(
 ): { nodePages: Record<string, number>; totalPages: number; linesPerPage: number } {
   const nodePages: Record<string, number> = {};
   let currentPage = 1;
+  // The highest page that holds a node. A node that fills its page moves `currentPage` on for the next node;
+  // when no node follows, that page does not exist, so the total follows this value, not `currentPage`.
+  let highestPage = 1;
   let lineCount = 0;
   const LINES_PER_PAGE = linesPerPageFromSectPr(sectPrXml);
   const list = Array.isArray(nodes) ? nodes : [];
@@ -32,9 +35,11 @@ export function buildEmbeddedNodePages(
       currentPage++;
       lineCount = 0;
       nodePages[id] = currentPage;
+      highestPage = Math.max(highestPage, currentPage);
       continue;
     }
     nodePages[id] = currentPage;
+    highestPage = Math.max(highestPage, currentPage);
     const textVal = rec['text'];
     const previewVal = rec['preview'];
     const text: string = typeof textVal === 'string' ? textVal : typeof previewVal === 'string' ? previewVal : '';
@@ -54,5 +59,5 @@ export function buildEmbeddedNodePages(
       lineCount = 0;
     }
   }
-  return { nodePages, totalPages: currentPage, linesPerPage: LINES_PER_PAGE };
+  return { nodePages, totalPages: highestPage, linesPerPage: LINES_PER_PAGE };
 }
