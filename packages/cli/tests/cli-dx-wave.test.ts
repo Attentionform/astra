@@ -188,7 +188,7 @@ describe('sanitize metadata preset default', () => {
     expect(rsidsOf(b.stdout)).toBeGreaterThan(0);
     expect(rsidsOf(r.stdout)).toBe(rsidsOf(b.stdout));
     const countRevisions = async (f: string): Promise<number> => {
-      const m = await runCli(['sanitize', f, path.join(dir, 'probe.docx'), '--client-safe']);
+      const m = await runCli(['sanitize', f, path.join(dir, 'probe.docx'), '--client-safe', '--force']);
       return m.status;
     };
     expect(await countRevisions(bare)).toBe(0);

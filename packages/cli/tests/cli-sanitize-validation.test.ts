@@ -58,7 +58,8 @@ describe('sanitize validates what it writes', () => {
         const input = invalidCopy('bad.docx');
         const output = path.join(dir, 'existing.docx');
         fs.writeFileSync(output, 'previous contents');
-        expect(await run(['sanitize', ...flags, input, output])).toBe(1);
+        // --force: the file may be replaced, but a refusal by the validator still leaves it as it was.
+        expect(await run(['sanitize', ...flags, '--force', input, output])).toBe(1);
         expect(fs.readFileSync(output, 'utf8')).toBe('previous contents');
       });
 
