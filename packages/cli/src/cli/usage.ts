@@ -151,7 +151,7 @@ export function commandHelpText(cmd: string): string | undefined {
       '  --replacement-author <n>  neutral author written over tracked-change/comment authorship (default empty; requires a value, else exit 2)',
       '  --accept-all-revisions    drop w:del text, unwrap w:ins (Word "accept all" semantics)',
       '  --strip-comments          delete comment parts + reference elements (no dangling rels)',
-      '  --allow-macros            preserve macro/active-content parts byte-identical (default refuses E_VALIDATION naming the parts)',
+      '  --allow-macros            preserve macro/active-content parts byte-identical (default refuses E_VALIDATION naming the parts); the output must then be named .docm or .dotm',
       '  --strip-macros            remove macro/active-content parts and continue (never with --allow-macros)',
       '  --force                   replace <out.docx> when it already exists (default: refuse, exit 2). <out.docx> is never the same file as <in.docx>, with or without --force.',
       '  Body PII redactions are disclosed as bodyRedactions=N with node locations on the SANITIZED line (and bodyPII in --json); bare keeps body text (bodyRedactions=0).',
