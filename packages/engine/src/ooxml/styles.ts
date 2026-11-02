@@ -5,7 +5,7 @@
  * so AI agents can introspect available styles instead of hallucinating formatting rules.
  */
 
-import { DOMParser } from '@xmldom/xmldom';
+import { DOMParser } from './dom-parser';
 import type { DocxParser } from '../parser';
 import { assertNoXxe } from './xxe-guard';
 

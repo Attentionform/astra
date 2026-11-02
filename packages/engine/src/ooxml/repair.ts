@@ -10,7 +10,8 @@
  * A rule that fails a gate is dropped alone and reported in `rolledBack`.
  */
 import { createWordElement } from './ns';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from './dom-parser';
 import AdmZip from '../adm-zip-safe';
 import { parsePartStrict } from './normalize';
 import { PPR_CHILD_ORDER, RPR_CHILD_ORDER, SETTINGS_CHILD_ORDER, TBLPR_CHILD_ORDER, TCPR_CHILD_ORDER, TRPR_CHILD_ORDER } from './schema-order';

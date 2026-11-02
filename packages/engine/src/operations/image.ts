@@ -11,7 +11,8 @@ import {
   allocateNextDrawingDocPrId,
 } from '../ooxml/ns';
 import * as crypto from 'crypto';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { resolveReproducibleMode } from '../zip-hardening';
 import { toError } from '../errors';

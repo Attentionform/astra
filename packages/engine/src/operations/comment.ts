@@ -8,7 +8,7 @@ import {
 } from '../ooxml/comments';
 import { createWordElement } from '../ooxml/ns';
 import { DocxParser } from '../parser';
-import { DOMParser } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import { resolveDeterministicAuthor } from '../ooxml/track-changes-emitter';
 import { toError } from '../errors';
 

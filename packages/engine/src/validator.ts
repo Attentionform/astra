@@ -1,4 +1,5 @@
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from './ooxml/dom-parser';
 import { assertNoXxe } from './ooxml/xxe-guard';
 
 export class EquationValidationError extends Error { constructor(m: string) { super(m); this.name = 'EquationValidationError'; } }

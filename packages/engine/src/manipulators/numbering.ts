@@ -1,5 +1,6 @@
 import { createWordElement } from '../ooxml/ns';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import { DocumentAST, NumberingSource } from '../ast';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { createHash } from 'crypto';

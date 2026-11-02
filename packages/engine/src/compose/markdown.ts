@@ -169,7 +169,8 @@
  * insert text.
  */
 
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import {
   type ExecutionResult,
   ENGINE_MAX_OPS,

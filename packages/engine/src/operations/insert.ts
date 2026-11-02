@@ -1,6 +1,7 @@
 import { DocumentAST, Node, Section, calculateNodeChecksum } from '../ast';
 import { BaseOperation, InsertChainHost, createTextElement, validateVersion } from './base';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import * as crypto from 'crypto';
 import { DocxParser, isValidParaId, W14_NS, upsertSectPrChild } from '../parser';
 import { insertIntoSection } from '../parser/sections';

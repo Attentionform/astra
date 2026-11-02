@@ -1,6 +1,6 @@
 import { DocumentAST, Node, NodeMetadata } from '../ast';
 import { DocxParser } from '../parser';
-import { DOMParser } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { ommlToLatex } from '../ooxml/omml';
 

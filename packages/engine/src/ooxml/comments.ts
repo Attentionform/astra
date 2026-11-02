@@ -1,5 +1,6 @@
 import { DocxZipAdapter } from '../parser';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from './dom-parser';
 import { assertNoXxe } from './xxe-guard';
 import { deterministicCommentIso } from './track-changes-emitter';
 

@@ -11,7 +11,8 @@
  */
 
 import crypto from 'crypto';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from './dom-parser';
 import { createWordElement } from './ns';
 import { assertNoXxe } from './xxe-guard';
 

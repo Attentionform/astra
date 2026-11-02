@@ -29,7 +29,8 @@
  * parse/serialize round-trip).
  */
 
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from './dom-parser';
 import {
   PPR_CHILD_ORDER,
   RPR_CHILD_ORDER,

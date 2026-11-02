@@ -1,4 +1,5 @@
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import AdmZip from '../adm-zip-safe';
 import { clampZipEntryTimes } from '../zip-hardening';
 import { DocumentAST } from '../ast';

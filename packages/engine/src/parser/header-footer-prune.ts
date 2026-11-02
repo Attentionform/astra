@@ -1,4 +1,5 @@
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 
 /**
  * Removes header and footer parts that an edit left with no reference.

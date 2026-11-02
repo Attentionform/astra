@@ -1,6 +1,6 @@
 import { DocumentAST } from '../ast';
 import type { DocxParser } from '../parser';
-import { DOMParser } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { ommlToMathmlDisplay } from '../ooxml/omml';
 import { isMonospaceRun, hasListNumbering, isOrderedListItem, codeBlockLanguage } from './markdown';

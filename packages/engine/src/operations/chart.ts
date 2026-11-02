@@ -1,4 +1,4 @@
-import { DOMParser } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import * as crypto from 'crypto';
 import { createWordElement } from '../ooxml/ns';
 import { DocumentAST, Node, Section } from '../ast';

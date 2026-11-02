@@ -1,4 +1,5 @@
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import { DocumentAST } from '../ast';
 import { DocxParser, DocxZipAdapter } from '../parser';
 import { RelationshipsManipulator } from './relationships';

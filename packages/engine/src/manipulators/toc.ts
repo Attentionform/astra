@@ -7,7 +7,8 @@ import { DocxParser } from '../parser';
 import { buildPageMap } from '../page-map';
 import { allocateNextBookmarkId } from './relationships';
 import { sanitizeXml } from '../validator';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import { resolveReproducibleMode, resolveDeterministicZipDate } from '../zip-hardening';
 
 /** Deterministic by default; wall-clock only when opted out. */

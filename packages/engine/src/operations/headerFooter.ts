@@ -4,7 +4,8 @@ import { toError } from '../errors';
 import { sectionPosition } from './section-number';
 import { BaseOperation } from './base';
 import { HeaderFooterManipulator } from '../manipulators/header-footer';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 
 export interface HeaderFooterOperation extends BaseOperation {
   action: 'headerFooter';

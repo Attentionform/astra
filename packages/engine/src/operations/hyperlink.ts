@@ -3,7 +3,8 @@ import { toError } from '../errors';
 import { DocumentAST, Node } from '../ast';
 import { DocxParser } from '../parser';
 import { BaseOperation, createTextElement, findNode } from './base';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from '../ooxml/dom-parser';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import {
   allocateNextBookmarkId,

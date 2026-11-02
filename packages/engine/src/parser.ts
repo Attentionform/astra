@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import AdmZip from './adm-zip-safe';
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { XMLSerializer } from '@xmldom/xmldom';
+import { DOMParser } from './ooxml/dom-parser';
 import { DocumentAST, Node as AstNode, calculateNodeChecksum } from './ast';
 import { canonicalizeDocumentDom, canonicalizePartXml, generateValidParaId } from './ooxml/schema-order';
 import { normalizeDocumentDom, normalizePartXml, previewDocumentDom } from './ooxml/normalize';
