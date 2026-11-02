@@ -653,6 +653,7 @@ const footnoteOp = z.object({
   anchor: z.string().min(1).max(256),
   text: z.string().min(1).max(50_000),
   id: z.string().min(1).max(256).optional(),
+  offset: z.number().int().nonnegative().optional(),
   expectedVersion,
 }).strict();
 
@@ -662,6 +663,7 @@ const endnoteOp = z.object({
   anchor: z.string().min(1).max(256),
   text: z.string().min(1).max(50_000),
   id: z.string().min(1).max(256).optional(),
+  offset: z.number().int().nonnegative().optional(),
   expectedVersion,
 }).strict();
 

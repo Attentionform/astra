@@ -182,6 +182,7 @@ import { createWordElement } from '../ooxml/ns';
 import { latexToOmml } from '../ooxml/omml';
 import { assertSafeLatex, assertValidConvertedParagraph } from '../operations/equation';
 import { createTextElement } from '../operations/base';
+import { insertRunAtOffset } from '../operations/footnote';
 import { HYPERLINK_REL_TYPE } from '../operations/hyperlink';
 import { allocateSafeHyperlinkRId } from '../manipulators/relationships';
 import { auditExternalRelTarget } from '../ooxml/xxe-guard';
@@ -513,7 +514,15 @@ function applyInlineSpans(
       if (el.parentNode === para) para.removeChild(el);
     }
     for (const el of contentEls) para.appendChild(el);
-    for (const el of refSibs) para.appendChild(el);
+
+    const noteOps = operations.filter(
+      (o) => (o.action === 'footnote' || o.action === 'endnote') && (o as { anchor?: string }).anchor === id
+    );
+    for (let i = 0; i < refSibs.length; i++) {
+      const refEl = refSibs[i];
+      const op = noteOps[i] as { offset?: number } | undefined;
+      insertRunAtOffset(para, refEl, op?.offset);
+    }
     node.version += 1;
   }
 }

@@ -27,10 +27,16 @@ export interface SpanSegment {
   line?: number;
 }
 
+export interface FootnoteRefEntry {
+  label: string;
+  offset: number;
+}
+
 export interface ParsedInline {
   plainText: string;
   segments: SpanSegment[];
   footnoteRefs: string[];
+  footnoteEntries?: FootnoteRefEntry[];
   citationKeys: string[];
 }
 
@@ -142,6 +148,7 @@ export function parseInlineTokens(
   const segments: SpanSegment[] = [];
   const footnoteRefs: string[] = [];
   const citationKeys: string[] = [];
+  const shadowPieces: Array<{ kind: 'text' | 'fn'; text?: string; label?: string }> = [];
 
   const pushTextWithMarkers = (
     rawText: string,
@@ -150,7 +157,9 @@ export function parseInlineTokens(
   ): void => {
     if (rawText.length === 0) return;
     if (isCodeLiteral) {
-      segments.push({ text: nlToSpace(rawText), bold: flags.bold, italic: flags.italic, code: true, linkUrl: flags.linkUrl });
+      const lit = nlToSpace(rawText);
+      segments.push({ text: lit, bold: flags.bold, italic: flags.italic, code: true, linkUrl: flags.linkUrl });
+      shadowPieces.push({ kind: 'text', text: lit });
       return;
     }
     const cursor = 0;
@@ -197,12 +206,14 @@ export function parseInlineTokens(
     for (const piece of pieces) {
       if (piece.kind === 'text') {
         segText += piece.text as string;
+        shadowPieces.push({ kind: 'text', text: piece.text as string });
       } else if (piece.kind === 'footnote') {
         const label = piece.label as string;
         if (label.trim().length === 0) {
           fail(line, 'empty footnote marker', 'write [^label] with a label');
         }
         footnoteRefs.push(label);
+        shadowPieces.push({ kind: 'fn', label });
         // Marker strips out; surrounding spaces stay as they are.
       } else if (piece.kind === 'citation') {
         const rawKey = (piece.key as string).trim();
@@ -219,7 +230,9 @@ export function parseInlineTokens(
         }
         const num = citationNum.get(rawKey) as number;
         citationKeys.push(rawKey);
-        segText += `[${num}]`;
+        const citeText = `[${num}]`;
+        segText += citeText;
+        shadowPieces.push({ kind: 'text', text: citeText });
       }
     }
     if (segText.length > 0) {
@@ -253,13 +266,16 @@ export function parseInlineTokens(
           if (raw.startsWith('<')) {
             fail(line, 'raw HTML is out of scope in ' + what, 'write links as [text](https://example.com) instead of <...>');
           }
-          const footLink = raw.match(/^\[\^([^\]]+)\]$/);
-          if (footLink) {
-            const label = footLink[1];
-            if (label.trim().length === 0) {
-              fail(line, 'empty footnote marker', 'write [^label] with a label');
+          const footMatches = Array.from(raw.matchAll(/\[\^([^\]]+)\]/g));
+          if (footMatches.length > 0 && footMatches.map((m) => m[0]).join('') === raw) {
+            for (const fm of footMatches) {
+              const label = fm[1];
+              if (label.trim().length === 0) {
+                fail(line, 'empty footnote marker', 'write [^label] with a label');
+              }
+              footnoteRefs.push(label);
+              shadowPieces.push({ kind: 'fn', label });
             }
-            footnoteRefs.push(label);
             break;
           }
           const citeLink = raw.match(/^\[@([^\]]+)\]$/);
@@ -278,7 +294,9 @@ export function parseInlineTokens(
             }
             const num = citationNum.get(rawKey) as number;
             citationKeys.push(rawKey);
-            segments.push({ text: `[${num}]`, bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+            const citeText = `[${num}]`;
+            segments.push({ text: citeText, bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+            shadowPieces.push({ kind: 'text', text: citeText });
             break;
           }
           const href = validateLinkUrl(String(t.href ?? ''), line);
@@ -294,6 +312,7 @@ export function parseInlineTokens(
             fail(line, 'inline math inside a link is out of scope', 'move the math outside the link text');
           }
           segments.push({ text: t.text ?? '', bold: false, italic: false, code: false, math: true, line });
+          shadowPieces.push({ kind: 'text', text: `\\(${t.text ?? ''}\\)` });
           break;
         case 'image':
           fail(line, `images are out of scope in ${what}`, 'put images on their own block line instead of inside text');
@@ -303,10 +322,12 @@ export function parseInlineTokens(
           break;
         case 'br':
           segments.push({ text: ' ', bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+          shadowPieces.push({ kind: 'text', text: ' ' });
           break;
         case 'del':
         case 'codespan2':
           segments.push({ text: t.raw ?? '', bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+          shadowPieces.push({ kind: 'text', text: t.raw ?? '' });
           break;
         default: {
           const maybeTokens = (t as { tokens?: InlineToken[] }).tokens;
@@ -316,6 +337,7 @@ export function parseInlineTokens(
             pushTextWithMarkers(unescapeMarkedText(t.text), { bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl }, false);
           } else if (typeof t.raw === 'string' && t.raw.length > 0) {
             segments.push({ text: t.raw, bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+            shadowPieces.push({ kind: 'text', text: t.raw });
           }
           break;
         }
@@ -324,8 +346,34 @@ export function parseInlineTokens(
   };
 
   walk((inlineTokens ?? []) as InlineToken[], { bold: false, italic: false, linkUrl: undefined });
+
+  const SENTINEL = '\uE000';
+  let shadowStr = '';
+  const fnOrder: string[] = [];
+  for (const sp of shadowPieces) {
+    if (sp.kind === 'text') {
+      shadowStr += sp.text || '';
+    } else if (sp.kind === 'fn') {
+      shadowStr += SENTINEL;
+      fnOrder.push(sp.label || '');
+    }
+  }
+
+  const normalizedShadow = plainJoin(shadowStr);
+  const footnoteEntries: FootnoteRefEntry[] = [];
+  let sentinelIdx = 0;
+  let offsetInClean = 0;
+  for (let i = 0; i < normalizedShadow.length; i++) {
+    if (normalizedShadow[i] === SENTINEL) {
+      const label = fnOrder[sentinelIdx++];
+      footnoteEntries.push({ label, offset: offsetInClean });
+    } else {
+      offsetInClean++;
+    }
+  }
+
   const plainText = plainJoin(segments.map((s) => (s.math ? `\\(${s.text}\\)` : s.text)).join(''));
-  return { plainText, segments, footnoteRefs, citationKeys };
+  return { plainText, segments, footnoteRefs, footnoteEntries, citationKeys };
 }
 
 export function segmentsNeedSplit(segments: SpanSegment[]): boolean {

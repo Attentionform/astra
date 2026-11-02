@@ -14,6 +14,7 @@ export interface FootnoteOperation extends BaseOperation {
   anchor: string;
   text: string;
   id?: string;
+  offset?: number;
 }
 
 export interface EndnoteOperation extends BaseOperation {
@@ -22,6 +23,7 @@ export interface EndnoteOperation extends BaseOperation {
   anchor: string;
   text: string;
   id?: string;
+  offset?: number;
 }
 
 const SETTINGS_PART = 'word/settings.xml';
@@ -464,6 +466,185 @@ function ensureNoteStyles(parser: DocxParser | undefined, kind: 'Footnote' | 'En
   }
 }
 
+function runVisibleText(run: Element): string {
+  let out = '';
+  const kids = run.childNodes;
+  for (let i = 0; i < kids.length; i++) {
+    const c = kids[i] as unknown as Element;
+    if (!c || c.nodeType !== 1) continue;
+    if (c.tagName === 'w:t') out += c.textContent || '';
+    else if (c.tagName === 'w:tab') out += '\t';
+    else if (c.tagName === 'w:br') out += '\n';
+  }
+  return out;
+}
+
+interface LeafRun {
+  run: Element;
+  parent: Element;
+  text: string;
+  start: number;
+  end: number;
+}
+
+function collectLeafRuns(pEl: Element): LeafRun[] {
+  const result: LeafRun[] = [];
+  let cum = 0;
+
+  function walk(node: Element) {
+    const kids = node.childNodes;
+    for (let i = 0; i < kids.length; i++) {
+      const child = kids[i];
+      if (child.nodeType !== 1) continue;
+      const el = child as Element;
+      if (el.tagName === 'w:pPr') continue;
+      if (el.tagName === 'w:r') {
+        const text = runVisibleText(el);
+        const start = cum;
+        const end = cum + text.length;
+        result.push({ run: el, parent: node, text, start, end });
+        cum = end;
+      } else {
+        walk(el);
+      }
+    }
+  }
+
+  walk(pEl);
+  return result;
+}
+
+function splitRunAt(doc: Document, runEl: Element, cut: number): { left: Element; right: Element } {
+  const left = createWordElement(doc, 'w:r');
+  const right = createWordElement(doc, 'w:r');
+
+  const kids = Array.from(runEl.childNodes);
+  for (const kid of kids) {
+    if (kid.nodeType === 1 && (kid as Element).tagName === 'w:rPr') {
+      left.appendChild(kid.cloneNode(true));
+      right.appendChild(kid.cloneNode(true));
+      break;
+    }
+  }
+
+  let textAcc = 0;
+  for (const kid of kids) {
+    if (kid.nodeType !== 1) continue;
+    const el = kid as Element;
+    if (el.tagName === 'w:rPr') continue;
+
+    if (el.tagName === 'w:t') {
+      const fullText = el.textContent || '';
+      const tLen = fullText.length;
+      const tStart = textAcc;
+      const tEnd = textAcc + tLen;
+      textAcc = tEnd;
+
+      if (cut <= tStart) {
+        const tRight = createWordElement(doc, 'w:t');
+        tRight.setAttribute('xml:space', 'preserve');
+        tRight.textContent = fullText;
+        right.appendChild(tRight);
+      } else if (cut >= tEnd) {
+        const tLeft = createWordElement(doc, 'w:t');
+        tLeft.setAttribute('xml:space', 'preserve');
+        tLeft.textContent = fullText;
+        left.appendChild(tLeft);
+      } else {
+        const splitIndex = cut - tStart;
+        const leftStr = fullText.slice(0, splitIndex);
+        const rightStr = fullText.slice(splitIndex);
+
+        if (leftStr.length > 0) {
+          const tLeft = createWordElement(doc, 'w:t');
+          tLeft.setAttribute('xml:space', 'preserve');
+          tLeft.textContent = leftStr;
+          left.appendChild(tLeft);
+        }
+        if (rightStr.length > 0) {
+          const tRight = createWordElement(doc, 'w:t');
+          tRight.setAttribute('xml:space', 'preserve');
+          tRight.textContent = rightStr;
+          right.appendChild(tRight);
+        }
+      }
+    } else if (el.tagName === 'w:tab' || el.tagName === 'w:br') {
+      if (textAcc < cut) {
+        left.appendChild(el.cloneNode(true));
+      } else {
+        right.appendChild(el.cloneNode(true));
+      }
+      textAcc += 1;
+    } else {
+      if (textAcc <= cut) {
+        left.appendChild(el.cloneNode(true));
+      } else {
+        right.appendChild(el.cloneNode(true));
+      }
+    }
+  }
+
+  return { left, right };
+}
+
+function getTopChild(pEl: Element, node: Element): Element {
+  let curr: Element = node;
+  while (curr.parentNode && curr.parentNode !== pEl) {
+    curr = curr.parentNode as Element;
+  }
+  return curr;
+}
+
+export function insertRunAtOffset(pEl: Element, runEl: Element, offset?: number): void {
+  if (offset === undefined || offset === null || offset < 0) {
+    pEl.appendChild(runEl);
+    return;
+  }
+
+  const runs = collectLeafRuns(pEl);
+  const totalLen = runs.length > 0 ? runs[runs.length - 1].end : 0;
+
+  if (runs.length === 0 || offset >= totalLen) {
+    pEl.appendChild(runEl);
+    return;
+  }
+
+  if (offset === 0) {
+    const firstTextRun = runs.find((r) => r.end > 0);
+    if (!firstTextRun) {
+      pEl.appendChild(runEl);
+      return;
+    }
+    const direct = getTopChild(pEl, firstTextRun.run);
+    pEl.insertBefore(runEl, direct);
+    return;
+  }
+
+  const target = runs.find((r) => r.end > offset);
+  if (!target) {
+    pEl.appendChild(runEl);
+    return;
+  }
+
+  if (offset > target.start) {
+    const cut = offset - target.start;
+    const doc = pEl.ownerDocument || runEl.ownerDocument;
+    const { left, right } = splitRunAt(doc, target.run, cut);
+    target.parent.insertBefore(left, target.run);
+    target.parent.insertBefore(runEl, target.run);
+    target.parent.insertBefore(right, target.run);
+    target.parent.removeChild(target.run);
+  } else {
+    // offset === target.start
+    if (target.parent !== pEl && target.run === target.parent.firstChild) {
+      const direct = getTopChild(pEl, target.run);
+      pEl.insertBefore(runEl, direct);
+    } else {
+      target.parent.insertBefore(runEl, target.run);
+    }
+  }
+}
+
 export function executeFootnote(op: FootnoteOperation, ast: DocumentAST, parser?: DocxParser): void {
   let targetNode: Node | undefined;
   for (const section of ast.sections) {
@@ -535,7 +716,7 @@ export function executeFootnote(op: FootnoteOperation, ast: DocumentAST, parser?
 
   // No package sync without a parser: in-memory DOM append only.
   if (!parser) {
-    targetNode.xml.appendChild(run);
+    insertRunAtOffset(targetNode.xml, run, op.offset);
     targetNode.version += 1;
     return;
   }
@@ -713,7 +894,7 @@ export function executeFootnote(op: FootnoteOperation, ast: DocumentAST, parser?
 
   // All zip writes committed: now join the live DOM.
   ensureNoteStyles(parser, 'Footnote');
-  targetNode.xml.appendChild(run);
+  insertRunAtOffset(targetNode.xml, run, op.offset);
   targetNode.version += 1;
 }
 
@@ -788,7 +969,7 @@ export function executeEndnote(op: EndnoteOperation, ast: DocumentAST, parser?: 
 
   // No package sync without a parser: in-memory DOM append only.
   if (!parser) {
-    targetNode.xml.appendChild(run);
+    insertRunAtOffset(targetNode.xml, run, op.offset);
     targetNode.version += 1;
     return;
   }
@@ -966,6 +1147,6 @@ export function executeEndnote(op: EndnoteOperation, ast: DocumentAST, parser?: 
 
   // All zip writes committed: now join the live DOM.
   ensureNoteStyles(parser, 'Endnote');
-  targetNode.xml.appendChild(run);
+  insertRunAtOffset(targetNode.xml, run, op.offset);
   targetNode.version += 1;
 }

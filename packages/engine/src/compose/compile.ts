@@ -342,7 +342,7 @@ export function compileMarkdownDetailed(
   const usedCitations = new Set<string>();
   const citationOrder: string[] = [];
   const citationNum = new Map<string, number>();
-  const pendingNotes: Array<{ anchor: string; label: string; line: number; endnote: boolean }> = [];
+  const pendingNotes: Array<{ anchor: string; label: string; line: number; endnote: boolean; offset?: number }> = [];
   let seq = 0;
   let lastInsertId: string | null = null;
 
@@ -375,10 +375,16 @@ export function compileMarkdownDetailed(
     return id;
   };
 
-  const trackRefs = (anchorId: string, refs: string[], line: number): void => {
-    for (const label of refs) {
+  const trackRefs = (
+    anchorId: string,
+    refs: Array<{ label: string; offset?: number }> | string[],
+    line: number
+  ): void => {
+    for (const item of refs) {
+      const label = typeof item === 'string' ? item : item.label;
+      const offset = typeof item === 'string' ? undefined : item.offset;
       usedDefs.add(label);
-      pendingNotes.push({ anchor: anchorId, label, line, endnote: isEndnoteLabel(label) });
+      pendingNotes.push({ anchor: anchorId, label, line, endnote: isEndnoteLabel(label), offset });
     }
   };
 
@@ -732,7 +738,7 @@ export function compileMarkdownDetailed(
         }
         checkCitationDefsForNotes(text, line, 'a heading');
         const id = pushInsertParagraph(inline.plainText, inline.segments);
-        trackRefs(id, inline.footnoteRefs, line);
+        trackRefs(id, inline.footnoteEntries ?? inline.footnoteRefs, line);
         const styleName = depth === 1 ? 'Heading1' : depth === 2 ? 'Heading2' : 'Heading3';
         ops.push({ action: 'namedStyle', operation: 'apply', styleName, target: id } as Operation);
         underTitle = depth === 1 && lastBlockKind === 'none';
@@ -814,7 +820,7 @@ export function compileMarkdownDetailed(
           inlineTokens.length === 1 &&
           inlineTokens[0].type === 'em';
         const id = pushInsertParagraph(inline.plainText, isSubtitle ? undefined : inline.segments);
-        trackRefs(id, inline.footnoteRefs, line);
+        trackRefs(id, inline.footnoteEntries ?? inline.footnoteRefs, line);
         if (isSubtitle) {
           ops.push({ action: 'namedStyle', operation: 'apply', styleName: 'Subtitle', target: id } as Operation);
         }
@@ -877,7 +883,7 @@ export function compileMarkdownDetailed(
             }
           }
           const id = pushInsertParagraph(inline.plainText, inline.segments);
-          trackRefs(id, inline.footnoteRefs, itemLine);
+          trackRefs(id, inline.footnoteEntries ?? inline.footnoteRefs, itemLine);
           itemIds.push(id);
         }
         ops.push({ action: 'list', operation: 'create', target: itemIds, listType } as Operation);
@@ -1090,11 +1096,15 @@ export function compileMarkdownDetailed(
     if (!def) {
       fail(note.line, `undefined footnote reference [^${note.label}]`, 'add a matching [^label]: body definition');
     }
-    if (note.endnote) {
-      ops.push({ action: 'endnote', anchor: note.anchor, text: (def as FootnoteDef).body } as Operation);
-    } else {
-      ops.push({ action: 'footnote', anchor: note.anchor, text: (def as FootnoteDef).body } as Operation);
+    const op: Record<string, unknown> = {
+      action: note.endnote ? 'endnote' : 'footnote',
+      anchor: note.anchor,
+      text: (def as FootnoteDef).body,
+    };
+    if (note.offset !== undefined) {
+      op.offset = note.offset;
     }
+    ops.push(op as Operation);
   }
 
   if (citationOrder.length > 0) {
