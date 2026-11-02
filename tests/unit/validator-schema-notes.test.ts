@@ -110,6 +110,6 @@ describe('child order inside property containers (B3)', () => {
     expect(pPrChildren(saved, 'pBdr')).toEqual(['pBdr', 'shd', 'spacing', 'ind']);
     const tblPr = /<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(saved)![0]
       .replace(/<w:(tblBorders|tblCellMar)>[\s\S]*?<\/w:\1>/g, '<w:$1/>');
-    expect([...tblPr.matchAll(/<w:(\w+)[ />]/g)].map((m) => m[1]).slice(1)).toEqual(['tblStyle', 'tblBorders', 'tblCellMar', 'tblLook']);
+    expect([...tblPr.matchAll(/<w:(\w+)[ />]/g)].map((m) => m[1]).slice(1)).toEqual(['tblStyle', 'tblW', 'tblBorders', 'tblCellMar', 'tblLook']);
   });
 });

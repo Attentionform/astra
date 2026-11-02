@@ -792,6 +792,12 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
     const tblStyle = createWordElement(doc, 'w:tblStyle');
     tblStyle.setAttribute('w:val', 'TableGrid');
     tblPr.appendChild(tblStyle);
+    // The table is as wide as the text area (100%). Without w:tblW Word fits the table to its text, so a
+    // table of two short columns came out narrow while LibreOffice drew it at the width of the grid.
+    const tblW = createWordElement(doc, 'w:tblW');
+    tblW.setAttribute('w:w', '5000');
+    tblW.setAttribute('w:type', 'pct');
+    tblPr.appendChild(tblW);
     tblPr.appendChild(tblBorders);
 
     const flatPaddingRaw = op.cellPadding;

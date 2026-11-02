@@ -60,6 +60,6 @@ describe('cli validate reports pending repairs', () => {
     const json = jsonLine(runCli(['--json', 'validate', misordered]).stdout);
     expect(json.ok).toBe(true);
     expect(json.errors).toEqual([]);
-    expect(json.pendingNormalizations).toEqual([expect.stringMatching(/Reordered w:tblPr into schema order .*\[w:tblStyle,w:tblBorders,w:tblLook,w:tblCellMar\]/)]);
+    expect(json.pendingNormalizations).toEqual([expect.stringMatching(/Reordered w:tblPr into schema order .*\[w:tblStyle,w:tblW,w:tblBorders,w:tblLook,w:tblCellMar\]/)]);
   });
 });

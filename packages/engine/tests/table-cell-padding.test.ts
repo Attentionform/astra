@@ -177,7 +177,7 @@ describe('table baseline cell padding', () => {
     const childNames = Array.from(tblPr.childNodes)
       .filter((n) => n.nodeType === 1)
       .map((n) => (n as Element).tagName);
-    expect(childNames).toEqual(['w:tblStyle', 'w:tblBorders']);
+    expect(childNames).toEqual(['w:tblStyle', 'w:tblW', 'w:tblBorders']);
   });
 
   it('emits cellPadding from markdown compiler and renders tblCellMar in document', async () => {
