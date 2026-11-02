@@ -179,4 +179,42 @@ describe('wide table column bounds and validation', () => {
     expect(val.ok).toBe(true);
     expect(val.errors).toHaveLength(0);
   });
+
+  it('inserts table with 100% preferred width (pct 5000) next to indented paragraph and passes validation', async () => {
+    const { parser, ast } = await freshDoc();
+    const engine = new OperationEngine(ast, parser);
+    const anchor = ast.sections[0].nodes[0].id;
+
+    // Apply indentation to the anchor paragraph
+    await engine.execute({
+      action: 'style',
+      target: anchor,
+      indentLeft: 1440,
+      indentRight: 1440,
+    } as never);
+
+    // Insert a table after the indented paragraph
+    await engine.execute({
+      action: 'insert',
+      type: 'table',
+      anchor,
+      position: 'after',
+      headers: ['Col 1', 'Col 2'],
+      rows: [['A', 'B']],
+    } as InsertOperation);
+
+    const tblNode = tableNodeOf(ast);
+    const tblEl = tblNode.xml as Element;
+    const tblPr = directChildren(tblEl, 'w:tblPr')[0];
+    const tblW = directChildren(tblPr, 'w:tblW')[0];
+
+    expect(tblW).toBeDefined();
+    expect(tblW.getAttribute('w:w')).toBe('5000');
+    expect(tblW.getAttribute('w:type')).toBe('pct');
+
+    const buf = parser.rezip();
+    const val = await validateDocxBuffer(buf);
+    expect(val.ok).toBe(true);
+    expect(val.errors).toHaveLength(0);
+  });
 });
