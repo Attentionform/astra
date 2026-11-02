@@ -1221,6 +1221,19 @@ describe('compose title block and stray alerts', () => {
     expect(documentXml(parser)).not.toContain('w:val="Subtitle"');
   });
 
+  it('keeps an italic line under the title as italic body text with either way the help gives', async () => {
+    // The `create` and `import` help say: put another paragraph first, or add plain text to the line.
+    const first = DocxParser.createNewDocument('blank');
+    expect((await composeDocument(first, '# Title\n\nIntro line.\n\n*italic body*\n')).success).toBe(true);
+    expect(documentXml(first)).not.toContain('w:val="Subtitle"');
+    expect(documentXml(first)).toMatch(/<w:i\/>/);
+
+    const plain = DocxParser.createNewDocument('blank');
+    expect((await composeDocument(plain, '# Title\n\n*italic* and plain\n')).success).toBe(true);
+    expect(documentXml(plain)).not.toContain('w:val="Subtitle"');
+    expect(documentXml(plain)).toMatch(/<w:i\/>/);
+  });
+
   it('warns when [!NOTE] is not inside a blockquote, and still writes the text', async () => {
     const parser = DocxParser.createNewDocument('blank');
     const result = await composeDocument(parser, '# T\n\n[!NOTE] Remember this.\n\n> [!TIP]\n> Fine.\n');

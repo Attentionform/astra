@@ -664,6 +664,15 @@ describe('create --from-md', () => {
     expect(r.stdout).toMatch(/line number/);
   });
 
+  it.each(['create', 'import'])('%s --help says when an italic line becomes the Subtitle and how to avoid it', async (command) => {
+    tmpDir('dx-subtitle-help');
+    const r = (await runCli([command, '--help']));
+    expect(r.status).toBe(0);
+    const text = r.stdout.replace(/\s+/g, ' ');
+    expect(text).toContain('Subtitle: a line that is only italic (*text*), directly under the opening # title, gets the Subtitle style');
+    expect(text).toContain('put another paragraph first or add plain text to the line');
+  });
+
   it('splits inline spans into runs with real hyperlink targets', async () => {
     const dir = tmpDir('dx-from-md-spans');
     const md = path.join(dir, 'spans.md');

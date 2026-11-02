@@ -805,6 +805,8 @@ export function compileMarkdownDetailed(
         }
         // An italic-only line straight under the title is the document subtitle.
         // The Subtitle style already italicises, so the emphasis is dropped.
+        // Only a single-line paragraph made of one emphasis span, directly after the level-1 heading that opens
+        // the document, is read this way. The `create` and `import` help and docs/cli-guide.md state the rule.
         const isSubtitle =
           underTitle &&
           lastBlockKind === 'heading' &&

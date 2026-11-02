@@ -634,7 +634,7 @@ Rendered today: `tables.headerFill/headerText/headerBold/keepTogether`, `tables.
 
 **Compose without a guide.** `create --from-md`, `import` and `compose_document` use the built-in *Default Corporate* guide when you pass none: navy table header with bold white text, shaded alternate rows, a light code-block box. Alerts keep their per-tag colours (NOTE, TIP, IMPORTANT, WARNING, CAUTION). To get the older look (grey header, no header text colour, no stripes), pass `--style-guide legacy` (MCP: `styleGuide: "legacy"`, for that call only, not stored on the session).
 
-**Title and notes in composed Markdown.** An italic-only line directly under the opening `#` title becomes the *Subtitle* style. A paragraph that starts with `[!NOTE]` (or TIP, IMPORTANT, WARNING, CAUTION) outside a blockquote stays plain text and compose reports a warning (CLI `composeWarnings`, MCP `warnings`); write each line with a `> ` prefix to get a callout.
+**Title and notes in composed Markdown.** An italic-only line directly under the opening `#` title becomes the *Subtitle* style. The style is already italic, so the emphasis is dropped. Only the line directly under the opening `#` title is read this way; for italic body text there, put another paragraph first or add plain text to the line. Italic lines anywhere else stay italic body text. A paragraph that starts with `[!NOTE]` (or TIP, IMPORTANT, WARNING, CAUTION) outside a blockquote stays plain text and compose reports a warning (CLI `composeWarnings`, MCP `warnings`); write each line with a `> ` prefix to get a callout.
 
 ### Precedence (explicit > guide > built-in)
 
