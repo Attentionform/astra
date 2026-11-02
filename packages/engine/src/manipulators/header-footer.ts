@@ -112,7 +112,9 @@ export class HeaderFooterManipulator {
       const rel = this.ast.relationships[thisSectionExistingRId];
       if (rel.type === relType && partRe.test(rel.target)) {
         rId = thisSectionExistingRId;
-        partName = rel.target.replace(/^word\//, '');
+        // The target is relative to word/ ("footer1.xml"), or a part name that starts with
+        // word/ ("word/footer1.xml") or with a slash ("/word/footer1.xml"); all name the same part.
+        partName = rel.target.replace(/^\/?word\//, '');
       }
     }
 
