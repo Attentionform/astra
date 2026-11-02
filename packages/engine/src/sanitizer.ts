@@ -1047,6 +1047,16 @@ function isStyleFamilyPartName(name: string): boolean {
 }
 
 /**
+ * True when the whole value is a decimal number with a decimal point or an exponent
+ * (`0.1234567890123`, `-6.23E-2`). Chart data and layout are stored this way. A card, phone or
+ * social security number is never written like this, and a redaction marker inside a number makes
+ * the value invalid, so such a value is not scanned. A plain integer is still scanned.
+ */
+function isDecimalNumberValue(value: string): boolean {
+  return /^\s*[+-]?(?:\d+\.\d*|\.\d+|\d+(?=[eE]))(?:[eE][+-]?\d+)?\s*$/.test(value);
+}
+
+/**
  * Redacts PII inside element text nodes (`>text<`) for parts that do not
  * carry prose in `w:t` (charts `a:t`/`c:v`, customXml items, style text).
  * Tag markup and attribute values are never touched here.
@@ -1062,6 +1072,7 @@ export function redactTextNodePii(xml: string, redact: boolean): { xml: string; 
     const out = gap.replace(/>([^<>]+)</g, (_match, text: string) => {
       // M2: element text takes the body scanner (labeled bare digits
       // included); unlabeled years/counts stay intact.
+      if (isDecimalNumberValue(text)) return `>${text}<`;
       const { text: clean, count } = scanAndRedactBodyText(text, redact);
       gapCount += count;
       return `>${clean}<`;
@@ -1097,6 +1108,7 @@ export function redactAttributePii(xml: string, redact: boolean): { xml: string;
   if (!xml.includes('="')) return { xml, count: 0 };
   let totalCount = 0;
   const out = xml.replace(/="([^"]*)"/g, (_match, value: string) => {
+    if (isDecimalNumberValue(value)) return `="${value}"`;
     const { text: clean, count } = scanAndRedactAttributeValue(value, redact);
     totalCount += count;
     return `="${clean}"`;
