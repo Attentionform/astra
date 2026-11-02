@@ -1220,6 +1220,38 @@ export class OperationEngine {
     }
   }
 
+  /**
+   * A table has no spacing of its own, so a block that an operation adds right under a table sits against the
+   * bottom border. Such a block gets 12 pt of space above it (the value that compose has always used), unless
+   * it names a paragraph style (a heading has its own spacing), already has space above it set, or is a page or
+   * section break. A caller can change it with a `style` operation.
+   */
+  private spaceBlocksAfterTable(known: Set<unknown>): void {
+    const elementAfter = (el: Element): Element | null => {
+      let next = el.nextSibling;
+      while (next && next.nodeType !== 1) next = next.nextSibling;
+      return next as Element | null;
+    };
+    for (const section of this.ast.sections) {
+      const nodes = section.nodes;
+      for (let i = 1; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (known.has(node) || !['paragraph', 'image', 'equation'].includes(node.type)) continue;
+        const above = nodes[i - 1];
+        if (above.type !== 'table' || elementAfter(above.xml as Element) !== (node.xml as Element)) continue;
+        const el = node.xml as Element;
+        if (el.getElementsByTagName('w:sectPr').length > 0) continue;
+        const breaks = Array.from(el.getElementsByTagName('w:br'));
+        if (breaks.some((br) => br.getAttribute('w:type') === 'page')) continue;
+        const pPr = Array.from(el.childNodes).find((c) => c.nodeType === 1 && (c as Element).tagName === 'w:pPr') as Element | undefined;
+        if (pPr?.getElementsByTagName('w:pStyle').length) continue;
+        const spacing = pPr?.getElementsByTagName('w:spacing')[0];
+        if (spacing?.hasAttribute('w:before') || spacing?.hasAttribute('w:beforeLines') || spacing?.hasAttribute('w:beforeAutospacing')) continue;
+        executeStyle({ action: 'style', target: node.id, spacingBefore: 240 } as StyleOperation, this.ast);
+      }
+    }
+  }
+
   private freeBlockId(base: string): string {
     const taken = new Set(this.ast.sections.flatMap((section) => section.nodes.map((n) => n.id)));
     let id = base;
@@ -1264,7 +1296,10 @@ export class OperationEngine {
             delete fields[legacy];
           }
           this.insertParaIds = null;
-          return await executeImage(op as unknown as ImageOperation, this.ast, this.parser, allowedDir);
+          const knownImages = this.blockNodes();
+          const insertedImage = await executeImage(op as unknown as ImageOperation, this.ast, this.parser, allowedDir);
+          this.spaceBlocksAfterTable(knownImages);
+          return insertedImage;
         }
         if (insertType === 'chart') {
           fields['action'] = 'chart';
@@ -1279,7 +1314,10 @@ export class OperationEngine {
           await this.separateTouchingTables(known);
           return inserted;
         }
-        return await executeInsert(op as InsertOperation, this.ast, this.parser, this.activeGuide, this.insertParaIds);
+        const knownBlocks = this.blockNodes();
+        const insertedBlock = await executeInsert(op as InsertOperation, this.ast, this.parser, this.activeGuide, this.insertParaIds);
+        this.spaceBlocksAfterTable(knownBlocks);
+        return insertedBlock;
       }
       case 'delete': return executeDelete(op as DeleteOperation, this.ast, this.parser);
       case 'move': return executeMove(op as MoveOperation, this.ast, this.parser);
@@ -1288,11 +1326,21 @@ export class OperationEngine {
       case 'pageSetup': return executePageSetup(op as PageSetupOperation, this.ast, this.parser);
       case 'namedStyle': return executeNamedStyle(op as NamedStyleOperation, this.ast, this.parser);
       case 'field': return executeField(op as FieldOperation, this.ast, this.parser);
-      case 'equation': return executeEquation(op as EquationOperation, this.ast, this.parser);
+      case 'equation': {
+        const known = this.blockNodes();
+        const inserted = await executeEquation(op as EquationOperation, this.ast, this.parser);
+        this.spaceBlocksAfterTable(known);
+        return inserted;
+      }
       case 'list': return executeList(op as ListOperation, this.ast);
       case 'headerFooter': return executeHeaderFooter(op as HeaderFooterOperation, this.ast, this.parser);
       case 'chart': return executeChart(op as ChartOperation, this.ast, this.parser, this.activeGuide);
-      case 'image': return executeImage(op as ImageOperation, this.ast, this.parser, allowedDir);
+      case 'image': {
+        const known = this.blockNodes();
+        const inserted = await executeImage(op as ImageOperation, this.ast, this.parser, allowedDir);
+        this.spaceBlocksAfterTable(known);
+        return inserted;
+      }
       case 'callout': {
         const known = this.blockNodes();
         const inserted = await executeCallout(op as CalloutOperation, this.ast, this.parser, this.activeGuide);
