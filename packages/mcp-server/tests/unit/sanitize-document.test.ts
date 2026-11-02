@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AdmZip, DocxParser, listMacroPartsInBuffer } from '@attentionform/astra-engine';
+import { AdmZip, DocxParser, PII_COVERAGE, listMacroPartsInBuffer, piiCoverageSentence } from '@attentionform/astra-engine';
 import { createMcpSessionStore } from '../../src/lib/session-store';
 import { LEAN6_HANDLERS } from '../../src/lib/mcp-tool-adapter';
 import { handleSanitizeDocument } from '../../src/lib/mcp/handlers/parity';
@@ -40,6 +40,19 @@ describe('sanitize_document handler', () => {
     expect(found.matches.length).toBeGreaterThan(0);
     expect(res.revision).toBe(2);
     expect(res.dirty).toBe(true);
+    expect(res.piiCoverage).toEqual(PII_COVERAGE);
+    expect(res.piiNote).toBe(piiCoverageSentence());
+  });
+
+  it('result payload includes piiCoverage equal to engine constant when pii is 0', async () => {
+    const { store, sessionId } = await openBlankSession();
+    const res = await handleSanitizeDocument(store, { sessionId });
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error('sanitize failed');
+    expect(res.purgedPII).toBe(0);
+    expect(res.bodyPII).toBe(0);
+    expect(res.piiCoverage).toEqual(PII_COVERAGE);
+    expect(res.piiNote).toBe(piiCoverageSentence());
   });
 
   it('default options scrub without removing body text', async () => {
@@ -53,6 +66,19 @@ describe('sanitize_document handler', () => {
     expect(found.matches.length).toBeGreaterThan(0);
     expect(res.revision).toBe(2);
     expect(res.dirty).toBe(true);
+    expect(res.piiCoverage).toEqual(PII_COVERAGE);
+    expect(res.piiNote).toBe(piiCoverageSentence());
+  });
+
+  it('result payload includes piiCoverage equal to engine constant when pii is 0', async () => {
+    const { store, sessionId } = await openBlankSession();
+    const res = await handleSanitizeDocument(store, { sessionId });
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error('sanitize failed');
+    expect(res.purgedPII).toBe(0);
+    expect(res.bodyPII).toBe(0);
+    expect(res.piiCoverage).toEqual(PII_COVERAGE);
+    expect(res.piiNote).toBe(piiCoverageSentence());
   });
 
   it('rejects conflicting macro choices with code and remedy', async () => {

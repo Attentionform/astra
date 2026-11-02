@@ -2,6 +2,7 @@
 // Zero logic edits.
 import type { Lean6ToolName, GitHistoryToolName, ParityToolName } from './tool-names';
 import { AUDIT_RETENTION_NOTE, CHANGED_VALUES_MAX, CHANGED_VALUE_TEXT_MAX } from './diff';
+import { piiCoverageSentence } from '@attentionform/astra-engine';
 
 // ── Shared description blocks (ECMA essentials + workflow + examples) ────────
 export const MCP_ECMA_ESSENTIALS =
@@ -242,7 +243,8 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       '(zeroRetention, purgeRSIDs, purgeAuthors, purgeExif, purgePII, acceptAllRevisions, stripComments, ' +
       'replacementAuthor, allowMacros, stripMacros); omitted options take engine defaults. ' +
       'allowMacros and stripMacros together fail with E_VALIDATION. ' +
-      'Returns {ok:true,sessionId,revision,dirty,removedRSIDs,purgedAuthors,strippedExifBytes,purgedPII,bodyPII,' +
+      `${piiCoverageSentence()} ` +
+      'Returns {ok:true,sessionId,revision,dirty,removedRSIDs,purgedAuthors,strippedExifBytes,purgedPII,bodyPII,piiCoverage,' +
       'acceptedRevisions,strippedComments,strippedMacros,macroParts,filesTouched,droppedRogue,...} plus the ' +
       'standard redoCleared signal when a redo chain is dropped. ' +
       'Example {"sessionId":"sess_abc","stripMacros":true} -> scrubbed session at a new revision (save after). ' +

@@ -23,7 +23,9 @@ import * as path from 'path';
 import {
   AdmZip,
   DocxParser,
+  PII_COVERAGE,
   computeDocStats,
+  piiCoverageSentence,
   refreshAstInPlace,
   revisionsRemedy,
   sanitizeDocxBuffer,
@@ -275,6 +277,8 @@ export interface SanitizeDocumentOk {
   strippedExifBytes: number;
   purgedPII: number;
   bodyPII: number;
+  piiCoverage: typeof PII_COVERAGE;
+  piiNote: string;
   acceptedRevisions: number;
   strippedComments: number;
   strippedMacros: string[];
@@ -341,6 +345,8 @@ export async function handleSanitizeDocument(
         strippedExifBytes: report.strippedExifBytes,
         purgedPII: report.purgedPII,
         bodyPII: report.bodyPII,
+        piiCoverage: PII_COVERAGE,
+        piiNote: piiCoverageSentence(),
         acceptedRevisions: report.acceptedRevisions,
         strippedComments: report.strippedComments,
         strippedMacros: [...report.strippedMacros],
