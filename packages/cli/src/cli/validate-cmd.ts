@@ -4,6 +4,12 @@ import { failHuman, failWithCode, inferBatchCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { macroFlagsUsageError, macroOptsFromFlags, parseMaxRatioFlag, parseMaxUncompressedBytesFlag, readDocx, withZipCeilingEnv, type ZipCeilingOverrides } from './io';
 
+/** `--json` lists up to this many errors unless `--max-errors` says otherwise. */
+const DEFAULT_MAX_ERRORS = 500;
+const MAX_ERRORS_LIMIT = 5000;
+/** The human output shows this many errors and counts the rest. */
+const HUMAN_ERRORS_SHOWN = 10;
+
 export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'validate');
   let file: string | undefined;
@@ -12,12 +18,18 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
   let allowMacros = false;
   let stripMacros = false;
   let styleGuideRaw: string | undefined;
+  let maxErrorsRaw: string | undefined;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--max-ratio') maxRatioRaw = args[++i];
     else if (a.startsWith('--max-ratio=')) maxRatioRaw = a.slice('--max-ratio='.length);
     else if (a === '--max-uncompressed-bytes') maxBytesRaw = args[++i];
     else if (a.startsWith('--max-uncompressed-bytes=')) maxBytesRaw = a.slice('--max-uncompressed-bytes='.length);
+    else if (a === '--max-errors') {
+      const value = args[++i];
+      if (value === undefined) return usage(out, `validate --max-errors requires a value (integer from 1 to ${MAX_ERRORS_LIMIT})`);
+      maxErrorsRaw = value;
+    } else if (a.startsWith('--max-errors=')) maxErrorsRaw = a.slice('--max-errors='.length);
     else if (a === '--allow-macros') allowMacros = true;
     else if (a === '--strip-macros') stripMacros = true;
     else if (a === '--style-guide') {
@@ -40,6 +52,14 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
   }
   if (!file) return usage(out, 'validate requires exactly one <docx> argument');
   if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
+  let maxErrors = DEFAULT_MAX_ERRORS;
+  if (maxErrorsRaw !== undefined) {
+    const n = Number(maxErrorsRaw);
+    if (!/^\d+$/.test(maxErrorsRaw) || !Number.isSafeInteger(n) || n < 1 || n > MAX_ERRORS_LIMIT) {
+      return usage(out, `validate --max-errors must be an integer from 1 to ${MAX_ERRORS_LIMIT} (got "${maxErrorsRaw}")`);
+    }
+    maxErrors = n;
+  }
   const ceilings: ZipCeilingOverrides = {};
   try {
     if (maxRatioRaw !== undefined) ceilings.maxRatio = parseMaxRatioFlag(maxRatioRaw);
@@ -83,7 +103,7 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
       } catch (err: unknown) {
         // A package without [Content_Types].xml is refused at open, so it cannot be edited. A check
         // still reports it as invalid, with the validator's own list, instead of stopping at the refusal.
-        if (err instanceof Error && /missing \[Content_Types\]\.xml/.test(err.message)) return validateDocxBuffer(buf);
+        if (err instanceof Error && /missing \[Content_Types\]\.xml/.test(err.message)) return validateDocxBuffer(buf, { maxErrors });
         throw err;
       }
       try {
@@ -91,7 +111,7 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
       } catch {
         pendingNormalizations = [];
       }
-      return p.validateOOXML();
+      return p.validateOOXML({ maxErrors });
     });
     const pending = pendingNormalizations.length > 0 ? { pendingNormalizations } : {};
     if (result.ok) {
@@ -139,7 +159,7 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
       printJson(out, { ok: true, file, errors: [], ...pending });
       return EXIT_OK;
     }
-    const errors = result.errors.slice(0, 10).map((e) => {
+    const errors = result.errors.slice(0, maxErrors).map((e) => {
       const err = e as { description?: unknown; message?: unknown; path?: unknown; xpath?: unknown; xPath?: unknown };
       const desc =
         (typeof err.description === 'string' && err.description) ||
@@ -151,9 +171,22 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
         (typeof err.path === 'string' && err.path);
       return where ? `${desc} (at ${where})` : desc;
     });
-    print(out, `INVALID ${file}: ${result.errors.length} error(s)`);
-    for (const e of errors) print(out, `  - ${e.slice(0, 500)}`);
-    printJson(out, { ok: false, file, error: `[E_VALIDATION] "${file}" failed OOXML validation`, code: 'E_VALIDATION', errorCount: result.errors.length, errors });
+    // The validator marks a list it cut at the limit; `errors` then holds the first ones, not all.
+    const truncated = result.truncated === true;
+    print(out, `INVALID ${file}: ${truncated ? `at least ${errors.length}` : errors.length} error(s)`);
+    for (const e of errors.slice(0, HUMAN_ERRORS_SHOWN)) print(out, `  - ${e.slice(0, 500)}`);
+    if (errors.length > HUMAN_ERRORS_SHOWN) {
+      print(out, `  ... and ${errors.length - HUMAN_ERRORS_SHOWN} more${truncated ? ' (the list is cut at the limit)' : ''}; --json lists them (up to ${maxErrors}, --max-errors <n> changes the limit)`);
+    }
+    printJson(out, {
+      ok: false,
+      file,
+      error: `[E_VALIDATION] "${file}" failed OOXML validation`,
+      code: 'E_VALIDATION',
+      errorCount: errors.length,
+      ...(truncated ? { truncated: true, maxErrors } : {}),
+      errors,
+    });
     // Validation failure is operational (fail-closed), not usage.
     if (!out.json) printStderr(`${CLI_NAME}: error: [E_VALIDATION] "${file}" failed OOXML validation. Remedy: repair the document in Word and retry`);
     return EXIT_FAIL;
