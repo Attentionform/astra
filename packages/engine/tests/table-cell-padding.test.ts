@@ -152,7 +152,7 @@ describe('table baseline cell padding', () => {
     expect(right.getAttribute('w:type')).toBe('dxa');
   });
 
-  it('preserves byte-identical behavior without tblCellMar when cellPadding is omitted', async () => {
+  it('writes only the default top and bottom padding (3 pt) when cellPadding is omitted', async () => {
     const { parser, ast } = await freshDoc();
     const engine = new OperationEngine(ast, parser);
     const anchor = lastNodeId(ast);
@@ -171,13 +171,18 @@ describe('table baseline cell padding', () => {
     const tblPr = directChildren(tblEl, 'w:tblPr')[0];
     expect(tblPr).toBeDefined();
 
+    // The rows had no space above and below the text; the sides are left to the table style.
     const tblCellMar = directChildren(tblPr, 'w:tblCellMar');
-    expect(tblCellMar.length).toBe(0);
+    expect(tblCellMar.length).toBe(1);
+    const sides = Array.from(tblCellMar[0].childNodes)
+      .filter((n) => n.nodeType === 1)
+      .map((n) => [(n as Element).tagName, (n as Element).getAttribute('w:w'), (n as Element).getAttribute('w:type')]);
+    expect(sides).toEqual([['w:top', '60', 'dxa'], ['w:bottom', '60', 'dxa']]);
 
     const childNames = Array.from(tblPr.childNodes)
       .filter((n) => n.nodeType === 1)
       .map((n) => (n as Element).tagName);
-    expect(childNames).toEqual(['w:tblStyle', 'w:tblW', 'w:tblBorders']);
+    expect(childNames).toEqual(['w:tblStyle', 'w:tblW', 'w:tblBorders', 'w:tblCellMar']);
   });
 
   it('emits cellPadding from markdown compiler and renders tblCellMar in document', async () => {

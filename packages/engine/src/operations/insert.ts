@@ -814,7 +814,21 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
       validateTableCellPadding(nestedPaddingRaw);
     }
 
+    // Without padding of its own a table's rows have no space above and below the text (the Normal Table style
+    // sets 0), so the text touches the lines. The default is 3 pt above and below. The sides are left to the
+    // style (0.075 in), and a caller that passes cellPadding gets exactly what it asked for.
+    const DEFAULT_CELL_PADDING = { top: 60, bottom: 60 };
     const cellPaddingRaw = nestedPaddingRaw !== undefined ? nestedPaddingRaw : flatPaddingRaw;
+    if (cellPaddingRaw === undefined) {
+      const tblCellMar = createWordElement(doc, 'w:tblCellMar');
+      for (const side of ['top', 'bottom'] as const) {
+        const el = createWordElement(doc, `w:${side}`);
+        el.setAttribute('w:w', String(DEFAULT_CELL_PADDING[side]));
+        el.setAttribute('w:type', 'dxa');
+        tblCellMar.appendChild(el);
+      }
+      tblPr.appendChild(tblCellMar);
+    }
     if (cellPaddingRaw !== undefined) {
       const pad = validateTableCellPadding(cellPaddingRaw);
       const tblCellMar = createWordElement(doc, 'w:tblCellMar');

@@ -29,9 +29,9 @@ describe('inserted table width', () => {
     expect(tblW.getAttribute('w:type')).toBe('pct');
   });
 
-  it('sits in schema order: after the style, before the borders', async () => {
+  it('sits in schema order: after the style, before the borders and the cell margins', async () => {
     const tbl = await insertTable();
-    expect(kids(tbl.getElementsByTagName('w:tblPr')[0])).toEqual(['w:tblStyle', 'w:tblW', 'w:tblBorders']);
+    expect(kids(tbl.getElementsByTagName('w:tblPr')[0])).toEqual(['w:tblStyle', 'w:tblW', 'w:tblBorders', 'w:tblCellMar']);
   });
 
   it('keeps schema order when cell padding adds w:tblCellMar', async () => {
