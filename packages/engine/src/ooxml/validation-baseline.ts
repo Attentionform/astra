@@ -5,8 +5,12 @@
  */
 import type { ValidationResult } from './validator-backend';
 
-/** Every baseline-aware validation asks for this many errors, so the list is not cut at the default of 200. */
-export const BASELINE_MAX_ERRORS = 5000;
+/**
+ * Every baseline-aware validation asks for this many errors, so the list is not cut at the default of 200.
+ * A document with more errors than this is not compared (the result is marked truncated). The Open XML SDK
+ * stops silently at 1000 errors unless the worker raises its limit, which it does from the request.
+ */
+export const BASELINE_MAX_ERRORS = 50000;
 
 interface BaselineError {
   description?: string | null;
@@ -29,9 +33,17 @@ export type BaselineVerdict =
   | { kind: 'introduced'; introduced: BaselineError[]; preExisting: number }
   | { kind: 'incomparable'; reason: 'truncated' | 'exception' | 'guard' | 'no-baseline' };
 
+/**
+ * The validator reports one content-model error for an element and hides the others: an element with a
+ * child in the wrong place gets "unexpected child", and once the children are in order the same element
+ * shows "invalid content" or "incomplete content". They are one fault of one element, so they share an id.
+ */
+const ELEMENT_CONTENT_ERROR_ID = /^Sch_(?:Unexpected|Invalid|Incomplete)(?:Element)?Content/;
+
 /** Part, validator id and xPath with every index removed, so moving an element does not change it. */
 export function errorSignature(e: BaselineError): string {
-  return `${e.part ?? e.path ?? ''}|${e.id ?? ''}|${(e.xPath ?? '').replace(/\[\d+\]/g, '')}`;
+  const id = e.id && ELEMENT_CONTENT_ERROR_ID.test(e.id) ? 'Sch_ElementContent' : (e.id ?? '');
+  return `${e.part ?? e.path ?? ''}|${id}|${(e.xPath ?? '').replace(/\[\d+\]/g, '')}`;
 }
 
 /** Why a result cannot be compared, or null when it can. */

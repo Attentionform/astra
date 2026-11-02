@@ -251,6 +251,10 @@ public static class Worker
       using var stream = new MemoryStream(bytes, false);
       using var doc = OpenPackageFromStream(stream, kind);
       var validator = GetValidator(version);
+      // The SDK stops by itself at MaxNumberOfErrors, 1000 by default, without any sign that it stopped.
+      // Ask for one more error than the caller wants: then more errors than maxErrors show up as
+      // truncated, and a caller that asks for more than 1000 gets them.
+      validator.MaxNumberOfErrors = maxErrors < int.MaxValue ? Math.Max(maxErrors, 0) + 1 : int.MaxValue;
 
       int count = 0;
       bool truncated = false;

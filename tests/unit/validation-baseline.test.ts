@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildBaseline, errorSignature, judgeAgainstBaseline, BASELINE_MAX_ERRORS } from '@attentionform/astra-engine';
+import AdmZip from 'adm-zip';
+import { buildBaseline, errorSignature, judgeAgainstBaseline, validateDocxBuffer, createBlankDocxBuffer, BASELINE_MAX_ERRORS } from '@attentionform/astra-engine';
 import type { ValidationResult } from '@attentionform/astra-engine';
 
 const err = (xPath: string, id = 'Sch_UnexpectedElementContentExpectingComplex', part = '/word/styles.xml', errorType = 'Schema') => ({
@@ -22,8 +23,31 @@ describe('validation baseline', () => {
 
   it('a signature leaves out the indices of the xPath', () => {
     expect(errorSignature(err('/w:styles[1]/w:style[4]/w:tblPr[1]'))).toBe(
-      '/word/styles.xml|Sch_UnexpectedElementContentExpectingComplex|/w:styles/w:style/w:tblPr',
+      '/word/styles.xml|Sch_ElementContent|/w:styles/w:style/w:tblPr',
     );
+  });
+
+  it('the three element-content errors at one element share a signature', () => {
+    const at = '/w:styles[1]/w:docDefaults[1]/w:rPrDefault[1]/w:rPr[1]';
+    const unexpected = errorSignature(err(at, 'Sch_UnexpectedElementContentExpectingComplex'));
+    expect(errorSignature(err(at, 'Sch_InvalidElementContentExpectingComplex'))).toBe(unexpected);
+    expect(errorSignature(err(at, 'Sch_IncompleteContentExpectingComplex'))).toBe(unexpected);
+    // Another kind of error at the same element stays apart.
+    expect(errorSignature(err(at, 'Sch_AttributeValueDataTypeDetailed'))).not.toBe(unexpected);
+  });
+
+  it('an element that had an unexpected-child error and now has an invalid-content error is not a new error', () => {
+    // Moving the children into schema order clears the first error and shows the second one at the same element.
+    const at = '/w:styles[1]/w:docDefaults[1]/w:rPrDefault[1]/w:rPr[1]';
+    const base = buildBaseline(result([err(at, 'Sch_UnexpectedElementContentExpectingComplex')]));
+    const after = result([err(at, 'Sch_InvalidElementContentExpectingComplex')]);
+    expect(judgeAgainstBaseline(after, base)).toEqual({ kind: 'tolerated', preExisting: 1 });
+  });
+
+  it('a second content error at an element that had none is still new', () => {
+    const base = buildBaseline(result([err('/w:styles[1]/w:style[1]/w:pPr[1]', 'Sch_UnexpectedElementContentExpectingComplex')]));
+    const after = result([err('/w:styles[1]/w:style[1]/w:pPr[1]', 'Sch_InvalidElementContentExpectingComplex'), err('/w:styles[1]/w:style[2]/w:rPr[1]', 'Sch_InvalidElementContentExpectingComplex')]);
+    expect(judgeAgainstBaseline(after, base).kind).toBe('introduced');
   });
 
   it('a valid result is clean', () => {
@@ -88,5 +112,27 @@ describe('validation baseline', () => {
 
   it('a missing baseline cannot be compared', () => {
     expect(judgeAgainstBaseline(result([err('/w:styles[1]')]), null)).toEqual({ kind: 'incomparable', reason: 'no-baseline' });
+  });
+
+  it('a document with more than 1000 errors gives a complete baseline, and an edit that adds none is tolerated', async () => {
+    // The validator used to stop silently at 1000 errors, so a second run on an edited copy showed
+    // a different 1000 and the difference looked like new errors.
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const xml = zip.readAsText('word/document.xml');
+    zip.updateFile('word/document.xml', Buffer.from(xml.replace('<w:body>', '<w:body>' + '<w:p><w:bogus/></w:p>'.repeat(1200))));
+    const before = await validateDocxBuffer(zip.toBuffer(), { maxErrors: BASELINE_MAX_ERRORS });
+    expect(before.truncated).toBeFalsy();
+    expect(before.errors.length).toBeGreaterThan(1000);
+    const baseline = buildBaseline(before);
+    expect(baseline).not.toBeNull();
+    // The same errors after an edit that added a valid paragraph at the end.
+    const edited = new AdmZip(zip.toBuffer());
+    // A body ends with its section properties, so the paragraph goes in front of them.
+    const body = edited.readAsText('word/document.xml');
+    const at = body.lastIndexOf('<w:sectPr');
+    expect(at).toBeGreaterThan(0);
+    edited.updateFile('word/document.xml', Buffer.from(body.slice(0, at) + '<w:p><w:r><w:t>added</w:t></w:r></w:p>' + body.slice(at)));
+    const after = await validateDocxBuffer(edited.toBuffer(), { maxErrors: BASELINE_MAX_ERRORS });
+    expect(judgeAgainstBaseline(after, baseline).kind).toBe('tolerated');
   });
 });
