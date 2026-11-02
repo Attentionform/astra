@@ -6,7 +6,7 @@ import { BASELINE_MAX_ERRORS, BatchOperationsSchema, operationIssueRemedy, DocxP
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, formatNormalizedInline, mergeNormalized, previewNormalizedForDisplay, print, printJson, printStderr, readEngineNormalized, readParserNormalizations, stringifyJsonPayload } from './output';
 import { classifyFileReadError, cleanCliMessage, extractEngineRemedy, failWithCode, inferBatchCode, readErrRemedyProp, remedyForPostBatchValidation, rewriteMcpRemedies, withGatedEngineOutput, type KnownCliCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
-import { type ZipCeilingOverrides, clearDocumentBody, escapeXmlText, macroFlagsUsageError, macroOptsFromFlags, parseMaxRatioFlag, parseMaxUncompressedBytesFlag, readDocx, readStdinText, withReproducibleEnv, withAuthorEnv, withZipCeilingEnv, writeDocx } from './io';
+import { type ZipCeilingOverrides, clearDocumentBody, escapeXmlText, macroFlagsUsageError, macroOptsFromFlags, macroOutputRefusal, macroStripNameRefusal, parseMaxRatioFlag, parseMaxUncompressedBytesFlag, readDocx, readStdinText, withReproducibleEnv, withAuthorEnv, withZipCeilingEnv, writeDocx } from './io';
 
 /** Where to see an example of every action; added to the hints for an operation that the schema gate refused. */
 const BATCH_SCHEMA_POINTER = `Run \`${CLI_NAME} batch --schema\` for an example of each action.`;
@@ -905,6 +905,16 @@ export async function cmdBatch(out: GlobalOpts, args: string[]): Promise<number>
       return usage(out, `batch: --out target "${path.basename(job.target)}" already exists (refusing to overwrite without --force)`);
     }
   }
+  if (stripMacros && !dryRun) {
+    for (const job of jobs) {
+      const nameRefusal = macroStripNameRefusal(
+        'batch',
+        job.target,
+        'write the result to a .docx with --out <name>.docx, or use --allow-macros to keep the macro parts in the .docm',
+      );
+      if (nameRefusal !== null) return usage(out, nameRefusal);
+    }
+  }
   const backupState: BackupState = {
     path: backupGiven && !dryRun ? resolveBackupPath(file, backupRaw) : undefined,
     done: false,
@@ -1097,6 +1107,10 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       const clearGateNormalized = skipValidate ? [] : readParserNormalizations(cleared);
       const clearBytes = cleared.rezip({ reproducible: ctx.reproducible });
       const clearNormalized = mergeNormalized(clearGateNormalized, readParserNormalizations(cleared));
+      if (!ctx.dryRun) {
+        const nameRefusal = macroOutputRefusal('batch', target, cleared.getMacroParts(), ctx.macroOpts !== undefined && 'stripMacros' in ctx.macroOpts);
+        if (nameRefusal !== null) return usage(out, nameRefusal);
+      }
       await writeDocx(target, clearBytes);
       const clearHistory = await recordBatchRevision({ file, target, parser: cleared, message: 'batch: clear document', noHistory: ctx.noHistory === true });
       print(out, `BATCH OK ${file} -> ${target} (applied=${clearCount} cleared=${clearCount} ${formatNormalizedInline(clearNormalized)})${rowSuffix}`);
@@ -1119,6 +1133,10 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     }
     // R-8: flag/file ceilings scope the DocxParser zip-bomb gate for this load.
     const parser = await withZipCeilingEnv(ceilings, () => new DocxParser(working, ctx.macroOpts));
+    if (!ctx.dryRun) {
+      const nameRefusal = macroOutputRefusal('batch', target, parser.getMacroParts(), ctx.macroOpts !== undefined && 'stripMacros' in ctx.macroOpts);
+      if (nameRefusal !== null) return usage(out, nameRefusal);
+    }
     // A document with repeated paragraph ids is repaired when it is saved. When the result goes into the
     // input file and a history repository exists, the state before is recorded so one revert returns it.
     const dupPreState =
@@ -1306,6 +1324,10 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     const batchNormalized = mergeNormalized(readEngineNormalized(res), gateNormalized, readParserNormalizations(parser));
     if (dupPreState && batchNormalized.some((l) => l.startsWith('Renumbered duplicate'))) {
       await commitStateIfDiffersFromHead(file, dupPreState.xml, 'batch: state before duplicate paragraph ids were renumbered', dupPreState.extras);
+    }
+    if (!ctx.dryRun) {
+      const nameRefusal = macroOutputRefusal('batch', target, parser.getMacroParts(), ctx.macroOpts !== undefined && 'stripMacros' in ctx.macroOpts);
+      if (nameRefusal !== null) return usage(out, nameRefusal);
     }
     await writeDocx(target, finalBytes);
     const history = await recordBatchRevision({ file, target, parser, message: batchRevisionMessage(res.appliedCount, engineOps), noHistory: ctx.noHistory === true });
@@ -1548,6 +1570,14 @@ export async function cmdBatchStream(out: GlobalOpts, args: StreamCmdArgs): Prom
       /* destination is free — proceed */
     }
   }
+  if (args.macroOpts !== undefined && 'stripMacros' in args.macroOpts && !args.dryRun) {
+    const nameRefusal = macroStripNameRefusal(
+      'batch',
+      target,
+      'write the result to a .docx with --out <name>.docx, or use --allow-macros to keep the macro parts in the .docm',
+    );
+    if (nameRefusal !== null) return usage(out, nameRefusal);
+  }
   if (process.stdin.isTTY) {
     return usage(
       out,
@@ -1679,6 +1709,16 @@ export async function runStreamSession(
         await writeDocx(backupState.path, backupSource);
         backupState.done = true;
         printStderr(`${CLI_NAME}: note: stream backup ${file} -> ${backupState.path}`);
+      }
+      const isStripped = opts.macroOpts !== undefined && 'stripMacros' in opts.macroOpts;
+      const nameRefusal = macroOutputRefusal('batch', target, parser.getMacroParts(), isStripped);
+      if (nameRefusal !== null) {
+        return {
+          ok: false,
+          code: 'E_VALIDATION',
+          message: nameRefusal,
+          remedy: `name the output "${path.basename(target)}" with a .docm extension, or add --strip-macros to remove the macro parts`,
+        };
       }
       const finalBytes = parser.rezip({ reproducible });
       await writeDocx(target, finalBytes);

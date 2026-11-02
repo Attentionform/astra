@@ -244,6 +244,58 @@ describe('cli flags', () => {
     expect(await run(['inspect', file])).toBe(1);
     expect(await run(['inspect', file, '--allow-macros'])).toBe(0);
   });
+
+  it('batch refuses to write a macro-bearing result to .docx with --allow-macros and writes nothing', async () => {
+    const input = tmpPath('macro-batch-in', '.docm');
+    const output = tmpPath('macro-batch-out', '.docx');
+    const ops = tmpPath('macro-batch-ops', '.json');
+    fs.writeFileSync(input, macroDocx());
+    fs.writeFileSync(ops, JSON.stringify([{ action: 'insert', type: 'paragraph', anchor: 'end', position: 'after', text: 'hi' }]));
+    const code = await run(['batch', input, ops, '--allow-macros', '--no-validate', '--out', output]);
+    expect(code).toBe(2);
+    expect(fs.existsSync(output)).toBe(false);
+  });
+
+  it('batch --strip-macros to .docm is refused with usage error and writes nothing', async () => {
+    const input = tmpPath('macro-batch-strip-in', '.docm');
+    const output = tmpPath('macro-batch-strip-out', '.docm');
+    const ops = tmpPath('macro-batch-strip-ops', '.json');
+    fs.writeFileSync(input, macroDocx());
+    fs.writeFileSync(ops, JSON.stringify([{ action: 'insert', type: 'paragraph', anchor: 'end', position: 'after', text: 'hi' }]));
+    const code = await run(['batch', input, ops, '--strip-macros', '--no-validate', '--out', output]);
+    expect(code).toBe(2);
+    expect(fs.existsSync(output)).toBe(false);
+  });
+
+  it('batch --strip-macros to .docx strips macros and writes a clean file', async () => {
+    const input = tmpPath('macro-batch-strip-ok-in', '.docm');
+    const output = tmpPath('macro-batch-strip-ok-out', '.docx');
+    const ops = tmpPath('macro-batch-strip-ok-ops', '.json');
+    fs.writeFileSync(input, macroDocx());
+    fs.writeFileSync(ops, JSON.stringify([{ action: 'insert', type: 'paragraph', anchor: 'end', position: 'after', text: 'hi' }]));
+    const code = await run(['batch', input, ops, '--strip-macros', '--no-validate', '--out', output]);
+    expect(code).toBe(0);
+    expect(fs.existsSync(output)).toBe(true);
+    expect(entryNames(fs.readFileSync(output))).not.toContain('word/vbaProject.bin');
+  });
+
+  it('normalize refuses to write a macro-bearing result to .docx with --allow-macros and writes nothing', async () => {
+    const input = tmpPath('macro-norm-in', '.docm');
+    const output = tmpPath('macro-norm-out', '.docx');
+    fs.writeFileSync(input, macroDocx());
+    const code = await run(['normalize', input, '--allow-macros', '--out', output]);
+    expect(code).toBe(2);
+    expect(fs.existsSync(output)).toBe(false);
+  });
+
+  it('normalize --strip-macros to .docm is refused with usage error and writes nothing', async () => {
+    const input = tmpPath('macro-norm-strip-in', '.docm');
+    const output = tmpPath('macro-norm-strip-out', '.docm');
+    fs.writeFileSync(input, macroDocx());
+    const code = await run(['normalize', input, '--strip-macros', '--out', output]);
+    expect(code).toBe(2);
+    expect(fs.existsSync(output)).toBe(false);
+  });
 });
 
 describe('session store gate', () => {
@@ -256,5 +308,25 @@ describe('session store gate', () => {
     expect(kept.parser.getMacroParts()).toContain('word/vbaProject.bin');
     const stripped = await store.openBuffer(macroDocx(), 'macro.docx', undefined, { stripMacros: true });
     expect(stripped.parser.getDroppedMacroEntries()).toContain('word/vbaProject.bin');
+  });
+
+  it('save_document refuses to write macro parts to .docx', async () => {
+    const store = createMcpSessionStore();
+    const handle = await store.openBuffer(macroDocx(), 'macro.docm', undefined, { allowMacros: true });
+    const { handleSaveDocument } = await import('../../packages/mcp-server/src/lib/mcp/handlers/save-close');
+    const res = await handleSaveDocument(store, { sessionId: handle.sessionId, outPath: tmpPath('mcp-macro', '.docx') });
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe('E_VALIDATION');
+    expect(res.message).toMatch(/keeps macro parts/);
+  });
+
+  it('save_document refuses to write stripped macros to .docm', async () => {
+    const store = createMcpSessionStore();
+    const handle = await store.openBuffer(macroDocx(), 'macro.docx', undefined, { stripMacros: true });
+    const { handleSaveDocument } = await import('../../packages/mcp-server/src/lib/mcp/handlers/save-close');
+    const res = await handleSaveDocument(store, { sessionId: handle.sessionId, outPath: tmpPath('mcp-stripped', '.docm') });
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe('E_VALIDATION');
+    expect(res.message).toMatch(/\.docx extension/);
   });
 });

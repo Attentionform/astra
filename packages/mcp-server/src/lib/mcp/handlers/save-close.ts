@@ -1,6 +1,7 @@
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 1926-2196 + 2203-2273).
 // Zero logic edits (pathDirname + restore helpers live in ../diff and are imported).
 import * as fsp from 'fs/promises';
+import * as path from 'path';
 import {
   BASELINE_MAX_ERRORS,
   judgeAgainstBaseline,
@@ -145,6 +146,31 @@ export async function executeSaveDocument(
     // escapes via nearest-ancestor canonicalization). Throws E_SANDBOX.
     const rawTarget = parsed.data.outPath ?? handle.filePath;
     const target = validateSaveTarget(rawTarget);
+    const macroParts = handle.parser.getMacroParts();
+    const isStripped = parsed.data.stripMacros === true || handle.parser.getDroppedMacroEntries().length > 0;
+    if (macroParts.length > 0 && !/\.(docm|dotm)$/i.test(target)) {
+      const shown = macroParts.slice(0, 3).join(', ') + (macroParts.length > 3 ? `, +${macroParts.length - 3} more` : '');
+      throw Object.assign(
+        new Error(
+          `E_VALIDATION: save_document: the output keeps macro parts (${shown}) so it must be named .docm or .dotm; Word does not open a .docx that holds them`
+        ),
+        {
+          code: 'E_VALIDATION',
+          remedy: `name the output "${path.basename(target)}" with a .docm extension, or add stripMacros: true to remove the macro parts`,
+        }
+      );
+    }
+    if (isStripped && macroParts.length === 0 && /\.(docm|dotm)$/i.test(target)) {
+      throw Object.assign(
+        new Error(
+          `E_VALIDATION: save_document: stripMacros removes the macro parts, so the result is a plain document and cannot be written to "${path.basename(target)}", a macro-enabled name`
+        ),
+        {
+          code: 'E_VALIDATION',
+          remedy: `write the result to a .docx with outPath: "${path.basename(target).replace(/\.docm$/i, '.docx')}", or use allowMacros: true to keep the macro parts in the .docm`,
+        }
+      );
+    }
     const strict = parsed.data.strict ?? strictValidationDefault();
     // Paragraphs that share a w14:paraId are renumbered by the validation below (and logged); strict keeps the refusal.
     // The state before is kept for the history so one revert returns the repeated ids.
