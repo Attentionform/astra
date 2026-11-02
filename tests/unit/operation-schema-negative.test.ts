@@ -1037,6 +1037,38 @@ describe('note numbering restarts once per document', () => {
     expect(res.ok).toBe(true);
     expect(res.errors).toEqual([]);
   });
+
+  it('numRestart goes before the separator references that Word writes into footnotePr and endnotePr', async () => {
+    const parser = DocxParser.createNewDocument('blank');
+    const ast = await parser.getAST();
+    const anchor = ast.sections[0].nodes[0].id;
+    const zip = parser.getZipAdapter() as unknown as { readText: (p: string) => string; writeText: (p: string, s: string) => void };
+    // Word writes the separator references as the last children of both properties.
+    zip.writeText(
+      'word/settings.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+        `<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+        `<w:footnotePr><w:numFmt w:val="decimal"/><w:footnote w:id="-1"/><w:footnote w:id="0"/></w:footnotePr>` +
+        `<w:endnotePr><w:endnote w:id="-1"/><w:endnote w:id="0"/></w:endnotePr>` +
+        `</w:settings>`
+    );
+    executeFootnote({ action: 'footnote', operation: 'insert', anchor, text: 'with separators' } as never, ast, parser);
+    executeEndnote({ action: 'endnote', operation: 'insert', anchor, text: 'with separators' } as never, ast, parser);
+    const settingsXml = zip.readText('word/settings.xml');
+    const kinds = { footnotePr: 'w:footnote', endnotePr: 'w:endnote' } as const;
+    for (const tag of ['footnotePr', 'endnotePr'] as const) {
+      const body = propertyBody(settingsXml, tag);
+      expect((body.match(/w:numRestart/g) ?? []).length).toBe(1);
+      expect(body.indexOf('w:numRestart')).toBeLessThan(body.indexOf(`<${kinds[tag]} `));
+    }
+    const foot = propertyBody(settingsXml, 'footnotePr');
+    expect(foot.indexOf('w:numFmt')).toBeLessThan(foot.indexOf('w:numRestart'));
+    const endBody = propertyBody(settingsXml, 'endnotePr');
+    expect(endBody.indexOf('w:pos')).toBeLessThan(endBody.indexOf('w:numRestart'));
+    const res = await validateDocxBuffer(parser.rezip());
+    expect(res.errors).toEqual([]);
+    expect(res.ok).toBe(true);
+  });
 });
 
 describe('strict gate accepts engine-honored routing fields', () => {

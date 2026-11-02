@@ -232,13 +232,17 @@ function ensureFootnoteEndnoteSettings(zipAdapter: DocxZipAdapter, ast: Document
     const endnotePr = upsertSettingsChild(root, settingsDoc, 'w:endnotePr');
     // Numbering runs once per document: declare continuous restart for both
     // note kinds when the file does not already choose. Additive only — an
-    // explicit eachSect/eachPage choice is preserved. numRestart sorts last
-    // in (pos, numFmt, numStart, numRestart), so append keeps schema order.
+    // explicit eachSect/eachPage choice is preserved. numRestart is the last of
+    // (pos, numFmt, numStart, numRestart), but those four lead the separator
+    // references (w:footnote / w:endnote) that Word writes at the end of the
+    // property, so it goes before the first reference, not at the very end.
     for (const pr of [footnotePr, endnotePr]) {
       if (pr.getElementsByTagName('w:numRestart').length === 0) {
         const numRestart = createWordElement(settingsDoc, 'w:numRestart');
         numRestart.setAttribute('w:val', 'continuous');
-        pr.appendChild(numRestart);
+        const firstSeparatorRef =
+          Array.from(pr.childNodes).find(n => n.nodeType === 1 && ((n as Element).localName === 'footnote' || (n as Element).localName === 'endnote')) ?? null;
+        pr.insertBefore(numRestart, firstSeparatorRef);
       }
     }
     // Endnotes collect at the end of the document. pos leads the property

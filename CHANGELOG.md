@@ -17,6 +17,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ### Fixed
 
+- `footnote` and `endnote` no longer make the file invalid when `word/settings.xml` already lists the separator references (`<w:footnote w:id="-1"/>`) in `w:footnotePr` or `w:endnotePr`, which Word writes. The `w:numRestart` element was added after them; it now goes before them. About 47 % of corpus documents were affected, and the CLI and MCP refused the edit on them.
 - `--strip-macros` on a macro-enabled document (`.docm`) now leaves a plain document package. It also removes the rels part of the removed `vbaProject.bin` and the `word/vbaData.xml` part named there, changes the main part's content type from macro-enabled to plain document, and drops the `vbaProject` default content type when no `.bin` part is left. Before, Word refused the stripped file.
 - `sanitize` with zero retention (the default for a bare `sanitize`, and `--strip-macros` runs it) no longer leaves empty `dcterms:created` and `dcterms:modified` elements in `docProps/core.xml`. An empty date is not a valid W3CDTF value and Word refused to open the file ("The file appears to be corrupted"). Both elements are now removed.
 - Saves and inserts on large documents no longer take quadratic time (live node lists, repeated paragraph-id scans, a second serialization of the main document).
