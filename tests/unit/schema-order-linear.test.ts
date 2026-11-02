@@ -29,14 +29,15 @@ function makeDocument(paragraphs: number): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="${W}"><w:body>${body}</w:body></w:document>`;
 }
 
-function medianMs(fn: () => void, times = 3): number {
-  const samples: number[] = [];
+/** The fastest of several runs: a pause from garbage collection or a busy runner only ever adds time to a run. */
+function fastestMs(fn: () => void, times = 7): number {
+  let best = Infinity;
   for (let i = 0; i < times; i++) {
     const t0 = process.hrtime.bigint();
     fn();
-    samples.push(Number(process.hrtime.bigint() - t0) / 1e6);
+    best = Math.min(best, Number(process.hrtime.bigint() - t0) / 1e6);
   }
-  return samples.sort((a, b) => a - b)[Math.floor(times / 2)];
+  return best;
 }
 
 describe('canonicalisation cost grows linearly', () => {
@@ -44,8 +45,8 @@ describe('canonicalisation cost grows linearly', () => {
     const small = makeDocument(150);
     const large = makeDocument(300);
     canonicalizePartXml(makeDocument(20)); // warm up
-    const t1 = medianMs(() => canonicalizePartXml(small));
-    const t2 = medianMs(() => canonicalizePartXml(large));
+    const t1 = fastestMs(() => canonicalizePartXml(small));
+    const t2 = fastestMs(() => canonicalizePartXml(large));
     expect(t2 / t1).toBeLessThan(3);
   });
 
