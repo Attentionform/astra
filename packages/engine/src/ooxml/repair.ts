@@ -430,6 +430,36 @@ export const REPAIR_RULES: readonly RepairRule[] = [
       return log;
     },
   },
+  {
+    id: 'cell-valign-duplicate',
+    description: 'keep one w:vAlign in a w:tcPr: the last, which is the one a renderer applies last',
+    appliesTo: (p) => /^word\/[^/]+\.xml$/.test(p),
+    apply(doc) {
+      const log: string[] = [];
+      for (const tcPr of snapshot(doc, 'w:tcPr')) {
+        const aligns = elementChildren(tcPr).filter((c) => c.tagName === 'w:vAlign');
+        if (aligns.length < 2) continue;
+        const kept = aligns[aligns.length - 1];
+        for (const extra of aligns.slice(0, -1)) tcPr.removeChild(extra);
+        log.push(`Removed ${aligns.length - 1} duplicate w:vAlign from ${xpathOf(tcPr)}, kept w:val="${kept.getAttribute('w:val') ?? ''}"`);
+      }
+      return log;
+    },
+  },
+  {
+    id: 'shading-empty-fill',
+    description: 'remove an empty w:fill from w:shd: it is not a colour, and a missing fill means auto',
+    appliesTo: (p) => /^word\/[^/]+\.xml$/.test(p),
+    apply(doc) {
+      const log: string[] = [];
+      for (const el of snapshot(doc, 'w:shd')) {
+        if (!el.hasAttribute('w:fill') || (el.getAttribute('w:fill') ?? '').trim() !== '') continue;
+        el.removeAttribute('w:fill');
+        log.push(`Removed the empty w:fill from w:shd at ${xpathOf(el)}`);
+      }
+      return log;
+    },
+  },
 ];
 
 // ── runner ───────────────────────────────────────────────────────────────

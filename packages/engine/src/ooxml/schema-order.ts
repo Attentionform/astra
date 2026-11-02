@@ -256,6 +256,9 @@ export const SETTINGS_CHILD_ORDER: readonly string[] = [
   'w:doNotIncludeSubdocsInStats', 'w:doNotAutoCompressPictures', 'w:forceUpgrade',
   'w:captions', 'w:readModeInkLockDown', 'w:smartTagType', 'sl:schemaLibrary',
   'w:shapeDefaults', 'w:doNotEmbedSmartTags', 'w:decimalSymbol', 'w:listSeparator',
+  // Word's own extension elements follow w:listSeparator, in this order. Without a rank they stay where they
+  // are while w:listSeparator is moved past them, which puts it out of order.
+  'w14:docId', 'w14:discardImageEditingData', 'w14:defaultImageDpi', 'w15:chartTrackingRefBased', 'w15:docId',
 ];
 
 /**

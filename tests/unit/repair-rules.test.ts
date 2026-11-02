@@ -164,6 +164,82 @@ describe('rules added after the first measurement', () => {
   });
 });
 
+describe('cell-valign-duplicate, shading-empty-fill and the order of the Word extension elements in settings', () => {
+  const cell = (props: string) => doc(`<w:tbl><w:tr><w:tc><w:tcPr>${props}</w:tcPr><w:p><w:r><w:t>cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl>`);
+
+  it('cell-valign-duplicate keeps the last w:vAlign and removes the others', () => {
+    const r = runTwice('cell-valign-duplicate', 'word/document.xml', cell('<w:vAlign w:val="top"/><w:tcMar><w:left w:w="1" w:type="dxa"/></w:tcMar><w:vAlign w:val="center"/>'));
+    expect(r.xml.match(/<w:vAlign/g)).toHaveLength(1);
+    expect(r.xml).toContain('<w:vAlign w:val="center"/>');
+    expect(r.xml).not.toContain('w:val="top"');
+    expect(r.xml).toContain('<w:tcMar>');
+    expect(r.log).toEqual(['Removed 1 duplicate w:vAlign from /w:document[1]/w:body[1]/w:tbl[1]/w:tr[1]/w:tc[1]/w:tcPr[1], kept w:val="center"']);
+  });
+
+  it('cell-valign-duplicate handles three, in a style as well, and leaves one alone', () => {
+    const three = runTwice('cell-valign-duplicate', 'word/document.xml', cell('<w:vAlign w:val="top"/><w:vAlign w:val="bottom"/><w:vAlign w:val="center"/>'));
+    expect(three.xml.match(/<w:vAlign/g)).toHaveLength(1);
+    expect(three.xml).toContain('w:val="center"');
+    const style = runTwice('cell-valign-duplicate', 'word/styles.xml', `<w:styles ${W}><w:style w:type="table" w:styleId="T"><w:tblStylePr w:type="firstRow"><w:tcPr><w:vAlign w:val="top"/><w:vAlign w:val="center"/></w:tcPr></w:tblStylePr></w:style></w:styles>`);
+    expect(style.xml.match(/<w:vAlign/g)).toHaveLength(1);
+    expect(run('cell-valign-duplicate', 'word/document.xml', cell('<w:vAlign w:val="center"/>')).log).toEqual([]);
+  });
+
+  it('cell-valign-duplicate keeps the text of the cell', () => {
+    const r = run('cell-valign-duplicate', 'word/document.xml', cell('<w:vAlign w:val="top"/><w:vAlign w:val="center"/>'));
+    expect(r.xml).toContain('<w:t>cell</w:t>');
+  });
+
+  it('shading-empty-fill removes an empty w:fill and keeps the other attributes', () => {
+    const r = runTwice('shading-empty-fill', 'word/document.xml', cell('<w:shd w:val="clear" w:color="auto" w:fill=""/>'));
+    expect(r.xml).toContain('<w:shd w:val="clear" w:color="auto"/>');
+    expect(r.xml).not.toContain('w:fill');
+    expect(r.log).toHaveLength(1);
+  });
+
+  it('shading-empty-fill also reads a fill of white space, and works in styles and paragraph properties', () => {
+    expect(run('shading-empty-fill', 'word/document.xml', doc('<w:p><w:pPr><w:shd w:val="clear" w:fill="  "/></w:pPr></w:p>')).xml).not.toContain('w:fill');
+    const style = run('shading-empty-fill', 'word/styles.xml', `<w:styles ${W}><w:style w:type="paragraph" w:styleId="S"><w:pPr><w:shd w:val="clear" w:fill=""/></w:pPr></w:style></w:styles>`);
+    expect(style.xml).not.toContain('w:fill');
+  });
+
+  it('shading-empty-fill leaves a real fill, auto, and a shd without a fill alone', () => {
+    for (const shd of ['<w:shd w:val="clear" w:fill="FF0000"/>', '<w:shd w:val="clear" w:fill="auto"/>', '<w:shd w:val="clear"/>']) {
+      expect(run('shading-empty-fill', 'word/document.xml', cell(shd)).log).toEqual([]);
+    }
+  });
+
+  it('settings-order keeps w:listSeparator before the w14 and w15 elements, and puts a late w:updateFields where it belongs', () => {
+    // The order of a document from the corpus: Word's elements follow w:listSeparator, and w:updateFields is last.
+    const settings = `<w:settings ${W} xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml"><w:zoom w:percent="100"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat/><w:themeFontLang w:val="en-US"/><w:decimalSymbol w:val="."/><w:listSeparator w:val=","/><w14:docId w14:val="1"/><w15:chartTrackingRefBased/><w15:docId w15:val="{A}"/><w:updateFields w:val="true"/></w:settings>`;
+    const r = runTwice('settings-order', 'word/settings.xml', settings);
+    const tags = Array.from(r.xml.matchAll(/<((?:w|w14|w15):[A-Za-z]+)[ />]/g), (m) => m[1]).filter((t) => t !== 'w:settings');
+    expect(tags).toEqual(['w:zoom', 'w:characterSpacingControl', 'w:updateFields', 'w:compat', 'w:themeFontLang', 'w:decimalSymbol', 'w:listSeparator', 'w14:docId', 'w15:chartTrackingRefBased', 'w15:docId']);
+  });
+
+  it('settings-order puts the w14 and w15 elements after w:listSeparator when they come before it', () => {
+    const settings = `<w:settings ${W} xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w14:docId w14:val="1"/><w14:defaultImageDpi w14:val="220"/><w14:discardImageEditingData w14:val="1"/><w:listSeparator w:val=","/><w:decimalSymbol w:val="."/></w:settings>`;
+    const r = runTwice('settings-order', 'word/settings.xml', settings);
+    const tags = Array.from(r.xml.matchAll(/<((?:w|w14):[A-Za-z]+)[ />]/g), (m) => m[1]).filter((t) => t !== 'w:settings');
+    expect(tags).toEqual(['w:decimalSymbol', 'w:listSeparator', 'w14:docId', 'w14:discardImageEditingData', 'w14:defaultImageDpi']);
+  });
+
+  it('all three repairs in one package keep the visible text and leave the package valid', async () => {
+    const input = packageWith({
+      'word/document.xml': doc(
+        '<w:p><w:r><w:t>before</w:t></w:r></w:p><w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:shd w:val="clear" w:fill=""/><w:vAlign w:val="top"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:r><w:t>cell text</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>',
+      ),
+    });
+    const out = await repairDocxBuffer(input);
+    const part = partOf(out.buffer, 'word/document.xml');
+    expect(out.rolledBack).toEqual([]);
+    expect(part).toContain('cell text');
+    expect(part.match(/<w:vAlign/g)).toHaveLength(1);
+    expect(part).not.toContain('w:fill=""');
+    expect(out.remaining).toBe(0);
+  });
+});
+
 describe('every rule leaves a valid part byte for byte', () => {
   const valid = doc('<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>ok</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1" w:right="1" w:bottom="1" w:left="1"/></w:sectPr>');
   for (const r of REPAIR_RULES) {
