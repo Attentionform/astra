@@ -151,6 +151,21 @@ export function parseInlineTokens(
   const citationKeys: string[] = [];
   const shadowPieces: Array<{ kind: 'text' | 'fn'; text?: string; label?: string }> = [];
 
+  const pushSegment = (
+    segText: string,
+    flags: { bold: boolean; italic: boolean; strike?: boolean; code: boolean; linkUrl?: string }
+  ): void => {
+    const s: SpanSegment = {
+      text: segText,
+      bold: flags.bold,
+      italic: flags.italic,
+      code: flags.code,
+    };
+    if (flags.strike) s.strike = true;
+    if (flags.linkUrl !== undefined) s.linkUrl = flags.linkUrl;
+    segments.push(s);
+  };
+
   const pushTextWithMarkers = (
     rawText: string,
     flags: { bold: boolean; italic: boolean; strike?: boolean; code: boolean; linkUrl?: string },
@@ -159,7 +174,7 @@ export function parseInlineTokens(
     if (rawText.length === 0) return;
     if (isCodeLiteral) {
       const lit = nlToSpace(rawText);
-      segments.push({ text: lit, bold: flags.bold, italic: flags.italic, strike: flags.strike, code: true, linkUrl: flags.linkUrl });
+      pushSegment(lit, { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: true, linkUrl: flags.linkUrl });
       shadowPieces.push({ kind: 'text', text: lit });
       return;
     }
@@ -199,7 +214,7 @@ export function parseInlineTokens(
     let segText = '';
     const commitSeg = (): void => {
       if (segText.length > 0) {
-        segments.push({ text: segText, bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
+        pushSegment(segText, { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
         segText = '';
       }
     };
@@ -237,7 +252,7 @@ export function parseInlineTokens(
       }
     }
     if (segText.length > 0) {
-      segments.push({ text: nlToSpace(segText), bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
+      pushSegment(nlToSpace(segText), { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
     }
     void cursor;
   };
@@ -296,7 +311,7 @@ export function parseInlineTokens(
             const num = citationNum.get(rawKey) as number;
             citationKeys.push(rawKey);
             const citeText = `[${num}]`;
-            segments.push({ text: citeText, bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
+            pushSegment(citeText, { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
             shadowPieces.push({ kind: 'text', text: citeText });
             break;
           }
@@ -322,14 +337,14 @@ export function parseInlineTokens(
           fail(line, `raw HTML is out of scope in ${what}`, 'use plain Markdown blocks instead of HTML tags');
           break;
         case 'br':
-          segments.push({ text: ' ', bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
+          pushSegment(' ', { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
           shadowPieces.push({ kind: 'text', text: ' ' });
           break;
         case 'del':
           walk((t.tokens ?? []) as InlineToken[], { bold: flags.bold, italic: flags.italic, strike: true, linkUrl: flags.linkUrl });
           break;
         case 'codespan2':
-          segments.push({ text: t.raw ?? '', bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
+          pushSegment(t.raw ?? '', { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
           shadowPieces.push({ kind: 'text', text: t.raw ?? '' });
           break;
         default: {
@@ -339,7 +354,7 @@ export function parseInlineTokens(
           } else if (typeof t.text === 'string' && t.text.length > 0) {
             pushTextWithMarkers(unescapeMarkedText(t.text), { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl }, false);
           } else if (typeof t.raw === 'string' && t.raw.length > 0) {
-            segments.push({ text: t.raw, bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
+            pushSegment(t.raw, { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
             shadowPieces.push({ kind: 'text', text: t.raw });
           }
           break;
@@ -348,7 +363,7 @@ export function parseInlineTokens(
     }
   };
 
-  walk((inlineTokens ?? []) as InlineToken[], { bold: false, italic: false, strike: false, linkUrl: undefined });
+  walk((inlineTokens ?? []) as InlineToken[], { bold: false, italic: false });
 
   const SENTINEL = '\uE000';
   let shadowStr = '';

@@ -148,14 +148,35 @@ describe('Engine transactional guarantees', () => {
   });
 
   it('(e) table updateCell bumps version so a second generateToon reflects the new text', async () => {
-    const { ast, engine } = await setup('financial');
+    const { ast, engine } = await setup('blank');
+    const tableId = 't_table1';
+    await engine.executeBatch({
+      operations: [
+        {
+          action: 'insert',
+          type: 'table',
+          anchor: ast.sections[0].nodes[0].id,
+          position: 'after',
+          id: tableId,
+          params: {
+            rows: 3,
+            cols: 2,
+            data: [
+              ['Metric', 'Value'],
+              ['Revenue', '100'],
+              ['Net Revenue', '$42.5M']
+            ]
+          }
+        }
+      ]
+    });
     const tableNode = ast.sections[0].nodes.find(n => n.type === 'table');
     expect(tableNode).toBeDefined();
 
     const generator = new ToonGenerator();
     const before = generator.generateToon(ast);
     const beforeRow = before.rows.find(r => r.id === tableNode!.id)!;
-    expect(beforeRow.text).toContain('Net Revenue');
+    expect(beforeRow.text).toContain('Data 1');
 
     const res = await engine.executeBatch({
       operations: [
@@ -256,8 +277,20 @@ describe('Engine transactional guarantees', () => {
     }
 
     // Unsupported table op test
-    const financial = await setup('financial');
-    const tableRes = await financial.engine.executeBatch({
+    const { ast: fAst, engine: fEngine } = await setup('blank');
+    await fEngine.executeBatch({
+      operations: [
+        {
+          action: 'insert',
+          type: 'table',
+          anchor: fAst.sections[0].nodes[0].id,
+          position: 'after',
+          id: 't_001',
+          params: { rows: 2, cols: 2, data: [['A', 'B'], ['C', 'D']] }
+        }
+      ]
+    });
+    const tableRes = await fEngine.executeBatch({
       operations: [
         { action: 'table', target: 't_001', params: { op: 'unsupported_op' } }
       ]

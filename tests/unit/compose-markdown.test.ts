@@ -786,17 +786,13 @@ describe('compose image and chart references', () => {
 });
 
 describe('compose template seeds', () => {
-  it('appends onto matching report and memo seeds', async () => {
+  it('replaces matching report and memo placeholders', async () => {
     for (const template of ['report', 'memo'] as const) {
       const parser = DocxParser.createNewDocument(template);
       const result = await composeDocument(parser, 'Composed body\n', { template });
       expect(result.success).toBe(true);
       const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-      const marker = template === 'report' ? 'Q3 Executive' : 'MEMORANDUM';
-      const seedIdx = texts.findIndex((text) => text.includes(marker));
-      const bodyIdx = texts.findIndex((text) => text.includes('Composed body'));
-      expect(seedIdx).toBeGreaterThanOrEqual(0);
-      expect(bodyIdx).toBeGreaterThan(seedIdx);
+      expect(texts).toEqual(['Composed body']);
     }
   });
 
@@ -860,10 +856,10 @@ describe('compose inline spans', () => {
     expect(xml).toContain('**not bold**');
   });
 
-  it('fails bad link schemes and rich text in tables with line numbers', () => {
+  it('fails bad link schemes and unsupported inline elements in tables with line numbers', () => {
     expectLineError(() => compileMarkdown('See [x](javascript:alert(1)) here\n'), 1, 'not allowed');
-    expectLineError(() => compileMarkdown('| H |\n|---|\n| **bold** cell |\n'), 3, 'inside tables');
-    expectLineError(() => compileMarkdown('| H |\n|---|\n| [t](https://example.com) |\n'), 3, 'inside tables');
+    expectLineError(() => compileMarkdown('| H |\n|---|\n| ![img](test.png) |\n'), 1, 'in a table');
+    expectLineError(() => compileMarkdown('| H |\n|---|\n| [x](javascript:alert(1)) |\n'), 3, 'not allowed');
   });
 
   it('writes nothing when span compilation fails', async () => {

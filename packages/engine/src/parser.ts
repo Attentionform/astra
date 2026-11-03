@@ -3952,10 +3952,14 @@ export class DocxParser {
 </w:styles>`;
 
     // Pure style & layout template: clean placeholder before sectPr.
-    // 'blank' retains the two prompt lines (Title + Subtitle hint) which are replaced on compose.
+    // 'blank' (and unknown fallback templates) retain the two prompt lines (Title + Subtitle hint) which are replaced on compose.
     // Built-in styled templates (report, memo, novel, academic, etc.) strip all dummy prose and
     // provide an empty paragraph placeholder so imported manuscripts start at line 1 with zero reference offsets.
-    const isBlank = (templateType.toLowerCase() === 'blank');
+    const KNOWN_STYLED_TEMPLATES = new Set([
+      'novel', 'report', 'financial', 'academic', 'newsletter', 'api', 'api-spec',
+      'research', 'corporate', 'bar-chart-3d', 'memo', 'letter', 'proposal', 'invoice'
+    ]);
+    const isBlank = !KNOWN_STYLED_TEMPLATES.has(templateType.toLowerCase());
     const bodyContentXml = isBlank
       ? `
     <w:p>
