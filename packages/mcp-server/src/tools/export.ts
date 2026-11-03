@@ -7,6 +7,7 @@ import {
   AdmZip,
   assertValidDocx,
   assertWriteTargetNoSymlink,
+  collectMarkdownImageAssets,
   convertAstToHtml,
   htmlDocumentTitle,
   convertAstToMarkdown,
@@ -24,6 +25,8 @@ export const ExportDocumentSchema = z.object({
   sessionId: z.string().describe('Active document session ID returned by open_document'),
   format: z.enum(['html', 'markdown', 'md', 'pdf']).describe('Target export format: "html", "markdown", "md", or "pdf"'),
   outPath: z.string().optional().describe('Optional output destination path (must reside inside allowed directory)'),
+  imageMode: z.enum(['file', 'embed']).optional().describe('Markdown only: "file" writes extracted image assets to sibling <doc_basename>_assets/ with relative links; "embed" embeds as base64 data URIs. Default is "file" when outPath is specified, "embed" when returning in-memory content.'),
+  assetPrefix: z.string().optional().describe('Markdown only: relative directory prefix for extracted image assets (default: "<doc_basename>_assets")'),
   tagged_pdf: z.boolean().optional().describe('PDF only: tagged (accessible) render (default true)'),
   tagged: z.boolean().optional().describe('Alias of tagged_pdf'),
   strict: z.boolean().optional().describe('PDF only: fail closed on preflight blockers (default false, warn-only)'),
@@ -34,7 +37,8 @@ export type ExportDocumentArgs = z.infer<typeof ExportDocumentSchema>;
 export const EXPORT_DOCUMENT_DESCRIPTION =
   'Export the active document to HTML, Markdown, or PDF format with sandbox security gating. ' +
   'Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); ' +
-  'success returns {ok:true,format,path|content,bytes,dirty,revision} (dirty:true = unsaved edits present). ' +
+  'success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). ' +
+  'For Markdown exports, images default to extracted files in a sibling <doc_basename>_assets/ directory with relative links when outPath is specified; in-memory exports default to embedded base64 data URIs. ' +
   'PDF renders via headless LibreOffice: a ~11s first-render cold start is expected behavior, not a bug. ' +
   'Failures return {ok:false,code,message,remedy}.';
 
@@ -139,6 +143,63 @@ export function validateExportTarget(rawPath: unknown, expectedFormat: 'html' | 
   return resolved;
 }
 
+export function validateAssetTarget(rawPath: unknown): string {
+  if (typeof rawPath !== 'string' || !rawPath.trim()) {
+    throw Object.assign(new Error('[E_SANDBOX] Asset export path must be a non-empty string'), {
+      code: 'E_SANDBOX',
+      remedy: 'Pass a valid output path inside an allowed directory.',
+    });
+  }
+  if (rawPath.includes('\0') || /%00/i.test(rawPath)) {
+    throw Object.assign(new Error('[E_SANDBOX] Asset export path contains a null byte'), {
+      code: 'E_SANDBOX',
+      remedy: 'Remove null bytes from the path and retry.',
+    });
+  }
+  if (rawPath.includes('\n') || rawPath.includes('\r')) {
+    throw Object.assign(new Error('[E_SANDBOX] Asset export path contains forbidden line break'), {
+      code: 'E_SANDBOX',
+      remedy: 'Remove line breaks from the path and retry.',
+    });
+  }
+  const trimmed = rawPath.trim();
+  const segments = trimmed.split(/[\\/]/);
+  if (segments.includes('..')) {
+    throw Object.assign(new Error('[E_SANDBOX] Asset export path contains forbidden ".." traversal'), {
+      code: 'E_SANDBOX',
+      remedy: 'Use a path inside the workspace documents directory.',
+    });
+  }
+
+  const resolved = path.resolve(trimmed);
+  const canonical = canonicalizeForMcp(resolved);
+  const allowedRoots = getMcpAllowedRoots();
+
+  const isInside = allowedRoots.some((root) => {
+    let canonicalRoot = root;
+    try {
+      canonicalRoot = fs.realpathSync(root);
+    } catch {
+      // ignore
+    }
+    const normC = path.normalize(canonical);
+    const normR = path.normalize(canonicalRoot);
+    return normC === normR || normC.startsWith(normR + path.sep);
+  });
+
+  if (!isInside) {
+    throw Object.assign(
+      new Error(`[E_SANDBOX] Asset export path is outside allowed directories (${allowedRoots.join(', ')})`),
+      {
+        code: 'E_SANDBOX',
+        remedy: 'Place output inside one of the allowed directories, or name its folder with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS.',
+      }
+    );
+  }
+
+  return resolved;
+}
+
 /**
  * Serializes the live session through an isolated parser copy.
  *
@@ -194,7 +255,24 @@ export async function handleExportDocument(
   // Phase C-1b: success envelopes carry dirty + revision (exports render the
   // in-memory session state, not the last saved file).
   // Preflight diagnostics ride along additively as warnings/blockers arrays.
-): Promise<{ ok: boolean; format?: string; path?: string; bytes?: number; content?: string; dirty?: boolean; revision?: number; warnings?: PreflightIssue[]; blockers?: PreflightIssue[]; message?: string; code?: string; remedy?: string }> {
+): Promise<{
+  ok: boolean;
+  format?: string;
+  path?: string;
+  bytes?: number;
+  content?: string;
+  dirty?: boolean;
+  revision?: number;
+  imageMode?: 'file' | 'embed';
+  assetPrefix?: string;
+  assets?: string[];
+  assetCount?: number;
+  warnings?: PreflightIssue[];
+  blockers?: PreflightIssue[];
+  message?: string;
+  code?: string;
+  remedy?: string;
+}> {
   const parsed = ExportDocumentSchema.safeParse(rawArgs);
   if (!parsed.success) {
     return {
@@ -207,6 +285,25 @@ export async function handleExportDocument(
 
   const { sessionId, format: rawFormat, outPath } = parsed.data;
   const format: 'html' | 'markdown' | 'pdf' = rawFormat === 'md' ? 'markdown' : rawFormat;
+
+  if (format !== 'markdown') {
+    if (parsed.data.imageMode !== undefined && parsed.data.imageMode !== 'embed') {
+      return {
+        ok: false,
+        code: 'E_VALIDATION',
+        message: 'imageMode applies to markdown format only.',
+        remedy: 'Omit imageMode or export with format "markdown".',
+      };
+    }
+    if (parsed.data.assetPrefix !== undefined) {
+      return {
+        ok: false,
+        code: 'E_VALIDATION',
+        message: 'assetPrefix applies to markdown format only.',
+        remedy: 'Omit assetPrefix or export with format "markdown".',
+      };
+    }
+  }
   let session;
   try {
     session = store.get(sessionId);
@@ -320,17 +417,98 @@ export async function handleExportDocument(
       }
       return { ok: true, format: 'html', content: html, bytes: Buffer.byteLength(html, 'utf-8'), dirty, revision };
     } else {
-      const md = convertAstToMarkdown(ast, session.parser);
-      if (targetPath) {
-        // M1: same dangling-symlink guard as above.
-        assertWriteTargetNoSymlink(targetPath);
-        await fsp.mkdir(path.dirname(targetPath), { recursive: true });
-        assertWriteTargetNoSymlink(targetPath);
-        await writeFileNoFollow(targetPath, md, 'utf-8');
-        const stat = await fsp.stat(targetPath);
-        return { ok: true, format: 'markdown', path: targetPath, bytes: stat.size, dirty, revision };
+      const effectiveImageMode: 'file' | 'embed' = parsed.data.imageMode ?? (targetPath ? 'file' : 'embed');
+      const docBase = path.basename(
+        targetPath || session.filePath || 'document.docx',
+        path.extname(targetPath || session.filePath || 'document.docx')
+      ) || 'document';
+      const defaultAssetPrefix = `${docBase}_assets`;
+      const effectiveAssetPrefix = parsed.data.assetPrefix || (effectiveImageMode === 'file' ? defaultAssetPrefix : undefined);
+
+      if (effectiveImageMode === 'file') {
+        const md = convertAstToMarkdown(ast, session.parser, {
+          imageMode: 'file',
+          assetPrefix: effectiveAssetPrefix,
+        });
+        const imageAssets = collectMarkdownImageAssets(ast, effectiveAssetPrefix);
+
+        if (targetPath) {
+          assertWriteTargetNoSymlink(targetPath);
+          const destDir = path.dirname(targetPath);
+          await fsp.mkdir(destDir, { recursive: true });
+          assertWriteTargetNoSymlink(targetPath);
+          await writeFileNoFollow(targetPath, md, 'utf-8');
+
+          const writtenAssets: string[] = [];
+          for (const asset of imageAssets) {
+            const rawAssetPath = path.resolve(destDir, asset.name);
+            const assetPath = validateAssetTarget(rawAssetPath);
+            assertWriteTargetNoSymlink(assetPath);
+            await fsp.mkdir(path.dirname(assetPath), { recursive: true });
+            assertWriteTargetNoSymlink(assetPath);
+            await writeFileNoFollow(assetPath, asset.data);
+            writtenAssets.push(assetPath);
+          }
+
+          const stat = await fsp.stat(targetPath);
+          return {
+            ok: true,
+            format: 'markdown',
+            path: targetPath,
+            bytes: stat.size,
+            dirty,
+            revision,
+            imageMode: 'file',
+            assetPrefix: effectiveAssetPrefix,
+            assets: writtenAssets,
+            assetCount: writtenAssets.length,
+          };
+        } else {
+          return {
+            ok: true,
+            format: 'markdown',
+            content: md,
+            bytes: Buffer.byteLength(md, 'utf-8'),
+            dirty,
+            revision,
+            imageMode: 'file',
+            assetPrefix: effectiveAssetPrefix,
+            assets: [],
+            assetCount: imageAssets.length,
+          };
+        }
+      } else {
+        const md = convertAstToMarkdown(ast, session.parser, { imageMode: 'embed' });
+        if (targetPath) {
+          assertWriteTargetNoSymlink(targetPath);
+          await fsp.mkdir(path.dirname(targetPath), { recursive: true });
+          assertWriteTargetNoSymlink(targetPath);
+          await writeFileNoFollow(targetPath, md, 'utf-8');
+          const stat = await fsp.stat(targetPath);
+          return {
+            ok: true,
+            format: 'markdown',
+            path: targetPath,
+            bytes: stat.size,
+            dirty,
+            revision,
+            imageMode: 'embed',
+            assets: [],
+            assetCount: 0,
+          };
+        }
+        return {
+          ok: true,
+          format: 'markdown',
+          content: md,
+          bytes: Buffer.byteLength(md, 'utf-8'),
+          dirty,
+          revision,
+          imageMode: 'embed',
+          assets: [],
+          assetCount: 0,
+        };
       }
-      return { ok: true, format: 'markdown', content: md, bytes: Buffer.byteLength(md, 'utf-8'), dirty, revision };
     }
   } catch (err: unknown) {
     const mapped = mapExportError(err);

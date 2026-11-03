@@ -1,6 +1,6 @@
 {
   "name": "export_document",
-  "description": "Export the active document to HTML, Markdown, or PDF format with sandbox security gating. Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); success returns {ok:true,format,path|content,bytes,dirty,revision} (dirty:true = unsaved edits present). PDF renders via headless LibreOffice: a ~11s first-render cold start is expected behavior, not a bug. Failures return {ok:false,code,message,remedy}.",
+  "description": "Export the active document to HTML, Markdown, or PDF format with sandbox security gating. Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). For Markdown exports, images default to extracted files in a sibling <doc_basename>_assets/ directory with relative links when outPath is specified; in-memory exports default to embedded base64 data URIs. PDF renders via headless LibreOffice: a ~11s first-render cold start is expected behavior, not a bug. Failures return {ok:false,code,message,remedy}.",
   "parameters": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
@@ -21,6 +21,18 @@
       },
       "outPath": {
         "description": "Optional output destination path (must reside inside allowed directory)",
+        "type": "string"
+      },
+      "imageMode": {
+        "description": "Markdown only: \"file\" writes extracted image assets to sibling <doc_basename>_assets/ with relative links; \"embed\" embeds as base64 data URIs. Default is \"file\" when outPath is specified, \"embed\" when returning in-memory content.",
+        "type": "string",
+        "enum": [
+          "file",
+          "embed"
+        ]
+      },
+      "assetPrefix": {
+        "description": "Markdown only: relative directory prefix for extracted image assets (default: \"<doc_basename>_assets\")",
         "type": "string"
       },
       "tagged_pdf": {
