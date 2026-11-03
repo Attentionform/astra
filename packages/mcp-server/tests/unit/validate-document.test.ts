@@ -80,4 +80,23 @@ describe('validate_document handler', () => {
     expect(res.code).toBe('E_VALIDATION');
     expect(res.remedy.length).toBeGreaterThan(0);
   });
+
+  it('includes normalizeHint when validate_document fails and normalize can repair it', async () => {
+    const buf = DocxParser.createNewDocument('blank').rezip();
+    const zip = new AdmZip(buf);
+    const xml = zip.readAsText('word/document.xml');
+    const start = xml.indexOf('<w:body>') + '<w:body>'.length;
+    const end = xml.lastIndexOf('<w:sectPr');
+    const badP = '<w:p><w:r><w:t>misplaced</w:t></w:r><w:pPr><w:jc w:val="center"/></w:pPr></w:p>';
+    zip.updateFile('word/document.xml', Buffer.from(xml.slice(0, start) + badP + xml.slice(end), 'utf8'));
+    const store = createMcpSessionStore();
+    const handle = await store.openBuffer(zip.toBuffer(), 'memory.docx');
+
+    const res = await handleValidateDocument(store, { sessionId: handle.sessionId });
+    expect(res.ok).toBe(true);
+    if (!res.ok) throw new Error(`validate failed: ${JSON.stringify(res)}`);
+    expect(res.validation.valid).toBe(false);
+    expect(res.normalizeHint).toBeDefined();
+    expect(res.normalizeHint).toContain('Run normalize_document: it can repair some of these errors');
+  });
 });

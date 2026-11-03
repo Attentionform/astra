@@ -8,6 +8,8 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ### Changed
 
+- **`validate` hints when `normalize` can repair errors.** When a document fails validation and the errors include kinds that ASTra's repair rules can heal, the CLI and the MCP `validate_document` result advise the caller that running `normalize` (or `normalize_document`) can repair those errors, reporting how many changes `normalize` would make and whether the document then validates or leaves remaining errors for Word.
+
 - **HTML and Markdown export resolve run italic from table styles and `docDefaults`.** `effectiveRunItalic` now evaluates the four style levels defined by ECMA-376 17.7.3 (`docDefaults`, table style, paragraph style, and character style) combining toggle properties across style levels by exclusive OR. A run inside a table inherits italic from the table's style (and its `w:basedOn` inheritance chain), a document default setting italic applies across runs, and an italic paragraph or character style toggles italic upright. Direct formatting on the run (`w:i`) continues to take precedence alone. Documents without italic set in `docDefaults` or table styles remain unchanged.
 
 - **HTML export aligns table columns for rows with `w:gridBefore` and `w:gridAfter`.** When a row skips grid columns at the start or end, the HTML export now emits empty cells with `colspan` matching the count before the first cell and after the last, keeping columns aligned across rows in both merged and unmerged tables. Rows without these properties are unchanged, and Markdown export is unchanged as Markdown has no equivalent for empty cells with a span.

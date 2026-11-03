@@ -25,6 +25,8 @@ import {
   DocxParser,
   PII_COVERAGE,
   computeDocStats,
+  forecastNormalize,
+  normalizeHintSentence,
   piiCoverageSentence,
   refreshAstInPlace,
   revisionsRemedy,
@@ -159,11 +161,11 @@ function serializeSessionFork(parser: DocxParser, ast: unknown): Buffer {
 }
 
 /** Read-only OOXML verdict over the live session (forked, never writes). */
-async function forkValidation(handle: DocHandle): Promise<AuditValidation> {
+async function forkValidation(handle: DocHandle): Promise<{ validation: AuditValidation; buf: Buffer }> {
   const buf = serializeSessionFork(handle.parser, handle.ast);
   const fork = new DocxParser(buf);
   const validation = await fork.validateOOXML();
-  return toAuditValidation(validation);
+  return { validation: toAuditValidation(validation), buf };
 }
 
 /** Same fork, with the full error list so the result can be compared with the baseline. */
@@ -191,6 +193,8 @@ export async function handleValidateDocument(
       validation: AuditValidation;
       /** Repairs a save would make (e.g. children put in schema order); absent when none. */
       pendingNormalizations?: string[];
+      /** Advice when normalize_document can repair errors in the document. */
+      normalizeHint?: string;
     }
   | McpErrorShape
 > {
@@ -201,10 +205,17 @@ export async function handleValidateDocument(
   }
   try {
     return await store.withSession(parsed.data.sessionId, async (handle) => {
-      const validation = await forkValidation(handle);
+      const { validation, buf } = await forkValidation(handle);
       // The verdict judges the document as a save would write it, so say what
       // that save would repair instead of leaving a plain ok.
       const pendingNormalizations = readPendingNormalizations(handle);
+      let normalizeHint: string | undefined;
+      if (!validation.valid) {
+        const forecast = await forecastNormalize(buf);
+        if (forecast) {
+          normalizeHint = normalizeHintSentence(forecast, validation.errorCount, 'Run normalize_document: it');
+        }
+      }
       return {
         ok: true as const,
         sessionId: handle.sessionId,
@@ -212,6 +223,7 @@ export async function handleValidateDocument(
         dirty: store.isDirty(handle),
         validation,
         ...(pendingNormalizations.length > 0 ? { pendingNormalizations } : {}),
+        ...(normalizeHint ? { normalizeHint } : {}),
       };
     });
   } catch (err: unknown) {

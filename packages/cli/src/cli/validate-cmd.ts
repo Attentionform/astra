@@ -1,4 +1,4 @@
-import { DocxParser, chartXmlGetterForAst, lintDocumentStyle, resolveStyleGuide, summarizeStyleGuide, validateDocxBuffer, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { DocxParser, chartXmlGetterForAst, lintDocumentStyle, resolveStyleGuide, summarizeStyleGuide, validateDocxBuffer, forecastNormalize, normalizeHintSentence, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, failWithCode, inferBatchCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -193,6 +193,8 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
     if (errors.length > HUMAN_ERRORS_SHOWN) {
       print(out, `  ... and ${errors.length - HUMAN_ERRORS_SHOWN} more${truncated ? ' (the list is cut at the limit)' : ''}; --json lists them (up to ${maxErrors}, --max-errors <n> changes the limit)`);
     }
+    const forecast = truncated ? undefined : await forecastNormalize(buf);
+    const hint = forecast ? normalizeHintSentence(forecast, errors.length, `Run \`${CLI_NAME} normalize ${file}\`: it`) : undefined;
     printJson(out, {
       ok: false,
       file,
@@ -200,10 +202,14 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
       code: 'E_VALIDATION',
       errorCount: errors.length,
       ...(truncated ? { truncated: true, maxErrors } : {}),
+      ...(hint ? { normalizeHint: hint } : {}),
       errors,
     });
     // Validation failure is operational (fail-closed), not usage.
-    if (!out.json) printStderr(`${CLI_NAME}: error: [E_VALIDATION] "${file}" failed OOXML validation. Remedy: repair the document in Word and retry`);
+    if (!out.json) {
+      const hintSuffix = hint ? ` ${hint}` : '';
+      printStderr(`${CLI_NAME}: error: [E_VALIDATION] "${file}" failed OOXML validation. Remedy: repair the document in Word and retry.${hintSuffix}`);
+    }
     return EXIT_FAIL;
   } catch (err: unknown) {
     return failHuman(out, err, { file, fallbackCode: 'E_VALIDATION' });

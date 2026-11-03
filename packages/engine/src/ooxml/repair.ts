@@ -616,3 +616,36 @@ export async function repairDocxBuffer(
   }
   return { buffer: normalized.length > 0 ? pack(current) : input, normalized, remaining, rolledBack };
 }
+
+/** What `normalize` would do to a package that fails validation. */
+export interface NormalizeForecast {
+  /** Number of changes `normalize` would keep. */
+  changes: number;
+  /** Validator errors that would be left, or -1 when the check could not run. */
+  remaining: number;
+}
+
+/**
+ * Runs the repair rules on a copy of `input` and reports what they would keep, so a failed validation can tell
+ * the caller that `normalize` helps. Returns `undefined` when no rule applies (or the check fails). It writes nothing.
+ */
+export async function forecastNormalize(input: Buffer): Promise<NormalizeForecast | undefined> {
+  try {
+    const outcome = await repairDocxBuffer(input);
+    if (outcome.normalized.length === 0) return undefined;
+    return { changes: outcome.normalized.length, remaining: outcome.remaining };
+  } catch {
+    return undefined;
+  }
+}
+
+/** One sentence that says what `normalize` does for a document with `errorCount` validator errors, for a failed validation. */
+export function normalizeHintSentence(forecast: NormalizeForecast, errorCount: number, how: string): string {
+  const left =
+    forecast.remaining === 0
+      ? 'and the document then validates'
+      : forecast.remaining > 0
+        ? `and leaves ${forecast.remaining} of ${errorCount} errors, which need Word`
+        : 'and the rest need Word';
+  return `${how} can repair some of these errors (${forecast.changes} change${forecast.changes === 1 ? '' : 's'}) ${left}.`;
+}
