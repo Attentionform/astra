@@ -11,18 +11,10 @@ export const CREATE_TEMPLATES = ['report', 'memo', 'blank'] as const;
 export type CreateTemplate = (typeof CREATE_TEMPLATES)[number];
 
 /**
- * A note for a template that comes with text of its own, or undefined for `blank`. `report` holds a whole sample
- * report with invented figures, and composed Markdown is added after the sample text of `report` and `memo`; only
- * on `blank` does it replace the two prompt lines. Printed so that nobody shares a file that still holds the sample.
+ * Pure style templates: fresh templates hold only style and geometry definitions with an empty paragraph placeholder.
+ * Placeholders are cleanly replaced on compose; no sample content warning is needed.
  */
-export function templateSampleNote(template: string, composed: boolean): string | undefined {
-  const after = composed ? ' The Markdown you composed is added after that text, not in place of it.' : '';
-  if (template === 'report') {
-    return `--template report includes sample content (a Q3 financial report with invented figures).${after} Replace or delete it before you share the file, or use --template blank.`;
-  }
-  if (template === 'memo') {
-    return `--template memo includes a heading and a placeholder line.${after} Replace or delete them before you share the file, or use --template blank.`;
-  }
+export function templateSampleNote(_template: string, _composed: boolean): string | undefined {
   return undefined;
 }
 

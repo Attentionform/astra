@@ -704,8 +704,9 @@ describe('create --from-md', () => {
     expect((await runCli(['validate', out])).status).toBe(0);
     const xml = docXml(out);
     expect(xml).toContain('w:drawing');
-    expect(xml).toContain('Q3 Executive');
-    expect(xml.indexOf('Q3 Executive')).toBeLessThan(xml.indexOf('<w:t>After</w:t>'));
+    expect(xml).not.toContain('Q3 Executive');
+    expect(xml.indexOf('<w:t>Before</w:t>')).toBeLessThan(xml.indexOf('w:drawing'));
+    expect(xml.indexOf('w:drawing')).toBeLessThan(xml.indexOf('<w:t>After</w:t>'));
   });
 
   it('rejects image refs outside --allowed-dir with exit 1 and writes nothing', async () => {

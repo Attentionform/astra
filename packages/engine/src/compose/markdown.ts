@@ -249,7 +249,19 @@ export interface ComposeOptions {
  * inert (no seed references them) and do not block replacement; only a
  * restyled seed blocks.
  */
-function pristineBlankSeedIds(parser: DocxParser): string[] | null {
+/**
+ * Pristine template placeholder heuristic. Returns the seed node id(s) when the
+ * open document is still a fresh pristine template placeholder, otherwise null.
+ *
+ * Recognizes:
+ * 1. Single empty paragraph placeholder from fresh pure style templates:
+ *    `<w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr></w:p>`.
+ * 2. Legacy two-paragraph blank seed (`Blank Document` + `Start typing your content here...`).
+ *
+ * Strict guards: no tracked changes, no media files, no headers, no footers,
+ * no charts, no footnotes, no endnotes, no comments.
+ */
+function pristineTemplateSeedIds(parser: DocxParser): string[] | null {
   let summary: {
     hasTrackedChanges?: boolean;
     headers?: unknown[];
@@ -270,32 +282,13 @@ function pristineBlankSeedIds(parser: DocxParser): string[] | null {
     return null;
   }
   const nodes = summary.nodes ?? [];
-  if (nodes.length !== 2) return null;
+  if (nodes.length !== 1 && nodes.length !== 2) return null;
   if (summary.hasTrackedChanges === true) return null;
   if (Object.keys(summary.mediaFiles ?? {}).length > 0) return null;
   if ((summary.headers ?? []).length > 0) return null;
   if ((summary.footers ?? []).length > 0) return null;
   if ((summary.charts ?? []).length > 0) return null;
-  const [first, second] = nodes;
-  if (first.type !== 'paragraph' || second.type !== 'paragraph') return null;
-  if (first.hasTrackedChanges === true || second.hasTrackedChanges === true) return null;
-  if ((first.text ?? '').trim() !== BLANK_SEED_TITLE) return null;
-  if ((second.text ?? '').trim() !== BLANK_SEED_HINT) return null;
-  const firstRaw = first.rawXml ?? '';
-  const secondRaw = second.rawXml ?? '';
-  if (firstRaw.length === 0 || secondRaw.length === 0) return null;
-  for (const raw of [firstRaw, secondRaw]) {
-    if (
-      raw.includes('w:footnoteReference') ||
-      raw.includes('w:endnoteReference') ||
-      raw.includes('w:commentReference') ||
-      raw.includes('w:commentRangeStart') ||
-      raw.includes('w:commentRangeEnd')
-    ) {
-      return null;
-    }
-  }
-  if (!firstRaw.includes('w:val="Title"') || !secondRaw.includes('w:val="Subtitle"')) return null;
+
   try {
     const zip = (
       parser as unknown as { getZipAdapter?: () => { hasFile: (p: string) => boolean } }
@@ -319,11 +312,59 @@ function pristineBlankSeedIds(parser: DocxParser): string[] | null {
   } catch {
     return null;
   }
-  const firstId = first.id ?? '';
-  const secondId = second.id ?? '';
-  if (firstId.length === 0 || secondId.length === 0 || firstId === secondId) return null;
-  return [firstId, secondId];
+
+  // Case 1: Fresh 1-node pure style template placeholder (empty paragraph)
+  if (nodes.length === 1) {
+    const node = nodes[0];
+    if (node.type !== 'paragraph' || node.hasTrackedChanges === true) return null;
+    if ((node.text ?? '').trim() !== '') return null;
+    const raw = node.rawXml ?? '';
+    if (
+      raw.includes('w:footnoteReference') ||
+      raw.includes('w:endnoteReference') ||
+      raw.includes('w:commentReference') ||
+      raw.includes('w:commentRangeStart') ||
+      raw.includes('w:commentRangeEnd')
+    ) {
+      return null;
+    }
+    const id = node.id ?? '';
+    if (id.length === 0) return null;
+    return [id];
+  }
+
+  // Case 2: Legacy 2-node blank seed
+  if (nodes.length === 2) {
+    const [first, second] = nodes;
+    if (first.type !== 'paragraph' || second.type !== 'paragraph') return null;
+    if (first.hasTrackedChanges === true || second.hasTrackedChanges === true) return null;
+    if ((first.text ?? '').trim() !== BLANK_SEED_TITLE) return null;
+    if ((second.text ?? '').trim() !== BLANK_SEED_HINT) return null;
+    const firstRaw = first.rawXml ?? '';
+    const secondRaw = second.rawXml ?? '';
+    if (firstRaw.length === 0 || secondRaw.length === 0) return null;
+    for (const raw of [firstRaw, secondRaw]) {
+      if (
+        raw.includes('w:footnoteReference') ||
+        raw.includes('w:endnoteReference') ||
+        raw.includes('w:commentReference') ||
+        raw.includes('w:commentRangeStart') ||
+        raw.includes('w:commentRangeEnd')
+      ) {
+        return null;
+      }
+    }
+    if (!firstRaw.includes('w:val="Title"') || !secondRaw.includes('w:val="Subtitle"')) return null;
+    const firstId = first.id ?? '';
+    const secondId = second.id ?? '';
+    if (firstId.length === 0 || secondId.length === 0 || firstId === secondId) return null;
+    return [firstId, secondId];
+  }
+
+  return null;
 }
+
+export const pristineBlankSeedIds = pristineTemplateSeedIds;
 
 function assertTemplateSeed(parser: DocxParser, template: string): void {
   if (template !== 'report' && template !== 'memo' && template !== 'blank') {
@@ -332,17 +373,44 @@ function assertTemplateSeed(parser: DocxParser, template: string): void {
     );
   }
   const marker = TEMPLATE_SEEDS[template];
-  let texts: string[] = [];
+  let matched = false;
+
+  // 1. Check docProps/core.xml dc:title
   try {
-    const summary = parser.getStructuralSummary() as { nodes?: Array<{ text?: string }> };
-    texts = (summary.nodes ?? []).map((n) => n.text ?? '');
+    const zip = (
+      parser as unknown as { getZipAdapter?: () => { hasFile: (p: string) => boolean; readText: (p: string) => string } }
+    ).getZipAdapter?.();
+    if (zip && typeof zip.hasFile === 'function' && zip.hasFile('docProps/core.xml')) {
+      const coreXml = zip.readText('docProps/core.xml');
+      const titleMatch = /<dc:title>([^<]*)<\/dc:title>/.exec(coreXml);
+      if (titleMatch) {
+        const title = titleMatch[1].trim().toLowerCase();
+        if (
+          title === template.toLowerCase() ||
+          (template === 'blank' && (title === 'blank document' || title === 'blank'))
+        ) {
+          matched = true;
+        }
+      }
+    }
   } catch {
-    throw new Error(
-      'E_VALIDATION: line 1: template check cannot read the open document. Remedy: open a document first, then compose into it.'
-    );
+    // ignore
   }
-  const found = texts.some((t) => t.includes(marker));
-  if (!found) {
+
+  // 2. Check legacy marker in node texts
+  if (!matched && marker) {
+    try {
+      const summary = parser.getStructuralSummary() as { nodes?: Array<{ text?: string }> };
+      const texts = (summary.nodes ?? []).map((n) => n.text ?? '');
+      if (texts.some((t) => t.includes(marker))) {
+        matched = true;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!matched) {
     throw new Error(
       `E_VALIDATION: line 1: open document does not hold the ${template} seed ("${marker}"). Remedy: open a fresh ${template} document first, then compose into it.`
     );

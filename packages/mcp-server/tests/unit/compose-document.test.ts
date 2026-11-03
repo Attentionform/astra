@@ -72,6 +72,13 @@ async function openBlankSession(): Promise<{ store: ReturnType<typeof createMcpS
   return { store, sessionId: handle.sessionId };
 }
 
+async function openReportSession(): Promise<{ store: ReturnType<typeof createMcpSessionStore>; sessionId: string }> {
+  const store = createMcpSessionStore();
+  const buf = DocxParser.createNewDocument('report').rezip();
+  const handle = await store.openBuffer(buf, 'report.docx');
+  return { store, sessionId: handle.sessionId };
+}
+
 describe('compose_document handler', () => {
   it('composes rich Markdown: created ids, applied counts, validation proof', async () => {
     const { store, sessionId } = await openBlankSession();
@@ -496,5 +503,39 @@ describe('compose_document handler', () => {
         /* best-effort cleanup */
       }
     }
+  });
+
+  it('cleanly replaces report template placeholder and numbers citations from 1 without offsets', async () => {
+    const { store, sessionId } = await openReportSession();
+    const refs = Array.from({ length: 15 }, (_, i) => `[@ref${i + 1}]: Author ${i + 1} (2026). Paper ${i + 1}.`).join('\n\n');
+    const inText = Array.from({ length: 15 }, (_, i) => `Finding ${i + 1} [@ref${i + 1}].`).join(' ');
+    const md = `# Research Report Title\n\nExecutive summary of the report.\n\n## Findings\n\n${inText}\n\n${refs}\n`;
+
+    const res = await handleComposeDocument(store, {
+      sessionId,
+      markdown: md,
+      template: 'report',
+    });
+    expect(res.ok).toBe(true);
+
+    const handle = store.get(sessionId);
+    const summary = handle.parser.getStructuralSummary();
+    const nodes = summary.nodes ?? [];
+
+    // First node must be the manuscript title (starts at line 1, no leftover dummy text)
+    expect(nodes[0]?.text).toBe('Research Report Title');
+    expect(nodes.some((n) => (n.text ?? '').includes('Q3 Executive'))).toBe(false);
+
+    // Check citation references in the References section
+    const refHeadingIdx = nodes.findIndex((n) => n.text === 'References');
+    expect(refHeadingIdx).toBeGreaterThan(0);
+    const refEntries = nodes.slice(refHeadingIdx + 1).map((n) => n.text ?? '');
+    expect(refEntries.length).toBe(15);
+    expect(refEntries[0]).toMatch(/^\[1\] Author 1/);
+    expect(refEntries[14]).toMatch(/^\[15\] Author 15/);
+
+    // Validation proof
+    const val = await handle.parser.validateOOXML();
+    expect(val.ok).toBe(true);
   });
 });
