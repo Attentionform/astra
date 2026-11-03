@@ -39,7 +39,7 @@ import {
   isEndnoteLabel,
 } from './constants';
 import type { CitationDef, InlineToken, SpanSegment } from './text-spans';
-import { failOnImageOrHtml, parseInlineTokens, plainJoin, segmentsNeedSplit } from './text-spans';
+import { failOnImageOrHtml, parseInlineTokens, plainJoin, segmentsNeedSplit, validateLinkUrl } from './text-spans';
 
 interface FootnoteDef {
   label: string;
@@ -414,19 +414,22 @@ export function compileMarkdownDetailed(
     });
   };
 
-  const failOnSpanTokensInCell = (cellTokens: readonly InlineToken[] | undefined, line: number): void => {
-    const walkCell = (list: readonly InlineToken[]): void => {
+  const failOnSpanTokensInCell = (cellTokens: readonly InlineToken[] | undefined, line: number, inLink = false): void => {
+    const walkCell = (list: readonly InlineToken[], insideLink: boolean): void => {
       for (const tok of list) {
         const t = tok as InlineToken;
-        if (t.type === 'strong' || t.type === 'em' || t.type === 'codespan') {
-          fail(line, 'rich text inside tables is out of scope', 'move bold, italic, or code into a body paragraph');
-        }
         if (t.type === 'link') {
+          if (insideLink) {
+            fail(line, 'nested links are out of scope', 'keep one link per span without links inside links');
+          }
           const raw = (t as { raw?: unknown }).raw;
           if (typeof raw === 'string' && raw.startsWith('<')) {
             fail(line, 'raw HTML is out of scope in a table', 'use plain Markdown blocks instead of HTML tags');
           }
-          fail(line, 'links inside tables are out of scope', 'move the link into a body paragraph');
+          validateLinkUrl(String(t.href ?? ''), line);
+          const nested = (t as { tokens?: InlineToken[] }).tokens;
+          if (Array.isArray(nested) && nested.length > 0) walkCell(nested, true);
+          continue;
         }
         if (t.type === 'image') {
           fail(line, 'images are out of scope in a table', 'put images on their own block line instead');
@@ -438,10 +441,10 @@ export function compileMarkdownDetailed(
           fail(line, 'inline math inside tables is out of scope', 'move the math into a body paragraph');
         }
         const nested = (t as { tokens?: InlineToken[] }).tokens;
-        if (Array.isArray(nested) && nested.length > 0) walkCell(nested);
+        if (Array.isArray(nested) && nested.length > 0) walkCell(nested, insideLink);
       }
     };
-    if (cellTokens) walkCell(cellTokens);
+    if (cellTokens) walkCell(cellTokens, inLink);
   };
 
   const handleBlockImage = (

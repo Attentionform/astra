@@ -20,6 +20,7 @@ export interface SpanSegment {
   bold: boolean;
   italic: boolean;
   code: boolean;
+  strike?: boolean;
   linkUrl?: string;
   /** Inline math: `text` is LaTeX source, built into an `m:oMath` by compose. */
   math?: true;
@@ -152,13 +153,13 @@ export function parseInlineTokens(
 
   const pushTextWithMarkers = (
     rawText: string,
-    flags: { bold: boolean; italic: boolean; code: boolean; linkUrl?: string },
+    flags: { bold: boolean; italic: boolean; strike?: boolean; code: boolean; linkUrl?: string },
     isCodeLiteral: boolean
   ): void => {
     if (rawText.length === 0) return;
     if (isCodeLiteral) {
       const lit = nlToSpace(rawText);
-      segments.push({ text: lit, bold: flags.bold, italic: flags.italic, code: true, linkUrl: flags.linkUrl });
+      segments.push({ text: lit, bold: flags.bold, italic: flags.italic, strike: flags.strike, code: true, linkUrl: flags.linkUrl });
       shadowPieces.push({ kind: 'text', text: lit });
       return;
     }
@@ -198,7 +199,7 @@ export function parseInlineTokens(
     let segText = '';
     const commitSeg = (): void => {
       if (segText.length > 0) {
-        segments.push({ text: segText, bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+        segments.push({ text: segText, bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
         segText = '';
       }
     };
@@ -236,30 +237,30 @@ export function parseInlineTokens(
       }
     }
     if (segText.length > 0) {
-      segments.push({ text: nlToSpace(segText), bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+      segments.push({ text: nlToSpace(segText), bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
     }
     void cursor;
   };
 
   const walk = (
     tokens: readonly InlineToken[],
-    flags: { bold: boolean; italic: boolean; linkUrl?: string }
+    flags: { bold: boolean; italic: boolean; strike?: boolean; linkUrl?: string }
   ): void => {
     for (const tok of tokens) {
       const t = tok as InlineToken & { title?: unknown };
       switch (t.type) {
         case 'text':
         case 'escape':
-          pushTextWithMarkers(unescapeMarkedText(t.text ?? ''), { bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl }, false);
+          pushTextWithMarkers(unescapeMarkedText(t.text ?? ''), { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl }, false);
           break;
         case 'strong':
-          walk((t.tokens ?? []) as InlineToken[], { bold: true, italic: flags.italic, linkUrl: flags.linkUrl });
+          walk((t.tokens ?? []) as InlineToken[], { bold: true, italic: flags.italic, strike: flags.strike, linkUrl: flags.linkUrl });
           break;
         case 'em':
-          walk((t.tokens ?? []) as InlineToken[], { bold: flags.bold, italic: true, linkUrl: flags.linkUrl });
+          walk((t.tokens ?? []) as InlineToken[], { bold: flags.bold, italic: true, strike: flags.strike, linkUrl: flags.linkUrl });
           break;
         case 'codespan':
-          pushTextWithMarkers(unescapeMarkedText(t.text ?? ''), { bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl }, true);
+          pushTextWithMarkers(unescapeMarkedText(t.text ?? ''), { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl }, true);
           break;
         case 'link': {
           const raw = t.raw ?? '';
@@ -295,7 +296,7 @@ export function parseInlineTokens(
             const num = citationNum.get(rawKey) as number;
             citationKeys.push(rawKey);
             const citeText = `[${num}]`;
-            segments.push({ text: citeText, bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+            segments.push({ text: citeText, bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
             shadowPieces.push({ kind: 'text', text: citeText });
             break;
           }
@@ -303,7 +304,7 @@ export function parseInlineTokens(
           if (flags.linkUrl !== undefined) {
             fail(line, 'nested links are out of scope', 'keep one link per span without links inside links');
           }
-          walk((t.tokens ?? []) as InlineToken[], { bold: flags.bold, italic: flags.italic, linkUrl: href });
+          walk((t.tokens ?? []) as InlineToken[], { bold: flags.bold, italic: flags.italic, strike: flags.strike, linkUrl: href });
           break;
         }
         case 'parenMath':
@@ -321,12 +322,14 @@ export function parseInlineTokens(
           fail(line, `raw HTML is out of scope in ${what}`, 'use plain Markdown blocks instead of HTML tags');
           break;
         case 'br':
-          segments.push({ text: ' ', bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+          segments.push({ text: ' ', bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
           shadowPieces.push({ kind: 'text', text: ' ' });
           break;
         case 'del':
+          walk((t.tokens ?? []) as InlineToken[], { bold: flags.bold, italic: flags.italic, strike: true, linkUrl: flags.linkUrl });
+          break;
         case 'codespan2':
-          segments.push({ text: t.raw ?? '', bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+          segments.push({ text: t.raw ?? '', bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
           shadowPieces.push({ kind: 'text', text: t.raw ?? '' });
           break;
         default: {
@@ -334,9 +337,9 @@ export function parseInlineTokens(
           if (Array.isArray(maybeTokens) && maybeTokens.length > 0) {
             walk(maybeTokens, flags);
           } else if (typeof t.text === 'string' && t.text.length > 0) {
-            pushTextWithMarkers(unescapeMarkedText(t.text), { bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl }, false);
+            pushTextWithMarkers(unescapeMarkedText(t.text), { bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl }, false);
           } else if (typeof t.raw === 'string' && t.raw.length > 0) {
-            segments.push({ text: t.raw, bold: flags.bold, italic: flags.italic, code: false, linkUrl: flags.linkUrl });
+            segments.push({ text: t.raw, bold: flags.bold, italic: flags.italic, strike: flags.strike, code: false, linkUrl: flags.linkUrl });
             shadowPieces.push({ kind: 'text', text: t.raw });
           }
           break;
@@ -345,7 +348,7 @@ export function parseInlineTokens(
     }
   };
 
-  walk((inlineTokens ?? []) as InlineToken[], { bold: false, italic: false, linkUrl: undefined });
+  walk((inlineTokens ?? []) as InlineToken[], { bold: false, italic: false, strike: false, linkUrl: undefined });
 
   const SENTINEL = '\uE000';
   let shadowStr = '';
@@ -380,8 +383,8 @@ export function segmentsNeedSplit(segments: SpanSegment[]): boolean {
   if (segments.length === 0) return false;
   if (segments.some((s) => s.math)) return true;
   if (segments.length > 1) {
-    return segments.some((s) => s.bold || s.italic || s.code || s.linkUrl !== undefined);
+    return segments.some((s) => s.bold || s.italic || s.strike || s.code || s.linkUrl !== undefined);
   }
   const only = segments[0];
-  return only.bold || only.italic || only.code || only.linkUrl !== undefined;
+  return only.bold || only.italic || only.strike || only.code || only.linkUrl !== undefined;
 }

@@ -1,3 +1,4 @@
+import { marked } from 'marked';
 import { DocumentAST, Node, Section, calculateNodeChecksum } from '../ast';
 import { BaseOperation, InsertChainHost, createTextElement, validateVersion } from './base';
 import { XMLSerializer } from '@xmldom/xmldom';
@@ -8,14 +9,17 @@ import { insertIntoSection } from '../parser/sections';
 import { executeTable } from './table';
 import type { StyleGuideConfig } from '../style-guide/types';
 import { createWordElement } from '../ooxml/ns';
-import { allocateNextBookmarkId } from '../manipulators/relationships';
+import { allocateNextBookmarkId, allocateSafeHyperlinkRId } from '../manipulators/relationships';
 import { requireTwips } from '../operation-schema';
 import { resolveRevisionStamp } from '../ooxml/track-changes-emitter';
 import { generateValidParaId, sortChildrenBySchema, PPR_CHILD_ORDER, RPR_CHILD_ORDER, TBLPR_CHILD_ORDER } from '../ooxml/schema-order';
-import { assertNoXxe } from '../ooxml/xxe-guard';
+import { assertNoXxe, auditExternalRelTarget } from '../ooxml/xxe-guard';
 import { resolveReproducibleMode } from '../zip-hardening';
 import { appendElementsToHeaderFooter, resolveHeaderFooterTarget } from './headerFooter';
 import { toError } from '../errors';
+import { HYPERLINK_REL_TYPE } from './hyperlink';
+import { COMPOSE_CODE_FONT } from '../compose/constants';
+import { unescapeMarkedText } from '../compose/text-spans';
 
 export interface InsertOperation extends BaseOperation {
   action: 'insert';
@@ -450,6 +454,214 @@ function scanUsedParaIds(doc: Document): Set<string> {
     if (v && isValidParaId(v)) used.add(v.toUpperCase());
   }
   return used;
+}
+
+interface CellRunSegment {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  strike?: boolean;
+  code?: boolean;
+  linkUrl?: string;
+}
+
+function extractCellInlineSegments(
+  tokens: readonly any[],
+  flags: { bold?: boolean; italic?: boolean; strike?: boolean; code?: boolean; linkUrl?: string } = {}
+): CellRunSegment[] {
+  const segments: CellRunSegment[] = [];
+  for (const token of tokens) {
+    switch (token.type) {
+      case 'text':
+      case 'escape': {
+        const text = unescapeMarkedText(token.text ?? token.raw ?? '');
+        if (text.length > 0) {
+          segments.push({ text, ...flags });
+        }
+        break;
+      }
+      case 'strong':
+        segments.push(...extractCellInlineSegments(token.tokens ?? [], { ...flags, bold: true }));
+        break;
+      case 'em':
+        segments.push(...extractCellInlineSegments(token.tokens ?? [], { ...flags, italic: true }));
+        break;
+      case 'del':
+        segments.push(...extractCellInlineSegments(token.tokens ?? [], { ...flags, strike: true }));
+        break;
+      case 'codespan': {
+        const text = unescapeMarkedText(token.text ?? token.raw ?? '');
+        if (text.length > 0) {
+          segments.push({ text, ...flags, code: true });
+        }
+        break;
+      }
+      case 'link': {
+        const href = String(token.href ?? '');
+        segments.push(...extractCellInlineSegments(token.tokens ?? [], { ...flags, linkUrl: href }));
+        break;
+      }
+      case 'br':
+        segments.push({ text: ' ', ...flags });
+        break;
+      default: {
+        if (Array.isArray(token.tokens) && token.tokens.length > 0) {
+          segments.push(...extractCellInlineSegments(token.tokens, flags));
+        } else if (typeof token.text === 'string' && token.text.length > 0) {
+          segments.push({ text: unescapeMarkedText(token.text), ...flags });
+        } else if (typeof token.raw === 'string' && token.raw.length > 0) {
+          segments.push({ text: token.raw, ...flags });
+        }
+        break;
+      }
+    }
+  }
+  return segments;
+}
+
+function populateTableCell(
+  doc: Document,
+  p: Element,
+  cellText: string,
+  options: { defaultBold?: boolean; ast?: DocumentAST; parser?: DocxParser }
+): void {
+  const { defaultBold = false, ast, parser } = options;
+  if (cellText.length === 0) {
+    const r = createWordElement(doc, 'w:r');
+    if (defaultBold) {
+      const rPr = createWordElement(doc, 'w:rPr');
+      rPr.appendChild(createWordElement(doc, 'w:b'));
+      r.appendChild(rPr);
+    }
+    r.appendChild(createTextElement(doc, ''));
+    p.appendChild(r);
+    return;
+  }
+
+  // Fast path for cells with zero markdown syntax markers
+  if (!/[*_`~\[]/.test(cellText)) {
+    const r = createWordElement(doc, 'w:r');
+    if (defaultBold) {
+      const rPr = createWordElement(doc, 'w:rPr');
+      rPr.appendChild(createWordElement(doc, 'w:b'));
+      r.appendChild(rPr);
+    }
+    r.appendChild(createTextElement(doc, cellText));
+    p.appendChild(r);
+    return;
+  }
+
+  const tokens = marked.Lexer.lexInline(cellText);
+  const segments = extractCellInlineSegments(tokens);
+
+  if (segments.length === 0) {
+    const r = createWordElement(doc, 'w:r');
+    if (defaultBold) {
+      const rPr = createWordElement(doc, 'w:rPr');
+      rPr.appendChild(createWordElement(doc, 'w:b'));
+      r.appendChild(rPr);
+    }
+    r.appendChild(createTextElement(doc, cellText));
+    p.appendChild(r);
+    return;
+  }
+
+  let i = 0;
+  while (i < segments.length) {
+    const seg = segments[i];
+    if (!seg.linkUrl) {
+      const r = createWordElement(doc, 'w:r');
+      const isBold = defaultBold || !!seg.bold;
+      const needsRPr = isBold || seg.italic || seg.strike || seg.code;
+      if (needsRPr) {
+        const rPr = createWordElement(doc, 'w:rPr');
+        if (isBold) rPr.appendChild(createWordElement(doc, 'w:b'));
+        if (seg.italic) rPr.appendChild(createWordElement(doc, 'w:i'));
+        if (seg.strike) rPr.appendChild(createWordElement(doc, 'w:strike'));
+        if (seg.code) {
+          const rFonts = createWordElement(doc, 'w:rFonts');
+          rFonts.setAttribute('w:ascii', COMPOSE_CODE_FONT);
+          rFonts.setAttribute('w:hAnsi', COMPOSE_CODE_FONT);
+          rPr.appendChild(rFonts);
+        }
+        sortChildrenBySchema(rPr, RPR_CHILD_ORDER);
+        r.appendChild(rPr);
+      }
+      r.appendChild(createTextElement(doc, seg.text));
+      p.appendChild(r);
+      i++;
+    } else {
+      const targetUrl = seg.linkUrl;
+      const relDecision = auditExternalRelTarget(targetUrl);
+      if (!relDecision.allowed) {
+        throw new Error(
+          `E_VALIDATION: link scheme '${relDecision.scheme}' is not allowed. Remedy: use http, https, mailto, ftp, tel, sms, or a relative address.`
+        );
+      }
+
+      let relId = '';
+      if (ast) {
+        relId = allocateSafeHyperlinkRId(ast);
+        ast.relationships[relId] = {
+          type: HYPERLINK_REL_TYPE,
+          target: targetUrl,
+          targetMode: 'External',
+        };
+        if (parser) {
+          const zipAdapter = parser.getZipAdapter();
+          const relsPath = 'word/_rels/document.xml.rels';
+          if (zipAdapter.hasFile(relsPath)) {
+            const relsRaw = zipAdapter.readText(relsPath);
+            assertNoXxe(relsRaw, relsPath);
+            const relsDoc = new DOMParser().parseFromString(relsRaw, 'text/xml');
+            const relsEl = relsDoc.getElementsByTagName('Relationships')[0];
+            if (relsEl) {
+              const rel = relsDoc.createElement('Relationship');
+              rel.setAttribute('Id', relId);
+              rel.setAttribute('Type', HYPERLINK_REL_TYPE);
+              rel.setAttribute('Target', targetUrl);
+              rel.setAttribute('TargetMode', 'External');
+              relsEl.appendChild(rel);
+              zipAdapter.writeText(relsPath, new XMLSerializer().serializeToString(relsDoc));
+            }
+          }
+        }
+      }
+
+      const linkEl = createWordElement(doc, 'w:hyperlink');
+      if (relId) linkEl.setAttribute('r:id', relId);
+      linkEl.setAttribute('w:history', '1');
+
+      while (i < segments.length && segments[i].linkUrl === targetUrl) {
+        const lSeg = segments[i];
+        const r = createWordElement(doc, 'w:r');
+        const isBold = defaultBold || !!lSeg.bold;
+        const rPr = createWordElement(doc, 'w:rPr');
+        if (isBold) rPr.appendChild(createWordElement(doc, 'w:b'));
+        if (lSeg.italic) rPr.appendChild(createWordElement(doc, 'w:i'));
+        if (lSeg.strike) rPr.appendChild(createWordElement(doc, 'w:strike'));
+        if (lSeg.code) {
+          const rFonts = createWordElement(doc, 'w:rFonts');
+          rFonts.setAttribute('w:ascii', COMPOSE_CODE_FONT);
+          rFonts.setAttribute('w:hAnsi', COMPOSE_CODE_FONT);
+          rPr.appendChild(rFonts);
+        }
+        const color = createWordElement(doc, 'w:color');
+        color.setAttribute('w:val', '0066CC');
+        rPr.appendChild(color);
+        const underline = createWordElement(doc, 'w:u');
+        underline.setAttribute('w:val', 'single');
+        rPr.appendChild(underline);
+
+        sortChildrenBySchema(rPr, RPR_CHILD_ORDER);
+        r.appendChild(rPr);
+        r.appendChild(createTextElement(doc, lSeg.text));
+        linkEl.appendChild(r);
+        i++;
+      }
+      p.appendChild(linkEl);
+    }
+  }
 }
 
 export async function executeInsert(op: InsertOperation, ast: DocumentAST, parser?: DocxParser, guide?: StyleGuideConfig, paraIdCache?: ParaIdScanCache): Promise<void> {  let anchorSection: Section | null = null;
@@ -897,14 +1109,7 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
     defaultHeaders.forEach(h => {
       const tc = createWordElement(doc, 'w:tc');
       const p = createWordElement(doc, 'w:p');
-      const r = createWordElement(doc, 'w:r');
-      if (headerBold) {
-        const rPr = createWordElement(doc, 'w:rPr');
-        rPr.appendChild(createWordElement(doc, 'w:b'));
-        r.appendChild(rPr);
-      }
-      r.appendChild(createTextElement(doc, String(h)));
-      p.appendChild(r);
+      populateTableCell(doc, p, String(h), { defaultBold: headerBold, ast, parser });
       tc.appendChild(p);
       headerTr.appendChild(tc);
     });
@@ -919,9 +1124,7 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
       rowCells.forEach(cellText => {
         const tc = createWordElement(doc, 'w:tc');
         const p = createWordElement(doc, 'w:p');
-        const r = createWordElement(doc, 'w:r');
-        r.appendChild(createTextElement(doc, String(cellText)));
-        p.appendChild(r);
+        populateTableCell(doc, p, String(cellText), { defaultBold: false, ast, parser });
         tc.appendChild(p);
         tr.appendChild(tc);
       });

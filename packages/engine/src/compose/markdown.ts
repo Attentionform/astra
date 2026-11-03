@@ -187,6 +187,7 @@ import { HYPERLINK_REL_TYPE } from '../operations/hyperlink';
 import { allocateSafeHyperlinkRId } from '../manipulators/relationships';
 import { auditExternalRelTarget } from '../ooxml/xxe-guard';
 import { compileMarkdownDetailed, resolveComposeStyleGuide } from './compile';
+import { sortChildrenBySchema, RPR_CHILD_ORDER } from '../ooxml/schema-order';
 import { BLANK_SEED_HINT, BLANK_SEED_TITLE, COMPOSE_CODE_FONT, TEMPLATE_SEEDS } from './constants';
 import type { StyleGuideConfig } from '../style-guide/types';
 import { nlToSpace, segmentsNeedSplit } from './text-spans';
@@ -489,11 +490,12 @@ function applyInlineSpans(
     }
     const buildRun = (seg: SpanSegment): Element => {
       const run = createWordElement(doc, 'w:r');
-      const needsRPr = seg.bold || seg.italic || seg.code || seg.linkUrl !== undefined;
+      const needsRPr = seg.bold || seg.italic || seg.strike || seg.code || seg.linkUrl !== undefined;
       if (needsRPr) {
         const rPr = createWordElement(doc, 'w:rPr');
         if (seg.bold) rPr.appendChild(createWordElement(doc, 'w:b'));
         if (seg.italic) rPr.appendChild(createWordElement(doc, 'w:i'));
+        if (seg.strike) rPr.appendChild(createWordElement(doc, 'w:strike'));
         if (seg.code) {
           const rFonts = createWordElement(doc, 'w:rFonts');
           rFonts.setAttribute('w:ascii', COMPOSE_CODE_FONT);
@@ -508,6 +510,7 @@ function applyInlineSpans(
           underline.setAttribute('w:val', 'single');
           rPr.appendChild(underline);
         }
+        sortChildrenBySchema(rPr, RPR_CHILD_ORDER);
         run.appendChild(rPr);
       }
       run.appendChild(createTextElement(doc, nlToSpace(seg.text)));
