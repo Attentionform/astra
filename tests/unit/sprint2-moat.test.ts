@@ -312,6 +312,19 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
       expect(parser).toBeDefined();
 
       const docDom = parser.getDocumentDom();
+      const body = docDom.getElementsByTagName('w:body')[0];
+      const p = docDom.createElement('w:p');
+      const pPr = docDom.createElement('w:pPr');
+      const pStyle = docDom.createElement('w:pStyle');
+      pStyle.setAttribute('w:val', 'Heading1');
+      pPr.appendChild(pStyle);
+      p.appendChild(pPr);
+      const r = docDom.createElement('w:r');
+      const t = docDom.createElement('w:t');
+      t.appendChild(docDom.createTextNode('Executive Summary'));
+      r.appendChild(t);
+      p.appendChild(r);
+      body.insertBefore(p, body.firstChild);
 
       // Run linter directly
       const lintResult = lintAndFixTypography(docDom);

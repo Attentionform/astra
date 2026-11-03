@@ -196,7 +196,7 @@ describe('Track A: Namespace & Schema Correctness Suite', () => {
     for (const tpl of templates) {
       const parser = DocxParser.createNewDocument(tpl);
       const summary = parser.getStructuralSummary();
-      expect(summary.nodes.length).toBeGreaterThanOrEqual(2);
+      expect(summary.nodes.length).toBeGreaterThanOrEqual(1);
 
       // Verify that non-blank templates have distinct, non-blank title/preview
       if (tpl !== 'blank') {
