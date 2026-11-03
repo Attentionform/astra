@@ -228,9 +228,10 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions.'
   ),
   get_stats: withSharedDocs(
-    'Token-cheap document census for a session: words, paragraphs, tables, images, and a 500-words-per-page ' +
-      'page estimate in a single small envelope. Counters are the exact engine counters behind CLI stats, ' +
-      'so both surfaces always agree. Read-only: never mutates, never bumps the revision. ' +
+    'Token-cheap document census for a session: words, paragraphs, tables, images, and an estimated ' +
+      'editorial page budget (layout-weighted by words, tables, images, and explicit page breaks) in a single small envelope. ' +
+      'Counters are the exact engine counters behind CLI stats, so both surfaces always agree. Physical pagination is finalized ' +
+      'when exporting to PDF via LibreOffice. Read-only: never mutates, never bumps the revision. ' +
       'Returns {ok:true,sessionId,revision,dirty,words,paragraphs,tables,images,pages}. ' +
       'Use instead of inspect_document when only counts are needed (a full TOON dump costs thousands of tokens ' +
       'for the same question). Example {"sessionId":"sess_abc"} -> {"ok":true,"words":42,"paragraphs":5}. ' +

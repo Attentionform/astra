@@ -94,6 +94,27 @@ function nestedTableCount(node: { xml?: unknown }): number {
   }
 }
 
+/** Count of explicit page breaks on a node (type 'pageBreak', text '[Page Break]', or <w:br w:type="page"/>). */
+export function countExplicitPageBreaks(node: { type?: string; metadata?: { text?: string }; xml?: unknown }): number {
+  if (node.type === 'pageBreak') return 1;
+  const text = node.metadata?.text || '';
+  let count = text === '[Page Break]' ? 1 : 0;
+  try {
+    const xml = node.xml as Element | undefined;
+    if (xml && typeof xml.getElementsByTagName === 'function') {
+      const brs = xml.getElementsByTagName('w:br');
+      let brCount = 0;
+      for (let i = 0; i < brs.length; i++) {
+        if ((brs[i] as Element).getAttribute('w:type') === 'page') brCount++;
+      }
+      if (brCount > count) count = brCount;
+    }
+  } catch {
+    // degraded xml: fall back
+  }
+  return count;
+}
+
 export interface DocStats {
   words: number;
   paragraphs: number;
@@ -106,17 +127,20 @@ export interface DocStats {
  *  tables counts AST-registered table nodes and the w:tbl elements nested
  *  inside their cells (+1 each); a table that only lives in a textbox/shape
  *  in a plain body paragraph has no AST node and is not counted, so this can
- *  trail a raw document.xml w:tbl census. */
-export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: string; metadata: { text?: string }; xml?: unknown }> }> }): DocStats {
+ *  trail a raw document.xml w:tbl census.
+ *  pages is an estimated editorial budget: max(1, ceil(words/450 + tables*0.45 + images*0.50 + pageBreaks)). */
+export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: string; metadata: { text?: string; hasImage?: boolean }; xml?: unknown }> }> }): DocStats {
   let words = 0;
   let paragraphs = 0;
   let tables = 0;
   let images = 0;
+  let pageBreaks = 0;
   for (const sec of ast.sections) {
     for (const node of sec.nodes) {
       if (node.type === 'paragraph') paragraphs += 1;
       if (node.type === 'table') tables += 1 + nestedTableCount(node);
       if (node.type === 'image') images += 1;
+      pageBreaks += countExplicitPageBreaks(node);
       let text = node.metadata?.text ?? '';
       // Table nodes carry concatenated cell text in metadata.text (no cell
       // boundaries), which fuses edge words. Re-space via w:tc/w:p so the
@@ -129,7 +153,11 @@ export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: st
       if (hits) words += hits.length;
     }
   }
-  // 500 words/page is the standard editorial estimate. The engine page-map is
-  // renderer-backed (needs LibreOffice) — stats stays deterministic here.
-  return { words, paragraphs, pages: Math.max(1, Math.ceil(words / 500)), tables, images };
+  // Layout-weighted editorial page budget:
+  // - Prose: standard dense estimate ~450 words/page.
+  // - Tables: +0.45 page budget per table.
+  // - Images: +0.50 page budget per embedded image figure.
+  // - Page breaks: +1 page budget per explicit page break.
+  const pageBudget = (words / 450) + (tables * 0.45) + (images * 0.50) + pageBreaks;
+  return { words, paragraphs, pages: Math.max(1, Math.ceil(pageBudget)), tables, images };
 }
