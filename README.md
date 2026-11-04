@@ -42,13 +42,13 @@
 
 It is powered by its own document engine, which turns a `.docx` into a compact tree of nodes with stable IDs. The engine comes with a [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server, so AI assistants can use it directly, and a command-line tool for scripts and CI. ASTra is source-available.
 
-**Why use it?** An agent that edits Word files by writing code, or by reading the raw XML, either burns its context window on markup or produces a file that Word has to repair. ASTra gives the agent a compact outline to read, typed operations to apply by ID, and a validator that refuses to save a broken file.
+**Why use it?** An agent that edits Word files by writing code, or by reading the raw XML, either burns its context window on markup or produces a file that Word has to repair. ASTra gives the agent a compact outline to read, typed operations to apply by ID, and validation that catches schema errors before saving.
 
 <table>
   <tr>
     <td width="33%" valign="top"><b>An outline made for agents</b><br />One row per paragraph, table and image, each with a stable ID. Roughly 5x fewer tokens than raw XML on our demo report.</td>
     <td width="33%" valign="top"><b>Typed, batched edits</b><br />27 operations aimed at node IDs and applied as one batch. If any step fails, none of it is applied.</td>
-    <td width="33%" valign="top"><b>Built-in validation</b><br />Every file is validated against the Office Open XML schema before it is saved, by a validator package we ship ourselves. A file that fails is never written, so what comes out opens cleanly in Microsoft Word.</td>
+    <td width="33%" valign="top"><b>Built-in validation</b><br />Files are checked against the Office Open XML schema before saving. Existing validation errors may be tolerated under the default policy; strict mode refuses saves with errors.</td>
   </tr>
   <tr>
     <td width="33%" valign="top"><b>Git history</b><br />Every save is a commit in a git repository kept next to the document. ASTra writes it itself, so git does not need to be installed. List it, preview a revert, restore, redo.</td>
@@ -136,7 +136,7 @@ The folders named with `--allowed-dir` (or `ASTRA_EXTRA_DOC_ROOTS`) are the whol
 How the tools treat a file that already has validator errors:
 
 - `open_document` checks the file and reports `valid`, `invalid`, `timed-out` or `skipped`. It never refuses the open. Use `validationTimeoutMs` (or the server flag `--open-validation-timeout`) to change the wait; `0` skips the check.
-- A save is allowed when it adds no validator error beyond the ones the file had. Use `strict` on `save_document`, the server flag `--strict-validation` or `ASTRA_STRICT_VALIDATION=1` to refuse every error.
+- By default, a save is allowed when the normalized error-signature comparison detects no increase over the errors already present. Because that comparison groups similar errors and ignores position indices, it can miss an error replacing a similar existing error elsewhere. Use `strict` on `save_document`, the server flag `--strict-validation` or `ASTRA_STRICT_VALIDATION=1` to refuse every error.
 - `normalize_document` repairs known error kinds (element order, decimal sizes, smart tags and a few others). It drops any repair that changes the visible text or adds an error, and reports `remaining` and `rolledBack`. It does not claim the file is valid.
 - `--strip-macros` removes the macro parts and every reference to them, and refuses what it does not know.
 
@@ -292,13 +292,13 @@ A good rhythm for an agent is to work from the outline and the wireframe, and to
 
 | Safeguard | What it means for you |
 |---|---|
-| **Validation before saving** | A file is written only after every changed XML part passes ECMA-376 schema validation. A change that would break the document is rejected and the original stays as it was. |
+| **Validation before saving** | Saves are checked against the ECMA-376 schema. By default, detected increases in normalized error signatures are refused; strict validation refuses any reported error. |
 | **All-or-nothing batches** | If operation 9 of 10 fails, operations 1 to 8 are undone and the document is exactly as it was before the batch. |
 | **Stable addressing** | Edits target a node by ID, not a line number or character offset that may have shifted. |
 | **Namespace preservation** | The document's XML namespaces are kept intact. Dropping them is a common reason Word shows a repair prompt. |
 | **A folder boundary** | The MCP server works only inside the folders you name. Paths that escape them, including through symlinks, are refused. |
 
-Every saved file is well-formed and schema-valid. What the document says is up to you and your agent, so read important documents before they go out.
+A saved file may retain existing schema errors under the default policy. Validation does not establish that the content or layout is correct, so review important documents before they go out.
 
 <details>
 <summary><b>Watch a failed edit change nothing</b></summary>
@@ -362,7 +362,7 @@ A `.docx` file is a zip archive of interlinked XML. The usual ways to automate i
 - **Handing an AI the raw XML** floods its context window with markup. One long document is tens of thousands of tokens before it has read a word.
 - **Editing the XML directly** is easy to get subtly wrong, and Word will refuse to open the file or "repair" it on launch.
 
-ASTra sits between your tool and the file. It reads the document as a compact outline of nodes with IDs, applies typed operations to those nodes, and refuses to save anything that is not valid.
+ASTra sits between your tool and the file. It reads the document as a compact outline of nodes with IDs, applies typed operations to those nodes, and validates the result before saving.
 
 </details>
 
@@ -370,7 +370,7 @@ ASTra sits between your tool and the file. It reads the document as a compact ou
 
 - **Tested.** The engine, command-line tool and MCP server are covered by more than 4,000 automated tests, and are checked against nine ECMA-376 sample documents in [`test-gallery/`](test-gallery/). All 9 templates can be verified on your machine with `npm run validate:docs`.
 - **Version 0.x.** 0.1.0 is the first public release; [CHANGELOG.md](CHANGELOG.md) lists what changes in each release.
-- **Valid in Microsoft Word.** Every file ASTra writes is checked with the Open XML SDK's validator before it is saved, so you get a valid file with no corruption that opens in Microsoft Word.
+- **Validation.** ASTra checks saved files with the Open XML SDK validator. The default policy can tolerate existing errors; strict validation refuses saves with reported errors. Schema validation does not guarantee Word rendering or semantic correctness.
 - **Optional tools.** PDF export needs [LibreOffice](https://www.libreoffice.org/) on your `PATH`, and page images need LibreOffice and [Poppler](https://poppler.freedesktop.org/) (see [Quickstart](#quickstart)). Everything else works without them, including the text wireframe of each page.
 - **Privacy.** The engine, CLI and MCP server run on your machine and send nothing anywhere. See [Security and Sanitization](docs/security.md).
 

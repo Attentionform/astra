@@ -128,6 +128,20 @@ describe('MCP export_document: Markdown image asset export mode', () => {
   });
 
   describe('Disk Markdown export with outPath', () => {
+    it.each(['research report.md', '研究 report.md', '.private report.md'])(
+      'exports image assets for a filename containing special characters: %s',
+      async (filename) => {
+        const outPath = path.join(tempDir, filename);
+        const res = await handleExportDocument(store, { sessionId, format: 'markdown', outPath });
+        expect(res.ok).toBe(true);
+        expect(res.assets).toHaveLength(1);
+        const markdown = await fsp.readFile(outPath, 'utf8');
+        const relativeAsset = path.relative(tempDir, res.assets![0]).split(path.sep).join('/');
+        expect(markdown).toContain(relativeAsset);
+        expect(fs.existsSync(res.assets![0])).toBe(true);
+      },
+    );
+
     it('preserves existing Markdown when writing an image fails', async () => {
       const outPath = path.join(tempDir, 'before-image-failure.md');
       await fsp.writeFile(outPath, 'previous document');
@@ -263,7 +277,7 @@ describe('MCP export_document: Markdown image asset export mode', () => {
       expect(blankOpen.ok).toBe(true);
       const blankSessionId = (blankOpen as { sessionId: string }).sessionId;
 
-      const outMd = path.join(tempDir, 'blank_export.md');
+      const outMd = path.join(tempDir, 'blank export.md');
       const res = await handleExportDocument(store, {
         sessionId: blankSessionId,
         format: 'markdown',

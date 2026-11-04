@@ -430,7 +430,12 @@ export async function handleExportDocument(
         targetPath || session.filePath || 'document.docx',
         path.extname(targetPath || session.filePath || 'document.docx')
       ) || 'document';
-      const defaultAssetPrefix = `${docBase}_assets`;
+      // Keep automatically generated paths compatible with the engine's
+      // asset-prefix rules, even when the requested filename contains spaces,
+      // non-ASCII characters, or a leading dot. Explicit prefixes are validated
+      // separately and are never silently rewritten.
+      const safeDocBase = docBase.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^\.+/, '').slice(0, 120) || 'document';
+      const defaultAssetPrefix = `${safeDocBase}_assets`;
       const effectiveAssetPrefix = parsed.data.assetPrefix || (effectiveImageMode === 'file' ? defaultAssetPrefix : undefined);
 
       if (effectiveImageMode === 'file') {
