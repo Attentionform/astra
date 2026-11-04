@@ -258,6 +258,8 @@ Compiles a Markdown string into OOXML structures and applies them cleanly to the
 
 ---
 
+An unchanged built-in template created in the current session has its sample content replaced when composed. If the template was edited, loaded from an external template, or reopened in a later session, compose preserves its existing content and appends the new content.
+
 ### `import_document`
 Ingests an on-disk Markdown file into an open session under directory sandboxing.
 

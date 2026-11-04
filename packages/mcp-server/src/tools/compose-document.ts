@@ -122,7 +122,7 @@ export const ComposeDocumentSchema = z
 export type ComposeDocumentInput = z.infer<typeof ComposeDocumentSchema>;
 
 export const COMPOSE_DOCUMENT_DESCRIPTION =
-  'Compose a Markdown string into the open session document (appends after existing content, except that a pristine blank template has its two seed placeholders replaced so output holds only composed content). ' +
+  'Compose a Markdown string into the open session document (appends after existing content, except an unchanged built-in template created in this session has its sample content replaced). ' +
   'Runs the engine compose path, then applies the resulting operations through the same execute_batch path ' +
   '(strict schema gate, per-chunk quotas, structural checks, per-chunk atomic rollback, then inline-span run splitting), so every gate a batch meets applies here unchanged. ' +
   'Supported input: #/##/### headings (real Heading1..3 styles), blank-line paragraphs (single newlines join with a space), ' +
@@ -138,7 +138,7 @@ export const COMPOSE_DOCUMENT_DESCRIPTION =
   'Compiled node ids are deterministic per source, so a second compose into the same session is rejected by the duplicate-id gate ' +
   '(compose once per session with the full source). Optional template (report|memo|blank) requires the open document to still hold ' +
   'that template seed, otherwise composition fails before any write ' +
-  '(for a fresh templated document call new_document first, then compose_document with template), and placement is append after existing content except for the pristine blank replace above. ' +
+  '(for a fresh templated document call new_document first, then compose_document with template), and placement is append after existing content except for an unchanged built-in template created in this session. Reopened documents and external templates keep existing content. ' +
   'Returns {ok:true,opCount,appliedCount,revision,createdNodeIds,results,validation:{valid,errorCount,errors}} where createdNodeIds ' +
   'lists new node ids in document order (use them as anchors without re-inspecting) and validation proves the post-compose ' +
   'package state via a read-only OOXML check (save_document re-gates before writing). ' +
