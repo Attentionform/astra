@@ -316,6 +316,7 @@ describe('session store gate', () => {
     const { handleSaveDocument } = await import('../../packages/mcp-server/src/lib/mcp/handlers/save-close');
     const res = await handleSaveDocument(store, { sessionId: handle.sessionId, outPath: tmpPath('mcp-macro', '.docx') });
     expect(res.ok).toBe(false);
+    if (res.ok) throw new Error('Expected macro output to be refused');
     expect(res.code).toBe('E_VALIDATION');
     expect(res.message).toMatch(/keeps macro parts/);
   });
@@ -326,6 +327,7 @@ describe('session store gate', () => {
     const { handleSaveDocument } = await import('../../packages/mcp-server/src/lib/mcp/handlers/save-close');
     const res = await handleSaveDocument(store, { sessionId: handle.sessionId, outPath: tmpPath('mcp-stripped', '.docm') });
     expect(res.ok).toBe(false);
+    if (res.ok) throw new Error('Expected macro output to be refused');
     expect(res.code).toBe('E_VALIDATION');
     expect(res.message).toMatch(/\.docx extension/);
   });
