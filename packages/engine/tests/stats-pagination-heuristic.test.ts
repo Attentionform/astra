@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeDocStats, countExplicitPageBreaks } from '../src/stats';
+import { computeDocStats } from '../src/stats';
 
 describe('Layout-Weighted Pagination Heuristic (AS-05)', () => {
   it('estimates pages for pure prose based on 450 words per page', () => {

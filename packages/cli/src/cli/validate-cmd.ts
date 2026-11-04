@@ -1,4 +1,4 @@
-import { DocxParser, chartXmlGetterForAst, lintDocumentStyle, resolveStyleGuide, summarizeStyleGuide, validateDocxBuffer, forecastNormalize, normalizeHintSentence, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { DocxParser, chartXmlGetterForAst, lintDocumentStyle, resolveStyleGuide, summarizeStyleGuide, forecastNormalize, normalizeHintSentence, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, failWithCode, inferBatchCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';

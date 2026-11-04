@@ -539,7 +539,7 @@ function populateTableCell(
   }
 
   // Fast path for cells with zero markdown syntax markers
-  if (!/[*_`~\[]/.test(cellText)) {
+  if (!/[*_`~[]/.test(cellText)) {
     const r = createWordElement(doc, 'w:r');
     if (defaultBold) {
       const rPr = createWordElement(doc, 'w:rPr');
