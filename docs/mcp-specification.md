@@ -312,6 +312,8 @@ A table hit also lists `cells`: up to five addresses of the cells that hold the 
 #### `execute_batch`
 Executes an atomic array of typed operations (1–500 ops) with schema validation and rollback on error.
 
+**Inline formatting in inserted table cells.** Cell strings accept inline Markdown: `**urgent**` makes bold text, `*note*` makes italic text, and `[site](https://example.com)` creates a link. Ordinary text such as `*.docx` and `5 * 2` stays literal. To display Markdown delimiters literally, escape each delimiter. For example, in a JSON operation, use `"rows": [["\\*\\*urgent\\*\\*"]]` to display `**urgent**` as unformatted text; each Markdown backslash is doubled for JSON. Backticks create code formatting.
+
 **Table cells.** The paragraph in a table cell has no id of its own, so name it as `<tableId>:r<row>c<col>` (for example `t_001:r3c2`). Rows and columns are 1-based, exactly as the `r1c1` grid in `inspect_document` prints them. A cell with several paragraphs needs `:p<n>` as well (`t_001:r3c2:p2`); the error lists them. The `replace`, `style`, `namedStyle`, `clearFormat`, `hyperlink`, `bookmark` and `comment` actions accept a cell address as `target`; every other action refuses one and names the fix (the `table` action takes the table id with `rowIndex`/`colIndex`, numbered the same way, so `t_001:r3c2` and `rowIndex: 3, colIndex: 2` are the same cell). Every row and column number in a table operation counts from 1: `rowIndex`, `colIndex`, `columnIndex`, `row`, `col`, `index`, `afterIndex` and `fromRow`/`toRow`/`fromCol`/`toCol`. Address the cell where a merge starts: a covered cell, or a column inside a `gridSpan`, is refused with the cell to use instead. `expectedVersion` checks the table's version, and each cell edit bumps it.
 
 **Numbers count from 1.** Every position you type or read counts from 1: table rows and columns (`rowIndex`, `colIndex`, `r1c1`), chart series (`trendline.series`), sections (`sectionIndex`), list levels (`level`, shown as `[L1]`; on `changeLevel`, `0` takes the paragraph out of the list), pages and heading levels. `offset` is the one exception: it is how many items to skip, so `0` starts at the beginning. Values the file format fixes, such as the raw `w:ilvl` or `c:idx` inside a document, stay zero-based and are converted for you.
@@ -615,7 +617,7 @@ The verdict is on the document as a save would write it: children out of schema 
 ---
 
 #### `get_stats`
-Calculates comprehensive document telemetry including word count, paragraph count, and estimated printed page count.
+Calculates document telemetry including word count, paragraph count, and an estimated editorial page budget. Actual pagination depends on the rendering application, fonts, layout and document content; render a PDF when a physical page count is needed.
 
 **Input Parameters:**
 | Parameter | Type | Required | Description |

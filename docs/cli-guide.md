@@ -421,7 +421,7 @@ astra normalize legacy_doc.docx --out clean_doc.docx
 
 ### 4.10 Document Statistics (`astra stats`)
 
-Calculates document telemetry including word count, paragraph count, and estimated printed page count.
+Calculates document telemetry including word count, paragraph count, and an estimated editorial page budget. Actual pagination depends on the rendering application, fonts, layout and document content; export a PDF when a physical page count is needed.
 
 ```bash
 astra stats report.docx

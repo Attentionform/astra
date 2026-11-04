@@ -6,6 +6,17 @@ import { OperationEngine } from '../src/operation-engine';
 import type { InsertOperation } from '../src/operations/insert';
 
 describe('Table Cell Rich Text and Hyperlinks (AS-03)', () => {
+  it('preserves escaped Markdown delimiters as literal table text after reopening', async () => {
+    const parser = DocxParser.createNewDocument('blank');
+    const ast = await parser.getAST();
+    const engine = new OperationEngine(ast, parser);
+    const res = await engine.executeBatch({ operations: [{ action: 'insert', type: 'table', anchor: 'default', position: 'after', headers: ['Literal'], rows: [[String.raw`\*\*urgent\*\*`]] }] });
+    expect(res.success).toBe(true);
+    const reopened = new DocxParser(parser.rezip());
+    const table = reopened.getDocumentDom().getElementsByTagName('w:tbl')[0];
+    expect(table.textContent).toContain('**urgent**');
+  });
+
   it('compiles markdown table with bold, italic, code, strike, and hyperlinks without validation errors', () => {
     const md = [
       '| **Feature** | *Status* | `Code` | ~~Legacy~~ | [Link](https://example.com) |',
