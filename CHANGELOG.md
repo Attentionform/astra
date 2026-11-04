@@ -4,7 +4,13 @@ All notable changes to ASTra are recorded here. The format follows [Keep a Chang
 
 Packages released together: `@attentionform/astra-engine`, `@attentionform/astra-mcp-server`, `@attentionform/astra` (command line) and `@attentionform/ooxml-validator`, all at the same version.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-04
+
+### Added
+
+- **Markdown export handles filenames with spaces, Unicode, and leading dots.** When exporting to Markdown with image assets in file mode, the default asset directory name safely sanitizes document base names into valid relative folder identifiers without requiring callers to invent custom asset prefixes.
+- **Layout-weighted pagination budget in document stats.** Heuristic page counting accurately weighs prose, headings, tables, code blocks, images, and explicit page breaks.
+- **Rich text formatting and hyperlinks inside table cells.** Table generation compiles markdown syntax (bold, italic, code, strike, links) directly into table cell runs.
 
 ### Changed
 
