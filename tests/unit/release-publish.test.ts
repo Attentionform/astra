@@ -1,10 +1,12 @@
 /**
  * The order things are published in, what keeps going when a platform fails, what stops a run, and
- * what gets tagged. Registry, git and npm are faked; the manifests are the repository's own.
+ * what gets tagged. Registry, git, npm, package metadata and binary metadata are controlled fixtures.
  */
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { describe, it, expect } from 'vitest';
-import { runRelease, renderReport, type PublishDeps, type PublishOptions } from '../../scripts/release-publish.js';
+import { runRelease, renderReport, defaultDeps, type PublishDeps, type PublishOptions } from '../../scripts/release-publish.js';
 import type { PublishOutcome } from '../../scripts/npm-publish-if-new.js';
 import { VALIDATOR_TARGETS } from '../../scripts/validator-targets.js';
 
@@ -53,6 +55,7 @@ function fake(
     registryVersions: (name) => config.registry?.[name] ?? [],
     exists: (target) => !(config.missingDirs ?? []).some((d) => target === path.join(PLATFORM_DIR, d)),
     isExecutable: (file) => !(config.notExecutable ?? []).some((d) => file === path.join(PLATFORM_DIR, d, 'ooxml-validator')),
+    readBinary: () => ({ version: '0.1.0', range: '>=0.1.0 <0.2.0' }),
     readPackage: (dir) => NAMES[path.relative(ROOT, dir)],
     injectPlatforms: () => {
       injected++;
@@ -240,5 +243,44 @@ describe('tags', () => {
   it('does not tag without --tag', () => {
     const f = fake();
     expect(runRelease(options({ units: { ...nothing, engine: true }, tag: false }), f.deps).tags).toEqual([]);
+  });
+});
+
+describe('binary metadata boundary', () => {
+  it('reads binary metadata from the supplied root using the production reader', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-release-root-'));
+    try {
+      const manifestPath = path.join(root, 'packages/ooxml-validator/package.json');
+      fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+      fs.writeFileSync(manifestPath, JSON.stringify({ validatorBinary: { version: '2.3.4', range: '>=2.3.0 <3.0.0' } }));
+      const f = fake();
+      const paths: string[] = [];
+      const report = runRelease(options({ root, units: { ...nothing, 'validator-platforms': true } }), {
+        ...f.deps,
+        readBinary: (file) => { paths.push(file); return defaultDeps.readBinary(file); },
+      });
+      expect(paths).toEqual([manifestPath]);
+      expect(report.failures).toEqual([]);
+      expect(report.tags).toEqual(['validator-binary-v2.3.4']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ['coordinated bump', '0.3.0', '0.3.0', '>=0.3.0 <0.4.0', ['cli-v0.3.0', 'engine-v0.3.0', 'mcp-server-v0.3.0', 'validator-binary-v0.3.0', 'validator-v0.3.0']],
+    ['wrapper patch only', '0.1.5', '0.1.0', '>=0.1.0 <0.2.0', ['cli-v0.1.0', 'engine-v0.1.0', 'mcp-server-v0.1.0', 'validator-binary-v0.1.0', 'validator-v0.1.5']],
+  ])('tags independent versions for a %s', (scenario, version, binaryVersion, range, expectedTags) => {
+    const f = fake();
+    const report = runRelease(options(), {
+      ...f.deps,
+      readBinary: () => ({ version: binaryVersion, range }),
+      readPackage: (dir) => {
+        const pkg = f.deps.readPackage(dir);
+        return scenario === 'coordinated bump' || pkg.name === '@attentionform/ooxml-validator' ? { ...pkg, version } : pkg;
+      },
+    });
+    expect(report.failures).toEqual([]);
+    expect(report.tags.sort()).toEqual(expectedTags);
   });
 });

@@ -33,6 +33,7 @@ export interface PublishDeps {
   exists(target: string): boolean;
   /** True when the file is there and has an execute bit (the platform job's artifact upload drops it). */
   isExecutable(file: string): boolean;
+  readBinary(manifestPath: string): ReturnType<typeof readValidatorBinary>;
   readPackage(dir: string): { name: string; version: string };
   /** Adds the platform packages to the wrapper's manifest; returns a function that puts the manifest back. */
   injectPlatforms(): () => void;
@@ -79,6 +80,7 @@ export const defaultDeps: PublishDeps = {
   registryVersions: (name) => publishedVersions(name),
   exists: (target) => fs.existsSync(target),
   isExecutable: (file) => fs.existsSync(file) && (fs.statSync(file).mode & 0o111) !== 0,
+  readBinary: readValidatorBinary,
   readPackage: (dir) => JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as { name: string; version: string },
   injectPlatforms: () => {
     const manifest = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../packages/ooxml-validator/package.json');
@@ -99,7 +101,7 @@ export function runRelease(options: PublishOptions, deps: PublishDeps = defaultD
   const { units, dryRun, provenance, root } = options;
   const entries: PublishEntry[] = [];
   const failures: string[] = [];
-  const binary = readValidatorBinary(path.join(root, UNIT_DIRS['validator-wrapper'], 'package.json'));
+  const binary = deps.readBinary(path.join(root, UNIT_DIRS['validator-wrapper'], 'package.json'));
   const flags = { dryRun, provenance };
 
   // 1. Platform packages. One failing does not hold back the others.

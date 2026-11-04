@@ -19,7 +19,7 @@ describe('Validator version sync (Milestone M5)', () => {
 
   it('the wrapper declares the binary it ships and the range of binaries it accepts', () => {
     const binary = readValidatorBinary(wrapperPkgPath);
-    expect(binary.version).toBe('0.1.0');
+    expect(binary.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(inBinaryRange(binary.version, binary.range)).toBe(true);
   });
 
@@ -54,9 +54,11 @@ describe('Validator version sync (Milestone M5)', () => {
   });
 
   it('a wrapper release does not move the platform versions: the range still accepts the binary after a patch bump', () => {
-    const { version, range } = readValidatorBinary(wrapperPkgPath);
+    const version = '0.1.0';
+    const range = '>=0.1.0 <0.2.0';
     const wrapperAfterPatch = { version: '0.1.5', validatorBinary: { version, range } };
     expect(parseValidatorBinary(wrapperAfterPatch).version).toBe(version);
+    expect(inBinaryRange(version, range)).toBe(true);
     // the old scheme asked for ^<wrapper version>: it would have refused the binary that is on npm
     expect(inBinaryRange(version, `>=${'0.1.5'} <0.2.0`)).toBe(false);
   });

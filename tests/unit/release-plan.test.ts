@@ -1,6 +1,6 @@
 /**
  * What a release run decides before it publishes anything: which packages go out, and every reason
- * to stop. The registry is faked; the manifests are the repository's own.
+ * to stop. Behavioral scenarios use controlled manifests and registry entries; repository checks read real manifests.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,9 +20,16 @@ import {
 import { VALIDATOR_TARGETS } from '../../scripts/validator-targets.js';
 
 const ROOT = path.resolve(__dirname, '../..');
-const manifests = Object.fromEntries(
+const repositoryManifests = Object.fromEntries(
   Object.entries(UNIT_DIRS).map(([unit, dir]) => [unit, JSON.parse(fs.readFileSync(path.join(ROOT, dir, 'package.json'), 'utf8')) as Manifest]),
 ) as PlanInput['manifests'];
+
+const manifests: PlanInput['manifests'] = {
+  'validator-wrapper': { name: '@attentionform/ooxml-validator', version: '0.1.0', engines: { node: '>=22.19.0' }, validatorBinary: { version: '0.1.0', range: '>=0.1.0 <0.2.0' } },
+  engine: { name: '@attentionform/astra-engine', version: '0.1.0', engines: { node: '>=22.19.0' }, dependencies: { '@attentionform/ooxml-validator': '^0.1.0' } },
+  cli: { name: '@attentionform/astra', version: '0.1.0', engines: { node: '>=22.19.0' }, dependencies: { '@attentionform/astra-engine': '^0.1.0', '@attentionform/ooxml-validator': '^0.1.0' } },
+  'mcp-server': { name: '@attentionform/astra-mcp-server', version: '0.1.0', engines: { node: '>=22.19.0' }, dependencies: { '@attentionform/astra-engine': '^0.1.0', '@attentionform/ooxml-validator': '^0.1.0' } },
+};
 
 type Registry = Record<string, string[]>;
 const platformName = (suffix: string) => `@attentionform/ooxml-validator-${suffix}`;
@@ -176,5 +183,34 @@ describe('selection and login', () => {
   it('reports who npm says is logged in', () => expect(checkLogin(() => ({ status: 0, stdout: 'releaser\n', stderr: '' }))).toBe('releaser'));
   it('fails with a clear message when the login does not work', () => {
     expect(() => checkLogin(() => ({ status: 1, stdout: '', stderr: 'npm error code E401' }))).toThrow(/NPM_TOKEN/);
+  });
+});
+
+describe('repository release metadata', () => {
+  it('can release all actual manifests together against an empty registry', () => {
+    const p = planRelease({ selected: [...UNIT_IDS], requireAllPlatforms: true, manifests: repositoryManifests, registryVersions: () => [] });
+    expect(p.problems).toEqual([]);
+    expect(UNIT_IDS.every((unit) => p.publish[unit])).toBe(true);
+  });
+});
+
+describe('independent release versions', () => {
+  it.each([
+    ['coordinated bump', '0.3.0', '0.3.0', '>=0.3.0 <0.4.0'],
+    ['wrapper patch only', '0.1.5', '0.1.0', '>=0.1.0 <0.2.0'],
+  ])('plans a %s', (scenario, version, binaryVersion, range) => {
+    const changed = structuredClone(manifests);
+    for (const manifest of Object.values(changed)) {
+      if (scenario === 'coordinated bump' || manifest.name === '@attentionform/ooxml-validator') manifest.version = version;
+      for (const name of Object.keys(manifest.dependencies ?? {})) {
+        if (scenario === 'coordinated bump' || name === '@attentionform/ooxml-validator') manifest.dependencies![name] = `^${version}`;
+      }
+    }
+    changed['validator-wrapper'].validatorBinary = { version: binaryVersion, range };
+    const p = planRelease({ selected: [...UNIT_IDS], requireAllPlatforms: true, manifests: changed, registryVersions: () => [] });
+    expect(p.problems).toEqual([]);
+    changed.cli.dependencies!['@attentionform/astra-engine'] = '^9.0.0';
+    const broken = planRelease({ selected: [...UNIT_IDS], requireAllPlatforms: true, manifests: changed, registryVersions: () => [] });
+    expect(broken.problems.join('\n')).toContain('@attentionform/astra-engine@^9.0.0');
   });
 });
