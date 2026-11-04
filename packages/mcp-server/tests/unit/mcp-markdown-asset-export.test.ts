@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import * as engine from '@attentionform/astra-engine';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
@@ -127,6 +128,20 @@ describe('MCP export_document: Markdown image asset export mode', () => {
   });
 
   describe('Disk Markdown export with outPath', () => {
+    it('preserves existing Markdown when writing an image fails', async () => {
+      const outPath = path.join(tempDir, 'before-image-failure.md');
+      await fsp.writeFile(outPath, 'previous document');
+      const spy = vi.spyOn(engine, 'writeFileNoFollow').mockRejectedValueOnce(new Error('injected image write failure'));
+      try {
+        const res = await handleExportDocument(store, { sessionId, format: 'markdown', outPath, assetPrefix: 'failed_image_assets' });
+        expect(res.ok).toBe(false);
+        expect(await fsp.readFile(outPath, 'utf8')).toBe('previous document');
+        expect(await fsp.readdir(path.join(tempDir, 'failed_image_assets'))).toEqual([]);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
     it('cleans unpublished assets when final rename fails', async () => {
       const outPath = path.join(tempDir, 'directory.md');
       await fsp.mkdir(outPath);
