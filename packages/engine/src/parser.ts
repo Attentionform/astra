@@ -222,6 +222,8 @@ export class DocxParser {
     const current = this.capturePackageSnapshot();
     if (current.size !== this.builtinSeedSnapshot.size) return false;
     for (const [name, bytes] of this.builtinSeedSnapshot) {
+      // Save updates core metadata timestamps; it does not alter seed content.
+      if (name === 'docProps/core.xml') continue;
       if (!current.get(name)?.equals(bytes)) return false;
     }
     return true;
