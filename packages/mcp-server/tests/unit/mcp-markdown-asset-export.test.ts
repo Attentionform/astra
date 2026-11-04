@@ -118,23 +118,55 @@ describe('MCP export_document: Markdown image asset export mode', () => {
       expect(res.content).toContain(';base64,');
     });
 
-    it('supports explicit imageMode: file for in-memory exports with relative links', async () => {
-      const res = await handleExportDocument(store, {
-        sessionId,
-        format: 'markdown',
-        imageMode: 'file',
-      });
-      expect(res.ok).toBe(true);
-      expect(res.format).toBe('markdown');
-      expect(res.imageMode).toBe('file');
-      expect(res.assetCount).toBeGreaterThan(0);
-      expect(res.assets).toEqual([]);
-      expect(res.content).not.toContain('data:image/');
-      expect(res.content).toMatch(/!\[.*\]\(.*_assets\/image-0001\./);
+    it('refuses file mode when no output path is supplied', async () => {
+      const res = await handleExportDocument(store, { sessionId, format: 'markdown', imageMode: 'file' });
+      expect(res.ok).toBe(false);
+      expect(res.code).toBe('E_VALIDATION');
+      expect(res.remedy).toContain('outPath');
     });
   });
 
   describe('Disk Markdown export with outPath', () => {
+    it('cleans unpublished assets when final rename fails', async () => {
+      const outPath = path.join(tempDir, 'directory.md');
+      await fsp.mkdir(outPath);
+      const res = await handleExportDocument(store, { sessionId, format: 'markdown', outPath, assetPrefix: 'rename_failure_assets' });
+      expect(res.ok).toBe(false);
+      expect((await fsp.stat(outPath)).isDirectory()).toBe(true);
+      expect(await fsp.readdir(path.join(tempDir, 'rename_failure_assets'))).toEqual([]);
+    });
+
+    it('keeps image assets separate when exports share a prefix', async () => {
+      const firstPath = path.join(tempDir, 'first.md');
+      const secondPath = path.join(tempDir, 'second.md');
+      const args = { sessionId, format: 'markdown', assetPrefix: 'shared_figures' };
+      const first = await handleExportDocument(store, { ...args, outPath: firstPath });
+      const second = await handleExportDocument(store, { ...args, outPath: secondPath });
+      expect(first.ok).toBe(true);
+      expect(second.ok).toBe(true);
+      expect(first.assets![0]).not.toBe(second.assets![0]);
+      expect(fs.existsSync(first.assets![0])).toBe(true);
+      expect(fs.existsSync(second.assets![0])).toBe(true);
+      const firstMd = await fsp.readFile(firstPath, 'utf8');
+      expect(firstMd).toContain(path.relative(tempDir, first.assets![0]).split(path.sep).join('/'));
+    });
+
+    it('leaves existing Markdown unchanged when an asset directory is refused', async () => {
+      const outMd = path.join(tempDir, 'existing.md');
+      await fsp.writeFile(outMd, 'previous document');
+      const outside = await fsp.mkdtemp(path.join(os.tmpdir(), 'astra-outside-'));
+      const link = path.join(tempDir, 'unsafe_assets');
+      try {
+        await fsp.symlink(outside, link, 'dir');
+        const res = await handleExportDocument(store, { sessionId, format: 'markdown', outPath: outMd, assetPrefix: 'unsafe_assets' });
+        expect(res.ok).toBe(false);
+        expect(await fsp.readFile(outMd, 'utf8')).toBe('previous document');
+      } finally {
+        await fsp.unlink(link);
+        await fsp.rm(outside, { recursive: true, force: true });
+      }
+    });
+
     it('defaults to imageMode: file and extracts images into sibling <doc>_assets/ directory', async () => {
       const outMd = path.join(tempDir, 'research_report.md');
       const res = await handleExportDocument(store, {
@@ -153,12 +185,12 @@ describe('MCP export_document: Markdown image asset export mode', () => {
 
       // Verify the markdown file contains relative link to sibling folder
       const mdContent = await fsp.readFile(outMd, 'utf-8');
-      expect(mdContent).toContain('research_report_assets/image-0001.');
+      expect(mdContent).toMatch(/research_report_assets\/export-[^/]+\/image-0001\./);
       expect(mdContent).not.toContain('data:image/');
 
       // Verify the extracted image file exists on disk and has non-zero size
-      const expectedAssetPath = path.join(tempDir, 'research_report_assets', 'image-0001.png');
-      expect(res.assets![0]).toBe(expectedAssetPath);
+      const expectedAssetPath = res.assets![0];
+      expect(expectedAssetPath).toMatch(/research_report_assets\/export-[^/]+\/image-0001\.png$/);
       expect(fs.existsSync(expectedAssetPath)).toBe(true);
       const stat = await fsp.stat(expectedAssetPath);
       expect(stat.size).toBeGreaterThan(0);
@@ -179,9 +211,9 @@ describe('MCP export_document: Markdown image asset export mode', () => {
       expect(res.assetCount).toBe(1);
 
       const mdContent = await fsp.readFile(outMd, 'utf-8');
-      expect(mdContent).toContain('extracted_figures/image-0001.');
+      expect(mdContent).toMatch(/extracted_figures\/export-[^/]+\/image-0001\./);
 
-      const expectedAssetPath = path.join(tempDir, 'extracted_figures', 'image-0001.png');
+      const expectedAssetPath = res.assets![0];
       expect(res.assets![0]).toBe(expectedAssetPath);
       expect(fs.existsSync(expectedAssetPath)).toBe(true);
     });

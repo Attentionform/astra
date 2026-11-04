@@ -25,7 +25,7 @@ export const ExportDocumentSchema = z.object({
   sessionId: z.string().describe('Active document session ID returned by open_document'),
   format: z.enum(['html', 'markdown', 'md', 'pdf']).describe('Target export format: "html", "markdown", "md", or "pdf"'),
   outPath: z.string().optional().describe('Optional output destination path (must reside inside allowed directory)'),
-  imageMode: z.enum(['file', 'embed']).optional().describe('Markdown only: "file" writes extracted image assets to sibling <doc_basename>_assets/ with relative links; "embed" embeds as base64 data URIs. Default is "file" when outPath is specified, "embed" when returning in-memory content.'),
+  imageMode: z.enum(['file', 'embed']).optional().describe('Markdown only: "file" requires outPath and writes image assets under a unique generation in sibling <doc_basename>_assets/; "embed" uses base64 data URIs. Default is "file" with outPath and "embed" otherwise.'),
   assetPrefix: z.string().optional().describe('Markdown only: relative directory prefix for extracted image assets (default: "<doc_basename>_assets")'),
   tagged_pdf: z.boolean().optional().describe('PDF only: tagged (accessible) render (default true)'),
   tagged: z.boolean().optional().describe('Alias of tagged_pdf'),
@@ -38,7 +38,7 @@ export const EXPORT_DOCUMENT_DESCRIPTION =
   'Export the active document to HTML, Markdown, or PDF format with sandbox security gating. ' +
   'Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); ' +
   'success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). ' +
-  'For Markdown exports, images default to extracted files in a sibling <doc_basename>_assets/ directory with relative links when outPath is specified; in-memory exports default to embedded base64 data URIs. ' +
+  'For Markdown exports, images default to extracted files in a unique generation within a sibling <doc_basename>_assets/ directory when outPath is specified; in-memory exports default to embedded base64 data URIs. ' +
   'PDF renders via headless LibreOffice: a ~11s first-render cold start is expected behavior, not a bug. ' +
   'Failures return {ok:false,code,message,remedy}.';
 
@@ -304,6 +304,14 @@ export async function handleExportDocument(
       };
     }
   }
+  if (format === 'markdown' && parsed.data.imageMode === 'file' && !outPath?.trim()) {
+    return {
+      ok: false,
+      code: 'E_VALIDATION',
+      message: 'Markdown file image mode requires an output path.',
+      remedy: 'Provide outPath or use imageMode "embed".',
+    };
+  }
   let session;
   try {
     session = store.get(sessionId);
@@ -426,56 +434,52 @@ export async function handleExportDocument(
       const effectiveAssetPrefix = parsed.data.assetPrefix || (effectiveImageMode === 'file' ? defaultAssetPrefix : undefined);
 
       if (effectiveImageMode === 'file') {
-        const md = convertAstToMarkdown(ast, session.parser, {
-          imageMode: 'file',
-          assetPrefix: effectiveAssetPrefix,
-        });
-        const imageAssets = collectMarkdownImageAssets(ast, effectiveAssetPrefix);
-
-        if (targetPath) {
+        // Validate the prefix before touching disk, including for empty documents.
+        const initialAssets = collectMarkdownImageAssets(ast, effectiveAssetPrefix);
+        if (!targetPath) throw new Error('Markdown file image mode requires an output path.');
+        const destDir = path.dirname(targetPath);
+        let generation: string | undefined;
+        let staging: string | undefined;
+        let published = false;
+        try {
           assertWriteTargetNoSymlink(targetPath);
-          const destDir = path.dirname(targetPath);
           await fsp.mkdir(destDir, { recursive: true });
           assertWriteTargetNoSymlink(targetPath);
-          await writeFileNoFollow(targetPath, md, 'utf-8');
-
+          let outputPrefix = effectiveAssetPrefix!;
+          if (initialAssets.length > 0) {
+            const prefixDir = validateAssetTarget(path.resolve(destDir, effectiveAssetPrefix!));
+            assertWriteTargetNoSymlink(prefixDir);
+            await fsp.mkdir(prefixDir, { recursive: true });
+            assertWriteTargetNoSymlink(prefixDir);
+            generation = await fsp.mkdtemp(path.join(prefixDir, 'export-'));
+            assertWriteTargetNoSymlink(generation);
+            outputPrefix = path.relative(destDir, generation).split(path.sep).join('/');
+          }
+          const md = convertAstToMarkdown(ast, session.parser, { imageMode: 'file', assetPrefix: outputPrefix });
+          const imageAssets = collectMarkdownImageAssets(ast, outputPrefix);
           const writtenAssets: string[] = [];
           for (const asset of imageAssets) {
-            const rawAssetPath = path.resolve(destDir, asset.name);
-            const assetPath = validateAssetTarget(rawAssetPath);
-            assertWriteTargetNoSymlink(assetPath);
-            await fsp.mkdir(path.dirname(assetPath), { recursive: true });
+            const assetPath = validateAssetTarget(path.resolve(destDir, asset.name));
             assertWriteTargetNoSymlink(assetPath);
             await writeFileNoFollow(assetPath, asset.data);
             writtenAssets.push(assetPath);
           }
-
-          const stat = await fsp.stat(targetPath);
+          staging = await fsp.mkdtemp(path.join(destDir, '.astra-export-'));
+          const stagedFile = path.join(staging, 'document.md');
+          assertWriteTargetNoSymlink(stagedFile);
+          await writeFileNoFollow(stagedFile, md, 'utf-8');
+          assertWriteTargetNoSymlink(targetPath);
+          await fsp.rename(stagedFile, targetPath);
+          published = true;
           return {
-            ok: true,
-            format: 'markdown',
-            path: targetPath,
-            bytes: stat.size,
-            dirty,
-            revision,
-            imageMode: 'file',
-            assetPrefix: effectiveAssetPrefix,
-            assets: writtenAssets,
-            assetCount: writtenAssets.length,
+            ok: true, format: 'markdown', path: targetPath,
+            bytes: Buffer.byteLength(md, 'utf-8'), dirty, revision,
+            imageMode: 'file', assetPrefix: effectiveAssetPrefix,
+            assets: writtenAssets, assetCount: writtenAssets.length,
           };
-        } else {
-          return {
-            ok: true,
-            format: 'markdown',
-            content: md,
-            bytes: Buffer.byteLength(md, 'utf-8'),
-            dirty,
-            revision,
-            imageMode: 'file',
-            assetPrefix: effectiveAssetPrefix,
-            assets: [],
-            assetCount: imageAssets.length,
-          };
+        } finally {
+          if (staging) await fsp.rm(staging, { recursive: true, force: true }).catch(() => undefined);
+          if (!published && generation) await fsp.rm(generation, { recursive: true, force: true }).catch(() => undefined);
         }
       } else {
         const md = convertAstToMarkdown(ast, session.parser, { imageMode: 'embed' });

@@ -287,7 +287,7 @@ Renders the current in-memory state to PDF, HTML, or Markdown.
 | `tagged_pdf` | `boolean` | No | PDF only: tagged (accessible) render (default: `true`). |
 | `tagged` | `boolean` | No | Alias of `tagged_pdf`. |
 | `strict` | `boolean` | No | PDF only: fail closed on preflight blockers (default: `false`). |
-| `imageMode` | `string` | No | Markdown only: `"file"` (extracts images to disk, default when `outPath` provided) or `"embed"` (base64 data URI). |
+| `imageMode` | `string` | No | Markdown only: `"file"` (requires `outPath`; extracts images into a unique generation under the asset directory, default when `outPath` is provided) or `"embed"` (base64 data URI). |
 | `assetPrefix` | `string` | No | Markdown only: custom asset directory name/prefix when `imageMode` is `"file"`. |
 
 **Returns:** `{ ok: true, format, path, bytes, content }`
