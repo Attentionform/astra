@@ -11,10 +11,18 @@ export const CREATE_TEMPLATES = ['report', 'memo', 'blank'] as const;
 export type CreateTemplate = (typeof CREATE_TEMPLATES)[number];
 
 /**
- * Pure style templates: fresh templates hold only style and geometry definitions with an empty paragraph placeholder.
- * Placeholders are cleanly replaced on compose; no sample content warning is needed.
+ * A note for a template that comes with text of its own, or undefined for `blank`. `report` holds a whole sample
+ * report with invented figures, and `memo` holds a heading and a placeholder line.
+ * When Markdown is composed via --from-md or import, the pristine template seed is cleanly replaced.
  */
-export function templateSampleNote(_template: string, _composed: boolean): string | undefined {
+export function templateSampleNote(template: string, composed: boolean): string | undefined {
+  if (composed) return undefined;
+  if (template === 'report') {
+    return `--template report includes sample content (a Q3 financial report with invented figures). Replace or delete it before you share the file, or use --template blank.`;
+  }
+  if (template === 'memo') {
+    return `--template memo includes a heading and a placeholder line. Replace or delete them before you share the file, or use --template blank.`;
+  }
   return undefined;
 }
 

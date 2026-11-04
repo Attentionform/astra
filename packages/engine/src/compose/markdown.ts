@@ -252,17 +252,33 @@ export interface ComposeOptions {
  */
 /**
  * Pristine template placeholder heuristic. Returns the seed node id(s) when the
- * open document is still a fresh pristine template placeholder, otherwise null.
+ * open document is still a fresh pristine template seed, otherwise null.
  *
  * Recognizes:
- * 1. Single empty paragraph placeholder from fresh pure style templates:
- *    `<w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr></w:p>`.
- * 2. Legacy two-paragraph blank seed (`Blank Document` + `Start typing your content here...`).
+ * 1. Single empty paragraph placeholder: `<w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr></w:p>`.
+ * 2. Two-node templates:
+ *    - blank (`Blank Document` + `Start typing your content here...`)
+ *    - memo (`MEMORANDUM`)
+ *    - letter (`Letter`)
+ *    - proposal (`Proposal`)
+ *    - invoice (`INVOICE`)
+ * 3. Four-node templates:
+ *    - research (`Research Benchmark Report`)
+ *    - corporate (`Corporate Strategy Roadmap`)
+ *    - bar-chart-3d (`Velocity Audit & Performance`)
+ * 4. Five-node templates:
+ *    - financial (`Financial Report & Audit`)
+ * 5. Six-node templates:
+ *    - report (`Q3 Executive Financial Performance Report` + `1. Executive Summary`)
+ *    - novel (`Manuscript Title` + `Chapter 1: The Beginning`)
+ *    - academic (`Neural Document Architectures: A Comparative Benchmark`)
+ *    - newsletter (`TECH HORIZONS`)
+ *    - api / api-spec (`Platform Core API Reference`)
  *
  * Strict guards: no tracked changes, no media files, no headers, no footers,
  * no charts, no footnotes, no endnotes, no comments.
  */
-function pristineTemplateSeedIds(parser: DocxParser): string[] | null {
+function pristineTemplateSeedIds(parser: DocxParser, requestedTemplate?: string): string[] | null {
   let summary: {
     hasTrackedChanges?: boolean;
     headers?: unknown[];
@@ -283,7 +299,7 @@ function pristineTemplateSeedIds(parser: DocxParser): string[] | null {
     return null;
   }
   const nodes = summary.nodes ?? [];
-  if (nodes.length !== 1 && nodes.length !== 2) return null;
+  if (![1, 2, 4, 5, 6].includes(nodes.length)) return null;
   if (summary.hasTrackedChanges === true) return null;
   if (Object.keys(summary.mediaFiles ?? {}).length > 0) return null;
   if ((summary.headers ?? []).length > 0) return null;
@@ -314,12 +330,10 @@ function pristineTemplateSeedIds(parser: DocxParser): string[] | null {
     return null;
   }
 
-  // Case 1: Fresh 1-node pure style template placeholder (empty paragraph)
-  if (nodes.length === 1) {
-    const node = nodes[0];
-    if (node.type !== 'paragraph' || node.hasTrackedChanges === true) return null;
-    if ((node.text ?? '').trim() !== '') return null;
-    const raw = node.rawXml ?? '';
+  // Guard: no tracked changes or note/comment references in any node
+  for (const n of nodes) {
+    if (n.hasTrackedChanges === true) return null;
+    const raw = n.rawXml ?? '';
     if (
       raw.includes('w:footnoteReference') ||
       raw.includes('w:endnoteReference') ||
@@ -329,37 +343,74 @@ function pristineTemplateSeedIds(parser: DocxParser): string[] | null {
     ) {
       return null;
     }
-    const id = node.id ?? '';
-    if (id.length === 0) return null;
-    return [id];
   }
 
-  // Case 2: Legacy 2-node blank seed
+  const ids = nodes.map((n) => n.id ?? '').filter((id) => id.length > 0);
+  if (ids.length !== nodes.length) return null;
+
+  // Case 1: Fresh 1-node empty paragraph placeholder
+  if (nodes.length === 1) {
+    const node = nodes[0];
+    if (node.type !== 'paragraph') return null;
+    if ((node.text ?? '').trim() !== '') return null;
+    return ids;
+  }
+
+  // Case 2: 2-node templates (blank, memo, letter, proposal, invoice)
   if (nodes.length === 2) {
     const [first, second] = nodes;
-    if (first.type !== 'paragraph' || second.type !== 'paragraph') return null;
-    if (first.hasTrackedChanges === true || second.hasTrackedChanges === true) return null;
-    if ((first.text ?? '').trim() !== BLANK_SEED_TITLE) return null;
-    if ((second.text ?? '').trim() !== BLANK_SEED_HINT) return null;
-    const firstRaw = first.rawXml ?? '';
-    const secondRaw = second.rawXml ?? '';
-    if (firstRaw.length === 0 || secondRaw.length === 0) return null;
-    for (const raw of [firstRaw, secondRaw]) {
-      if (
-        raw.includes('w:footnoteReference') ||
-        raw.includes('w:endnoteReference') ||
-        raw.includes('w:commentReference') ||
-        raw.includes('w:commentRangeStart') ||
-        raw.includes('w:commentRangeEnd')
-      ) {
-        return null;
-      }
+    const t0 = (first.text ?? '').trim();
+    const t1 = (second.text ?? '').trim();
+    if (t0 === BLANK_SEED_TITLE && t1 === BLANK_SEED_HINT) {
+      const firstRaw = first.rawXml ?? '';
+      const secondRaw = second.rawXml ?? '';
+      if (!firstRaw.includes('w:val="Title"') || !secondRaw.includes('w:val="Subtitle"')) return null;
+      return ids;
     }
-    if (!firstRaw.includes('w:val="Title"') || !secondRaw.includes('w:val="Subtitle"')) return null;
-    const firstId = first.id ?? '';
-    const secondId = second.id ?? '';
-    if (firstId.length === 0 || secondId.length === 0 || firstId === secondId) return null;
-    return [firstId, secondId];
+    const tmpl = requestedTemplate?.toLowerCase();
+    if (t0 === 'MEMORANDUM' && tmpl === 'memo') return ids;
+    if (t0 === 'Letter' && tmpl === 'letter') return ids;
+    if (t0 === 'Proposal' && tmpl === 'proposal') return ids;
+    if (t0 === 'INVOICE' && tmpl === 'invoice') return ids;
+    return null;
+  }
+
+  // Case 3: 4-node templates (research, corporate, bar-chart-3d)
+  if (nodes.length === 4) {
+    const t0 = (nodes[0].text ?? '').trim();
+    const tmpl = requestedTemplate?.toLowerCase();
+    if (t0 === 'Research Benchmark Report' && tmpl === 'research') return ids;
+    if (t0 === 'Corporate Strategy Roadmap' && tmpl === 'corporate') return ids;
+    if (t0 === 'Velocity Audit & Performance' && tmpl === 'bar-chart-3d') return ids;
+    return null;
+  }
+
+  // Case 4: 5-node templates (financial)
+  if (nodes.length === 5) {
+    const t0 = (nodes[0].text ?? '').trim();
+    const tmpl = requestedTemplate?.toLowerCase();
+    if (t0 === 'Financial Report & Audit' && tmpl === 'financial') return ids;
+    return null;
+  }
+
+  // Case 5: 6-node templates (report, novel, academic, newsletter, api)
+  if (nodes.length === 6) {
+    const t0 = (nodes[0].text ?? '').trim();
+    const t2 = (nodes[2].text ?? '').trim();
+    const tmpl = requestedTemplate?.toLowerCase();
+    if (t0 === 'Q3 Executive Financial Performance Report' && t2 === '1. Executive Summary') {
+      if (tmpl === 'report') return ids;
+      return null;
+    }
+    if (t0 === 'Manuscript Title' && t2 === 'Chapter 1: The Beginning' && tmpl === 'novel') {
+      return ids;
+    }
+    if (t0 === 'Neural Document Architectures: A Comparative Benchmark' && tmpl === 'academic') {
+      return ids;
+    }
+    if (t0 === 'TECH HORIZONS' && tmpl === 'newsletter') return ids;
+    if (t0 === 'Platform Core API Reference' && (tmpl === 'api' || tmpl === 'api-spec')) return ids;
+    return null;
   }
 
   return null;
@@ -637,7 +688,7 @@ export async function composeDocument(
   const ast = await parser.getAST();
   // Seed-skip capture runs after compile+validate (so input errors still
   // throw with zero writes) but before any batch mutates the document.
-  const blankSeedIds = pristineBlankSeedIds(parser);
+  const blankSeedIds = pristineBlankSeedIds(parser, options?.template);
   // Whole-package snapshot (every zip entry including relationships), so a
   // later rewind leaves no orphan rels or media behind. The narrower
   // document-only snapshot cannot cover hyperlink rels minted during span

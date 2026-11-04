@@ -16,10 +16,10 @@ const run = (args: string[]) => {
 };
 
 describe('templateSampleNote', () => {
-  it('returns undefined for pure style templates', () => {
-    expect(templateSampleNote('report', false)).toBeUndefined();
+  it('names the sample content of report and memo, and returns undefined when composed or on blank', () => {
+    expect(templateSampleNote('report', false)).toContain('sample content (a Q3 financial report with invented figures)');
     expect(templateSampleNote('report', true)).toBeUndefined();
-    expect(templateSampleNote('memo', false)).toBeUndefined();
+    expect(templateSampleNote('memo', false)).toContain('a heading and a placeholder line');
     expect(templateSampleNote('memo', true)).toBeUndefined();
     expect(templateSampleNote('blank', false)).toBeUndefined();
     expect(templateSampleNote('blank', true)).toBeUndefined();
@@ -40,12 +40,12 @@ describe('create and import with pure style templates', () => {
   const rows = (file: string): string[] =>
     run(['inspect', file]).stdout.split('\n').filter((l) => /^[0-9A-F]{8} \|/.test(l)).map((l) => l.split('|')[5].trim());
 
-  it('create --template report creates a clean document without sample text', () => {
+  it('create --template report prints the note on stderr and provides sample content for walkthroughs', () => {
     const r = run(['create', path.join(dir, 'a.docx'), '--template', 'report']);
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/^CREATED .*\(template=report\)/);
-    expect(r.stderr).not.toContain('NOTE');
-    expect(rows(path.join(dir, 'a.docx'))).not.toContain('Q3 Executive Financial Performance Report');
+    expect(r.stderr).toContain('NOTE: --template report includes sample content');
+    expect(rows(path.join(dir, 'a.docx'))).toContain('Q3 Executive Financial Performance Report');
   });
 
   it('composed Markdown replaces the template placeholder cleanly across report, memo, and blank', () => {
@@ -87,18 +87,19 @@ describe('create and import with pure style templates', () => {
     expect(gRows).not.toContain('Q3 Executive');
   });
 
-  it('--json carries no templateNote for pure style templates', () => {
+  it('--json carries templateNote on bare create and keeps stderr free of the note', () => {
     const r = run(['--json', 'create', path.join(dir, 'h.docx'), '--template', 'report']);
-    expect(JSON.parse(r.stdout).templateNote).toBeUndefined();
+    expect(JSON.parse(r.stdout).templateNote).toContain('sample content');
     expect(r.stderr).not.toContain('NOTE');
     const blank = run(['--json', 'create', path.join(dir, 'i.docx')]);
     expect(JSON.parse(blank.stdout).templateNote).toBeUndefined();
   });
 
-  it('the help of create and import describes pure style templates', () => {
+  it('the help of create and import describes templates and seed replacement', () => {
     const create = run(['create', '--help']).stdout.replace(/\s+/g, ' ');
-    expect(create).toContain('pure style and layout templates');
+    expect(create).toContain('report holds a sample report with invented Q3 figures');
+    expect(create).toContain('the composed Markdown cleanly replaces');
     const imp = run(['import', '--help']).stdout.replace(/\s+/g, ' ');
-    expect(imp).toContain('Fresh template placeholders are cleanly replaced on compose/import.');
+    expect(imp).toContain('Fresh template seeds are cleanly replaced on compose/import.');
   });
 });
