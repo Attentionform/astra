@@ -13,6 +13,7 @@ import {
 import { createMcpSessionStore, getMcpAllowedRoots } from '../../src/lib/session-store';
 import { LEAN6_HANDLERS } from '../../src/lib/mcp-tool-adapter';
 import { assertPathAllowed, handleComposeDocument } from '../../src/tools/compose-document';
+import { handleNewDocument } from '../../src/tools/new-document';
 
 const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -67,19 +68,38 @@ const RICH_MARKDOWN = [
 
 async function openBlankSession(): Promise<{ store: ReturnType<typeof createMcpSessionStore>; sessionId: string }> {
   const store = createMcpSessionStore();
-  const buf = DocxParser.createNewDocument('blank').rezip();
+  const original = DocxParser.createNewDocument('blank');
+  const buf = original.rezip();
   const handle = await store.openBuffer(buf, 'memory.docx');
+  handle.parser.adoptBuiltinSeedFrom(original);
   return { store, sessionId: handle.sessionId };
 }
 
 async function openReportSession(): Promise<{ store: ReturnType<typeof createMcpSessionStore>; sessionId: string }> {
   const store = createMcpSessionStore();
-  const buf = DocxParser.createNewDocument('report').rezip();
+  const original = DocxParser.createNewDocument('report');
+  const buf = original.rezip();
   const handle = await store.openBuffer(buf, 'report.docx');
+  handle.parser.adoptBuiltinSeedFrom(original);
   return { store, sessionId: handle.sessionId };
 }
 
 describe('compose_document handler', () => {
+  it('clears an untouched template created through new_document', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-new-compose-'));
+    try {
+      const store = createMcpSessionStore();
+      const created = await handleNewDocument(store, { outPath: path.join(dir, 'report.docx'), template: 'report' });
+      expect(created.ok).toBe(true);
+      if (!created.ok) throw new Error(created.message);
+      const composed = await handleComposeDocument(store, { sessionId: created.sessionId, markdown: '# Manuscript', template: 'report' });
+      expect(composed.ok).toBe(true);
+      expect(store.get(created.sessionId).parser.readDocumentXml()).not.toContain('Q3 Executive Financial Performance Report');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('composes rich Markdown: created ids, applied counts, validation proof', async () => {
     const { store, sessionId } = await openBlankSession();
     const res = await handleComposeDocument(store, { sessionId, markdown: RICH_MARKDOWN });

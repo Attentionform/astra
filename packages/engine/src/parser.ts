@@ -205,6 +205,18 @@ export class DocxParser {
   private builtinSeedSnapshot?: Map<string, Buffer>;
 
   /** True only while the entire internally generated seed package remains unchanged. */
+  /** Transfer factory provenance only to an identical freshly reopened package. */
+  public adoptBuiltinSeedFrom(source: DocxParser): void {
+    if (!source.hasPristineBuiltinSeed()) return;
+    const original = source.capturePackageSnapshot();
+    const current = this.capturePackageSnapshot();
+    if (original.size !== current.size) return;
+    for (const [name, bytes] of original) {
+      if (!current.get(name)?.equals(bytes)) return;
+    }
+    this.builtinSeedSnapshot = current;
+  }
+
   public hasPristineBuiltinSeed(): boolean {
     if (!this.builtinSeedSnapshot) return false;
     const current = this.capturePackageSnapshot();
