@@ -786,6 +786,26 @@ describe('compose image and chart references', () => {
 });
 
 describe('compose template seeds', () => {
+  it('preserves saved and reopened template content during compose', async () => {
+    const original = DocxParser.createNewDocument('report');
+    const reopened = new DocxParser(original.rezip());
+    const result = await composeDocument(reopened, '# Added', { template: 'report' });
+    expect(result.success).toBe(true);
+    expect(reopened.readDocumentXml()).toContain('Q3 Executive Financial Performance Report');
+  });
+
+  it('preserves user edits to report seed paragraphs when composing', async () => {
+    const parser = DocxParser.createNewDocument('report');
+    const ast = await parser.getAST();
+    const node = ast.sections.flatMap((section) => section.nodes).filter((item) => item.type === 'paragraph')[3];
+    const engine = new OperationEngine(ast, parser);
+    const edit = await engine.executeBatch({ operations: [{ action: 'replace', target: node.id, text: 'USER ORIGINAL TEXT' }] });
+    expect(edit.success).toBe(true);
+    const result = await composeDocument(parser, '# New content', { template: 'report' });
+    expect(result.success).toBe(true);
+    expect(parser.readDocumentXml()).toContain('USER ORIGINAL TEXT');
+  });
+
   it('replaces matching report and memo placeholders', async () => {
     for (const template of ['report', 'memo'] as const) {
       const parser = DocxParser.createNewDocument(template);

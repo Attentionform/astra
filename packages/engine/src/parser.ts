@@ -202,6 +202,19 @@ export function getDuplicateParaIdPolicy(): DuplicateParaIdPolicy {
 }
 
 export class DocxParser {
+  private builtinSeedSnapshot?: Map<string, Buffer>;
+
+  /** True only while the entire internally generated seed package remains unchanged. */
+  public hasPristineBuiltinSeed(): boolean {
+    if (!this.builtinSeedSnapshot) return false;
+    const current = this.capturePackageSnapshot();
+    if (current.size !== this.builtinSeedSnapshot.size) return false;
+    for (const [name, bytes] of this.builtinSeedSnapshot) {
+      if (!current.get(name)?.equals(bytes)) return false;
+    }
+    return true;
+  }
+
   /**
    * F2a follow-up item 2 — extra template search dirs (packaged hook ONLY).
    * `resolveTemplateCandidatePaths` in electron/main.ts documents the
@@ -4290,7 +4303,10 @@ switch (templateType.toLowerCase()) {
     for (const [partName, xml] of Object.entries(parts)) zip.addFile(partName, Buffer.from(xml, 'utf8'));
 
     if (pinned) clampZipEntryTimes(zip, resolveDeterministicZipDate());
-    return new DocxParser(zip.toBuffer());
+    const parser = new DocxParser(zip.toBuffer());
+    parser.getStructuralSummary();
+    parser.builtinSeedSnapshot = parser.capturePackageSnapshot();
+    return parser;
   }
 
   public static createEmptyDocument(templateType: 'blank' | 'novel' | 'financial' | 'api-spec' | 'research' | 'corporate' | 'bar-chart-3d' | string = 'blank'): DocxParser {

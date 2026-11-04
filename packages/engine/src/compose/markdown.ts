@@ -279,6 +279,7 @@ export interface ComposeOptions {
  * no charts, no footnotes, no endnotes, no comments.
  */
 function pristineTemplateSeedIds(parser: DocxParser, requestedTemplate?: string): string[] | null {
+  if (!parser.hasPristineBuiltinSeed()) return null;
   let summary: {
     hasTrackedChanges?: boolean;
     headers?: unknown[];
