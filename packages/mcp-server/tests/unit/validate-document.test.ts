@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { AdmZip, DocxParser } from '@attentionform/astra-engine';
 import { createMcpSessionStore } from '../../src/lib/session-store';
+import * as engine from '@attentionform/astra-engine';
 import { handleValidateDocument } from '../../src/lib/mcp/handlers/parity';
 
 async function openBlankSession(): Promise<{ store: ReturnType<typeof createMcpSessionStore>; sessionId: string }> {
@@ -36,6 +37,7 @@ describe('validate_document handler', () => {
     expect(res.validation.errors).toEqual([]);
     expect(res.revision).toBe(1);
     expect(res.dirty).toBe(false);
+    expect(res).not.toHaveProperty('normalizeHint');
   });
 
   it('repeat audits stay identical (read-only: no revision bump, no dirty flip)', async () => {
@@ -59,6 +61,7 @@ describe('validate_document handler', () => {
     expect(res.validation.errorCount).toBeGreaterThan(0);
     expect(res.validation.errors.length).toBeGreaterThan(0);
     expect(res.validation.errors[0].description).toContain('duplicate');
+    expect(res.normalizeHint).toBe('Call `normalize_document` to attempt the supported repairs, then call `validate_document` again.');
     expect(res.revision).toBe(1);
     expect(res.dirty).toBe(false);
   });
@@ -81,7 +84,7 @@ describe('validate_document handler', () => {
     expect(res.remedy.length).toBeGreaterThan(0);
   });
 
-  it('includes normalizeHint when validate_document fails and normalize can repair it', async () => {
+  it('includes generic normalizeHint for invalid documents without running a forecast', async () => {
     const buf = DocxParser.createNewDocument('blank').rezip();
     const zip = new AdmZip(buf);
     const xml = zip.readAsText('word/document.xml');
@@ -92,11 +95,24 @@ describe('validate_document handler', () => {
     const store = createMcpSessionStore();
     const handle = await store.openBuffer(zip.toBuffer(), 'memory.docx');
 
+    const forecast = vi.spyOn(engine, 'forecastNormalize');
+    const repair = vi.spyOn(engine, 'repairDocxBuffer');
     const res = await handleValidateDocument(store, { sessionId: handle.sessionId });
+    expect(forecast).not.toHaveBeenCalled();
+    expect(repair).not.toHaveBeenCalled();
+    forecast.mockRestore();
+    repair.mockRestore();
     expect(res.ok).toBe(true);
     if (!res.ok) throw new Error(`validate failed: ${JSON.stringify(res)}`);
     expect(res.validation.valid).toBe(false);
     expect(res.normalizeHint).toBeDefined();
-    expect(res.normalizeHint).toContain('Run normalize_document: it can repair some of these errors');
+    expect(res.normalizeHint).toBe('Call `normalize_document` to attempt the supported repairs, then call `validate_document` again.');
   });
+  it('refuses a package missing content types before an audit session can be opened', async () => {
+    const zip = new AdmZip(DocxParser.createNewDocument('blank').rezip());
+    zip.deleteFile('[Content_Types].xml');
+    const store = createMcpSessionStore();
+    await expect(store.openBuffer(zip.toBuffer(), 'broken.docx')).rejects.toThrow(/Content_Types/);
+  });
+
 });

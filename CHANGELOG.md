@@ -4,6 +4,12 @@ All notable changes to ASTra are recorded here. The format follows [Keep a Chang
 
 Packages released together: `@attentionform/astra-engine`, `@attentionform/astra-mcp-server`, `@attentionform/astra` (command line) and `@attentionform/ooxml-validator`, all at the same version.
 
+## [Unreleased]
+
+### Fixed
+
+- **Validation advice no longer predicts normalization results.** The CLI and MCP now suggest attempting supported repairs and validating again, including when the error list is truncated. The old forecast omitted parser normalization and could report incorrect remaining-error counts. Validation no longer runs a repair preview just to produce advice. CLI advice recommends `--out` to a new file. Package/read failures retain their specific remedies. The exported forecast helpers remain available but are deprecated; normalization behavior is unchanged.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added
