@@ -1,3 +1,4 @@
+// Compatibility coverage for deprecated 0.2.0 forecast helpers; CLI/MCP hints no longer call them.
 import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import {

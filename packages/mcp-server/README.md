@@ -389,6 +389,8 @@ Preflight read-only OOXML schema audit for a session before committing changes.
 
 ---
 
+Validation advice: when `validate_document` reports an invalid document, its `normalizeHint` suggests attempting `normalize_document` and validating again. This is advice, not a repair forecast or a guarantee of validity; validation does not run repair rules to generate the hint. Normalization changes the open session; use `save_document` to persist the result, optionally to a new output path.
+
 ### `get_stats`
 Token-cheap document census returning word, paragraph, table, image, and page counts.
 
