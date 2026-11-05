@@ -617,15 +617,19 @@ export async function repairDocxBuffer(
   return { buffer: normalized.length > 0 ? pack(current) : input, normalized, remaining, rolledBack };
 }
 
-/** What `normalize` would do to a package that fails validation. */
+/**
+ * Repair-rule forecast only; excludes parser preparation and the normalize save gate.
+ * @deprecated These figures do not reliably predict CLI/MCP normalization results.
+ */
 export interface NormalizeForecast {
-  /** Number of changes `normalize` would keep. */
+  /** Number of repair-rule log entries kept by this forecast. */
   changes: number;
   /** Validator errors that would be left, or -1 when the check could not run. */
   remaining: number;
 }
 
 /**
+ * @deprecated Excludes parser normalization and the final save gate; do not use to predict `normalize`.
  * Runs the repair rules on a copy of `input` and reports what they would keep, so a failed validation can tell
  * the caller that `normalize` helps. Returns `undefined` when no rule applies (or the check fails). It writes nothing.
  */
@@ -639,7 +643,10 @@ export async function forecastNormalize(input: Buffer): Promise<NormalizeForecas
   }
 }
 
-/** One sentence that says what `normalize` does for a document with `errorCount` validator errors, for a failed validation. */
+/**
+ * Legacy wording for a repair-rule forecast.
+ * @deprecated The numerical claims do not reliably describe CLI/MCP normalization results.
+ */
 export function normalizeHintSentence(forecast: NormalizeForecast, errorCount: number, how: string): string {
   const left =
     forecast.remaining === 0

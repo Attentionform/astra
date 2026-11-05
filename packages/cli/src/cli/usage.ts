@@ -130,6 +130,7 @@ export function commandHelpText(cmd: string): string | undefined {
       `Usage: ${CLI_NAME} validate <docx> [--max-errors <n>] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros] [--style-guide <name|path>]`,
       '',
       'Fail-closed OOXML validation. Prints VALID <file> (exit 0) or INVALID + first errors (exit 1).',
+      'Invalid documents receive advice to attempt normalize with --out to a new file, then validate again; no repair preview is run.',
       '  --max-errors <n>                   most errors listed by --json (integer 1 to 5000, default 500); the JSON carries truncated:true and maxErrors when the list was cut. The human output shows 10 and counts the rest.',
       '  --max-ratio <n>                    zip-bomb ratio ceiling override (default 100; env ASTRA_MAX_RATIO)',
       '  --max-uncompressed-bytes <n>       zip-bomb total-bytes ceiling override in bytes (default 209715200; env ASTRA_MAX_UNCOMPRESSED_BYTES)',

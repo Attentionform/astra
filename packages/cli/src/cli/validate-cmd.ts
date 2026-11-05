@@ -1,4 +1,4 @@
-import { DocxParser, chartXmlGetterForAst, lintDocumentStyle, resolveStyleGuide, summarizeStyleGuide, forecastNormalize, normalizeHintSentence, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { DocxParser, chartXmlGetterForAst, lintDocumentStyle, resolveStyleGuide, summarizeStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, failWithCode, inferBatchCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -9,6 +9,7 @@ const DEFAULT_MAX_ERRORS = 500;
 const MAX_ERRORS_LIMIT = 5000;
 /** The human output shows this many errors and counts the rest. */
 const HUMAN_ERRORS_SHOWN = 10;
+const NORMALIZE_HINT = 'Run `astra normalize` with `--out` pointing to a new file to attempt supported repairs, then validate the result again.';
 
 export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'validate');
@@ -96,6 +97,7 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
     // schema order first), so list the repairs that save would make: a file
     // Word may reject as it stands still reads VALID here.
     let pendingNormalizations: string[] = [];
+    let schemaValidationCompleted = false;
     const result = await withZipCeilingEnv(ceilings, async () => {
       let p: DocxParser;
       try {
@@ -126,7 +128,9 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
       } catch {
         pendingNormalizations = [];
       }
-      return p.validateOOXML({ maxErrors });
+      const validation = await p.validateOOXML({ maxErrors });
+      schemaValidationCompleted = true;
+      return validation;
     });
     const pending = pendingNormalizations.length > 0 ? { pendingNormalizations } : {};
     if (result.ok) {
@@ -193,8 +197,7 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
     if (errors.length > HUMAN_ERRORS_SHOWN) {
       print(out, `  ... and ${errors.length - HUMAN_ERRORS_SHOWN} more${truncated ? ' (the list is cut at the limit)' : ''}; --json lists them (up to ${maxErrors}, --max-errors <n> changes the limit)`);
     }
-    const forecast = truncated ? undefined : await forecastNormalize(buf);
-    const hint = forecast ? normalizeHintSentence(forecast, errors.length, `Run \`${CLI_NAME} normalize ${file}\`: it`) : undefined;
+    const hint = schemaValidationCompleted ? NORMALIZE_HINT : undefined;
     printJson(out, {
       ok: false,
       file,
@@ -207,8 +210,8 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
     });
     // Validation failure is operational (fail-closed), not usage.
     if (!out.json) {
-      const hintSuffix = hint ? ` ${hint}` : '';
-      printStderr(`${CLI_NAME}: error: [E_VALIDATION] "${file}" failed OOXML validation. Remedy: repair the document in Word and retry.${hintSuffix}`);
+      const remedy = hint ? `${hint} Repair by hand what remains, for example in Word.` : 'repair the document in Word and retry.';
+      printStderr(`${CLI_NAME}: error: [E_VALIDATION] "${file}" failed OOXML validation. Remedy: ${remedy}`);
     }
     return EXIT_FAIL;
   } catch (err: unknown) {
