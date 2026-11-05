@@ -25,8 +25,6 @@ import {
   DocxParser,
   PII_COVERAGE,
   computeDocStats,
-  forecastNormalize,
-  normalizeHintSentence,
   piiCoverageSentence,
   refreshAstInPlace,
   revisionsRemedy,
@@ -205,17 +203,13 @@ export async function handleValidateDocument(
   }
   try {
     return await store.withSession(parsed.data.sessionId, async (handle) => {
-      const { validation, buf } = await forkValidation(handle);
+      const { validation } = await forkValidation(handle);
       // The verdict judges the document as a save would write it, so say what
       // that save would repair instead of leaving a plain ok.
       const pendingNormalizations = readPendingNormalizations(handle);
-      let normalizeHint: string | undefined;
-      if (!validation.valid) {
-        const forecast = await forecastNormalize(buf);
-        if (forecast) {
-          normalizeHint = normalizeHintSentence(forecast, validation.errorCount, 'Run normalize_document: it');
-        }
-      }
+      const normalizeHint = validation.valid
+        ? undefined
+        : 'Call `normalize_document` to attempt the supported repairs, then call `validate_document` again.';
       return {
         ok: true as const,
         sessionId: handle.sessionId,
