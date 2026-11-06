@@ -8,6 +8,8 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ### Fixed
 
+- **MCP validation, normalization and rendering preserve Word list metadata.** Temporary serialization copies now retain numbering source metadata and isolate their XML definitions. Valid Word documents with `w15:restartNumberingAfterBreak` no longer gain spurious validation errors or get blocked during normalization and PDF export; edited lists still serialize their new definitions.
+
 - **Validation advice no longer predicts normalization results.** The CLI and MCP now suggest attempting supported repairs and validating again, including when the error list is truncated. The old forecast omitted parser normalization and could report incorrect remaining-error counts. Validation no longer runs a repair preview just to produce advice. CLI advice recommends `--out` to a new file. Package/read failures retain their specific remedies. The exported forecast helpers remain available but are deprecated; normalization behavior is unchanged.
 
 ## [0.2.0] - 2026-11-04

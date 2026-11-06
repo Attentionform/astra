@@ -18,11 +18,13 @@
 //   applyNormalizerForDisplay).
 // - ingest: handleComposeDocument (the compose tool itself), so an imported
 //   file composes byte-equal to the same Markdown passed inline.
+import { adoptForkNumbering } from '../../fork-numbering';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
   AdmZip,
   DocxParser,
+  type DocumentAST,
   PII_COVERAGE,
   computeDocStats,
   piiCoverageSentence,
@@ -113,7 +115,7 @@ async function refreshSessionAst(handle: DocHandle): Promise<void> {
  * silently heal the session and misattribute later save reports. Fork recipe
  * mirrors the export tool (tools/export.ts serializeSessionCopy).
  */
-function serializeSessionFork(parser: DocxParser, ast: unknown): Buffer {
+function serializeSessionFork(parser: DocxParser, ast: DocumentAST): Buffer {
   const snap = parser.capturePackageSnapshot();
   try {
     const stylesXml = parser.getStructuralSummary().stylesXml;
@@ -136,19 +138,7 @@ function serializeSessionFork(parser: DocxParser, ast: unknown): Buffer {
   try {
     const fork = new DocxParser(staleBytes);
     try {
-      const live = ast as {
-        numbering?: { abstractNum?: Record<string, unknown>; concreteNum?: Record<string, unknown> };
-        relationships?: Record<string, unknown>;
-      } | null;
-      if (live && typeof live === 'object') {
-        fork.adoptAstForNumbering({
-          numbering: {
-            abstractNum: { ...((live.numbering?.abstractNum ?? {}) as Record<string, unknown>) },
-            concreteNum: { ...((live.numbering?.concreteNum ?? {}) as Record<string, unknown>) },
-          },
-          relationships: { ...((live.relationships ?? {}) as Record<string, unknown>) },
-        } as unknown as Parameters<DocxParser['adoptAstForNumbering']>[0]);
-      }
+      adoptForkNumbering(fork, ast);
     } catch {
       // Fall through: a bare fork rezip preserves the snapshot as-is.
     }
