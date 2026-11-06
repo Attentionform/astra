@@ -614,9 +614,9 @@ Performs an upfront schema and integrity check against ISO/IEC 29500 (ECMA-376) 
 
 The verdict is on the document as a save would write it: children out of schema order are put in order first. When that save would repair something, the response also carries `pendingNormalizations` (a list such as `Reordered w:tblPr into schema order at /w:document[1]/...`; the same list `open_document` and `inspect_document` return); the field is absent when nothing needs repair.
 
----
-
 Validation advice: when `validate_document` reports an invalid document, its `normalizeHint` suggests attempting `normalize_document` and validating again. This is advice, not a repair forecast or a guarantee of validity; validation does not run repair rules to generate the hint. Normalization changes the open session; use `save_document` to persist the result, optionally to a new output path.
+
+---
 
 #### `get_stats`
 Calculates document telemetry including word count, paragraph count, and an estimated editorial page budget. Actual pagination depends on the rendering application, fonts, layout and document content; render a PDF when a physical page count is needed.

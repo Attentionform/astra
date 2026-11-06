@@ -9,7 +9,7 @@ const DEFAULT_MAX_ERRORS = 500;
 const MAX_ERRORS_LIMIT = 5000;
 /** The human output shows this many errors and counts the rest. */
 const HUMAN_ERRORS_SHOWN = 10;
-const NORMALIZE_HINT = 'Run `astra normalize` with `--out` pointing to a new file to attempt supported repairs, then validate the result again.';
+const NORMALIZE_HINT = `Run \`${CLI_NAME} normalize\` with \`--out\` pointing to a new file to attempt supported repairs, then validate the result again.`;
 
 export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'validate');

@@ -5,9 +5,10 @@ import path from 'node:path';
 import * as engine from '@attentionform/astra-engine';
 import { cmdValidate } from '../src/cli/validate-cmd';
 
-// Unlike a subprocess assertion, this observes the expensive entry points directly.
+// The forecast spy guards against the old validate behavior. The repair spy only
+// observes calls through the exported binding, not internal engine-module calls.
 describe('validate advice does not run normalization', () => {
-  it('returns the invalid verdict without invoking forecast or repair', async () => {
+  it('returns the invalid verdict without calling the exported forecast or repair entry points', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-val-work-'));
     const zip = new engine.AdmZip(engine.DocxParser.createNewDocument('blank').rezip());
     zip.updateFile('word/document.xml', Buffer.from(zip.readAsText('word/document.xml').replace('</w:body>', '<w:p><w:unknown/></w:p></w:body>')));
