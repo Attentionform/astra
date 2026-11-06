@@ -106,7 +106,7 @@ Other Attentionform products have their own licenses, unless a license says that
 Prices and terms are on the [pricing page](https://attentionform.com/pricing). In short:
 
 - **Internal use** by an organization above the free limits: Team, Business, Scale or Enterprise, by number of people. Monthly or yearly, and one license covers the whole ASTra suite, including products launched later, in every version released during the term.
-- **Embedded**: building ASTra into one named product of a company above the free limits. It is free to integrate and ship until you pass the limits. After that the price is twice the matching internal band, by quote.
+- **Embedded**: building ASTra into one named product of a company above the free limits. It is free to integrate and ship until you pass the limits. After that the price is twice the matching internal band, by quote. An Embedded license also covers your organization's own internal use of ASTra, so you do not need a separate internal license.
 - **Competing offerings** (hosting, an API or MCP endpoint, a mostly-ASTra editor, resale): by agreement.
 
 Write to astra@attentionform.com with a short description of your use. Terms for large or custom deals are negotiated.
