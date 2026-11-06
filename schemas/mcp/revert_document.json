@@ -41,5 +41,5 @@
     ],
     "additionalProperties": false
   },
-  "x-generated-from": "astra-mcp-server@0.2.0"
+  "x-generated-from": "astra-mcp-server@0.2.1"
 }

@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-06
+
+The four npm packages move to 0.2.1. Native validator platform packages remain at 0.2.0; the native validator is unchanged.
+
 ### Fixed
 
 - **MCP validation, normalization and rendering preserve Word list metadata.** Temporary serialization copies now retain numbering source metadata and isolate their XML definitions. Valid Word documents with `w15:restartNumberingAfterBreak` no longer gain spurious validation errors or get blocked during normalization and PDF export; edited lists still serialize their new definitions.
@@ -132,5 +136,7 @@ First public release.
 - PDF export and page images need LibreOffice and Poppler installed on your machine.
 - Every output file is validated with the Open XML SDK before it is saved, so files are valid, uncorrupted and open in Microsoft Word.
 
-[Unreleased]: https://github.com/Attentionform/astra/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Attentionform/astra/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Attentionform/astra/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/Attentionform/astra/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Attentionform/astra/releases/tag/v0.1.0
