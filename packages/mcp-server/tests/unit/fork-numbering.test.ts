@@ -146,6 +146,7 @@ describe('MCP numbering forks', () => {
     const adopted = vi.spyOn(fork, 'adoptAstForNumbering');
     adoptForkNumbering(fork, live);
     const copy = adopted.mock.calls[0][0];
+    expect(Object.keys(copy).sort()).toEqual(['numbering', 'relationships']);
     expect(copy.numbering.source).toEqual(live.numbering.source);
     expect(copy.numbering.source).not.toBe(live.numbering.source);
     expect(copy.numbering.abstractNum['0']).not.toBe(live.numbering.abstractNum['0']);

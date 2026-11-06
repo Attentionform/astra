@@ -12,6 +12,7 @@ scratch/
 documents/
 *.docx
 !test-gallery/*.docx
+!tests/fixtures/numbering-w15.docx
 !tests/fixtures/sections/*.docx
 !packages/ooxml-validator/tests/fixtures/*.docx
 *.pdf
