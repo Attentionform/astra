@@ -23,7 +23,7 @@ ASTra is **source-available**. It is not "open source" in the sense of the Open 
 | A school, college or university, its students and staff | Yes | Teaching, learning and non-commercial academic research. |
 | A registered charity or tax-exempt non-profit | Yes | For its mission. Not for selling products or services. |
 | A government department, agency or municipality | Yes | For governmental functions. A state-owned company, or a body that sells products or services commercially, is treated as a company. |
-| A company or other business under USD 1,000,000 revenue **and** fewer than 10 people (together with affiliates, last completed fiscal year; a new company that has not finished one uses what it reasonably expects for its first) | Yes | If you grow past either limit, you may continue until the end of your next fiscal year, then you need a license. |
+| A company or other business under USD 1,000,000 revenue **and** fewer than 10 people (together with affiliates, last completed fiscal year; a new company that has not finished one uses what it reasonably expects for its first) | Yes | If your last completed fiscal year is over either limit, you may continue for 90 days, then you need a license. |
 | A company at or above those limits | No | Commercial license. |
 
 ## Common questions
@@ -52,7 +52,7 @@ ASTra is **source-available**. It is not "open source" in the sense of the Open 
 
 **If I publish a free product that includes ASTra, do my users need a license?** If you are an individual or a small business and your product has substantial functionality of its own, your users may use ASTra as part of your product, whatever their size. If the product's value is mainly ASTra, it is a competing offering and needs a commercial license. If you are a company above the small-business limits, you need a commercial license, and your users are not covered by the rule above.
 
-**What if I stop qualifying?** You can continue your existing use for 90 days (for small businesses, until the end of your next fiscal year), then you need a commercial license or you stop.
+**What if I stop qualifying?** You can continue your existing use for 90 days, then you need a commercial license or you stop. A small business stops qualifying on the first day after the fiscal year in which it passed a limit. Example: a company passes USD 1,000,000 in July 2024 with a calendar fiscal year. It stays free through 2024, stops qualifying on 1 January 2025, and has until about 31 March 2025 to buy.
 
 **Do I have to publish my own code?** No. The BSL has no copyleft and no obligation to share your code.
 
@@ -79,7 +79,7 @@ Other Attentionform products have their own licenses, unless a license says that
 | 5 | Freelancer runs an always-on pipeline on their own cloud for a bank's operations | The bank's use. The bank needs its own right |
 | 6 | Five-person agency sells a finished app with its own features to a bank | Free (a product with its own functionality) |
 | 7 | Startup of 6 people, USD 400,000, uses ASTra inside its product | Free |
-| 8 | The same startup grows to 12 people | Free until the end of its next fiscal year, then a license |
+| 8 | The same startup grows to 12 people | Free until the end of that fiscal year, then 90 days to buy a license |
 | 9 | Company of 200 people tests ASTra for six months on sample documents | Free (non-production) |
 | 10 | The same company runs its real contract workflow through ASTra "as a pilot" | Production use; needs a license |
 | 11 | Company of 200 people, internal pipeline that processes real documents | Needs a license (Business band) |
@@ -95,7 +95,7 @@ Other Attentionform products have their own licenses, unless a license says that
 | 21 | Company with 4 employees and INR 100 million revenue | Converted to USD at the fiscal year-end rate; above USD 1,000,000 means a license |
 | 22 | Anyone, using a version more than four years after its first release | Apache-2.0 |
 | 23 | Open-source project runs its own tests with ASTra in CI | Free (testing is non-production use, for anyone) |
-| 24 | Small startup's contract-review app grows past USD 1M or 10 people | Free until the end of its next fiscal year, then a license (an Embedded license if sold as a single product) |
+| 24 | Small startup's contract-review app grows past USD 1M or 10 people | Free until the end of that fiscal year, then 90 days to buy a license (an Embedded license if sold as a single product) |
 | 25 | Student uses ASTra for assignments, reports, a thesis or a course project | Free (Educational Use, and also Individual Use) |
 | 26 | Person uses ASTra for hobby projects, personal documents, CVs, letters, family or club paperwork | Free (Individual Use) |
 | 27 | Individual contributes to an open-source project, on their own account | Free (Individual Use) |
