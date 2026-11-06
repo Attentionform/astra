@@ -38,7 +38,9 @@ ASTra is **source-available**. It is not "open source" in the sense of the Open 
 
 **Can I build an open-source project on ASTra?** Yes, if your project has substantial functionality of its own. Your own code can be under any license, such as MIT or Apache-2.0. You list ASTra as a dependency and you do not relicense it. People who use your project use ASTra only as part of it, which is covered when you are an individual or a small business, even if your project is free of charge. A company at or above the small-business limits needs a commercial license for its own production use of ASTra, and the people who use a project published by such a company are not covered by the rule above and need their own right to use ASTra. A thin wrapper whose value is mainly ASTra itself is a competing offering and needs a commercial license. If you copy ASTra source into your repository, keep ASTra's LICENSE with it: ASTra code cannot be relicensed as MIT or Apache-2.0 until its own Change Date. Some license scanners and software distributions do not treat the BSL as open source, so describe your project as "depends on ASTra (source-available)".
 
-**What is not allowed without a license?** A "competing offering": a product or service offered to others whose value consists mainly of ASTra itself. It includes hosting ASTra as a service for others; making ASTra's operations, commands, API or tools available to third parties, directly or through a thin interface (for example a public API or MCP endpoint); a desktop, web or other editor whose value is mainly ASTra's document functionality; and reselling or redistributing ASTra, with or without another name. A product that uses ASTra to implement features of its own is not a competing offering. A competing offering always needs a commercial license, whatever your size.
+**What is not allowed without a license?** A "competing offering": a product or service offered to others whose value consists mainly of ASTra itself. It includes hosting ASTra as a service for others; making ASTra's operations, commands, API or tools available to third parties, directly or through a thin interface (for example a public API or MCP endpoint); a desktop, web or other editor whose value is mainly ASTra's document functionality; and reselling or redistributing ASTra, with or without another name. A product that uses ASTra to implement substantial features of its own is not a competing offering. Three tests decide it. It is a competing offering if most of what customers pay for or use it for is ASTra's document functionality; if little would remain without ASTra (an interface, login, billing or prompts around ASTra's operations are not features of your own); or if it lets third parties reach ASTra's operations, commands, API or tools. A competing offering always needs a commercial license, whatever your size.
+
+**Can I ask before I build?** Yes. Describe the product to astra@attentionform.com and we aim to tell you in writing within five working days whether it is a competing offering. This is a target, not a promise of a deadline.
 
 **Do the limits include my parent company and affiliates?** Yes. Revenue and headcount are counted for your whole group: companies that control you, companies you control, and companies under the same control. A separate company set up to stay under the limits does not count as separate.
 
@@ -54,7 +56,7 @@ ASTra is **source-available**. It is not "open source" in the sense of the Open 
 
 **Do I have to publish my own code?** No. The BSL has no copyleft and no obligation to share your code.
 
-**Is the license going to get stricter?** The terms of a released version never become stricter. A later version may carry different terms. Version 0.3.0 closes some gaps in the free-use rules. Versions 0.1.0 and 0.2.0 keep their original terms.
+**Is the license going to get stricter?** The terms of a released version never become stricter. A later version may carry different terms. Version 0.3.0 closes some gaps in the free-use rules. Every version released before 0.3.0 keeps its original terms.
 
 **Can I send a pull request?** Yes. Sign the [contributor license agreement](CLA.md) once, by adding one small signature file to your first pull request. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -100,14 +102,20 @@ Other Attentionform products have their own licenses, unless a license says that
 | 28 | Individual freelancer prepares reports for clients, one job at a time | Free (Individual Use) |
 | 29 | Employee uses ASTra for their employer's work, or contributes to open source as part of their job | The employer's use. Free only if the employer is within the free categories (small business, non-profit, public sector, education) |
 | 30 | Student or hobbyist sells a product built on ASTra | Free while the product has substantial functionality of its own and the seller stays within the limits. A product whose value is mainly ASTra is a competing offering |
+| 31 | A "document assistant" app: a chat window and a login around ASTra's edit operations, sold as the product | Competing offering; needs a license |
+| 32 | A contract-review product: ASTra edits the files, but its own clause analysis, workflow and reports are what customers pay for | Not a competing offering. ASTra is a component |
+| 33 | A browser extension whose main feature is a button that runs ASTra's operations on the user's documents | Competing offering; needs a license |
+| 34 | An internal tool that a large company built on ASTra for its own staff | Not a competing offering. The company needs an internal license for its size |
+| 35 | An AI agent platform that offers ASTra's tools to its customers' agents, as one tool among many | Depends on weight. Minor part of many tools: not competing. Mainly a way to reach ASTra's tools: competing. Ask first |
 
 ## Commercial licenses
 
 Prices and terms are on the [pricing page](https://attentionform.com/pricing). In short:
 
-- **Internal use** by an organization above the free limits: Team, Business, Scale or Enterprise, by number of people. Monthly or yearly, and one license covers the whole ASTra suite, including products launched later, in every version released during the term.
+- **Internal use** by an organization above the free limits: Team, Business, Scale or Enterprise, by number of people. Monthly or yearly, and one license covers the whole ASTra suite, including products launched later, in the version available on your start date, every version released during the term, and any earlier version.
 - **Embedded**: building ASTra into one named product of a company above the free limits. It is free to integrate and ship until you pass the limits. After that the price starts at USD 980 per year (twice the Team yearly price) and is set with you by quote, based on your product and what it earns. One Embedded license covers one named product. An Embedded license also covers your organization's own internal use of ASTra, so you do not need a separate internal license.
 - **Competing offerings** (hosting, an API or MCP endpoint, a mostly-ASTra editor, resale): by agreement.
+- **Support plan**: every license includes community support (GitHub and Discord, best effort, no response time promised). A paid support plan, from USD 3,000 per year, adds a named contact, a private email channel, priority handling of your bugs, and an allowance of tickets and hours, including help getting started. Response times in a plan are targets. It is not a service level agreement: no uptime commitment, no promised fix dates, no custom development.
 
 Write to astra@attentionform.com with a short description of your use. Terms for large or custom deals are negotiated.
 

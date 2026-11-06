@@ -125,9 +125,17 @@ Additional Use Grant: You may make production use of the Licensed Work, free of
                       editor or application whose value is mainly the document
                       functionality of the Licensed Work; and reselling or
                       redistributing the Licensed Work, whether or not under
-                      another name. A product or service that uses the Licensed
-                      Work to implement features of its own is not a Competing
-                      Offering.
+                      another name. A product or service is a Competing
+                      Offering if (a) most of what its customers pay for, or
+                      use it for, is the document functionality of the Licensed
+                      Work; (b) little of it would remain without the Licensed
+                      Work, where an interface, login, billing, prompts or
+                      similar layers around the operations of the Licensed Work
+                      are not features of its own; or (c) it lets third parties
+                      reach the operations, commands, API or tools of the
+                      Licensed Work. A product or service that uses the
+                      Licensed Work to implement substantial features of its
+                      own is not a Competing Offering.
 
                       If You stop qualifying for a category above, You may
                       continue Your existing use for 90 days (for Small Business
