@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+### Changed
+
+- **Licence terms for new versions: gaps in the free-use rules are closed.** This applies to versions released after 0.2.1; versions 0.1.0 to 0.2.1 keep their original terms. (1) Individual Use through a business entity now requires that the entity has no employees and, with its affiliates, is within both Small Business limits; a no-employee company with many contractors or a large parent no longer counts as an individual. (2) Running ASTra as a continuing service or pipeline for another organization's operations is that organization's use. (3) "Control" and "affiliate" are defined, and an arrangement made to bring an organization within a free category or under the limits is disregarded. (4) Owners and partners who work in the business count as people, and revenue in another currency is converted into US dollars at the fiscal year-end rate. (5) Production use is explained: real work in an organization's regular operations is production use, whatever it is called; evaluation and testing remain free with no time limit. (6) The list of competing offerings now names exposing ASTra's operations, API or MCP endpoint, a mostly-ASTra desktop or web editor, and reselling or redistribution. (7) The grace period does not apply to an organization that stopped qualifying through a disregarded arrangement. `LICENSING.md` adds worked examples and the commercial licence tiers.
+
 ## [0.2.1] - 2026-11-06
 
 All ten npm packages move to 0.2.1, including the six native validator platform packages. The native validator source is unchanged.

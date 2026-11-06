@@ -32,15 +32,20 @@ Additional Use Grant: You may make production use of the Licensed Work, free of
                       use requires a commercial license from the Licensor.
 
                       "Individual Use" means use by a natural person on his or
-                      her own account, including as a freelancer or consultant,
-                      either personally or through a business entity that has
-                      no employees. Contractors engaged for a specific project
-                      are not employees. Individual Use does not include use
-                      for the internal operations of an employer or of a client
-                      (for example, running the Licensed Work on a client's
-                      systems for the client's own continuing use). Using the
-                      Licensed Work to prepare documents or other deliverables
-                      for clients is Individual Use.
+                      her own account, including as a freelancer or consultant.
+                      It includes use through a business entity only if the
+                      entity has no employees and, together with its affiliates,
+                      is within both limits of Small Business Use, tested in the
+                      same way. Contractors engaged for a specific project are
+                      not employees. Individual Use does not include use for the
+                      internal operations of an employer or of a client. Running
+                      the Licensed Work as a continuing service or pipeline for
+                      the internal operations of another organization is that
+                      organization's use, on whatever systems it runs, unless it
+                      is part of a product or service of Your own described in
+                      the paragraph on products below. Using the Licensed Work
+                      to prepare documents or other deliverables for clients,
+                      one job at a time, is Individual Use.
 
                       "Educational and Research Use" means use by an accredited
                       school, college or university, or by its students and
@@ -72,49 +77,75 @@ Additional Use Grant: You may make production use of the Licensed Work, free of
                       Any organization that is not described in Individual Use,
                       Educational and Research Use, Non-Profit Use or
                       Public-Sector Use, including a company, partnership or
-                      other business with employees and any state-owned or
-                      government-controlled enterprise, is a "For-Profit
-                      Organization". Production use by or for a For-Profit
-                      Organization requires a commercial license unless it is
-                      Small Business Use.
+                      other business (with or without employees) and any
+                      state-owned or government-controlled enterprise, is a
+                      "For-Profit Organization". Production use by or for a
+                      For-Profit Organization requires a commercial license
+                      unless it is Small Business Use.
 
                       "Small Business Use" means use by a For-Profit
-                      Organization that, together with its affiliates, had
-                      total gross revenue below USD 1,000,000 and fewer than 10
-                      people working for it in its last completed fiscal year,
-                      or that has not yet completed a fiscal year and
-                      reasonably expects to meet both limits in its first one.
-                      The people working for it are its employees and the
-                      individuals who work for it on a regular basis as
-                      contractors, counted as individuals and not as
-                      companies. An "affiliate" is any entity that controls,
-                      is controlled by, or is under common control with
-                      another entity.
+                      Organization that, together with its affiliates, had total
+                      gross revenue below USD 1,000,000 and fewer than 10 people
+                      working for it in its last completed fiscal year, or that
+                      has not yet completed a fiscal year and reasonably expects
+                      to meet both limits in its first one. The people working
+                      for it are its employees, its owners and partners who work
+                      in it, and the individuals who work for it on a regular
+                      basis as contractors, counted as individuals and not as
+                      companies. Revenue in another currency is converted into
+                      US dollars at the exchange rate on the last day of the
+                      fiscal year. An "affiliate" is any entity that controls,
+                      is controlled by, or is under common control with another
+                      entity. "Control" means owning more than 50% of the voting
+                      interests of an entity, or having the power, by contract
+                      or otherwise, to direct its management or policies.
+                      Entities that are controlled by the same person, or by
+                      persons acting together, are under common control. An
+                      arrangement whose main purpose is to bring an organization
+                      within a category above, or to keep it under the limits of
+                      Small Business Use, is disregarded.
 
                       Individual Use and Small Business Use include using the
                       Licensed Work as a component of a product or service of
-                      Your own that has substantial functionality beyond that
-                      of the Licensed Work, and Your customers and users may
-                      use the Licensed Work only as part of that product or
-                      service. A product or service includes software that You
-                      make available free of charge. No category above
-                      includes a Competing Offering, which always requires a
-                      commercial license. A "Competing Offering" is a product
-                      or service offered to third parties whose value consists
-                      mainly of the functionality of the Licensed Work, for
-                      example hosting the Licensed Work as a service for others
-                      or reselling it.
+                      Your own that has substantial functionality beyond that of
+                      the Licensed Work, and Your customers and users may use
+                      the Licensed Work only as part of that product or service.
+                      A product or service includes software that You make
+                      available free of charge.
+
+                      No category above includes a Competing Offering, which
+                      always requires a commercial license. A "Competing
+                      Offering" is a product or service offered to third parties
+                      whose value consists mainly of the functionality of the
+                      Licensed Work. It includes hosting the Licensed Work as a
+                      service for others; making the operations, commands, API
+                      or tools of the Licensed Work available to third parties,
+                      directly or through a thin interface, for example through
+                      a public API or MCP endpoint; a desktop, web or other
+                      editor or application whose value is mainly the document
+                      functionality of the Licensed Work; and reselling or
+                      redistributing the Licensed Work, whether or not under
+                      another name. A product or service that uses the Licensed
+                      Work to implement features of its own is not a Competing
+                      Offering.
 
                       If You stop qualifying for a category above, You may
-                      continue Your existing use for 90 days (for Small
-                      Business Use, until the end of Your next fiscal year),
-                      and must then obtain a commercial license or stop.
-                      "Production use" means any use of the Licensed Work
-                      other than non-production use, including making it part
-                      of a product or service that You provide to others.
+                      continue Your existing use for 90 days (for Small Business
+                      Use, until the end of Your next fiscal year), and must
+                      then obtain a commercial license or stop. This does not
+                      apply to an organization that stopped qualifying because
+                      of an arrangement that is disregarded above.
+
+                      "Production use" means any use of the Licensed Work other
+                      than non-production use, including making it part of a
+                      product or service that You provide to others.
                       Non-production use (including evaluation, development,
                       testing and demonstration) is permitted by this License
-                      without any category. Documents and other output that You
+                      without any category. Use is not non-production use merely
+                      because it is called a pilot, test or staging use:
+                      processing an organization's real documents as part of its
+                      regular operations is production use, however the
+                      environment is named. Documents and other output that You
                       create with the Licensed Work belong to You, and this
                       License places no restriction on them.
 
