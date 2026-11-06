@@ -95,6 +95,8 @@ describe('validate_document handler', () => {
     const store = createMcpSessionStore();
     const handle = await store.openBuffer(zip.toBuffer(), 'memory.docx');
 
+    // The forecast spy catches the old handler behavior. The repair spy sees
+    // exported-binding calls only, not calls internal to the engine module.
     const forecast = vi.spyOn(engine, 'forecastNormalize');
     const repair = vi.spyOn(engine, 'repairDocxBuffer');
     const res = await handleValidateDocument(store, { sessionId: handle.sessionId });
