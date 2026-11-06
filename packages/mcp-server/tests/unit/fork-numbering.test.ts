@@ -4,7 +4,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as engine from '@attentionform/astra-engine';
 import { AdmZip, DocxParser, NumberingManipulator } from '@attentionform/astra-engine';
-import { run as runCli } from '../../../cli/src/cli';
 import { createMcpSessionStore } from '../../src/lib/session-store';
 import { readParserNormalizations } from '../../src/lib/mcp/normalize-read';
 import { adoptForkNumbering } from '../../src/lib/fork-numbering';
@@ -47,7 +46,7 @@ function liveState() {
 }
 
 describe('MCP numbering forks', () => {
-  it.each([false, true])('matches CLI validation with w15 metadata (unrelated invalid markup: %s)', async (invalid) => {
+  it.each([false, true])('matches engine validation with w15 metadata (unrelated invalid markup: %s)', async (invalid) => {
     const zip = new AdmZip(fixture);
     if (invalid) {
       zip.updateFile('word/document.xml', Buffer.from(zip.readAsText('word/document.xml').replace(
@@ -56,18 +55,14 @@ describe('MCP numbering forks', () => {
       await store.closeDocument(sessionId);
       sessionId = (await store.openBuffer(zip.toBuffer(), 'invalid-w15.docx')).sessionId;
     }
-    const file = path.join(dir, 'input.docx');
-    fs.writeFileSync(file, zip.toBuffer());
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const code = await runCli(['validate', file, '--json']);
-    const cli = JSON.parse(log.mock.calls.map(([text]) => String(text)).join(''));
-    expect(code).toBe(invalid ? 1 : 0);
+    const direct = await new DocxParser(zip.toBuffer()).validateOOXML();
+    expect(direct.ok).toBe(!invalid);
     const before = liveState();
     const result = await handleValidateDocument(store, { sessionId });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(JSON.stringify(result));
     expect(result.validation.valid).toBe(!invalid);
-    expect(result.validation.errorCount).toBe(cli.errorCount ?? 0);
+    expect(result.validation.errorCount).toBe(direct.errorCount);
     expect(result.validation.errors.some(e => e.description.includes('restartNumberingAfterBreak'))).toBe(false);
     expect(liveState()).toEqual(before);
   });
