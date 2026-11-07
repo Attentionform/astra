@@ -32,6 +32,17 @@ describe('revision ID allocation', () => {
     const ast = await parser.getAST();
     expect(ast.nextChangeId).toBeGreaterThan(40);
   });
+  it('discovers a header part with a nonstandard package name', async () => {
+    const zip = new AdmZip(fixture(true));
+    const header = zip.readFile('word/header1.xml')!;
+    zip.deleteFile('word/header1.xml');
+    zip.addFile('word/custom-section.xml', header);
+    const contentTypes = zip.readAsText('[Content_Types].xml').replace('</Types>', '<Override PartName="/word/custom-section.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/></Types>');
+    zip.updateFile('[Content_Types].xml', Buffer.from(contentTypes));
+    const ast = await new DocxParser(zip.toBuffer()).getAST();
+    expect(ast.nextChangeId).toBeGreaterThan(40);
+  });
+
   it('keeps the high-water mark after a refresh', async () => {
     const parser = new DocxParser(fixture());
     const ast = await parser.getAST();
