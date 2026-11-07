@@ -33,6 +33,7 @@ import { setDuplicateParaIdPolicy } from '@attentionform/astra-engine';
 import { setOpenValidationTimeoutMs, setStrictValidationDefault, strictValidationDefault } from './lib/mcp/baseline-gate';
 import {
   createMcpSessionStore,
+  getMcpAllowedRoots,
   hasClientSessionIdHatch,
   type McpSessionStore,
 } from './lib/session-store';
@@ -419,7 +420,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   );
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[${SERVER_NAME} v${SERVER_VERSION}] serving ${getServedToolNames().length} tools (lean-6 + new_document + compose_document + export + visual + git history + document audit) on stdio`);
+  console.error(`[${SERVER_NAME} v${SERVER_VERSION}] serving ${getServedToolNames().length} tools on stdio; allowed roots: ${getMcpAllowedRoots().join(', ')}`);
   return 0;
 }
 

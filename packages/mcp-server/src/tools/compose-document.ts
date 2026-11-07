@@ -483,7 +483,8 @@ export async function handleComposeDocument(
         const first = aggregate.errors[0];
         const rawMessage = String(first?.error ?? 'Compose failed.').slice(0, 2000);
         try {
-          console.error(`[mcp compose_document] E_VALIDATION (client-sanitized): ${rawMessage.slice(0, 500)}`);
+          const logged = process.env.ASTRA_DEBUG ? rawMessage : rawMessage.split('\n')[0];
+          console.error(`[mcp compose_document] E_VALIDATION: ${logged.slice(0, 2000)}`);
         } catch {
           /* stderr-only, never throws */
         }
