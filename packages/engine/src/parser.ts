@@ -3599,8 +3599,25 @@ export class DocxParser {
 
   private maxPackageRevisionId(): number {
     let max = maxRevisionId(this.documentDom);
+    const names = new Set<string>();
+    // Header/footer and note parts can have custom package names. Select them
+    // from content types as well as conventional names, without parsing
+    // unrelated styles, themes or numbering earlier than their own gates.
+    const types = this.getZipAdapter().readTextOrNull('[Content_Types].xml');
+    if (types) {
+      assertNoXxe(types, '[Content_Types].xml');
+      const dom = this.parser.parseFromString(types, 'text/xml');
+      for (const override of Array.from(dom.getElementsByTagNameNS('http://schemas.openxmlformats.org/package/2006/content-types', 'Override'))) {
+        const type = override.getAttribute('ContentType') ?? '';
+        const part = override.getAttribute('PartName') ?? '';
+        if (/wordprocessingml\.(header|footer|footnotes|endnotes)\+xml$/i.test(type) && part.startsWith('/word/')) {
+          names.add(part.slice(1));
+        }
+      }
+    }
     for (const entry of this.zip.getEntries()) {
-      if (entry.isDirectory || !/^word\/.*\.xml$/i.test(entry.entryName) || entry.entryName === 'word/document.xml') continue;
+      if (entry.isDirectory) continue;
+      if (!names.has(entry.entryName) && !/^word\/(?:header[^/]*|footer[^/]*|footnotes|endnotes)\.xml$/i.test(entry.entryName)) continue;
       const xml = entry.getData().toString('utf8');
       assertNoXxe(xml, entry.entryName);
       max = Math.max(max, maxRevisionId(this.parser.parseFromString(xml, 'text/xml')));
