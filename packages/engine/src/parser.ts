@@ -9,7 +9,7 @@ import { DOMParser } from './ooxml/dom-parser';
 import { DocumentAST, Node as AstNode, calculateNodeChecksum } from './ast';
 import { canonicalizeDocumentDom, canonicalizePartXml, generateValidParaId } from './ooxml/schema-order';
 import { normalizeDocumentDom, normalizePartXml, previewDocumentDom } from './ooxml/normalize';
-import { createWordElement } from './ooxml/ns';
+import { createWordElement, stampRevision } from './ooxml/ns';
 import { ommlToLatex } from './ooxml/omml';
 import { validateDocxBuffer, ValidationResult } from './ooxml/validator-gate';
 import { NumberingManipulator, NUMBERING_REL_TYPE } from './manipulators/numbering';
@@ -3537,7 +3537,11 @@ export class DocxParser {
     return extractStylePalette(this.stylesDom);
   }
 
+  private cachedRevisionPartNames: string[] | null = null;
+  private cachedRevisionDoms = new Map<string, Document>();
+
   private revisionPartNames(): string[] {
+    if (this.cachedRevisionPartNames) return this.cachedRevisionPartNames;
     const names = new Set<string>();
     // Header/footer and note parts can have custom package names. Select them
     // from content types as well as conventional names, without parsing
@@ -3557,13 +3561,19 @@ export class DocxParser {
     for (const entry of this.zip.getEntries()) {
       if (!entry.isDirectory && /^word\/(?:header[^/]*|footer[^/]*|footnotes|endnotes)\.xml$/i.test(entry.entryName)) names.add(entry.entryName);
     }
-    return [...names].filter(name => !!this.zip.getEntry(name));
+    const filtered = [...names].filter(name => !!this.zip.getEntry(name));
+    this.cachedRevisionPartNames = filtered;
+    return filtered;
   }
 
   private revisionPartDom(name: string): Document {
+    const cached = this.cachedRevisionDoms.get(name);
+    if (cached) return cached;
     const xml = this.zip.getEntry(name)!.getData().toString('utf8');
     assertNoXxe(xml, name);
-    return this.parser.parseFromString(xml, 'text/xml');
+    const dom = this.parser.parseFromString(xml, 'text/xml');
+    this.cachedRevisionDoms.set(name, dom);
+    return dom;
   }
 
   private maxPackageRevisionId(): number {
@@ -3593,9 +3603,13 @@ export class DocxParser {
   public listPackageComments() {
     const ids = new Map<Element, string>();
     for (const [id, element] of this.nodeMap) ids.set(element, id);
+    const refMap = new Map<string, Element>();
+    for (const el of Array.from(this.documentDom.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'commentReference'))) {
+      const cid = el.getAttributeNS(el.namespaceURI!, 'id') || el.getAttribute('w:id');
+      if (cid) refMap.set(cid, el);
+    }
     return listComments(this.getZipAdapter()).map(comment => {
-      const ref = Array.from(this.documentDom.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'commentReference'))
-        .find(el => (el.getAttributeNS(el.namespaceURI!, 'id') || el.getAttribute('w:id')) === String(comment.id));
+      const ref = refMap.get(String(comment.id));
       for (let node: globalThis.Node | null = ref ?? null; node; node = node.parentNode) {
         const nodeId = ids.get(node as Element);
         if (nodeId) return {...comment, nodeId};
@@ -3607,7 +3621,7 @@ export class DocxParser {
   public resolvePackageRevisions(mode: 'accept' | 'reject', selector?: RevisionSelector): RevisionResolution {
     const oldIds = new Map<Element, string>();
     for (const [id, element] of this.nodeMap) oldIds.set(element, id);
-    const parts = [{part:'word/document.xml', document:this.documentDom}, ...this.revisionPartNames().map(part => ({part, document:this.revisionPartDom(part)}))];
+    const parts = this.reviewParts();
     const selected = new Map<Document, Set<Element>>();
     if (selector) {
       const keys = [selector.ids !== undefined, selector.author !== undefined, selector.nodeId !== undefined].filter(Boolean).length;
@@ -3641,8 +3655,8 @@ export class DocxParser {
       }
     }
     const result: RevisionResolution = {resolved:0, resolvedIds:[], byKind:{}, unresolved:[]};
-    for (const {part:name, document:dom} of parts) {
-      const part = resolveRevisions([dom], mode, {part:name, ...(selector ? {selected:selected.get(dom)} : {})});
+    for (const {part:name, document:dom, nodeIdOf} of parts) {
+      const part = resolveRevisions([dom], mode, {part:name, nodeIdOf, ...(selector ? {selected:selected.get(dom)} : {})});
       for (const entry of part.unresolved) entry.part = name;
       if (part.resolved && name !== 'word/document.xml') this.zip.updateFile(name, Buffer.from(this.serializer.serializeToString(dom), 'utf8'));
       result.resolved += part.resolved;
@@ -3720,9 +3734,7 @@ export class DocxParser {
     const stamp = date ?? deterministicRevisionIso(reproducible);
     const changeId = this.nextTrackedChangeId(idFactory);
     const delEl = createWordElement(this.documentDom, 'w:del');
-    delEl.setAttribute('w:id', changeId);
-    delEl.setAttribute('w:author', author);
-    delEl.setAttribute('w:date', stamp);
+    stampRevision(delEl, changeId, author, stamp);
 
     if (target.tagName === 'w:p') {
       const runs = Array.from(target.getElementsByTagName('w:r'));

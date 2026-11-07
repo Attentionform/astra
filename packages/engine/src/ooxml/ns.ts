@@ -18,6 +18,12 @@ export function createWordElement(doc: Document, tagName: string): Element {
   return doc.createElementNS(WORD_NS, qualifiedName);
 }
 
+export function stampRevision(element: Element, id: number | string, author: string, date: string): void {
+  element.setAttributeNS(WORD_NS, 'w:id', String(id));
+  element.setAttributeNS(WORD_NS, 'w:author', author);
+  element.setAttributeNS(WORD_NS, 'w:date', date);
+}
+
 export function createDrawingElement(doc: Document, tagName: string): Element {
   const qualifiedName = tagName.includes(':') ? tagName : `a:${tagName}`;
   return doc.createElementNS(DRAWING_NS, qualifiedName);

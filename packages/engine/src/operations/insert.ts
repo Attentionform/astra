@@ -8,7 +8,7 @@ import { DocxParser, isValidParaId, W14_NS, upsertSectPrChild } from '../parser'
 import { insertIntoSection } from '../parser/sections';
 import { executeTable } from './table';
 import type { StyleGuideConfig } from '../style-guide/types';
-import { createWordElement } from '../ooxml/ns';
+import { createWordElement, stampRevision } from '../ooxml/ns';
 import { allocateNextBookmarkId, allocateSafeHyperlinkRId } from '../manipulators/relationships';
 import { requireTwips } from '../operation-schema';
 import { resolveRevisionStamp } from '../ooxml/track-changes-emitter';
@@ -895,9 +895,7 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
       if (trackOn) {
         const ins = createWordElement(doc, 'w:ins');
         const stamp = resolveRevisionStamp(op.author, op.date, ast.settings.defaultAuthor);
-        ins.setAttribute('w:author', stamp.author);
-        ins.setAttribute('w:date', stamp.date);
-        ins.setAttribute('w:id', String(ast.nextChangeId++));
+        stampRevision(ins, ast.nextChangeId++, stamp.author, stamp.date);
         for (const r of contentRuns) ins.appendChild(r);
         if (contentRuns.length > 0) {
           newNodeXml.appendChild(ins);

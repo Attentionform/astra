@@ -1,5 +1,5 @@
 import { ommlToLatex } from './omml';
-import { createWordElement } from './ns';
+import { createWordElement, stampRevision } from './ns';
 import { wordDiff } from './track-changes-emitter';
 
 type DiffChunk = { type: 'equal' | 'delete' | 'insert'; text: string };
@@ -12,6 +12,14 @@ const kids = (el: Element): Element[] => Array.from(el.childNodes).filter((n): n
 const name = (el: Element): string => el.localName || el.tagName.split(':').pop() || '';
 const textOf = (run: Element): string => kids(run).filter(el => name(el) === 't').map(el => el.textContent ?? '').join('');
 
+const SAFE_ATOMS = new Set([
+  'tab', 'br', 'cr', 'drawing', 'pict', 'object',
+  'footnoteReference', 'endnoteReference', 'commentReference',
+  'lastRenderedPageBreak', 'noBreakHyphen', 'softHyphen', 'sym', 'ptab',
+  'footnoteRef', 'endnoteRef', 'annotationRef',
+  'dayShort', 'monthShort', 'yearShort', 'dayLong', 'monthLong', 'yearLong',
+]);
+
 function unsupported(reason: string): never {
   throw Object.assign(new Error(`E_VALIDATION: Cannot edit this paragraph safely: ${reason}. Remedy: edit around the affected structure or replace the paragraph explicitly.`), {code: 'E_VALIDATION'});
 }
@@ -22,7 +30,7 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
   const opaque: Opaque[] = [];
   let text = '';
   let field: Opaque | null = null;
-  const safeAtoms = new Set(['tab', 'br', 'cr', 'drawing', 'pict', 'object', 'footnoteReference', 'endnoteReference', 'commentReference']);
+  const safeAtoms = SAFE_ATOMS;
   const wordText = (el: Element): string => Array.from(el.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 't')).map(t => t.textContent ?? '').join('');
   function visit(container: Element): void {
     for (const child of kids(container)) {
@@ -140,10 +148,7 @@ function splitAt(segments: Segment[], offset: number): void {
 }
 
 function stamp(element: Element, options: RunEditOptions, id: number): void {
-  const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-  element.setAttributeNS(ns, 'w:id', String(id));
-  element.setAttributeNS(ns, 'w:author', options.author);
-  element.setAttributeNS(ns, 'w:date', options.date);
+  stampRevision(element, id, options.author, options.date);
 }
 
 /** Apply a prepared edit after verifying its old-text coordinates. */
@@ -186,6 +191,22 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
     }
   }
   if (!positions.some(chunk => chunk.type !== 'equal' && (chunk.text.length || (chunk.type === 'delete' && options.includeEmptyFields && model.opaque.some(item => item.kind === 'field' && item.start === item.end))))) return [];
+  // A paragraph whose visible text is entirely in one plain text run can be
+  // edited in place. This keeps its surrounding anchors and existing run
+  // structure without fragmenting a replacement into separate word runs.
+  if (!options.tracked && model.segments.length === 1 && model.opaque.length === 0) {
+    const run = model.segments[0].run;
+    const contents = kids(run).filter(el => name(el) !== 'rPr');
+    const textEls = contents.filter(el => name(el) === 't');
+    const nonTextEls = contents.filter(el => name(el) !== 't');
+    if (textEls.length === 1 && nonTextEls.every(el => SAFE_ATOMS.has(name(el)))) {
+      const value = chunks.filter(chunk => chunk.type !== 'delete').map(chunk => chunk.text).join('');
+      textEls[0].textContent = value;
+      if (/^\s|\s$/.test(value)) textEls[0].setAttribute('xml:space', 'preserve');
+      else textEls[0].removeAttribute('xml:space');
+      return [];
+    }
+  }
   const fieldInDelete = (item: Opaque, start: number, end: number): boolean => item.kind === 'field' &&
     item.start >= start && item.end <= end &&
     (item.start !== item.end || options.includeEmptyFields === true || (item.start > start && item.end < end));

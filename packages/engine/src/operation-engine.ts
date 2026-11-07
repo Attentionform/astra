@@ -581,7 +581,34 @@ export class OperationEngine {
             if (!result.warnings.includes(w)) result.warnings.push(w);
           }
           if (op.action === 'trackedChange' && routeOut && typeof routeOut === 'object' && 'resolved' in routeOut) {
-            result.revisionResolution = routeOut as RevisionResolution;
+            const nextRes = routeOut as RevisionResolution;
+            if (!result.revisionResolution) {
+              result.revisionResolution = {
+                resolved: nextRes.resolved,
+                resolvedIds: [...nextRes.resolvedIds],
+                byKind: { ...nextRes.byKind },
+                unresolved: [...nextRes.unresolved],
+                ...(nextRes.removedNodeIds ? { removedNodeIds: [...nextRes.removedNodeIds] } : {}),
+                ...(nextRes.idsMayHaveChanged ? { idsMayHaveChanged: true } : {}),
+              };
+            } else {
+              const cur = result.revisionResolution;
+              cur.resolved += nextRes.resolved;
+              for (const id of nextRes.resolvedIds) {
+                if (!cur.resolvedIds.includes(id)) cur.resolvedIds.push(id);
+              }
+              for (const [k, v] of Object.entries(nextRes.byKind)) {
+                cur.byKind[k] = (cur.byKind[k] ?? 0) + v;
+              }
+              cur.unresolved.push(...nextRes.unresolved);
+              if (nextRes.removedNodeIds) {
+                cur.removedNodeIds ??= [];
+                for (const nid of nextRes.removedNodeIds) {
+                  if (!cur.removedNodeIds.includes(nid)) cur.removedNodeIds.push(nid);
+                }
+              }
+              if (nextRes.idsMayHaveChanged) cur.idsMayHaveChanged = true;
+            }
           }
           if (routeOut && typeof routeOut === 'object' && 'revisionIds' in routeOut &&
               Array.isArray((routeOut as { revisionIds?: unknown }).revisionIds)) {

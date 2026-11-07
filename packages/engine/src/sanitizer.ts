@@ -1,4 +1,5 @@
 import { resolveRevisions, type UnresolvedRevision } from './ooxml/revisions';
+import { REVISION_TAGS } from './ooxml/revision-ids';
 import { z } from 'zod';
 import AdmZip from './adm-zip-safe';
 import { XMLSerializer } from '@xmldom/xmldom';
@@ -1636,14 +1637,38 @@ function applyRevisionAndCommentPass(
   let unresolvedRevisions: UnresolvedRevision[] = [];
   let revisionByKind: Record<string, number> = {};
   let strippedCommentRefs = 0;
+  let modifiedRevisions = false;
   if (o.acceptAllRevisions) {
     const result = resolveRevisions([doc], 'accept', { removeDeletedCells: true, part: context });
     acceptedRevisions = result.resolved;
     unresolvedRevisions = result.unresolved;
     revisionByKind = result.byKind;
+    if (acceptedRevisions > 0) modifiedRevisions = true;
+    // Privacy sanitizer guarantee: strip author and date from any surviving revision markup
+    const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    for (const tag of REVISION_TAGS) {
+      for (const el of Array.from(doc.getElementsByTagNameNS(W_NS, tag))) {
+        if (el.hasAttributeNS(W_NS, 'author') || el.hasAttribute('w:author') || el.hasAttributeNS(W_NS, 'date') || el.hasAttribute('w:date')) {
+          el.removeAttributeNS(W_NS, 'author');
+          el.removeAttributeNS(W_NS, 'date');
+          el.removeAttribute('w:author');
+          el.removeAttribute('w:date');
+          modifiedRevisions = true;
+        }
+      }
+      for (const el of Array.from(doc.getElementsByTagName(`w:${tag}`))) {
+        if (el.hasAttributeNS(W_NS, 'author') || el.hasAttribute('w:author') || el.hasAttributeNS(W_NS, 'date') || el.hasAttribute('w:date')) {
+          el.removeAttributeNS(W_NS, 'author');
+          el.removeAttributeNS(W_NS, 'date');
+          el.removeAttribute('w:author');
+          el.removeAttribute('w:date');
+          modifiedRevisions = true;
+        }
+      }
+    }
   }
   if (o.stripComments) strippedCommentRefs = stripCommentRefsInDom(doc);
-  if (acceptedRevisions === 0 && strippedCommentRefs === 0) return { ...none, unresolvedRevisions, revisionByKind };
+  if (!modifiedRevisions && strippedCommentRefs === 0) return { ...none, unresolvedRevisions, revisionByKind };
   return {
     xml: serializeWithProlog(head, doc),
     acceptedRevisions,

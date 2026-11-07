@@ -538,10 +538,10 @@ function hasBoundarySpace(text: string): boolean {
 }
 
 function makeDelRun(doc: Document, text: string, rPr: Element | null, author: string, date: string, id: number): Element {
-  const del = doc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:del');
-  del.setAttribute('w:id', String(id));
-  del.setAttribute('w:author', author);
-  del.setAttribute('w:date', date);
+  const del = doc.createElementNS(W_NS, 'w:del');
+  del.setAttributeNS(W_NS, 'w:id', String(id));
+  del.setAttributeNS(W_NS, 'w:author', author);
+  del.setAttributeNS(W_NS, 'w:date', date);
 
   const r = doc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:r');
   if (rPr) r.appendChild(rPr.cloneNode(true));
@@ -556,10 +556,10 @@ function makeDelRun(doc: Document, text: string, rPr: Element | null, author: st
 }
 
 function makeInsRun(doc: Document, text: string, rPr: Element | null, author: string, date: string, id: number): Element {
-  const ins = doc.createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:ins');
-  ins.setAttribute('w:id', String(id));
-  ins.setAttribute('w:author', author);
-  ins.setAttribute('w:date', date);
+  const ins = doc.createElementNS(W_NS, 'w:ins');
+  ins.setAttributeNS(W_NS, 'w:id', String(id));
+  ins.setAttributeNS(W_NS, 'w:author', author);
+  ins.setAttributeNS(W_NS, 'w:date', date);
 
   ins.appendChild(makeRun(doc, text, rPr));
   return ins;

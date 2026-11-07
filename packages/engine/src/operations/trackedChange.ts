@@ -1,6 +1,6 @@
 import { buildRunModel, applyChunks } from '../ooxml/run-model';
 import { findNode, validateVersion } from './base';
-import { createWordElement } from '../ooxml/ns';
+import { createWordElement, stampRevision } from '../ooxml/ns';
 import type { RevisionResolution } from '../ooxml/revisions';
 import { DocumentAST } from '../ast';
 import { BaseOperation } from './base';
@@ -23,8 +23,14 @@ export function executeTrackedChange(op: TrackedChangeOperation, ast: DocumentAS
   const { author, date } = resolveRevisionStamp(op.author, op.date, ast.settings.defaultAuthor);
 
   if (op.operation === 'acceptAll') {
+    if (op.ids !== undefined || op.author !== undefined || op.target !== undefined) {
+      throw Object.assign(new Error("E_VALIDATION: Operation 'acceptAll' does not accept selection filters ('ids', 'author', 'target'). Use operation: 'accept' for selective resolution."), { code: 'E_VALIDATION', retryable: false });
+    }
     return parser.resolvePackageRevisions('accept');
   } else if (op.operation === 'rejectAll') {
+    if (op.ids !== undefined || op.author !== undefined || op.target !== undefined) {
+      throw Object.assign(new Error("E_VALIDATION: Operation 'rejectAll' does not accept selection filters ('ids', 'author', 'target'). Use operation: 'reject' for selective resolution."), { code: 'E_VALIDATION', retryable: false });
+    }
     return parser.resolvePackageRevisions('reject');
   } else if (op.operation === 'accept' || op.operation === 'reject') {
     return parser.resolvePackageRevisions(op.operation, {ids:op.ids, author:op.author, nodeId:op.target});
@@ -51,7 +57,17 @@ export function executeTrackedChange(op: TrackedChangeOperation, ast: DocumentAS
     }
     const node = findNode(ast, op.target);
     if (!node || !node.xml || (node.xml as Element).tagName !== 'w:p') {
-      throw new Error('E_VALIDATION: Tracked deletion requires a paragraph target.');
+      throw Object.assign(
+        new Error(
+          `E_VALIDATION: Tracked deletion requires a paragraph target ('w:p'), got '${node ? (node.xml as Element)?.tagName || node.type : 'not found'}'. ` +
+          `Remedy: delete contained paragraphs individually for paragraph-level (w:del) revisions, or use action 'delete' without tracking to remove the node.`
+        ),
+        {
+          code: 'E_VALIDATION',
+          retryable: false,
+          remedy: "Delete contained paragraphs individually for paragraph-level revisions, or delete the node outright.",
+        }
+      );
     }
     validateVersion(node, op.expectedVersion);
     const paragraph = node.xml as Element;
@@ -89,10 +105,8 @@ export function executeTrackedChange(op: TrackedChangeOperation, ast: DocumentAS
       if (!rPr) { rPr = createWordElement(doc, 'w:rPr'); pPr.appendChild(rPr); sortChildrenBySchema(pPr, PPR_CHILD_ORDER); }
       const mark = createWordElement(doc, 'w:del');
       const id = ast.nextChangeId++; revisionIds.push(id);
-      const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-      mark.setAttributeNS(ns, 'w:id', String(id)); mark.setAttributeNS(ns, 'w:author', author); mark.setAttributeNS(ns, 'w:date', date);
-      const change = Array.from(rPr.childNodes).find(n => n.nodeType === 1 && (n as Element).tagName === 'w:rPrChange');
-      rPr.insertBefore(mark, change ?? null);
+      stampRevision(mark, id, author, date);
+      rPr.insertBefore(mark, rPr.firstChild);
     }
     node.metadata.text = model.text.slice(0,at) + model.text.slice(at+length);
     node.metadata.hasTrackedChanges = true;

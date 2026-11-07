@@ -127,7 +127,8 @@ export function listComments(zip: DocxZipAdapter): CommentRecord[] {
   }
   return Array.from(comments.getElementsByTagNameNS(W, 'comment')).map(el => {
     const rawId = el.getAttributeNS(W, 'id');
-    const p = el.getElementsByTagNameNS(W, 'p')[0];
+    const paragraphs = Array.from(el.getElementsByTagNameNS(W, 'p'));
+    const p = paragraphs[paragraphs.length - 1];
     const paraId = p?.getAttributeNS(W14, 'paraId') ?? '';
     const ex = byPara.get(paraId);
     const parent = ex?.getAttributeNS(W15, 'paraIdParent');

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DocxParser, OperationEngine, createBlankDocxBuffer } from '@attentionform/astra-engine';
+import { sanitizeDocxBuffer } from '../../packages/engine/src/sanitizer';
 
 function documentWithRevisions(overrideBody?: string): Buffer {
   const zip = new AdmZip(createBlankDocxBuffer('blank'));
@@ -40,11 +41,12 @@ describe('revision resolution', () => {
     zip.updateFile('word/document.xml', Buffer.from(xml));
     const parser = new DocxParser(zip.toBuffer());
     const ast = await parser.getAST();
+    const nodeId = ast.sections[0].nodes[0].id;
     const engine = new OperationEngine(ast, parser);
     const result = await engine.executeBatch({ operations: [{ action: 'trackedChange', operation: 'acceptAll' }] } as never);
     expect(result.success).toBe(true);
     expect(result.revisionsPending).toBe(1);
-    expect(result.revisionResolution?.unresolved).toEqual(expect.arrayContaining([expect.objectContaining({kind: 'moveFrom'})]));
+    expect(result.revisionResolution?.unresolved).toEqual(expect.arrayContaining([expect.objectContaining({kind: 'moveFrom', nodeId, part:'word/document.xml'})]));
     expect(parser.getDocumentDom().getElementsByTagName('w:moveFrom').length).toBe(1);
   });
 
@@ -251,6 +253,47 @@ describe('revision resolution', () => {
     expect(result.revisionsPending).toBe(1);
     expect(parser.getDocumentDom().getElementsByTagName('w:jc')[0].getAttribute('w:val')).toBe('right');
     expect(parser.getDocumentDom().getElementsByTagName('w:pPrChange').length).toBe(1);
+  });
+
+  it('merges paragraph marks with bookmarks (such as _Toc) on accept', async () => {
+    const body = '<w:p><w:pPr><w:rPr><w:del w:id="1" w:author="Alice"/></w:rPr></w:pPr><w:bookmarkStart w:id="10" w:name="_TocHeading"/><w:r><w:t>Heading</w:t></w:r><w:bookmarkEnd w:id="10"/></w:p><w:p><w:r><w:t>Body text</w:t></w:r></w:p>';
+    const parser = new DocxParser(documentWithRevisions(body));
+    const ast = await parser.getAST();
+    const result = await new OperationEngine(ast, parser).executeBatch({ operations: [{ action: 'trackedChange', operation: 'acceptAll' }] } as never);
+    expect(result.success).toBe(true);
+    expect(result.revisionsPending).toBe(0);
+    const paragraphs = parser.getDocumentDom().getElementsByTagName('w:p');
+    expect(paragraphs.length).toBe(1);
+    expect(paragraphs[0].textContent).toBe('HeadingBody text');
+    expect(paragraphs[0].getElementsByTagName('w:bookmarkStart').length).toBe(1);
+  });
+
+  it('merges revisionResolution across multiple operations in a batch', async () => {
+    const body = '<w:p><w:ins w:id="10" w:author="Alice"><w:r><w:t>one</w:t></w:r></w:ins><w:ins w:id="20" w:author="Bob"><w:r><w:t>two</w:t></w:r></w:ins></w:p>';
+    const parser = new DocxParser(documentWithRevisions(body));
+    const ast = await parser.getAST();
+    const result = await new OperationEngine(ast, parser).executeBatch({
+      operations: [
+        { action: 'trackedChange', operation: 'accept', ids: [10] },
+        { action: 'trackedChange', operation: 'reject', ids: [20] },
+      ]
+    } as never);
+    expect(result.success).toBe(true);
+    expect(result.revisionResolution).toBeDefined();
+    expect(result.revisionResolution?.resolved).toBe(2);
+    expect(result.revisionResolution?.resolvedIds).toEqual(expect.arrayContaining([10, 20]));
+  });
+
+  it('sanitizer acceptAllRevisions scrubs author and date from unhandled revision markup', async () => {
+    const body = '<w:p><w:customXmlInsRangeStart w:id="5" w:author="SecretAuthor" w:date="2026-01-01T00:00:00Z"/><w:r><w:t>Text</w:t></w:r><w:customXmlInsRangeEnd w:id="5"/></w:p>';
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const xml = zip.readAsText('word/document.xml').replace(/<w:body>[\s\S]*?(<w:sectPr)/, `<w:body>${body}$1`);
+    zip.updateFile('word/document.xml', Buffer.from(xml));
+    const { buffer } = sanitizeDocxBuffer(zip.toBuffer(), { acceptAllRevisions: true });
+    const cleanZip = new AdmZip(buffer);
+    const cleanDoc = cleanZip.readAsText('word/document.xml');
+    expect(cleanDoc).not.toContain('SecretAuthor');
+    expect(cleanDoc).not.toContain('2026-01-01T00:00:00Z');
   });
 
 });

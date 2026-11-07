@@ -8,6 +8,7 @@ export interface UnresolvedRevision {
   count: number;
   reason: string;
   part: string;
+  nodeId?: string;
 }
 
 export interface RevisionResolution {
@@ -129,9 +130,10 @@ function mergeParagraphMark(marker: Element): boolean {
   const next = sibling as Element;
   const properties = children(paragraph).find(el => el.localName === 'pPr');
   if (properties && children(properties).some(el => el.localName === 'sectPr')) return false;
+  const zeroWidth = new Set(['bookmarkStart', 'bookmarkEnd', 'commentRangeStart', 'commentRangeEnd', 'commentReference', 'proofErr']);
   const plain = (p: Element): boolean => children(p).every(el => {
-    if (el.localName === 'pPr') return true;
-    return el.localName === 'r' && children(el).every(child => ['rPr', 't', 'tab', 'br'].includes(child.localName));
+    if (el.localName === 'pPr' || zeroWidth.has(el.localName)) return true;
+    return el.localName === 'r' && children(el).every(child => ['rPr', 't', 'tab', 'br', 'lastRenderedPageBreak', 'noBreakHyphen', 'softHyphen'].includes(child.localName));
   });
   if (!plain(paragraph) || !plain(next)) return false;
   const nextPr = children(next).find(el => el.localName === 'pPr');
@@ -207,7 +209,7 @@ export function countRevisions(documents: readonly Document[]): number {
 }
 
 /** Resolve supported revisions in one part. Unhandled structural revisions remain reported. */
-export function resolveRevisions(documents: readonly Document[], mode: 'accept' | 'reject', options: { removeDeletedCells?: boolean; part?: string; selected?: ReadonlySet<Element> } = {}): RevisionResolution {
+export function resolveRevisions(documents: readonly Document[], mode: 'accept' | 'reject', options: { removeDeletedCells?: boolean; part?: string; selected?: ReadonlySet<Element>; nodeIdOf?: (element: Element) => string | undefined } = {}): RevisionResolution {
   const result: RevisionResolution = { resolved: 0, resolvedIds: [], byKind: {}, unresolved: [] };
   for (const doc of documents) {
     const pending = new Set<Element>();
@@ -325,7 +327,8 @@ export function resolveRevisions(documents: readonly Document[], mode: 'accept' 
       }
       if (!supported) {
         pending.add(el);
-        result.unresolved.push({ kind, count: 1, reason, part: options.part ?? 'word/document.xml' });
+        const nodeId = options.nodeIdOf?.(el);
+        result.unresolved.push({ kind, count: 1, reason, part: options.part ?? 'word/document.xml', ...(nodeId ? {nodeId} : {}) });
         continue;
       }
       result.resolved++;

@@ -157,6 +157,9 @@ Inspects document structure using Token-Optimized Outline Notation (TOON).
 | `aroundNode` | `string` | No | Node ID to center the inspection window around. |
 | `window` | `number` | No | Half-width of rows around `aroundNode` (default: 5). |
 | `maxTokens` | `number` | No | Token budget cutoff on clean row boundary (200–8000). |
+| `include` | `array` | No | Optional review records to include: `["comments"]`, `["revisions"]`, or both. |
+| `commentId` | `number` | No | Specific comment ID to inspect. |
+| `revisionId` | `number` | No | Specific tracked revision ID to inspect. |
 
 **Returns:** `{ ok: true, sessionId, revision, fidelity, palette, toonText, rowCount }`
 
@@ -171,6 +174,7 @@ Fast text search returning matching stable node IDs and text snippets.
 | `sessionId` | `string` | Yes | Active session identifier. |
 | `query` | `string` | Yes | Search query string (1–500 characters). |
 | `regex` | `boolean` | No | Treat query as regular expression (default: `false`). |
+| `scope` | `string` | No | Search scope: `"body"` (default), `"comments"`, or `"all"`. |
 
 **Returns:** `{ ok: true, sessionId, matches: [{ id, preview, cells? }] }`. A table hit lists `cells`, up to five cell addresses such as `t_001:r3c1`, that you can pass as the `target` of `replace`, `style`, `namedStyle`, `clearFormat`, `hyperlink`, `bookmark` or `comment`. Cell addresses are `<tableId>:r<row>c<col>`, 1-based as `inspect_document` prints the grid (add `:p<n>` for a cell with several paragraphs).
 

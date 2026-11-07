@@ -345,4 +345,81 @@ describe('mixed formatting edits', () => {
     expect(parser.getZipAdapter().readText('word/comments.xml')).toBe(comments);
   });
 
+  it('handles Word zero-width markers (lastRenderedPageBreak, softHyphen, noBreakHyphen) in runs', async () => {
+    const { parser, ast, engine, id } = await fromParagraph(
+      '<w:p><w:r><w:lastRenderedPageBreak/><w:t>multi-page text</w:t></w:r><w:r><w:noBreakHyphen/><w:t>hyphenated</w:t></w:r></w:p>'
+    );
+    const res = await engine.executeBatch({ operations: [{ action: 'replace', target: id, text: 'multi-page text changed' }] } as never);
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    expect((await validateDocxBuffer(parser.rezip(ast))).ok).toBe(true);
+  });
+
+  it('preserves multi-run formatting on untracked replace when formatting spans are touched', async () => {
+    const { parser, ast, engine, id } = await setup();
+    const res = await engine.executeBatch({ operations: [{ action: 'replace', target: id, text: 'Bold plain modified italic', trackChanges: false }] } as never);
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    const p = parser.getDocumentDom().getElementsByTagName('w:p')[0];
+    expect(p.getElementsByTagName('w:b').length).toBe(1);
+    expect(p.getElementsByTagName('w:i').length).toBe(1);
+    expect(p.textContent).toBe('Bold plain modified italic');
+    expect((await validateDocxBuffer(parser.rezip(ast))).ok).toBe(true);
+  });
+
+  it('places paragraph-mark w:del as the first child of w:rPr before fonts and sizes', async () => {
+    const { parser, ast, engine, id } = await fromParagraph(
+      '<w:p><w:pPr><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="24"/></w:rPr></w:pPr><w:r><w:t>Sample</w:t></w:r></w:p>'
+    );
+    const res = await engine.executeBatch({ operations: [{ action: 'trackedChange', operation: 'delete', target: id }] } as never);
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    const rPr = parser.getDocumentDom().getElementsByTagName('w:rPr')[0];
+    const firstChild = rPr.childNodes[0] as Element;
+    expect(firstChild.tagName).toBe('w:del');
+    expect((await validateDocxBuffer(parser.rezip(ast))).ok).toBe(true);
+  });
+
+  it('refuses selectors on acceptAll and rejectAll with E_VALIDATION', async () => {
+    const { engine } = await setup();
+    const r1 = await engine.executeBatch({ operations: [{ action: 'trackedChange', operation: 'acceptAll', ids: [1] }] } as never);
+    expect(r1.success).toBe(false);
+    expect(r1.errors[0].error).toContain('E_VALIDATION');
+    const r2 = await engine.executeBatch({ operations: [{ action: 'trackedChange', operation: 'rejectAll', author: 'Alice' }] } as never);
+    expect(r2.success).toBe(false);
+    expect(r2.errors[0].error).toContain('E_VALIDATION');
+  });
+
+  it('resolves a multi-paragraph comment using the last paragraph paraId', async () => {
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const body = '<w:p><w:commentRangeStart w:id="1"/><w:r><w:t>Annotated text</w:t><w:commentReference w:id="1"/></w:r><w:commentRangeEnd w:id="1"/></w:p>';
+    zip.updateFile('word/document.xml', Buffer.from(zip.readAsText('word/document.xml').replace(/<w:body>[\s\S]*?(<w:sectPr)/, `<w:body>${body}$1`)));
+    const commentsXml = `<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:comment w:id="1" w:author="Alice" w:date="2026-01-01T00:00:00Z"><w:p w14:paraId="PARA1"><w:r><w:t>First para</w:t></w:r></w:p><w:p w14:paraId="PARA2"><w:r><w:t>Second para</w:t></w:r></w:p></w:comment></w:comments>`;
+    zip.addFile('word/comments.xml', Buffer.from(commentsXml));
+    const extXml = `<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml"><w15:commentEx w15:paraId="PARA2" w15:done="0"/></w15:commentsEx>`;
+    zip.addFile('word/commentsExtended.xml', Buffer.from(extXml));
+    const parser = new DocxParser(zip.toBuffer());
+    const ast = await parser.getAST();
+    const engine = new OperationEngine(ast, parser);
+    const listed = listComments(parser.getZipAdapter());
+    expect(listed[0].paraId).toBe('PARA2');
+    expect(listed[0].resolved).toBe(false);
+    const res = await engine.executeBatch({ operations: [{ action: 'comment', operation: 'resolve', target: '1' }] } as never);
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    expect(listComments(parser.getZipAdapter())[0].resolved).toBe(true);
+  });
+
+  it('stamps namespaced attributes on revisions so in-session selective accept works', async () => {
+    const { parser, engine, id } = await fromParagraph('<w:p><w:r><w:t>Initial</w:t></w:r></w:p>');
+    const opRes = await engine.executeBatch({
+      operations: [{ action: 'insert', type: 'paragraph', anchor: id, position: 'after', text: ' added', trackChanges: true, author: 'Writer' }]
+    } as never);
+    expect(opRes.success, JSON.stringify(opRes.errors)).toBe(true);
+    const revs = parser.listPackageRevisions();
+    expect(revs.revisions.length).toBeGreaterThan(0);
+    expect(revs.revisions[0].author).toBe('Writer');
+    const acceptRes = await engine.executeBatch({
+      operations: [{ action: 'trackedChange', operation: 'accept', ids: [revs.revisions[0].id] }]
+    } as never);
+    expect(acceptRes.success, JSON.stringify(acceptRes.errors)).toBe(true);
+    expect(parser.listPackageRevisions().revisions.length).toBe(0);
+  });
+
 });
