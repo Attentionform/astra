@@ -702,7 +702,7 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
       const allChanges = [...insEls, ...delEls];
       expect(insEls.length).toBe(3);
       expect(delEls.length).toBeGreaterThanOrEqual(3);
-      expect(delEls.filter(el => el.parentNode?.localName === 'rPr').length).toBe(3);
+      expect(delEls.filter(el => (el.parentNode as Element | null)?.localName === 'rPr').length).toBe(3);
 
       // Verify ID generation: IDs must be unique positive integers without collision
       const allocatedIds: string[] = [];
@@ -723,7 +723,7 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
       for (const del of delEls) {
         expect(del.getAttribute('w:author')).toBeDefined();
         expect(del.getAttribute('w:date')).toBeDefined();
-        if (del.parentNode?.localName === 'rPr') continue;
+        if ((del.parentNode as Element | null)?.localName === 'rPr') continue;
         const runs = del.getElementsByTagName('w:r');
         expect(runs.length).toBeGreaterThan(0);
         const delText = runs[0].getElementsByTagName('w:delText');

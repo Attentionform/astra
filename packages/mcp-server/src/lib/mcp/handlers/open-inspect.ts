@@ -348,7 +348,7 @@ export async function handleInspectDocument(
         end = Math.min(totalNodes, idx + window + 1);
         effectiveLimit = end - start;
       } else {
-        if (offset >= totalNodes && totalNodes > 0) {
+        if (offset >= totalNodes && totalNodes > 0 && !parsed.data.include?.length) {
           throw Object.assign(
             new Error(`inspect_document: offset ${offset} is beyond totalNodes ${totalNodes}.`),
             {

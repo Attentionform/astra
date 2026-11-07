@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import AdmZip from 'adm-zip';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { createBlankDocxBuffer } from '@attentionform/astra-engine';
@@ -9,6 +10,20 @@ import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session
 import { handleExecuteBatch, handleInspectDocument, handleOpenDocument, handleSearchContent } from '../../packages/mcp-server/src/lib/mcp-tool-adapter';
 
 describe('MCP review workflow', () => {
+  it('pages revisions even when the document has fewer body nodes than the review offset', async () => {
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const revisions = Array.from({length:55}, (_, i) => `<w:ins w:id="${i + 1}" w:author="A"><w:r><w:t>word${i}</w:t></w:r></w:ins>`).join('');
+    const xml = zip.readAsText('word/document.xml').replace(/<w:body>[\s\S]*?(<w:sectPr)/, `<w:body><w:p>${revisions}</w:p>$1`);
+    zip.updateFile('word/document.xml', Buffer.from(xml));
+    const store = createMcpSessionStore();
+    const handle = await store.openBuffer(zip.toBuffer(), 'many-revisions.docx');
+    const first = await handleInspectDocument(store, {sessionId:handle.sessionId, include:['revisions']});
+    expect(first).toMatchObject({ok:true, revisions:{total:55, nextOffset:50}});
+    const second = await handleInspectDocument(store, {sessionId:handle.sessionId, include:['revisions'], offset:50});
+    expect(second).toMatchObject({ok:true, revisions:{total:55}});
+    if (!second.ok) throw new Error('review page failed');
+    expect((second.revisions as {revisions:unknown[]}).revisions).toHaveLength(5);
+  });
   it('exposes review operations over the built stdio server', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'astra-review-wire-'));
     const file = join(dir, 'document.docx');

@@ -76,6 +76,31 @@ describe('revision resolution', () => {
     expect(parser.getDocumentDom().getElementsByTagName('w:moveToRangeEnd').length).toBe(0);
   });
 
+  it('expands a selected move side to both sides', async () => {
+    const body = '<w:p><w:moveFromRangeStart w:id="1" w:name="moveA"/><w:moveFrom w:id="2" w:author="Alice"><w:r><w:delText>old</w:delText></w:r></w:moveFrom><w:moveFromRangeEnd w:id="1"/><w:moveToRangeStart w:id="3" w:name="moveA"/><w:moveTo w:id="4" w:author="Alice"><w:r><w:t>new</w:t></w:r></w:moveTo><w:moveToRangeEnd w:id="3"/></w:p>';
+    const parser = new DocxParser(documentWithRevisions(body));
+    const ast = await parser.getAST();
+    const result = await new OperationEngine(ast, parser).executeBatch({operations:[{action:'trackedChange',operation:'accept',ids:[2]}]} as never);
+    expect(result.success, JSON.stringify(result.errors)).toBe(true);
+    expect(result.revisionsPending).toBe(0);
+    expect(parser.getDocumentDom().getElementsByTagName('w:p')[0].textContent).toBe('new');
+    expect(parser.getDocumentDom().getElementsByTagName('w:moveFromRangeStart').length).toBe(0);
+  });
+
+  it('refuses duplicate IDs across body and header without changing either part', async () => {
+    const zip = new AdmZip(documentWithRevisions('<w:p><w:ins w:id="7" w:author="Alice"><w:r><w:t>Body</w:t></w:r></w:ins></w:p>'));
+    zip.addFile('word/header1.xml', Buffer.from('<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:ins w:id="7" w:author="Alice"><w:r><w:t>Header</w:t></w:r></w:ins></w:p></w:hdr>'));
+    const parser = new DocxParser(zip.toBuffer());
+    const ast = await parser.getAST();
+    const body = parser.getDocumentDom().toString();
+    const header = parser.getZipAdapter().readText('word/header1.xml');
+    const result = await new OperationEngine(ast, parser).executeBatch({operations:[{action:'trackedChange',operation:'accept',ids:[7]}]} as never);
+    expect(result.success).toBe(false);
+    expect(result.errors.some(e => e.error.includes('ambiguous'))).toBe(true);
+    expect(parser.getDocumentDom().toString()).toBe(body);
+    expect(parser.getZipAdapter().readText('word/header1.xml')).toBe(header);
+  });
+
   it('accepts a deleted row while preserving the rest of the table', async () => {
     const body = '<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>Keep</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:del w:id="10" w:author="Alice"/></w:trPr><w:tc><w:p><w:r><w:t>Remove</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>';
     const parser = new DocxParser(documentWithRevisions(body));

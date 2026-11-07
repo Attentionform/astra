@@ -20,7 +20,47 @@ async function fromParagraph(body: string) {
   return {parser, ast, engine:new OperationEngine(ast, parser), id:ast.sections[0].nodes[0].id};
 }
 
+function characterStyles(paragraph: Element): string[] {
+  const out: string[] = [];
+  for (const run of Array.from(paragraph.getElementsByTagName('w:r'))) {
+    let deleted = false;
+    for (let node: Node | null = run.parentNode; node && node !== paragraph; node = node.parentNode) {
+      if ((node as Element).tagName === 'w:del') deleted = true;
+    }
+    if (deleted) continue;
+    const style = `${run.getElementsByTagName('w:b').length ? 'b' : ''}${run.getElementsByTagName('w:i').length ? 'i' : ''}`;
+    for (const t of Array.from(run.getElementsByTagName('w:t'))) for (const char of t.textContent ?? '') out.push(`${char}:${style}`);
+  }
+  return out;
+}
+
 describe('mixed formatting edits', () => {
+  it('preserves the text and per-character formatting invariants across seeded edits', async () => {
+    let seed = 123456;
+    const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed; };
+    for (let trial = 0; trial < 10; trial++) {
+      const words = ['alpha','bravo','charlie','delta','echo','foxtrot'];
+      const pick = random() % words.length;
+      const target = words.map((word, i) => i === pick ? `new${trial}` : word).join(' ');
+      const p = `<w:p><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${words.slice(0,2).join(' ')} </w:t></w:r><w:r><w:t xml:space="preserve">${words.slice(2,4).join(' ')} </w:t></w:r><w:r><w:rPr><w:i/></w:rPr><w:t>${words.slice(4).join(' ')}</w:t></w:r></w:p>`;
+      const tracked = await fromParagraph(p);
+      const original = characterStyles(tracked.parser.getDocumentDom().getElementsByTagName('w:p')[0]);
+      const edit = await tracked.engine.executeBatch({operations:[{action:'replace',target:tracked.id,text:target,trackChanges:true}]} as never);
+      expect(edit.success, JSON.stringify(edit.errors)).toBe(true);
+      expect((await validateDocxBuffer(tracked.parser.rezip(tracked.ast))).ok).toBe(true);
+      const plain = await fromParagraph(p);
+      expect((await plain.engine.executeBatch({operations:[{action:'replace',target:plain.id,text:target,trackChanges:false}]} as never)).success).toBe(true);
+      const expected = characterStyles(plain.parser.getDocumentDom().getElementsByTagName('w:p')[0]);
+      const accepted = await tracked.engine.executeBatch({operations:[{action:'trackedChange',operation:'accept',ids:edit.revisionIds}]} as never);
+      expect(accepted.success, JSON.stringify(accepted.errors)).toBe(true);
+      expect(characterStyles(tracked.parser.getDocumentDom().getElementsByTagName('w:p')[0])).toEqual(expected);
+      const rejectedDoc = await fromParagraph(p);
+      const second = await rejectedDoc.engine.executeBatch({operations:[{action:'replace',target:rejectedDoc.id,text:target,trackChanges:true}]} as never);
+      const rejected = await rejectedDoc.engine.executeBatch({operations:[{action:'trackedChange',operation:'reject',ids:second.revisionIds}]} as never);
+      expect(rejected.success, JSON.stringify(rejected.errors)).toBe(true);
+      expect(characterStyles(rejectedDoc.parser.getDocumentDom().getElementsByTagName('w:p')[0])).toEqual(original);
+    }
+  }, 30000);
   it('keeps the formatting of unchanged text on replace', async () => {
     const {parser, engine, id} = await setup();
     const result = await engine.executeBatch({operations:[{action:'replace', target:id, text:'Bold plain changed italic', preserveFormatting:true}]} as never);
@@ -29,6 +69,26 @@ describe('mixed formatting edits', () => {
     expect(runs.some(r => r.textContent === 'Bold ' && r.getElementsByTagName('w:b').length === 1)).toBe(true);
     expect(runs.some(r => r.textContent === 'italic' && r.getElementsByTagName('w:i').length === 1)).toBe(true);
     expect(runs.some(r => r.textContent?.includes('changed') && r.getElementsByTagName('w:b').length === 0)).toBe(true);
+  });
+
+  it('edits inside a hyperlink while preserving its relationship and surrounding anchors', async () => {
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const body = '<w:p><w:r><w:t xml:space="preserve">Before </w:t></w:r><w:bookmarkStart w:id="4" w:name="here"/><w:hyperlink r:id="rIdLink"><w:r><w:rPr><w:b/></w:rPr><w:t>linked</w:t></w:r></w:hyperlink><w:bookmarkEnd w:id="4"/><w:r><w:t xml:space="preserve"> after</w:t></w:r></w:p>';
+    zip.updateFile('word/document.xml', Buffer.from(zip.readAsText('word/document.xml').replace(/<w:body>[\s\S]*?(<w:sectPr)/, `<w:body>${body}$1`)));
+    const rels = zip.readAsText('word/_rels/document.xml.rels').replace('</Relationships>', '<Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com" TargetMode="External"/></Relationships>');
+    zip.updateFile('word/_rels/document.xml.rels', Buffer.from(rels));
+    const parser = new DocxParser(zip.toBuffer()); const ast = await parser.getAST();
+    const id = ast.sections[0].nodes[0].id;
+    const result = await new OperationEngine(ast, parser).executeBatch({operations:[{action:'replace',target:id,text:'Before revised after',trackChanges:false}]} as never);
+    expect(result.success, JSON.stringify(result.errors)).toBe(true);
+    const hyperlink = parser.getDocumentDom().getElementsByTagName('w:hyperlink')[0];
+    expect(hyperlink.getAttribute('r:id')).toBe('rIdLink');
+    expect(hyperlink.textContent).toBe('revised');
+    expect(hyperlink.getElementsByTagName('w:b').length).toBeGreaterThan(0);
+    expect(parser.getDocumentDom().getElementsByTagName('w:bookmarkStart')[0].getAttribute('w:name')).toBe('here');
+    const saved = parser.rezip(ast);
+    expect(new AdmZip(saved).readAsText('word/_rels/document.xml.rels')).toContain('Id="rIdLink"');
+    expect((await validateDocxBuffer(saved)).ok).toBe(true);
   });
 
   it('tracks only the requested text and restores formatting on rejection', async () => {
