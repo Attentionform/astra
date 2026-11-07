@@ -1,3 +1,4 @@
+import { maxRevisionId } from './ooxml/revision-ids';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from './adm-zip-safe';
@@ -2043,16 +2044,9 @@ export class DocxParser {
       };
     } catch { ast.sectPrFlags = { titlePg: false, evenAndOddHeaders: false }; }
 
-    // Determine the next change ID by finding max w:id in existing ins/del elements
-    let maxId = 0;
-    const insNodes = Array.from(this.documentDom.getElementsByTagName('w:ins'));
-    const delNodes = Array.from(this.documentDom.getElementsByTagName('w:del'));
-    [...insNodes, ...delNodes].forEach(el => {
-      const id = parseInt(el.getAttribute('w:id') || '0', 10);
-      if (id > maxId) maxId = id;
-    });
-    ast.nextChangeId = maxId + 1;
-    
+    // Reserve revision IDs across WordprocessingML parts, including headers and notes.
+    ast.nextChangeId = this.maxPackageRevisionId() + 1;
+
     // One section per section the file defines; a file with no break has just sec_root.
     ast.sections.push(...splitIntoSections(rootNodes, fileSections));
     // BX-03: cache the live AST reference for bare-rezip numbering sync (see
@@ -3603,29 +3597,33 @@ export class DocxParser {
     return extractStylePalette(this.stylesDom);
   }
 
-  public allocateNextTrackedChangeId(): string {
-    const insNodes = this.documentDom.getElementsByTagName('w:ins');
-    const delNodes = this.documentDom.getElementsByTagName('w:del');
-    let maxId = 0;
-    for (let i = 0; i < insNodes.length; i++) {
-      const id = parseInt(insNodes[i].getAttribute('w:id') || '0', 10);
-      if (!isNaN(id) && id > maxId) maxId = id;
+  private maxPackageRevisionId(): number {
+    let max = maxRevisionId(this.documentDom);
+    for (const entry of this.zip.getEntries()) {
+      if (entry.isDirectory || !/^word\/.*\.xml$/i.test(entry.entryName) || entry.entryName === 'word/document.xml') continue;
+      const xml = entry.getData().toString('utf8');
+      assertNoXxe(xml, entry.entryName);
+      max = Math.max(max, maxRevisionId(this.parser.parseFromString(xml, 'text/xml')));
     }
-    for (let i = 0; i < delNodes.length; i++) {
-      const id = parseInt(delNodes[i].getAttribute('w:id') || '0', 10);
-      if (!isNaN(id) && id > maxId) maxId = id;
-    }
-    return String(maxId + 1);
+    return max;
   }
 
-  public insertTrackedChange(targetNodeId: string, text: string, author: string = 'ASTra', date?: string, reproducible?: boolean): void {
+  private nextTrackedChangeId(idFactory?: () => number): string {
+    if (idFactory) return String(idFactory());
+    if (this.lastAstForNumbering) return String(this.lastAstForNumbering.nextChangeId++);
+    // Direct parser callers may edit before creating an AST. Their first edit
+    // reserves IDs from the live package; normal engine operations use the AST.
+    return String(this.maxPackageRevisionId() + 1);
+  }
+
+  public insertTrackedChange(targetNodeId: string, text: string, author: string = 'ASTra', date?: string, reproducible?: boolean, idFactory?: () => number): void {
     const target = this.nodeMap.get(targetNodeId);
     if (!target) {
       throw new Error(`Node with ID "${targetNodeId}" not found in document.`);
     }
 
     const stamp = date ?? deterministicRevisionIso(reproducible);
-    const changeId = this.allocateNextTrackedChangeId();
+    const changeId = this.nextTrackedChangeId(idFactory);
     const insEl = createWordElement(this.documentDom, 'w:ins');
     insEl.setAttribute('w:id', changeId);
     insEl.setAttribute('w:author', author);
@@ -3648,14 +3646,14 @@ export class DocxParser {
     this._bumpNodePagesRevision();
   }
 
-  public deleteTrackedChange(targetNodeId: string, author: string = 'ASTra', date?: string, reproducible?: boolean): void {
+  public deleteTrackedChange(targetNodeId: string, author: string = 'ASTra', date?: string, reproducible?: boolean, idFactory?: () => number): void {
     const target = this.nodeMap.get(targetNodeId);
     if (!target) {
       throw new Error(`Node with ID "${targetNodeId}" not found in document.`);
     }
 
     const stamp = date ?? deterministicRevisionIso(reproducible);
-    const changeId = this.allocateNextTrackedChangeId();
+    const changeId = this.nextTrackedChangeId(idFactory);
     const delEl = createWordElement(this.documentDom, 'w:del');
     delEl.setAttribute('w:id', changeId);
     delEl.setAttribute('w:author', author);
