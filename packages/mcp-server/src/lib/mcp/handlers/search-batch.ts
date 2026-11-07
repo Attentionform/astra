@@ -112,7 +112,7 @@ export async function handleSearchContent(
         const deadline = Date.now() + SEARCH_REGEX_TIME_BUDGET_MS;
         const matches: Array<{ id: string; preview: string; cells?: string[] }> = [];
         let scanned = 0;
-        for (const sec of handle.ast.sections) {
+        for (const sec of parsed.data.scope === 'comments' ? [] : handle.ast.sections) {
           for (const n of sec.nodes) {
             const text = String(n.metadata.text ?? '');
             let hit = false;
@@ -136,16 +136,29 @@ export async function handleSearchContent(
             }
           }
         }
+        if (parsed.data.scope === 'comments' || parsed.data.scope === 'all') {
+          for (const comment of handle.parser.listPackageComments()) {
+            if (Date.now() > deadline) throw Object.assign(new Error('search_content: regex query could not be completed.'), {code:'E_QUOTA', remedy:SEARCH_REGEX_GENERIC_REMEDY});
+            if (re.test(comment.text)) matches.push({id:`comment:${comment.id}`, preview:comment.text.slice(0,120)});
+            if (matches.length >= 50) break;
+          }
+        }
         return { ok: true as const, sessionId: handle.sessionId, matches, results: matches };
       }
       // Literal path: current behavior, unchanged.
-      const hits = handle.parser.searchNodesInAST(handle.ast, parsed.data.query);
+      const hits = parsed.data.scope === 'comments' ? [] : handle.parser.searchNodesInAST(handle.ast, parsed.data.query);
       const needle = parsed.data.query.toLowerCase();
       const matches = hits.slice(0, 50).map((n) => ({
         id: n.id,
         preview: String(n.metadata.text ?? '').slice(0, 120),
         ...cellsOf(n, (cell) => cell.toLowerCase().includes(needle)),
       }));
+      if (parsed.data.scope === 'comments' || parsed.data.scope === 'all') {
+        for (const comment of handle.parser.listPackageComments()) {
+          if (matches.length >= 50) break;
+          if (comment.text.toLowerCase().includes(needle)) matches.push({id:`comment:${comment.id}`, preview:comment.text.slice(0,120)});
+        }
+      }
       const out: {
         ok: true;
         sessionId: string;
@@ -360,12 +373,11 @@ export async function handleExecuteBatch(
       }
       if (!res.success) {
         const first = res.errors[0];
-        // P2-2: res.errors[0].error carries the engine stack (see
-        // operation-engine.ts routeOperation failure path). Keep the full
-        // value stderr-only; the client envelope gets the sanitized message.
+        // Keep stack traces available for explicit debugging only.
         const rawMessage = first ? String(first.error).slice(0, 2000) : 'Batch failed.';
         try {
-          console.error(`[mcp execute_batch] E_VALIDATION (client-sanitized): ${rawMessage.slice(0, 500)}`);
+          const logged = process.env.ASTRA_DEBUG ? rawMessage : rawMessage.split('\n')[0];
+          console.error(`[mcp execute_batch] ${getEngineErrorCode(rawMessage) ?? 'E_VALIDATION'}: ${logged.slice(0, 2000)}`);
         } catch {
           /* stderr-only, never throws */
         }
@@ -446,6 +458,7 @@ export async function handleExecuteBatch(
         results,
         revisionsPending: batchRevisionsPending,
         ...(res.revisionResolution ? { revisionResolution: res.revisionResolution } : {}),
+        ...(res.revisionIds?.length ? { revisionIds: res.revisionIds } : {}),
         ...(batchRevisionsRemedy ? { revisionsRemedy: batchRevisionsRemedy } : {}),
         possiblyStaleBodyRefs: batchStaleRefs,
         // Display-only: engine result (no field yet) merged with the core

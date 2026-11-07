@@ -21,37 +21,81 @@
       },
       "outPath": {
         "description": "Optional output destination path (must reside inside allowed directory)",
-        "type": "string"
+        "allOf": [
+          {
+            "$ref": "#/definitions/__schema0"
+          }
+        ]
       },
       "imageMode": {
         "description": "Markdown only: \"file\" requires outPath and writes image assets under a unique generation in sibling <doc_basename>_assets/; \"embed\" uses base64 data URIs. Default is \"file\" with outPath and \"embed\" otherwise.",
+        "allOf": [
+          {
+            "$ref": "#/definitions/__schema1"
+          }
+        ]
+      },
+      "assetPrefix": {
+        "description": "Markdown only: relative directory prefix for extracted image assets (default: \"<doc_basename>_assets\")",
+        "allOf": [
+          {
+            "$ref": "#/definitions/__schema2"
+          }
+        ]
+      },
+      "tagged_pdf": {
+        "description": "PDF only: tagged (accessible) render (default true)",
+        "allOf": [
+          {
+            "$ref": "#/definitions/__schema3"
+          }
+        ]
+      },
+      "tagged": {
+        "description": "Alias of tagged_pdf",
+        "allOf": [
+          {
+            "$ref": "#/definitions/__schema4"
+          }
+        ]
+      },
+      "strict": {
+        "description": "PDF only: fail closed on preflight blockers (default false, warn-only)",
+        "allOf": [
+          {
+            "$ref": "#/definitions/__schema5"
+          }
+        ]
+      }
+    },
+    "required": [
+      "sessionId",
+      "format"
+    ],
+    "definitions": {
+      "__schema0": {
+        "type": "string"
+      },
+      "__schema1": {
         "type": "string",
         "enum": [
           "file",
           "embed"
         ]
       },
-      "assetPrefix": {
-        "description": "Markdown only: relative directory prefix for extracted image assets (default: \"<doc_basename>_assets\")",
+      "__schema2": {
         "type": "string"
       },
-      "tagged_pdf": {
-        "description": "PDF only: tagged (accessible) render (default true)",
+      "__schema3": {
         "type": "boolean"
       },
-      "tagged": {
-        "description": "Alias of tagged_pdf",
+      "__schema4": {
         "type": "boolean"
       },
-      "strict": {
-        "description": "PDF only: fail closed on preflight blockers (default false, warn-only)",
+      "__schema5": {
         "type": "boolean"
       }
-    },
-    "required": [
-      "sessionId",
-      "format"
-    ]
+    }
   },
   "x-generated-from": "astra-mcp-server@0.2.1"
 }

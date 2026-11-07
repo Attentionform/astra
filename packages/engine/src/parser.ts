@@ -1,5 +1,6 @@
-import { maxRevisionId } from './ooxml/revision-ids';
-import { countRevisions, resolveRevisions, type RevisionResolution } from './ooxml/revisions';
+import { maxRevisionId, REVISION_TAGS } from './ooxml/revision-ids';
+import { countRevisions, resolveRevisions, listRevisions, readRevision, expandMoveSelection, type RevisionResolution, type RevisionSelector } from './ooxml/revisions';
+import { listComments } from './ooxml/comments';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from './adm-zip-safe';
@@ -3575,15 +3576,75 @@ export class DocxParser {
     return countRevisions([this.documentDom, ...this.revisionPartNames().map(name => this.revisionPartDom(name))]);
   }
 
-  public resolvePackageRevisions(mode: 'accept' | 'reject'): RevisionResolution {
+  private reviewParts(): {part: string; document: Document; nodeIdOf?: (el: Element) => string | undefined}[] {
+    const ids = new Map<Element, string>();
+    for (const [id, el] of this.nodeMap) ids.set(el, id);
+    return [{part:'word/document.xml', document:this.documentDom, nodeIdOf:(el:Element) => {
+      for (let node: globalThis.Node | null = el; node; node = node.parentNode) {
+        const id = ids.get(node as Element);
+        if (id) return id;
+      }
+      return undefined;
+    }}, ...this.revisionPartNames().map(part => ({part, document:this.revisionPartDom(part)}))];
+  }
+
+  public listPackageRevisions(offset = 0, limit = 50) { return listRevisions(this.reviewParts(), {offset, limit}); }
+  public readPackageRevision(id: number) { return readRevision(this.reviewParts(), id); }
+  public listPackageComments() {
+    const ids = new Map<Element, string>();
+    for (const [id, element] of this.nodeMap) ids.set(element, id);
+    return listComments(this.getZipAdapter()).map(comment => {
+      const ref = Array.from(this.documentDom.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'commentReference'))
+        .find(el => (el.getAttributeNS(el.namespaceURI!, 'id') || el.getAttribute('w:id')) === String(comment.id));
+      for (let node: globalThis.Node | null = ref ?? null; node; node = node.parentNode) {
+        const nodeId = ids.get(node as Element);
+        if (nodeId) return {...comment, nodeId};
+      }
+      return comment;
+    });
+  }
+
+  public resolvePackageRevisions(mode: 'accept' | 'reject', selector?: RevisionSelector): RevisionResolution {
     const oldIds = new Map<Element, string>();
     for (const [id, element] of this.nodeMap) oldIds.set(element, id);
-    const result = resolveRevisions([this.documentDom], mode);
-    for (const name of this.revisionPartNames()) {
-      const dom = this.revisionPartDom(name);
-      const part = resolveRevisions([dom], mode);
+    const parts = [{part:'word/document.xml', document:this.documentDom}, ...this.revisionPartNames().map(part => ({part, document:this.revisionPartDom(part)}))];
+    const selected = new Map<Document, Set<Element>>();
+    if (selector) {
+      const keys = [selector.ids !== undefined, selector.author !== undefined, selector.nodeId !== undefined].filter(Boolean).length;
+      if (keys !== 1 || (selector.ids && !selector.ids.length)) throw new Error('E_VALIDATION: Select revisions by exactly one of ids, author or target.');
+      if (selector.ids) for (const id of selector.ids) {
+        const match = readRevision(parts, id);
+        if (!match.group.length) throw new Error(`E_VALIDATION: Revision id ${id} was not found.`);
+        if (match.ambiguous) throw new Error(`E_VALIDATION: Revision id ${id} is ambiguous in ${match.group.map(x => x.part).join(', ')}; select by author or node.`);
+      }
+      const target = selector.nodeId ? this.nodeMap.get(selector.nodeId) : undefined;
+      if (selector.nodeId && !target) throw new Error(`E_VALIDATION: Node ${selector.nodeId} was not found.`);
+      for (const {document} of parts) {
+        const picked = new Set<Element>();
+        for (const el of Array.from(document.getElementsByTagName('*'))) {
+          if (el.namespaceURI !== 'http://schemas.openxmlformats.org/wordprocessingml/2006/main' || !REVISION_TAGS.includes(el.localName as typeof REVISION_TAGS[number])) continue;
+          const id = el.getAttributeNS(el.namespaceURI, 'id');
+          let inside = false;
+          for (let n: globalThis.Node | null = el; n; n = n.parentNode) if (n === target) inside = true;
+          if ((selector.ids && id !== '' && selector.ids.includes(Number(id))) || (selector.author !== undefined && el.getAttributeNS(el.namespaceURI, 'author') === selector.author) || (target && inside)) picked.add(el);
+        }
+        expandMoveSelection(document, picked);
+        selected.set(document, picked);
+      }
+      if (selector.ids || selector.nodeId) for (const {part, document} of parts) {
+        const original = Array.from(document.getElementsByTagName('*'));
+        const clone = document.cloneNode(true) as Document;
+        const copy = Array.from(clone.getElementsByTagName('*'));
+        const chosen = new Set(original.flatMap((el, i) => selected.get(document)?.has(el) ? [copy[i]] : []));
+        const preview = resolveRevisions([clone], mode, {part, selected:chosen});
+        if (preview.unresolved.length) throw new Error(`E_VALIDATION: Selected revisions cannot be resolved safely: ${preview.unresolved.map(x => x.reason).join('; ')}.`);
+      }
+    }
+    const result: RevisionResolution = {resolved:0, resolvedIds:[], byKind:{}, unresolved:[]};
+    for (const {part:name, document:dom} of parts) {
+      const part = resolveRevisions([dom], mode, {part:name, ...(selector ? {selected:selected.get(dom)} : {})});
       for (const entry of part.unresolved) entry.part = name;
-      if (part.resolved) this.zip.updateFile(name, Buffer.from(this.serializer.serializeToString(dom), 'utf8'));
+      if (part.resolved && name !== 'word/document.xml') this.zip.updateFile(name, Buffer.from(this.serializer.serializeToString(dom), 'utf8'));
       result.resolved += part.resolved;
       result.resolvedIds.push(...part.resolvedIds);
       result.unresolved.push(...part.unresolved);
@@ -3628,9 +3689,10 @@ export class DocxParser {
     const stamp = date ?? deterministicRevisionIso(reproducible);
     const changeId = this.nextTrackedChangeId(idFactory);
     const insEl = createWordElement(this.documentDom, 'w:ins');
-    insEl.setAttribute('w:id', changeId);
-    insEl.setAttribute('w:author', author);
-    insEl.setAttribute('w:date', stamp);
+    const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    insEl.setAttributeNS(ns, 'w:id', changeId);
+    insEl.setAttributeNS(ns, 'w:author', author);
+    insEl.setAttributeNS(ns, 'w:date', stamp);
 
     const rEl = createWordElement(this.documentDom, 'w:r');
     const tEl = createWordElement(this.documentDom, 'w:t');

@@ -744,9 +744,9 @@ const bookmarkOp = z.object({
 
 const commentOp = z.object({
   action: z.literal('comment'),
-  operation: z.enum(['insert', 'reply']),
+  operation: z.enum(['insert', 'reply', 'resolve', 'unresolve', 'delete']),
   target: z.string().min(1).max(256),
-  text: z.string().min(1).max(50_000),
+  text: z.string().min(1).max(50_000).optional(),
   author: revisionAuthor,
   date: revisionDate,
   expectedVersion,
@@ -754,9 +754,11 @@ const commentOp = z.object({
 
 const trackedChangeOp = z.object({
   action: z.literal('trackedChange'),
-  operation: z.enum(['acceptAll', 'rejectAll', 'insert', 'delete']),
+  operation: z.enum(['acceptAll', 'rejectAll', 'accept', 'reject', 'insert', 'delete']),
+  ids: z.array(z.number().int().nonnegative()).min(1).optional(),
   target: z.string().min(1).optional(),
   text: z.string().optional(),
+  occurrence: z.number().int().min(1).optional(),
   author: revisionAuthor,
   date: revisionDate,
   expectedVersion,

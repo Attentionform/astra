@@ -82,6 +82,8 @@ Add to `.cursor/mcp.json` in your workspace root:
 ASTra restricts the server to the folders you name, so an AI client cannot read or write other files on your computer. If a path is outside those folders, the request is refused and nothing happens:
 
 - **Directory Allowlist:** The server will only read or write `.docx` files located inside directories explicitly declared via `--allowed-dir <path>` (repeatable) or the `ASTRA_EXTRA_DOC_ROOTS` environment variable. The named folders are the whole boundary: the system temp folder is not added. A symbolic link at or above a named folder is followed; a link below it that points outside it is refused.
+
+  When no folders are named, the default roots are `./documents`, `./documents/Drafts`, the system temporary directory, and its `ASTra` subdirectory. The startup line reports the active roots.
 - **Path Canonicalization:** All incoming file paths are resolved to their real canonical paths. Path traversal attempts (e.g. `../../etc/passwd` or hidden directory symlinks) are caught and refused with error code `E_SANDBOX`.
 - **Absolute Paths Required:** Because clients often spawn the MCP server from disparate working directories, `--allowed-dir` must always be an absolute path and must exist prior to server launch.
 
@@ -141,7 +143,7 @@ Opens an existing `.docx` file into an isolated in-memory editing session.
 |---|---|:---:|---|
 | `path` | `string` | Yes | Absolute path to the `.docx` document. |
 | `sessionId` | `string` | No | Server-minted session id (deprecated to supply; test-only). |
-| `summaryOnly` | `boolean` | No | Return style-palette summary only (default: `false`). |
+| `summaryOnly` | `boolean` | No | The default and `true` return the compact summary; `false` returns the full structural summary including styles XML. |
 | `allowMacros` | `boolean` | No | Preserve macro/VBA project parts byte-for-byte. |
 | `stripMacros` | `boolean` | No | Automatically strip macro parts upon loading. |
 | `author` | `string` | No | Default author (≤ 128 chars) for tracked changes and comments in this session that do not name one. Falls back to the server's `ASTRA_AUTHOR`, then `ASTra`. An operation's own `author` always wins. Not the version-history author of `save_document`. |
@@ -153,10 +155,9 @@ Opens an existing `.docx` file into an isolated in-memory editing session.
   "sessionId": "sess_9a8b7c6d-5e4f-3a2b-1c0d-e9f8a7b6c5d4",
   "revision": 1,
   "summary": {
-    "paragraphs": 42,
-    "tables": 3,
-    "sections": 1,
-    "styles": ["Normal", "Heading1", "Heading2", "TableGrid"]
+    "summaryOnly": true,
+    "counts": {"nodes": 42, "sections": 1, "headers": 0, "footers": 0, "charts": 0},
+    "headers": [], "footers": [], "chartIds": [], "hasTrackedChanges": false
   },
   "evicted": []
 }
@@ -203,6 +204,9 @@ Runs pre-write ECMA-376 schema validation and commits all modified XML parts to 
 | `author` | `string` | No | Author name for version history (≤ 100 chars). |
 | `allowMacros` | `boolean` | No | Explicit macro policy to keep macros on save. |
 | `stripMacros` | `boolean` | No | Explicit macro policy to strip macros on save. |
+| `strict` | `boolean` | No | Refuse a save with any validator errors, including errors already present when opened. Defaults to the server setting. |
+
+The default save policy permits an already-invalid file when no additional normalized error signatures are detected; the `validation` result reports tolerated errors. Strict mode can be enabled per call, by `--strict-validation`, or by `ASTRA_STRICT_VALIDATION=1`. The comparison counts errors by normalized signature, so fixing one error and introducing another with the same signature within one save can be missed; strict mode refuses both.
 
 **Success Response:**
 ```json
@@ -250,7 +254,7 @@ Returns document structure using Token-Optimized Outline Notation (TOON).
 | Parameter | Type | Required | Description |
 |---|---|:---:|---|
 | `sessionId` | `string` | Yes | Active session identifier. |
-| `fidelity` | `string` | No | `"compact"` (default), `"standard"`, or `"full"`. |
+| `fidelity` | `string` | No | `"compact"`, `"standard"` (default), or `"full"`. |
 | `sectionId` | `string` | No | Filter output to a specific section ID. |
 | `maxTextLength` | `number` | No | Truncate run text at character limit. |
 | `offset` | `number` | No | Pagination start row (default: 0). |
@@ -258,6 +262,11 @@ Returns document structure using Token-Optimized Outline Notation (TOON).
 | `aroundNode` | `string` | No | Node ID to center the inspection window around. |
 | `window` | `number` | No | Half-width of rows around `aroundNode` (default: 5). |
 | `maxTokens` | `number` | No | Cap output on a clean row boundary (200–8000 tokens). |
+| `include` | `string[]` | No | Add `comments`, `revisions`, or both to the response. |
+| `commentId` | `number` | No | With `include:["comments"]`, return that comment and its replies in full. |
+| `revisionId` | `number` | No | With `include:["revisions"]`, return every element sharing that ID and report ambiguity. |
+
+Review lists use `offset` and `limit`, return at most 50 records, and include `nextOffset` when more are available. Comment previews are capped at 200 characters and revision previews at 60; the targeted read returns full text.
 
 **Success Response:**
 ```json
@@ -283,6 +292,7 @@ Fast text search across paragraphs, table cells, and runs.
 | `sessionId` | `string` | Yes | Active session identifier. |
 | `query` | `string` | Yes | Search query string (1–500 characters). |
 | `regex` | `boolean` | No | Enable regular expression search (default: `false`). |
+| `scope` | `string` | No | `"body"` (default), `"comments"`, or `"all"`. Comment matches use IDs such as `comment:0`. |
 
 **Success Response:**
 ```json
@@ -328,6 +338,12 @@ Executes an atomic array of typed operations (1–500 ops) with schema validatio
 
 **Supported Operations (27 total):**
 `insert`, `replace`, `delete`, `style`, `clearFormat`, `move`, `table`, `section`, `pageSetup`, `namedStyle`, `field`, `equation`, `list`, `headerFooter`, `chart`, `image`, `callout`, `footnote`, `endnote`, `watermark`, `pageBorder`, `coverPage`, `hyperlink`, `bookmark`, `comment`, `trackedChange`, `metadata`.
+
+**Review operations.** `trackedChange` supports `acceptAll`, `rejectAll`, and selective `accept` or `reject` using exactly one of `ids`, `author`, or `target`. ID and node selections are atomic; an author selection can leave unsupported changes and reports them in `revisionResolution.unresolved`. A duplicated ID is ambiguous unless it represents the two sides of a move; select by author or node instead. Tracked edits return `revisionIds` so the complete edit can be selected later. `trackedChange` deletion can target a text span and takes a 1-based `occurrence` when it repeats. Comment operations support `insert`, `reply`, `resolve`, `unresolve`, and `delete`; deleting a comment also deletes its replies and refuses inconsistent anchors.
+
+The resolver reports revision kinds it cannot safely apply. In particular, accepting `cellDel`, rejecting `cellIns` or `cellMerge`, rejecting `numberingChange`, and incomplete moves can remain unresolved. Use Word for a final visual check and for revisions reported as unresolved. `sanitize_document` can remove deleted cells when accepting all revisions.
+
+Tracked deletion of a complete simple field (`w:fldSimple`) is refused to preserve the original field structure. Edit surrounding text or use Word for that change. Whole complex fields can be deleted as tracked changes when their full span is selected.
 
 **Success Response:**
 ```json

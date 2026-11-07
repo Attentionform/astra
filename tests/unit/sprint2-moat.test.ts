@@ -700,7 +700,9 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
       const insEls = Array.from(dom.getElementsByTagName('w:ins'));
       const delEls = Array.from(dom.getElementsByTagName('w:del'));
       const allChanges = [...insEls, ...delEls];
-      expect(allChanges.length).toBe(6);
+      expect(insEls.length).toBe(3);
+      expect(delEls.length).toBeGreaterThanOrEqual(3);
+      expect(delEls.filter(el => el.parentNode?.localName === 'rPr').length).toBe(3);
 
       // Verify ID generation: IDs must be unique positive integers without collision
       const allocatedIds: string[] = [];
@@ -717,15 +719,16 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
       const uniqueIds = new Set(allocatedIds);
       expect(uniqueIds.size, 'Every tracked change w:id must be strictly unique').toBe(allocatedIds.length);
 
-      // Verify deleteTrackedChange creates <w:del> with <w:r><w:delText xml:space="preserve">...</w:delText></w:r>
+      // Text deletions hold deleted text; paragraph-mark deletions sit in pPr/rPr.
       for (const del of delEls) {
         expect(del.getAttribute('w:author')).toBeDefined();
         expect(del.getAttribute('w:date')).toBeDefined();
+        if (del.parentNode?.localName === 'rPr') continue;
         const runs = del.getElementsByTagName('w:r');
         expect(runs.length).toBeGreaterThan(0);
         const delText = runs[0].getElementsByTagName('w:delText');
         expect(delText.length).toBeGreaterThan(0);
-        expect(delText[0].getAttribute('xml:space')).toBe('preserve');
+        if (/^\s|\s$/.test(delText[0].textContent ?? '')) expect(delText[0].getAttribute('xml:space')).toBe('preserve');
       }
 
       // Verify insertTrackedChange creates <w:ins> with <w:r><w:t xml:space="preserve">...</w:t></w:r>
@@ -734,9 +737,9 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
         expect(ins.getAttribute('w:date')).toBeDefined();
         const runs = ins.getElementsByTagName('w:r');
         expect(runs.length).toBeGreaterThan(0);
-        const tNodes = runs[0].getElementsByTagName('w:t');
-        expect(tNodes.length).toBeGreaterThan(0);
-        expect(tNodes[0].getAttribute('xml:space')).toBe('preserve');
+        const texts = [...Array.from(ins.getElementsByTagName('w:t')), ...Array.from(ins.getElementsByTagName('w:delText'))];
+        expect(texts.length).toBeGreaterThan(0);
+        for (const t of texts) if (/^\s|\s$/.test(t.textContent ?? '')) expect(t.getAttribute('xml:space')).toBe('preserve');
       }
 
       // Validate modified document with validateDocxBuffer: MUST pass with ok: true

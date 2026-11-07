@@ -16,11 +16,8 @@ export const OpenDocumentSchema = z
         'DEPRECATED: session ids are server-minted (sess_<uuid>); omit sessionId and use the returned id. ' +
           'Client-supplied values are rejected with E_VALIDATION (deterministic ids are test-only via --allow-client-session-ids).'
       ),
-    // Additive flag: true returns the palette-only summary (no stylesXml
-    // dump). NO .default() here (same wire-breaker reason as inspect
-    // windowing below): defaults are applied manually in the handler so the
-    // wire shape stays {path,sessionId?} for existing clients. Omitted/false
-    // keeps the full structural summary including the stylesXml dump.
+    // Omitted/true selects the compact summary; false requests the full
+    // structural summary including stylesXml. No wire-level default.
     summaryOnly: z.boolean().optional(),
     // Macro/active-content disposition (refuse-default): a document carrying
     // macro parts opens fail-closed with E_VALIDATION naming the parts.
@@ -57,6 +54,9 @@ export const InspectDocumentSchema = z
     aroundNode: z.string().min(1).max(256).optional(),
     window: z.number().int().min(1).max(20).optional(),
     maxTokens: z.number().int().min(200).max(8000).optional(),
+    include: z.array(z.enum(['comments', 'revisions'])).optional(),
+    commentId: z.number().int().nonnegative().optional(),
+    revisionId: z.number().int().nonnegative().optional(),
   })
   .strict();
 
@@ -68,6 +68,7 @@ export const SearchContentSchema = z
     // behavior (no ReDoS surface by default). True = RegExp semantics with
     // bounded pattern length + an evaluation time budget.
     regex: z.boolean().optional().default(false),
+    scope: z.enum(['body', 'comments', 'all']).optional(),
   })
   .strict();
 

@@ -19,6 +19,85 @@ export interface RevisionResolution {
   idsMayHaveChanged?: boolean;
 }
 
+export interface RevisionSelector { ids?: number[]; author?: string; nodeId?: string }
+export interface RevisionEntry {
+  id: number | null;
+  kind: string;
+  author: string;
+  date: string;
+  part: string;
+  nodeId?: string;
+  group?: string;
+  text: string;
+  textLength: number;
+}
+
+export function listRevisions(parts: readonly {part: string; document: Document; nodeIdOf?: (element: Element) => string | undefined}[], options: {offset?: number; limit?: number} = {}): {revisions: RevisionEntry[]; total: number; nextOffset?: number} {
+  const all: RevisionEntry[] = [];
+  for (const {part, document, nodeIdOf} of parts) {
+    const moves = findMoveGroups(document);
+    for (const element of Array.from(document.getElementsByTagName('*'))) {
+      if (element.namespaceURI !== W_NS || !REVISION_NAMES.has(element.localName)) continue;
+      const value = element.getAttributeNS(W_NS, 'id');
+      const fullText = element.textContent ?? '';
+      const entry: RevisionEntry = {
+        id: value && /^\d+$/.test(value) ? Number(value) : null,
+        kind: element.localName,
+        author: element.getAttributeNS(W_NS, 'author') ?? '',
+        date: element.getAttributeNS(W_NS, 'date') ?? '',
+        part,
+        text: fullText.slice(0,60),
+        textLength: fullText.length,
+      };
+      const nodeId = nodeIdOf?.(element);
+      if (nodeId) entry.nodeId = nodeId;
+      const group = moves.get(element);
+      if (group) entry.group = group.name;
+      all.push(entry);
+    }
+  }
+  const offset = Math.max(0, options.offset ?? 0);
+  const limit = Math.max(0, Math.min(50, options.limit ?? 50));
+  const nextOffset = offset + limit < all.length ? offset + limit : undefined;
+  return {revisions:all.slice(offset,offset+limit), total:all.length, ...(nextOffset !== undefined ? {nextOffset} : {})};
+}
+
+export function readRevision(parts: readonly {part: string; document: Document; nodeIdOf?: (element: Element) => string | undefined}[], id: number): {group: (RevisionEntry & {fullText: string})[]; ambiguous: boolean} {
+  const group: (RevisionEntry & {fullText: string})[] = [];
+  const moveKeys = new Set<string>();
+  for (const part of parts) {
+    const moves = findMoveGroups(part.document);
+    for (const element of Array.from(part.document.getElementsByTagName('*'))) {
+      if (element.namespaceURI !== W_NS || !REVISION_NAMES.has(element.localName) || element.getAttributeNS(W_NS, 'id') !== String(id)) continue;
+      const fullText = element.textContent ?? '';
+      const move = moves.get(element);
+      group.push({
+        id, kind:element.localName,
+        author:element.getAttributeNS(W_NS, 'author') ?? '',
+        date:element.getAttributeNS(W_NS, 'date') ?? '',
+        part:part.part,
+        ...(part.nodeIdOf?.(element) ? {nodeId:part.nodeIdOf(element)} : {}),
+        ...(move ? {group:move.name} : {}),
+        text:fullText.slice(0,60), textLength:fullText.length, fullText,
+      });
+      if (move) moveKeys.add(`${part.part}:${move.name}`);
+    }
+  }
+  return {group, ambiguous:group.length > 1 && (
+    group.length !== 2 || moveKeys.size !== 1 ||
+    !group.some(entry => entry.kind === 'moveFrom') || !group.some(entry => entry.kind === 'moveTo')
+  )};
+}
+
+/** A selected side of a move always brings its counterpart into the transaction. */
+export function expandMoveSelection(document: Document, selected: Set<Element>): void {
+  const groups = findMoveGroups(document);
+  for (const element of [...selected]) {
+    const group = groups.get(element);
+    if (group) for (const member of group.members) selected.add(member);
+  }
+}
+
 const children = (element: Element): Element[] =>
   Array.from(element.childNodes).filter((node): node is Element => node.nodeType === 1);
 const local = (node: Node | null): string => node && node.nodeType === 1 ? (node as Element).localName : '';
@@ -128,17 +207,21 @@ export function countRevisions(documents: readonly Document[]): number {
 }
 
 /** Resolve supported revisions in one part. Unhandled structural revisions remain reported. */
-export function resolveRevisions(documents: readonly Document[], mode: 'accept' | 'reject', options: { removeDeletedCells?: boolean; part?: string } = {}): RevisionResolution {
+export function resolveRevisions(documents: readonly Document[], mode: 'accept' | 'reject', options: { removeDeletedCells?: boolean; part?: string; selected?: ReadonlySet<Element> } = {}): RevisionResolution {
   const result: RevisionResolution = { resolved: 0, resolvedIds: [], byKind: {}, unresolved: [] };
   for (const doc of documents) {
     const pending = new Set<Element>();
     const containsPending = (parent: Element): boolean => {
       for (const item of pending) for (let node: Node | null = item.parentNode; node; node = node.parentNode) if (node === parent) return true;
+      if (options.selected) for (const child of Array.from(parent.getElementsByTagName('*'))) {
+        if (child.namespaceURI === W_NS && REVISION_NAMES.has(child.localName) && !options.selected.has(child)) return true;
+      }
       return false;
     };
     const moveGroups = findMoveGroups(doc);
     const elements = Array.from(doc.getElementsByTagName('*')).filter(el => el.namespaceURI === W_NS && REVISION_NAMES.has(el.localName));
     for (const el of elements.reverse()) {
+      if (options.selected && !options.selected.has(el)) continue;
       if (!el.parentNode) continue;
       const kind = el.localName;
       const parent = el.parentNode as Element;

@@ -5,6 +5,8 @@ import {
   addCommentReply,
   anchorCommentReply,
   findLastTopLevelCommentId,
+  setCommentResolved,
+  deleteCommentThread,
 } from '../ooxml/comments';
 import { createWordElement } from '../ooxml/ns';
 import { DocxParser } from '../parser';
@@ -14,9 +16,9 @@ import { toError } from '../errors';
 
 export interface CommentOperation extends BaseOperation {
   action: 'comment';
-  operation: 'insert' | 'reply';
+  operation: 'insert' | 'reply' | 'resolve' | 'unresolve' | 'delete';
   target: string; // The paragraph node ID or parent comment ID for replies
-  text: string;
+  text?: string;
   author?: string;
   date?: string;
 }
@@ -87,6 +89,7 @@ export function executeComment(op: CommentOperation, ast: DocumentAST, parser: D
     }
 
     validateVersion(targetNode, op.expectedVersion);
+    if (!op.text) throw new Error('E_VALIDATION: A comment requires text.');
     addComment(zipAdapter, resolveCommentHost(targetNode), author, op.text, op.date);
     publishPackageRelationships(ast, parser);
     
@@ -116,8 +119,21 @@ export function executeComment(op: CommentOperation, ast: DocumentAST, parser: D
       );
     }
 
+    if (!op.text) throw new Error('E_VALIDATION: A reply requires text.');
     const replyId = addCommentReply(zipAdapter, parentCommentId, author, op.text, op.date);
     publishPackageRelationships(ast, parser);
     anchorCommentReply(parser.getDocumentDom(), parentCommentId, replyId);
+  } else if (op.operation === 'resolve' || op.operation === 'unresolve') {
+    if (!/^\d+$/.test(op.target)) throw new Error('E_VALIDATION: Supply a numeric comment ID.');
+    setCommentResolved(zipAdapter, Number(op.target), op.operation === 'resolve');
+  } else if (op.operation === 'delete') {
+    if (!/^\d+$/.test(op.target)) throw new Error('E_VALIDATION: Supply a numeric comment ID.');
+    deleteCommentThread(zipAdapter, parser.getDocumentDom(), Number(op.target));
+    for (const section of ast.sections) for (const node of section.nodes) {
+      if (node.metadata.hasComment && node.xml.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'commentReference').length === 0) {
+        node.metadata.hasComment = false;
+        node.version += 1;
+      }
+    }
   }
 }

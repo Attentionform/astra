@@ -93,13 +93,20 @@ export async function handleOpenDocument(
     }
     let summary: unknown = null;
     try {
-      // Additive summaryOnly flag (default false): true returns the style
-      // palette summary only (no stylesXml dump); omitted/false keeps the
-      // full structural summary byte-identical for existing clients.
-      if (parsed.data.summaryOnly === true) {
-        summary = { palette: extractStylePalette(handle.parser), summaryOnly: true as const };
-      } else {
+      if (parsed.data.summaryOnly === false) {
         summary = handle.parser.getStructuralSummary();
+      } else {
+        const nodes = handle.ast.sections.flatMap(section => section.nodes);
+        const chartIds = nodes.filter(node => node.type === 'chart' || node.type === 'chart3d').map(node => node.id);
+        const headers = Object.values(handle.ast.headers).map(item => ({type:item.type, text:(item.text ?? '').slice(0,200)}));
+        const footers = Object.values(handle.ast.footers).map(item => ({type:item.type, text:(item.text ?? '').slice(0,200)}));
+        summary = {
+          summaryOnly:true, palette:extractStylePalette(handle.parser),
+          counts:{nodes:nodes.length, sections:handle.ast.sections.length, headers:headers.length, footers:footers.length, charts:chartIds.length},
+          headers, footers, chartIds,
+          hasTrackedChanges:handle.parser.countPackageRevisions() > 0,
+          hint:'Pass summaryOnly:false for the full structural summary; use inspect_document for the node list.',
+        };
       }
     } catch {
       summary = null;
@@ -194,6 +201,8 @@ export async function handleInspectDocument(
       remedy?: string;
       /** Compact summary of the session style guide (absent when none attached). */
       styleGuide?: StyleGuideSummary;
+      comments?: unknown;
+      revisions?: unknown;
     }
   | McpErrorShape
 > {
@@ -236,6 +245,26 @@ export async function handleInspectDocument(
   }
   try {
     return await store.withSession(sessionId, async (handle) => {
+      const review: {comments?: unknown; revisions?: unknown} = {};
+      if (parsed.data.include?.includes('revisions')) {
+        review.revisions = parsed.data.revisionId !== undefined
+          ? handle.parser.readPackageRevision(parsed.data.revisionId)
+          : handle.parser.listPackageRevisions(offset, Math.min(limit, 50));
+      }
+      if (parsed.data.include?.includes('comments')) {
+        const all = handle.parser.listPackageComments();
+        if (parsed.data.commentId !== undefined) {
+          const comment = all.find(c => c.id === parsed.data.commentId);
+          if (!comment) throw Object.assign(new Error(`Comment ${parsed.data.commentId} was not found.`), {code:'E_VALIDATION'});
+          const thread = [comment];
+          for (let i = 0; i < thread.length; i++) for (const child of all.filter(c => c.paraIdParent === thread[i].paraId)) if (!thread.includes(child)) thread.push(child);
+          review.comments = {thread};
+        } else {
+          const page = all.slice(offset, offset + Math.min(limit, 50));
+          review.comments = {comments:page.map(c => ({...c, text:c.text.slice(0,200), textLength:c.text.length})), total:all.length,
+            ...(offset + page.length < all.length ? {nextOffset:offset + page.length} : {})};
+        }
+      }
       let table;
       try {
         table = handle.toon.toon(handle.ast, { fidelity, sectionId, maxTextLength });
@@ -284,6 +313,7 @@ export async function handleInspectDocument(
           fidelity,
           palette,
           metadata,
+          ...review,
           pendingNormalizations: readPendingNormalizations(handle),
           ...(handle.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(handle.styleGuide) } : {}),
           toonText: fullText,
@@ -401,6 +431,8 @@ export async function handleInspectDocument(
         truncated: boolean;
         remedy?: string;
         styleGuide?: StyleGuideSummary;
+        comments?: unknown;
+        revisions?: unknown;
       } = {
         ok: true as const,
         sessionId: handle.sessionId,
@@ -409,6 +441,7 @@ export async function handleInspectDocument(
         fidelity,
         palette,
         metadata,
+        ...review,
         pendingNormalizations: readPendingNormalizations(handle),
         ...(handle.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(handle.styleGuide) } : {}),
         toonText,

@@ -204,6 +204,8 @@ export interface ExecutionResult {
   /** R-1: pending tracked revisions (w:ins + w:del) remaining in the doc after the batch. */
   revisionsPending: number;
   revisionResolution?: RevisionResolution;
+  /** Every revision id created by tracked edits in this batch, in operation order. */
+  revisionIds?: number[];
   /** R-1: accept remedy, present only when revisionsPending > 0. */
   revisionsRemedy?: string;
   /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
@@ -580,6 +582,11 @@ export class OperationEngine {
           }
           if (op.action === 'trackedChange' && routeOut && typeof routeOut === 'object' && 'resolved' in routeOut) {
             result.revisionResolution = routeOut as RevisionResolution;
+          }
+          if (routeOut && typeof routeOut === 'object' && 'revisionIds' in routeOut &&
+              Array.isArray((routeOut as { revisionIds?: unknown }).revisionIds)) {
+            result.revisionIds ??= [];
+            result.revisionIds.push(...(routeOut as { revisionIds: number[] }).revisionIds);
           }
           // OX-04: surface delete skips at the batch level too (deduped —
           // same ghost twice reports once, across ops as well as within).
@@ -1367,7 +1374,7 @@ export class OperationEngine {
       case 'trackedChange': {
         if (!this.parser) throw new Error("Parser is required for trackedChange operations");
         const tracked = op as TrackedChangeOperation;
-        if (tracked.operation === 'acceptAll' || tracked.operation === 'rejectAll') {
+        if (tracked.operation === 'acceptAll' || tracked.operation === 'rejectAll' || tracked.operation === 'accept' || tracked.operation === 'reject') {
           const before = new Map(this.ast.sections.flatMap(section => section.nodes).map(node => [node.id, {
             version: node.version,
             xml: (node.xml as Element).toString(),

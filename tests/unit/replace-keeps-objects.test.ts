@@ -47,12 +47,14 @@ describe('replace keeps pictures and comment anchors, and refuses object nodes',
   it.each([[false], [true]])('untracked replace keeps the picture (text in the picture run: %s)', async (sameRun) => {
     const { ast, node } = await loadParagraphWithPicture(sameRun);
     expect(node.type).toBe('paragraph');
+    const originalDrawing = node.xml.getElementsByTagName('w:drawing')[0].toString();
     const res = executeReplace({ action: 'replace', target: node.id, text: 'New text only', trackChanges: false }, ast);
     const el = node.xml as Element;
     expect(el.getElementsByTagName('w:drawing').length).toBe(1);
     expect(el.textContent).toContain('New text only');
     expect(el.textContent).not.toContain('Text beside the picture');
-    expect(res.warnings.join(' ')).toContain('moved them to the end of the paragraph');
+    expect(el.getElementsByTagName('w:drawing')[0].toString()).toBe(originalDrawing);
+    expect(res.warnings.join(' ')).not.toContain('moved them to the end of the paragraph');
   });
 
   it('tracked replace keeps the picture and the deleted text', async () => {
@@ -113,6 +115,9 @@ describe('replace keeps pictures and comment anchors, and refuses object nodes',
     executeReplace({ action: 'replace', target: target.id, text: 'Brand new text' }, ast);
     const docXml = new AdmZip(parser.rezip()).readAsText('word/document.xml');
     expect(docXml.match(/<w:commentReference /g)?.length).toBe(1);
-    expect(docXml).toContain('Brand new text');
+    expect(target.metadata.text).toBe('Brand new text');
+    const parsed = new DocxParser(parser.rezip());
+    const reopened = await parsed.getAST();
+    expect(reopened.sections.flatMap(s => s.nodes).some(n => n.metadata.text === 'Brand new text')).toBe(true);
   });
 });

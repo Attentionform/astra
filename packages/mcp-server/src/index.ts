@@ -27,6 +27,7 @@
 import * as path from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 // ── Engine wiring: local lib imports ─────────
 import { setDuplicateParaIdPolicy } from '@attentionform/astra-engine';
@@ -80,6 +81,8 @@ import {
   checkSchemasInDir,
   formatMismatchWarning,
   generateSchemasToDir,
+  getToolDefinitions,
+  compactToolSchema,
 } from './lib/mcp/schema-dump';
 import packageJson from '../package.json';
 
@@ -319,6 +322,15 @@ export function createAstraMcpServer(store: McpSessionStore = createMcpSessionSt
     { description: PARITY_DESCRIPTIONS.import_document, inputSchema: ImportDocumentSchema },
     async (args: unknown) => toTextResult(await handleImportDocument(store, args))
   );
+
+  // Preserve the SDK's strict Zod call validation while sending the same
+  // schemas with shared definitions to clients and to --dump-schemas.
+  server.server.setRequestHandler(ListToolsRequestSchema, () => ({
+    tools:getToolDefinitions().map(tool => ({
+      name:tool.name, description:tool.description,
+      inputSchema:compactToolSchema(tool.schema) as {type:'object'; [key:string]:unknown},
+    })),
+  }));
 
   return server;
 }

@@ -67,6 +67,14 @@ export function buildStamp(version: string): string {
   return `astra-mcp-server@${version}`;
 }
 
+/** The SDK defaults to inlining repeated Zod nodes. Use shared definitions for
+ * the published catalog while keeping the same Zod schemas for call validation. */
+export function compactToolSchema(schema: unknown): Record<string, unknown> {
+  const raw = z.toJSONSchema(schema as z.ZodType, {target:'draft-7', io:'input', reused:'ref'}) as Record<string, unknown>;
+  if (raw.definitions && Object.keys(raw.definitions as Record<string, unknown>).length === 0) delete raw.definitions;
+  return raw;
+}
+
 export function generateSchemasToDir(
   targetDir: string,
   version: string = getServerVersion()
@@ -77,13 +85,7 @@ export function generateSchemasToDir(
   const stamp = buildStamp(version);
   const written: string[] = [];
   for (const tool of getToolDefinitions()) {
-    const raw = z.toJSONSchema(tool.schema as z.ZodType, { target: 'draft-7', io: 'input' }) as Record<string, unknown>;
-    if (
-      (raw as { definitions?: Record<string, unknown> }).definitions !== undefined &&
-      Object.keys((raw as { definitions: Record<string, unknown> }).definitions).length === 0
-    ) {
-      delete (raw as { definitions?: unknown }).definitions;
-    }
+    const raw = compactToolSchema(tool.schema);
     const payload = {
       name: tool.name,
       description: tool.description,

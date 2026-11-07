@@ -28,11 +28,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'Returns {ok:true,sessionId,revision,summary,evicted} where evicted:string[] lists sessions dropped ' +
       'by the capacity cap to make room (re-open them if needed; later calls with an evicted id fail ' +
       'with E_SESSION plus a close_document remedy). ' +
-      'Default summary is the full structural summary including the complete word/styles.xml dump ' +
-      '(large templates return a large payload; no trim applied). ' +
-      'Pass {"summaryOnly":true} for a palette-only summary ({palette:{availableStyles,brandColors,primaryFont}} ' +
-      'parsed from word/styles.xml, no stylesXml dump). summaryOnly defaults to false (omitted/false keeps ' +
-      'the full dump, unchanged, so existing clients never break). ' +
+      'The default summary is compact: palette, counts, header/footer text, chart ids and pending-revision flag. ' +
+      'Pass {"summaryOnly":false} for the full structural summary including styles XML. ' +
       'Example input {"path":"documents/report.docx"} -> {"ok":true,"sessionId":"sess_abc","revision":1,"evicted":[]}. ' +
       'Open first; keep the sessionId for every later call. ' +
       'The response also carries validation: {status:"valid"}, {status:"invalid",preExistingErrors,messages,baselineComparable,note} when the file already has validator errors ' +
@@ -48,6 +45,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       '{availableStyles,brandColors,primaryFont} parsed from word/styles.xml, plus document core properties ' +
       '`metadata` {title,creator,subject,description,keywords,category,lastModifiedBy,revision,created,modified} ' +
       'read from docProps/core.xml (absent when the docx has no core part). ' +
+      'Use include:["comments","revisions"] for paged review records; commentId or revisionId reads full detail. ' +
       'Renders the in-memory session state (includes unsaved execute_batch edits); `dirty:true` means the ' +
       'session differs from the last saved file, `revision` is the in-memory revision. ' +
       'Node ids are verbatim: paragraphs carry 8-hex w14:paraId (e.g. 3F2A9C1B), tables t_001.., sections sec_root, sec_2, sec_3.. by position; use them as-is for targets/anchors. ' +
@@ -75,6 +73,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
   ),
   search_content: withSharedDocs(
     'Search live paragraph/table w:t text; returns [{id,preview}] node hits for anchors/targets. ' +
+      'Use scope:"comments" or scope:"all" to search comment text; the default scope is body. ' +
       'A table hit also lists `cells` (up to 5 addresses such as t_001:r3c1) for the cells that hold the match; pass one as the target of replace/style/namedStyle/clearFormat/hyperlink/bookmark/comment. ' +
       'Chart titles/series are NOT matched by search (they live in the chart part, not w:t); discover them in inspect TOON chart rows, then anchor by the chart node id. ' +
       'Image alt text and footnote/endnote bodies are NOT matched either (search covers body w:t text only); ' +
@@ -88,6 +87,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
   ),
   execute_batch: withSharedDocs(
     'Apply 1..500 strictly-typed operations atomically (strict discriminatedUnion per action; sequential:true default preserves document order; ' +
+      'Tracked edits return revisionIds; trackedChange accept/reject selects by ids, author or target. Comment operations include resolve, unresolve and delete. ' +
       'single edit = 1-item batch). Caps 500 ops / 200MB throw E_QUOTA with remedy (maxSteps is an optional positive integer, unbounded when omitted). ' +
       'Client-supplied op ids are honored where the schema allows (insert/equation/footnote/chart accept `id`; strict schemas reject it elsewhere). ' +
       'Style ops support word-level spans: `match` styles only the matched substring (run splitting; `matchAll` styles ' +
@@ -117,7 +117,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected.'
   ),
   save_document: withSharedDocs(
-    'Validate then persist the session docx (validator-gated save: throws E_VALIDATION with xPath + table/node location + remedy when the package is invalid, never writes corruption). ' +
+    'Validate then persist the session docx; the default policy permits pre-existing validation errors when no new normalized error signatures are detected. ' +
       'Save-blocked remedies are xpath-specific (drawing docPr/id, table tbl/tr/tc, relationships, header/footer parts, session tracking-attribute leaks each name their own fix). ' +
       'Optional commit params: message (commit subject, single-line, max 500 chars; newlines become spaces; ' +
       'blank/omitted falls back to `save_document: rev <n> (<k> ops since last save)`); author (max 100 chars; ' +
@@ -127,7 +127,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'A file that already had validator errors when it was opened is saved when the edit adds none: the envelope then carries validation:{ok:false,tolerated:true,preExistingErrors,introducedErrors:0,messages}. ' +
       'An edit that adds an error is refused with E_VALIDATION naming both numbers. Pass {"strict":true} (or start the server with --strict-validation, or set ASTRA_STRICT_VALIDATION=1) to refuse every validator error as before. ' +
       'Paragraphs that share a w14:paraId are renumbered by the save: the first keeps its id, each later copy gets a new one and is listed in normalized, and the state before is recorded in the history (revert_document returns it); strict refuses such a document instead. ' +
-      'The success envelope also carries revisionsPending (w:ins+w:del left in the saved package) plus a revisionsRemedy naming accept when >0. ' +
+      'The success envelope also carries revisionsPending (tracked revisions left in the saved package) plus a revisionsRemedy naming accept when >0. ' +
       'The success envelope also carries advisory changedValues [{nodeId,before,after}] (old saved text -> new live text, ' +
       `bounded: at most ${CHANGED_VALUES_MAX} entries, each side at most ${CHANGED_VALUE_TEXT_MAX} chars, truncated flag honest; ` +
       'empty + reason when no baseline is computable). ' +

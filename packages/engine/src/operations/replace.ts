@@ -1,3 +1,4 @@
+import { buildRunModel, diffForEdit, applyChunks } from '../ooxml/run-model';
 import { createWordElement } from '../ooxml/ns';
 import { DocumentAST, Node } from '../ast';
 import { BaseOperation, createTextElement, validateVersion, findNode } from './base';
@@ -22,6 +23,7 @@ export interface ReplaceOperation extends BaseOperation {
 export interface ReplaceOperationResult {
   /** Advisory warnings (e.g. dropped note references). Ops still apply; never a failure. */
   warnings: string[];
+  revisionIds?: number[];
 }
 
 export function executeReplace(op: ReplaceOperation, ast: DocumentAST): ReplaceOperationResult {
@@ -71,6 +73,39 @@ export function executeReplace(op: ReplaceOperation, ast: DocumentAST): ReplaceO
         remedy: "Use the operation for that node: action 'image' (resize, setAltText, setCaption, delete), action 'chart' operation 'update', or action 'equation' operation 'replace'. To remove it, use action 'delete'.",
       }
     );
+  }
+
+  // Use a span edit for the default preserve-formatting path. Build and
+  // validate its map before any DOM mutation or revision-ID allocation.
+  if (resolvedPreserve && !resolvedReset) {
+    const explicitTrack = pick('trackChanges', op.trackChanges);
+    const trackOn = explicitTrack !== undefined ? explicitTrack === true : ast.settings.trackChanges === true;
+    const model = buildRunModel(targetNode.xml as Element, targetNode.metadata.text);
+    const chunks = diffForEdit(model.text, resolvedText);
+    const stamp = resolveRevisionStamp(pick('author', op.author), pick('date', op.date), ast.settings.defaultAuthor);
+    const revisionIds = applyChunks(model, chunks, {tracked:trackOn, ...stamp, nextId: () => ast.nextChangeId++});
+    if (trackOn && revisionIds.length) targetNode.metadata.hasTrackedChanges = true;
+    if (resolvedSz !== undefined) applyRunFontSize(targetNode.xml as Element, resolvedSz);
+    targetNode.metadata.text = resolvedText;
+    targetNode.version += 1;
+    return {warnings:[], revisionIds};
+  }
+
+  // Explicit style stripping cannot authorize deletion of document history
+  // or of structures whose text is not an ordinary paragraph run.
+  const paragraph = targetNode.xml as Element;
+  const protectedNames = new Set([
+    'ins', 'del', 'moveFrom', 'moveTo', 'fldChar', 'fldSimple', 'instrText',
+    'sdt', 'oMath', 'oMathPara',
+  ]);
+  const protectedElement = Array.from(paragraph.getElementsByTagName('*')).find(el =>
+    protectedNames.has(el.localName || el.tagName.split(':').pop() || '')
+  );
+  if (protectedElement) {
+    throw Object.assign(new Error(
+      `E_VALIDATION: replace with preserveFormatting:false or resetStyle:true would remove ${protectedElement.tagName} history or structure. ` +
+      'Edit the surrounding text with the default preserveFormatting behavior, or delete and insert the paragraph explicitly.'
+    ), {code:'E_VALIDATION', retryable:false});
   }
 
   // Replace rewrites the runs of a paragraph, but inline math is not a run: it would stay behind, cut off from

@@ -132,7 +132,7 @@ Opens a `.docx` file into an isolated in-memory editing session.
 |---|---|:---:|---|
 | `path` | `string` | Yes | Absolute path to `.docx` file inside an allowed directory. |
 | `sessionId` | `string` | No | Server-minted session id (deprecated to supply; test-only). |
-| `summaryOnly` | `boolean` | No | Return structural and style palette summary only. |
+| `summaryOnly` | `boolean` | No | Omitted or `true` returns a compact summary; `false` includes the full structural summary and styles XML. |
 | `allowMacros` | `boolean` | No | Preserve macro parts byte-for-byte. |
 | `stripMacros` | `boolean` | No | Strip macro parts upon loading. |
 | `author` | `string` | No | Default author for tracked changes and comments in this session that do not name one (falls back to the server's `ASTRA_AUTHOR`, then `ASTra`). An operation's own `author` wins. |

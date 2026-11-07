@@ -14,9 +14,7 @@
         "maxItems": 4,
         "type": "array",
         "items": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1000
+          "$ref": "#/definitions/__schema0"
         }
       },
       "withVisual": {
@@ -48,7 +46,14 @@
     "required": [
       "sessionId"
     ],
-    "additionalProperties": false
+    "additionalProperties": false,
+    "definitions": {
+      "__schema0": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1000
+      }
+    }
   },
   "x-generated-from": "astra-mcp-server@0.2.1"
 }

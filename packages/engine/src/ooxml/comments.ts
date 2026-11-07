@@ -1,4 +1,4 @@
-import { DocxZipAdapter } from '../parser';
+import type { DocxZipAdapter } from '../parser';
 import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from './dom-parser';
 import { assertNoXxe } from './xxe-guard';
@@ -102,6 +102,119 @@ export function clearCommentXmlWarnings(): void {
 }
 function serializeXml(doc: Document): string {
   return new XMLSerializer().serializeToString(doc);
+}
+
+const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const W14 = 'http://schemas.microsoft.com/office/word/2010/wordml';
+const W15 = 'http://schemas.microsoft.com/office/word/2012/wordml';
+
+export interface CommentRecord {
+  id: number; paraId: string; paraIdParent?: string; author: string; date: string;
+  resolved: boolean; text: string;
+}
+
+/** Read comments and thread metadata without modifying the package. */
+export function listComments(zip: DocxZipAdapter): CommentRecord[] {
+  const xml = zip.readTextOrNull('word/comments.xml');
+  if (!xml) return [];
+  const comments = parseXml(xml);
+  const extXml = zip.readTextOrNull('word/commentsExtended.xml');
+  const extended = extXml ? parseXml(extXml) : null;
+  const byPara = new Map<string, Element>();
+  if (extended) for (const el of Array.from(extended.getElementsByTagNameNS(W15, 'commentEx'))) {
+    const id = el.getAttributeNS(W15, 'paraId');
+    if (id) byPara.set(id, el);
+  }
+  return Array.from(comments.getElementsByTagNameNS(W, 'comment')).map(el => {
+    const rawId = el.getAttributeNS(W, 'id');
+    const p = el.getElementsByTagNameNS(W, 'p')[0];
+    const paraId = p?.getAttributeNS(W14, 'paraId') ?? '';
+    const ex = byPara.get(paraId);
+    const parent = ex?.getAttributeNS(W15, 'paraIdParent');
+    return {
+      id:rawId !== null && /^\d+$/.test(rawId) ? Number(rawId) : -1, paraId,
+      ...(parent ? {paraIdParent:parent} : {}),
+      author:el.getAttributeNS(W, 'author') ?? '', date:el.getAttributeNS(W, 'date') ?? '',
+      resolved:['1','true','on'].includes(ex?.getAttributeNS(W15, 'done') ?? ''),
+      text:Array.from(el.getElementsByTagNameNS(W, 't')).map(t => t.textContent ?? '').join(''),
+    };
+  });
+}
+
+export function setCommentResolved(zip: DocxZipAdapter, id: number, done: boolean): void {
+  const comment = listComments(zip).find(entry => entry.id === id);
+  if (!comment || !comment.paraId) throw new Error(`E_VALIDATION: Comment ${id} was not found or has no paragraph ID.`);
+  if (!zip.readTextOrNull('word/commentsExtended.xml')) throw new Error('E_VALIDATION: Comment metadata is missing.');
+  ensureCommentExEntry(zip, comment.paraId);
+  const ext = parseXml(zip.readText('word/commentsExtended.xml'));
+  const entry = Array.from(ext.getElementsByTagNameNS(W15, 'commentEx')).find(el => el.getAttributeNS(W15, 'paraId') === comment.paraId);
+  if (!entry) throw new Error('E_VALIDATION: Comment metadata could not be created.');
+  entry.setAttributeNS(W15, 'w15:done', done ? '1' : '0');
+  zip.writeText('word/commentsExtended.xml', serializeXml(ext));
+}
+
+/** Remove a whole comment thread only after validating every referenced part. */
+export function deleteCommentThread(zip: DocxZipAdapter, document: Document, id: number): void {
+  const records = listComments(zip);
+  const root = records.find(c => c.id === id);
+  if (!root || !root.paraId) throw new Error(`E_VALIDATION: Comment ${id} is missing or has no paragraph ID.`);
+  const thread = [root];
+  for (let i = 0; i < thread.length; i++) {
+    for (const child of records.filter(c => c.paraIdParent === thread[i].paraId)) {
+      if (thread.includes(child)) throw new Error('E_VALIDATION: Comment thread contains a cycle.');
+      thread.push(child);
+    }
+  }
+  const commentsXml = zip.readTextOrNull('word/comments.xml');
+  const extendedXml = zip.readTextOrNull('word/commentsExtended.xml');
+  if (!commentsXml || !extendedXml) throw new Error('E_VALIDATION: Comment parts are incomplete.');
+  const comments = parseXml(commentsXml);
+  const extended = parseXml(extendedXml);
+  const commentElements = Array.from(comments.getElementsByTagNameNS(W, 'comment'));
+  const extendedElements = Array.from(extended.getElementsByTagNameNS(W15, 'commentEx'));
+  const idsXml = zip.readTextOrNull('word/commentsIds.xml');
+  const idsDoc = idsXml ? parseXml(idsXml) : null;
+  const markers: Element[] = [];
+  for (const comment of thread) {
+    if (!comment.paraId || commentElements.filter(el => el.getAttributeNS(W, 'id') === String(comment.id)).length !== 1)
+      throw new Error('E_VALIDATION: Comment records are inconsistent.');
+    if (records.filter(item => item.paraId === comment.paraId).length !== 1 ||
+        extendedElements.filter(el => el.getAttributeNS(W15, 'paraId') === comment.paraId).length > 1)
+      throw new Error('E_VALIDATION: Comment paragraph metadata is ambiguous.');
+    if (comment.paraIdParent && extendedElements.filter(el => el.getAttributeNS(W15, 'paraId') === comment.paraId).length !== 1)
+      throw new Error('E_VALIDATION: Reply metadata is inconsistent.');
+    for (const kind of ['commentRangeStart', 'commentRangeEnd', 'commentReference']) {
+      const found = Array.from(document.getElementsByTagNameNS(W, kind)).filter(el => (el.getAttributeNS(W, 'id') || el.getAttribute('w:id')) === String(comment.id));
+      if (found.length !== 1) throw new Error(`E_VALIDATION: Comment ${comment.id} has inconsistent ${kind} markup.`);
+      markers.push(found[0]);
+    }
+    const inParagraph = (el: Element): Element | null => {
+      for (let node: Node | null = el; node; node = node.parentNode) if (node.nodeType === 1 && (node as Element).namespaceURI === W && (node as Element).localName === 'p') return node as Element;
+      return null;
+    };
+    const current = markers.slice(-3).map(inParagraph);
+    if (!current[0] || current.some(item => item !== current[0])) throw new Error('E_VALIDATION: Comment markers belong to different paragraphs.');
+    if (idsDoc) {
+      const matches = Array.from(idsDoc.getElementsByTagName('*')).filter(el => Array.from(el.attributes).some(attr => attr.localName === 'paraId' && attr.value === comment.paraId));
+      if (matches.length !== 1) throw new Error('E_VALIDATION: Comment ID mapping is missing or ambiguous.');
+    }
+  }
+  const paraIds = new Set(thread.map(c => c.paraId));
+  const commentIds = new Set(thread.map(c => String(c.id)));
+  for (const el of commentElements) if (commentIds.has(el.getAttributeNS(W, 'id') ?? '')) el.parentNode?.removeChild(el);
+  for (const el of extendedElements) if (paraIds.has(el.getAttributeNS(W15, 'paraId') ?? '')) el.parentNode?.removeChild(el);
+  if (idsDoc) for (const el of Array.from(idsDoc.getElementsByTagName('*'))) {
+    if (Array.from(el.attributes).some(attr => attr.localName === 'paraId' && paraIds.has(attr.value))) el.parentNode?.removeChild(el);
+  }
+  for (const marker of markers) {
+    const parent = marker.parentNode;
+    parent?.removeChild(marker);
+    if (marker.localName === 'commentReference' && parent?.nodeType === 1 && (parent as Element).localName === 'r' &&
+        Array.from(parent.childNodes).every(n => n.nodeType !== 1 || (n as Element).localName === 'rPr')) parent.parentNode?.removeChild(parent);
+  }
+  zip.writeText('word/comments.xml', serializeXml(comments));
+  zip.writeText('word/commentsExtended.xml', serializeXml(extended));
+  if (idsDoc) zip.writeText('word/commentsIds.xml', serializeXml(idsDoc));
 }
 
 export function bootstrapCommentParts(zip: DocxZipAdapter): void {

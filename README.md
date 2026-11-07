@@ -219,6 +219,8 @@ console.log(result.ok, result.errors);
 
 The MCP server records every save as a commit in a hidden git repository next to the document, in `.astra/` by default. The history is append-only: restoring an old version adds a new commit instead of rewriting the past. Each entry carries a message, an author, how many operations the save contained and which node IDs they touched. The files are plain local files and ASTra never uploads them.
 
+History records saved states; unsaved edits are not entries, and the sidecar does not travel inside the DOCX. The repository grows as saves accumulate. Standard Git maintenance such as `git gc` can compact its storage without removing reachable saved states. To discard an entire history deliberately, remove its sidecar and its corresponding tombstone as described in the [history guide](docs/cli-guide.md#412-document-history-astra-history).
+
 > **You:** Show me what the last save changed, then restore the version before it.
 
 The agent uses `get_document_history`, `preview_revert` (a read-only dry run), `revert_document` and `redo_document`. From a terminal, `astra history report.docx` lists the same commits:
@@ -245,7 +247,7 @@ ID | V | Path | Header | Style | Text | Flags
 t_002 | 1 | Root |  | table:6x4 | r1c1 Metric | r1c2 Q3 2025 | r1c3 Q3 2026 | r1c4 Change ; ...
 ```
 
-The agent reads the outline, picks a node ID and edits exactly that node. On the three-page demo report, the raw XML is about 3,800 tokens and the TOON outline is about 800 (counts are estimates at 3.8 characters per token). An agent can also ask for a single section instead of the whole file, which keeps what it has to read small even for long documents.
+The agent reads the outline, picks a node ID and edits exactly that node. On the three-page demo report, the raw XML is about 3,800 tokens and the TOON outline is about 800 (counts are estimates at 3.8 characters per token). The demo file is not included in this repository. To measure another file using the same estimate, run `npx tsx scripts/measure-toon.ts path/to/document.docx`; the ratio varies by document. An agent can also ask for a single section instead of the whole file, which keeps what it has to read small even for long documents.
 
 ## Reviewing the layout: text first, pictures when needed
 
@@ -368,7 +370,7 @@ ASTra sits between your tool and the file. It reads the document as a compact ou
 
 ## Status
 
-- **Tested.** The engine, command-line tool and MCP server are covered by more than 4,000 automated tests, and are checked against nine ECMA-376 sample documents in [`test-gallery/`](test-gallery/). All 9 templates can be verified on your machine with `npm run validate:docs`.
+- **Tested.** The engine, command-line tool and MCP server are covered by more than 4,000 automated tests (`npx vitest list` lists them), and are checked against nine ECMA-376 sample documents in [`test-gallery/`](test-gallery/). All 9 templates can be verified on your machine with `npm run validate:docs`.
 - **Version 0.x.** 0.1.0 is the first public release; [CHANGELOG.md](CHANGELOG.md) lists what changes in each release.
 - **Validation.** ASTra checks saved files with the Open XML SDK validator. The default policy can tolerate existing errors; strict validation refuses saves with reported errors. Schema validation does not guarantee Word rendering or semantic correctness.
 - **Optional tools.** PDF export needs [LibreOffice](https://www.libreoffice.org/) on your `PATH`, and page images need LibreOffice and [Poppler](https://poppler.freedesktop.org/) (see [Quickstart](#quickstart)). Everything else works without them, including the text wireframe of each page.

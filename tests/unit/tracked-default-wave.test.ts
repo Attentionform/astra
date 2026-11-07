@@ -25,6 +25,11 @@ import { validateDocxBuffer } from '../../packages/engine/src/ooxml/validator-ga
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const serializer = new XMLSerializer();
 
+function visibleText(xml: string): string {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  return Array.from(doc.getElementsByTagNameNS(W, 't')).map(node => node.textContent ?? '').join('');
+}
+
 function makeParaNode(text: string): Element {
   return new DOMParser().parseFromString(
     `<w:p xmlns:w="${W}"><w:r><w:t xml:space="preserve">${text}</w:t></w:r></w:p>`,
@@ -135,7 +140,7 @@ describe('tracked-changes default: replace on fresh nodes', () => {
     expect(xml).not.toContain('w:ins');
     expect(xml).not.toContain('w:del');
     expect(xml).not.toContain('delText');
-    expect(xml).toContain('new text here');
+    expect(visibleText(xml)).toBe('new text here');
     expect(ast.sections[0].nodes[0].metadata.text).toBe('new text here');
     expect(ast.sections[0].nodes[0].version).toBe(2);
   });
@@ -146,17 +151,18 @@ describe('tracked-changes default: replace on fresh nodes', () => {
     const xml = nodeXml(ast);
     expect(xml).not.toContain('w:ins');
     expect(xml).not.toContain('w:del');
-    expect(xml).toContain('new text here');
+    expect(visibleText(xml)).toBe('new text here');
   });
 
-  it('tracking-off output is byte-identical to the plain replaceText path', () => {
+  it('tracking-off output has the same visible text as the plain replaceText path', () => {
     const ast = makeReplaceAst('old text here', { trackChanges: false });
     executeReplace({ action: 'replace', target: 'p_1', text: 'new text here' } as any, ast);
     const viaOp = nodeXml(ast);
     const plain = makeParaNode('old text here');
     replaceText(plain as unknown as Element, 'new text here', false);
     const viaPlain = serializer.serializeToString(plain);
-    expect(viaOp).toBe(viaPlain);
+    expect(visibleText(viaOp)).toBe(visibleText(viaPlain));
+    expect(visibleText(viaOp)).toBe('new text here');
   });
 
   it('tracked replace bumps version 1->2 and updates metadata text', () => {
@@ -847,7 +853,7 @@ describe('tracked replace with pretty-printed whitespace before pPr', () => {
     expect(pPrIdx).toBeGreaterThanOrEqual(0);
     expect(delIdx).toBeGreaterThanOrEqual(0);
     expect(pPrIdx).toBeLessThan(delIdx);
-    expect(xml).toContain('EDIT ');
+    expect(visibleText(xml)).toBe('EDIT TWO');
     expect(xml).toContain('>TWO</w:t>');
   }, 60000);
 });
@@ -859,7 +865,7 @@ describe('replace follows document setting with explicit override', () => {
     const xml = nodeXml(ast);
     expect(xml).not.toContain('<w:ins');
     expect(xml).not.toContain('<w:del');
-    expect(xml).toContain('new text here');
+    expect(visibleText(xml)).toBe('new text here');
   });
 
   it('stays silent when the document setting is absent', () => {
@@ -869,7 +875,7 @@ describe('replace follows document setting with explicit override', () => {
     const xml = nodeXml(ast);
     expect(xml).not.toContain('<w:ins');
     expect(xml).not.toContain('<w:del');
-    expect(xml).toContain('new text here');
+    expect(visibleText(xml)).toBe('new text here');
   });
 
   it('marks revisions when the caller passes true while the document setting is off', () => {
@@ -904,7 +910,7 @@ describe('replace follows document setting with explicit override', () => {
     const xml = nodeXml(ast);
     expect(xml).not.toContain('<w:ins');
     expect(xml).not.toContain('<w:del');
-    expect(xml).toContain('new text here');
+    expect(visibleText(xml)).toBe('new text here');
   });
 
   it('params-nested flag overrides the document setting in either direction', () => {

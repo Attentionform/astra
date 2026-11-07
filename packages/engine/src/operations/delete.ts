@@ -1,7 +1,7 @@
 import { DocumentAST, Node } from '../ast';
 import { BaseOperation, validateVersion } from './base';
 import { DocxParser } from '../parser';
-import { emitTrackedReplace, resolveRevisionStamp } from '../ooxml/track-changes-emitter';
+import { executeTrackedChange } from './trackedChange';
 
 export interface DeleteOperation extends BaseOperation {
   action: 'delete';
@@ -28,6 +28,7 @@ export interface DeleteOperation extends BaseOperation {
 export interface DeleteResult {
   deleted: string[];
   skipped: string[];
+  revisionIds?: number[];
 }
 
 export function executeDelete(op: DeleteOperation, ast: DocumentAST, parser?: DocxParser): DeleteResult {
@@ -40,6 +41,7 @@ export function executeDelete(op: DeleteOperation, ast: DocumentAST, parser?: Do
 
   const deleted: string[] = [];
   const skipped: string[] = [];
+  const revisionIds: number[] = [];
   const seenTarget = new Set<string>();
 
   // Tracked-delete gate: only an explicit per-op trackChanges:true (flat or
@@ -57,9 +59,6 @@ export function executeDelete(op: DeleteOperation, ast: DocumentAST, parser?: Do
   // fail closed with E_VALIDATION instead of silently vanishing.
   const explicitTrack = op.trackChanges ?? raw.trackChanges;
   const trackedDelete = explicitTrack === true;
-  const stamp = resolveRevisionStamp(op.author ?? raw.author, op.date ?? raw.date, ast.settings.defaultAuthor);
-  const author = stamp.author;
-  const nowIso = () => stamp.date;
 
   const findNode = (target: string): { sectionIdx: number; index: number; node: Node } | null => {
     for (let si = 0; si < ast.sections.length; si++) {
@@ -111,23 +110,13 @@ export function executeDelete(op: DeleteOperation, ast: DocumentAST, parser?: Do
         validateVersion(node, op.expectedVersion);
 
         if (trackedDelete) {
-          // Paragraph-level tracked delete: mark, don't remove.
-          const oldText = typeof node.metadata.text === 'string'
-            ? node.metadata.text
-            : visibleTextOf(node.xml as Element);
-          const hasRevs = emitTrackedReplace(
-            node.xml as Element,
-            oldText,
-            '',
-            author,
-            nowIso(),
-            { getNextId: () => ast.nextChangeId++ }
-          );
-          if (hasRevs || oldText !== '') {
-            node.metadata.hasTrackedChanges = true;
-          }
-          node.metadata.text = '';
-          node.version += 1;
+          const out = executeTrackedChange({
+            action:'trackedChange', operation:'delete', target,
+            author: op.author ?? raw.author as string | undefined,
+            date: op.date ?? raw.date as string | undefined,
+            expectedVersion: op.expectedVersion,
+          }, ast, parser!);
+          if (out && 'revisionIds' in out) revisionIds.push(...out.revisionIds);
           // Node stays addressable: do NOT remove from DOM, AST, or nodeMap.
         } else {
           // Remove from DOM
@@ -155,16 +144,5 @@ export function executeDelete(op: DeleteOperation, ast: DocumentAST, parser?: Do
       }
     }
   }
-  return { deleted, skipped };
-}
-
-/** Visible text fallback when node metadata carries no text string. */
-function visibleTextOf(xml: Element): string {
-  if (!xml || typeof xml.getElementsByTagName !== 'function') return '';
-  const parts: string[] = [];
-  const textNodes = xml.getElementsByTagName('w:t');
-  for (let i = 0; i < textNodes.length; i++) {
-    parts.push(textNodes[i].textContent || '');
-  }
-  return parts.join('');
+  return { deleted, skipped, ...(revisionIds.length ? {revisionIds} : {}) };
 }

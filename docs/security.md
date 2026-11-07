@@ -33,11 +33,14 @@ ASTra is designed to process documents it does not control, such as files receiv
 ASTra enforces a strict directory jail to isolate file operations:
 
 ### 2.1 The `--allowed-dir` Boundary
-- **Explicit Allowlist**: The MCP server and CLI require one or more root directories declared via `--allowed-dir <path>` or the `ASTRA_EXTRA_DOC_ROOTS` environment variable.
+- **Explicit Allowlist**: Use `--allowed-dir <path>` or the `ASTRA_EXTRA_DOC_ROOTS` environment variable to name allowed roots.
 - **Path Canonicalization**: Before any read, write, or export operation, paths are resolved using strict canonicalization (`fs.realpathSync` for existing paths, or verified ancestor walks for newly created files).
 - **The Named Folders Are the Whole Boundary**: With `--allowed-dir` or `ASTRA_EXTRA_DOC_ROOTS`, only those folders are allowed. The system temp folder and the `documents/` folder under the working folder are not added. Without either, the server keeps its default folders.
+- **Default roots**: With no named roots, MCP allows `./documents`, `./documents/Drafts`, the system temporary directory and its `ASTra` subdirectory. The startup line reports the active roots.
 - **Symlink Jail Traversal Defenses**: A symbolic link at or above a declared folder is the user's choice and is followed. A symbolic link below a declared folder that points outside it is refused with an `E_SANDBOX` error.
 - **Refusal to Overwrite**: Fresh document creation (`create` / `new_document`) refuses to overwrite existing files unless the `--force` parameter is explicitly passed.
+
+On save, the default validator policy tolerates existing errors when it detects no additional normalized error signatures and reports this in the validation result. A fixed error and a new error with the same signature in one save can cancel in that comparison. Use `strict:true`, `--strict-validation`, or `ASTRA_STRICT_VALIDATION=1` to refuse all validator errors.
 
 ### 2.2 Transient Workspace Isolation
 Temporary artifacts generated during PDF rendering or image inspection are written to isolated scratch directories:

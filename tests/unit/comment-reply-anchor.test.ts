@@ -17,6 +17,7 @@ describe('optional author and date on replace and comment', () => {
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
     p.metadata.text = 'Initial text.';
+    p.xml.getElementsByTagName('w:t')[0].textContent = 'Initial text.';
 
     executeReplace(
       {
@@ -40,6 +41,7 @@ describe('optional author and date on replace and comment', () => {
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
     p.metadata.text = 'Initial text.';
+    p.xml.getElementsByTagName('w:t')[0].textContent = 'Initial text.';
 
     const before = Date.now();
     executeReplace(
