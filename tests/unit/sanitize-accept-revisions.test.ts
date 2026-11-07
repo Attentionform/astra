@@ -342,7 +342,7 @@ describe('Phase D sanitization closure: accept-all-revisions + strip-comments', 
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it('acceptAll closure: moveFrom dropped, moveTo unwrapped, range markers gone', () => {
+  it('acceptAll reports and preserves unpaired moves', () => {
     const SECRET_MOVE = 'LEAK-MOVE-FROM-8m2x';
     const KEPT_MOVE = 'kept-move-to-9t4y';
     const r = sanitizeDocumentXml(
@@ -356,13 +356,15 @@ describe('Phase D sanitization closure: accept-all-revisions + strip-comments', 
         `</w:p>`,
       { acceptAllRevisions: true }
     );
-    expect(r.acceptedRevisions).toBe(6);
-    expect(r.xml).not.toContain(SECRET_MOVE);
-    expect(r.xml).not.toContain('moveFrom');
-    expect(r.xml).not.toContain('moveTo');
-    expect(r.xml).not.toContain('RangeStart');
-    expect(r.xml).not.toContain('RangeEnd');
+    expect(r.acceptedRevisions).toBe(0);
+    expect(r.xml).toContain(SECRET_MOVE);
     expect(r.xml).toContain(KEPT_MOVE);
+    expect(r.xml).toContain('moveFromRangeStart');
+    expect(r.xml).toContain('moveToRangeEnd');
+    expect(r.unresolvedRevisions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'moveFrom' }),
+      expect.objectContaining({ kind: 'moveTo' }),
+    ]));
   });
 
   it('acceptAll closure: cellIns/cellMerge kept, cellDel drops its cell', () => {

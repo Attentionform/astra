@@ -1,3 +1,4 @@
+import { resolveRevisions, type UnresolvedRevision } from './ooxml/revisions';
 import { z } from 'zod';
 import AdmZip from './adm-zip-safe';
 import { XMLSerializer } from '@xmldom/xmldom';
@@ -140,6 +141,8 @@ export interface SanitizeReport {
   propsPII: number;
   /** Revision nodes accepted (del/moveFrom/cellDel dropped, ins/moveTo unwrapped, range + cell + *Change markers resolved). */
   acceptedRevisions: number;
+  unresolvedRevisions?: UnresolvedRevision[];
+  revisionByKind?: Record<string, number>;
   /**
    * Comment parts (+ orphan part rels) removed + comment reference elements
    * purged + comment relationship / content-type entries removed
@@ -1407,6 +1410,8 @@ export function sanitizeDocumentXml(
   removedRSIDs: number;
   purgedAuthors: number;
   acceptedRevisions: number;
+  unresolvedRevisions: UnresolvedRevision[];
+  revisionByKind: Record<string, number>;
   strippedCommentRefs: number;
   bodyPII: number;
 } {
@@ -1448,11 +1453,15 @@ export function sanitizeDocumentXml(
     out = out.replace(INITIALS_ATTR_RE, ` w:initials="${initials}"`);
   }
   let acceptedRevisions = 0;
+  let unresolvedRevisions: UnresolvedRevision[] = [];
+  let revisionByKind: Record<string, number> = {};
   let strippedCommentRefs = 0;
   if (o.acceptAllRevisions || o.stripComments) {
     const r = applyRevisionAndCommentPass(out, o, partName);
     out = r.xml;
     acceptedRevisions = r.acceptedRevisions;
+    unresolvedRevisions = r.unresolvedRevisions;
+    revisionByKind = r.revisionByKind;
     strippedCommentRefs = r.strippedCommentRefs;
   }
   let bodyPII = 0;
@@ -1502,7 +1511,7 @@ export function sanitizeDocumentXml(
       }
     }
   }
-  return { xml: out, removedRSIDs, purgedAuthors, acceptedRevisions, strippedCommentRefs, bodyPII };
+  return { xml: out, removedRSIDs, purgedAuthors, acceptedRevisions, unresolvedRevisions, revisionByKind, strippedCommentRefs, bodyPII };
 }
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -1594,135 +1603,6 @@ function firstEl(doc: Document, ns: string, local: string): Element | null {
   return list.length > 0 ? (list.item(0) as Element | null) : null;
 }
 
-/**
- * Accepts tracked changes in a parsed word part (Word "accept all" semantics).
- * Drops `w:del`/`w:moveFrom` subtrees entirely (deleted/moved-away text gone,
- * incl. any nested `w:ins`/`w:moveTo`), then unwraps `w:ins`/`w:moveTo`
- * keeping children. Drops move range markers, resolves cell revision markers
- * (`cellIns`/`cellMerge` marker dropped keeping the cell, `cellDel` drops its
- * containing `w:tc`), and drops the `*PrChange` formatting-history wrappers
- * keeping current formatting. Namespace-aware (prefix agnostic) wherever the
- * nodes sit — paragraphs, tables, headers/footers. Live-query loop: the first
- * match in document order is always an outermost remaining node, so nested
- * pairs resolve correctly.
- */
-function acceptAllRevisionsInDom(doc: Document): number {
-  let count = 0;
-  const bump = (): boolean => {
-    count++;
-    return count > 1000000;
-  };
-  let el: Element | null;
-  // Drops first (deleted/moved-away content gone, incl. nested inserts inside).
-  for (const local of ['moveFrom', 'del']) {
-    while ((el = firstEl(doc, W_NS, local)) !== null) {
-      el.parentNode?.removeChild(el);
-      if (bump()) return count;
-    }
-  }
-  // Unwraps (keep destination/inserted content).
-  for (const local of ['moveTo', 'ins']) {
-    while ((el = firstEl(doc, W_NS, local)) !== null) {
-      const parent = el.parentNode;
-      if (!parent) break;
-      while (el.firstChild) parent.insertBefore(el.firstChild, el);
-      parent.removeChild(el);
-      if (bump()) return count;
-    }
-  }
-  // Move/customXml range markers: empty anchors carrying author/date — drop all.
-  for (const local of [
-    'moveFromRangeStart',
-    'moveFromRangeEnd',
-    'moveToRangeStart',
-    'moveToRangeEnd',
-    'customXmlInsRangeStart',
-    'customXmlInsRangeEnd',
-    'customXmlDelRangeStart',
-    'customXmlDelRangeEnd',
-    'customXmlMoveFromRangeStart',
-    'customXmlMoveFromRangeEnd',
-    'customXmlMoveToRangeStart',
-    'customXmlMoveToRangeEnd',
-  ]) {
-    while ((el = firstEl(doc, W_NS, local)) !== null) {
-      el.parentNode?.removeChild(el);
-      if (bump()) return count;
-    }
-  }
-  // Deleted cells: accepting removes the whole containing w:tc (its text is
-  // deleted content). Runs before cellIns/cellMerge so a doomed cell takes
-  // any co-located insert marker with it (single count for the cell).
-  while ((el = firstEl(doc, W_NS, 'cellDel')) !== null) {
-    const tc = ancestorInNs(el, W_NS, 'tc');
-    if (tc?.parentNode) tc.parentNode.removeChild(tc);
-    else el.parentNode?.removeChild(el);
-    if (bump()) return count;
-  }
-  // Inserted/merged cells: accepting keeps the cell, drops the marker only.
-  for (const local of ['cellIns', 'cellMerge']) {
-    while ((el = firstEl(doc, W_NS, local)) !== null) {
-      el.parentNode?.removeChild(el);
-      if (bump()) return count;
-    }
-  }
-  // Formatting-history wrappers: the sibling w:rPr/w:pPr holds accepted
-  // formatting; the *Change child holds the previous value — drop the wrapper.
-  for (const local of [
-    'rPrChange',
-    'pPrChange',
-    'sectPrChange',
-    'numberingChange',
-    'tblPrChange',
-    'trPrChange',
-    'tcPrChange',
-    'tPrChange',
-  ]) {
-    while ((el = firstEl(doc, W_NS, local)) !== null) {
-      el.parentNode?.removeChild(el);
-      if (bump()) return count;
-    }
-  }
-  // Future-proof: any other W:*Change revision wrapper (accept = drop wrapper).
-  for (;;) {
-    const change = firstWChangeElement(doc);
-    if (!change) break;
-    change.parentNode?.removeChild(change);
-    if (bump()) return count;
-  }
-  return count;
-}
-
-/** Walks up to the nearest ancestor with the given namespace + local name. */
-function ancestorInNs(el: Element, ns: string, local: string): Element | null {
-  let node: Node | null = el.parentNode;
-  while (node) {
-    if (node.nodeType === 1) {
-      const e = node as Element;
-      const nsMatch = (e.namespaceURI ?? '') === ns;
-      const localMatch =
-        (e.localName ?? '') === local ||
-        e.tagName === local ||
-        e.tagName.endsWith(`:${local}`);
-      if (nsMatch && localMatch) return e;
-    }
-    node = node.parentNode;
-  }
-  return null;
-}
-
-/** Finds the first remaining W-namespace element whose local ends in "Change". */
-function firstWChangeElement(doc: Document): Element | null {
-  const all = doc.getElementsByTagNameNS(W_NS, '*');
-  for (let i = 0; i < all.length; i++) {
-    const e = all.item(i) as Element | null;
-    if (!e) continue;
-    const local = e.localName ?? e.tagName.split(':').pop() ?? '';
-    if (local.endsWith('Change')) return e;
-  }
-  return null;
-}
-
 /** Removes all comment reference elements (range start/end + reference runs). */
 function stripCommentRefsInDom(doc: Document): number {
   let count = 0;
@@ -1747,19 +1627,28 @@ function applyRevisionAndCommentPass(
   xml: string,
   o: { acceptAllRevisions: boolean; stripComments: boolean },
   context = 'word XML part'
-): { xml: string; acceptedRevisions: number; strippedCommentRefs: number } {
+): { xml: string; acceptedRevisions: number; unresolvedRevisions: UnresolvedRevision[]; revisionByKind: Record<string, number>; strippedCommentRefs: number } {
   assertNoForbiddenMarkup(xml, context);
-  const none = { xml, acceptedRevisions: 0, strippedCommentRefs: 0 };
+  const none = { xml, acceptedRevisions: 0, unresolvedRevisions: [] as UnresolvedRevision[], revisionByKind: {} as Record<string, number>, strippedCommentRefs: 0 };
   const { head, body } = splitXmlProlog(xml);
   const doc = parseFailClosedXml(body, context);
   let acceptedRevisions = 0;
+  let unresolvedRevisions: UnresolvedRevision[] = [];
+  let revisionByKind: Record<string, number> = {};
   let strippedCommentRefs = 0;
-  if (o.acceptAllRevisions) acceptedRevisions = acceptAllRevisionsInDom(doc);
+  if (o.acceptAllRevisions) {
+    const result = resolveRevisions([doc], 'accept', { removeDeletedCells: true, part: context });
+    acceptedRevisions = result.resolved;
+    unresolvedRevisions = result.unresolved;
+    revisionByKind = result.byKind;
+  }
   if (o.stripComments) strippedCommentRefs = stripCommentRefsInDom(doc);
-  if (acceptedRevisions === 0 && strippedCommentRefs === 0) return none;
+  if (acceptedRevisions === 0 && strippedCommentRefs === 0) return { ...none, unresolvedRevisions, revisionByKind };
   return {
     xml: serializeWithProlog(head, doc),
     acceptedRevisions,
+    unresolvedRevisions,
+    revisionByKind,
     strippedCommentRefs,
   };
 }
@@ -2232,6 +2121,8 @@ export function sanitizePackageEntries(
   let propsPII = 0;
   let bodyPII = 0;
   let acceptedRevisions = 0;
+  const unresolvedRevisions: UnresolvedRevision[] = [];
+  const revisionByKind: Record<string, number> = {};
   let strippedComments = 0;
   const strippedSvg: string[] = [];
   const droppedRogue: string[] = [];
@@ -2301,6 +2192,8 @@ export function sanitizePackageEntries(
       removedRSIDs += r.removedRSIDs;
       purgedAuthors += r.purgedAuthors;
       acceptedRevisions += r.acceptedRevisions;
+      unresolvedRevisions.push(...r.unresolvedRevisions);
+      for (const [kind, count] of Object.entries(r.revisionByKind)) revisionByKind[kind] = (revisionByKind[kind] ?? 0) + count;
       strippedComments += r.strippedCommentRefs;
       bodyPII += r.bodyPII;
       if (r.xml !== xml) touched.add(name);
@@ -2391,6 +2284,8 @@ export function sanitizePackageEntries(
       bodyPII,
       propsPII,
       acceptedRevisions,
+      unresolvedRevisions,
+      revisionByKind,
       strippedComments,
       filesTouched: [...touched].sort(),
       droppedRogue: [...droppedRogue].sort(),

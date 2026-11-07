@@ -1,4 +1,5 @@
 import { maxRevisionId } from './ooxml/revision-ids';
+import { countRevisions, resolveRevisions, type RevisionResolution } from './ooxml/revisions';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from './adm-zip-safe';
@@ -71,7 +72,6 @@ import {
 import {
   nodeHasTrackedChanges,
   getOrCreateChild,
-  unwrapElement,
 } from './parser/dom-utils';
 import {
   partNameForRelationshipTarget,
@@ -3516,69 +3516,8 @@ export class DocxParser {
     return await validateDocxBuffer(buf, options);
   }
 
-  private convertDelTextNodes(run: Element) {
-    const delTexts = Array.from(run.getElementsByTagName('w:delText'));
-    delTexts.forEach((delText) => {
-      const textNode = createWordElement(this.documentDom, 'w:t');
-      if (delText.attributes) {
-        for (let i = 0; i < delText.attributes.length; i++) {
-          const attr = delText.attributes[i];
-          textNode.setAttribute(attr.name, attr.value);
-        }
-      }
-      textNode.appendChild(this.documentDom.createTextNode(delText.textContent || ''));
-      delText.parentNode?.replaceChild(textNode, delText);
-    });
-  }
-
-  private replaceDeletionWithText(delElement: Element) {
-    const parent = delElement.parentNode;
-    if (!parent) return;
-
-    const replacements: Node[] = [];
-    for (let i = 0; i < delElement.childNodes.length; i++) {
-      const child = delElement.childNodes[i];
-      if (child.nodeType !== 1) continue;
-
-      const childEl = child as Element;
-      if (childEl.tagName === 'w:r') {
-        const clonedRun = childEl.cloneNode(true) as Element;
-        this.convertDelTextNodes(clonedRun);
-        replacements.push(clonedRun);
-      } else if (childEl.tagName === 'w:delText') {
-        const run = createWordElement(this.documentDom, 'w:r');
-        const textNode = createWordElement(this.documentDom, 'w:t');
-        if (childEl.attributes) {
-          for (let a = 0; a < childEl.attributes.length; a++) {
-            const attr = childEl.attributes[a];
-            textNode.setAttribute(attr.name, attr.value);
-          }
-        }
-        textNode.appendChild(this.documentDom.createTextNode(childEl.textContent || ''));
-        run.appendChild(textNode);
-        replacements.push(run);
-      }
-    }
-
-    replacements.forEach((node) => parent.insertBefore(node, delElement));
-    parent.removeChild(delElement);
-  }
-
-  public applyTrackedChanges(mode: 'accept' | 'reject') {
-    if (mode === 'accept') {
-      const insNodes = Array.from(this.documentDom.getElementsByTagName('w:ins'));
-      insNodes.forEach((node) => unwrapElement(node as Element));
-      const delNodes = Array.from(this.documentDom.getElementsByTagName('w:del'));
-      delNodes.forEach((node) => node.parentNode?.removeChild(node));
-      this._bumpNodePagesRevision();
-      return;
-    }
-
-    const insNodes = Array.from(this.documentDom.getElementsByTagName('w:ins'));
-    insNodes.forEach((node) => node.parentNode?.removeChild(node));
-    const delNodes = Array.from(this.documentDom.getElementsByTagName('w:del'));
-    delNodes.forEach((node) => this.replaceDeletionWithText(node as Element));
-    this._bumpNodePagesRevision();
+  public applyTrackedChanges(mode: 'accept' | 'reject'): RevisionResolution {
+    return this.resolvePackageRevisions(mode);
   }
 
   public getStylesDom(): Document | null {
@@ -3597,8 +3536,7 @@ export class DocxParser {
     return extractStylePalette(this.stylesDom);
   }
 
-  private maxPackageRevisionId(): number {
-    let max = maxRevisionId(this.documentDom);
+  private revisionPartNames(): string[] {
     const names = new Set<string>();
     // Header/footer and note parts can have custom package names. Select them
     // from content types as well as conventional names, without parsing
@@ -3616,13 +3554,61 @@ export class DocxParser {
       }
     }
     for (const entry of this.zip.getEntries()) {
-      if (entry.isDirectory) continue;
-      if (!names.has(entry.entryName) && !/^word\/(?:header[^/]*|footer[^/]*|footnotes|endnotes)\.xml$/i.test(entry.entryName)) continue;
-      const xml = entry.getData().toString('utf8');
-      assertNoXxe(xml, entry.entryName);
-      max = Math.max(max, maxRevisionId(this.parser.parseFromString(xml, 'text/xml')));
+      if (!entry.isDirectory && /^word\/(?:header[^/]*|footer[^/]*|footnotes|endnotes)\.xml$/i.test(entry.entryName)) names.add(entry.entryName);
     }
+    return [...names].filter(name => !!this.zip.getEntry(name));
+  }
+
+  private revisionPartDom(name: string): Document {
+    const xml = this.zip.getEntry(name)!.getData().toString('utf8');
+    assertNoXxe(xml, name);
+    return this.parser.parseFromString(xml, 'text/xml');
+  }
+
+  private maxPackageRevisionId(): number {
+    let max = maxRevisionId(this.documentDom);
+    for (const name of this.revisionPartNames()) max = Math.max(max, maxRevisionId(this.revisionPartDom(name)));
     return max;
+  }
+
+  public countPackageRevisions(): number {
+    return countRevisions([this.documentDom, ...this.revisionPartNames().map(name => this.revisionPartDom(name))]);
+  }
+
+  public resolvePackageRevisions(mode: 'accept' | 'reject'): RevisionResolution {
+    const oldIds = new Map<Element, string>();
+    for (const [id, element] of this.nodeMap) oldIds.set(element, id);
+    const result = resolveRevisions([this.documentDom], mode);
+    for (const name of this.revisionPartNames()) {
+      const dom = this.revisionPartDom(name);
+      const part = resolveRevisions([dom], mode);
+      for (const entry of part.unresolved) entry.part = name;
+      if (part.resolved) this.zip.updateFile(name, Buffer.from(this.serializer.serializeToString(dom), 'utf8'));
+      result.resolved += part.resolved;
+      result.resolvedIds.push(...part.resolvedIds);
+      result.unresolved.push(...part.unresolved);
+      for (const [kind, count] of Object.entries(part.byKind)) result.byKind[kind] = (result.byKind[kind] ?? 0) + count;
+    }
+    // Structural resolution can detach paragraphs, rows or entire tables.
+    // Rebuild the live map and carry IDs for surviving elements in the same DOM.
+    this.assignStableIds();
+    const renames = new Map<string, string>();
+    const surviving = new Set<Element>();
+    for (const [id, element] of this.nodeMap) {
+      surviving.add(element);
+      const previous = oldIds.get(element);
+      if (previous && previous !== id) renames.set(id, previous);
+    }
+    const scopedBefore = new Set(this.cellScopedIds);
+    if (this.reassignNodeIds(renames)) {
+      this.cellScopedIds.clear();
+      for (const id of scopedBefore) this.cellScopedIds.add(renames.get(id) ?? id);
+    } else {
+      result.idsMayHaveChanged = true;
+    }
+    result.removedNodeIds = [...oldIds].filter(([element]) => !surviving.has(element)).map(([, id]) => id);
+    this._bumpNodePagesRevision();
+    return result;
   }
 
   private nextTrackedChangeId(idFactory?: () => number): string {

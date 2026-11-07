@@ -276,6 +276,8 @@ export interface SanitizeDocumentOk {
   piiCoverage: typeof PII_COVERAGE;
   piiNote: string;
   acceptedRevisions: number;
+  unresolvedRevisions: { kind: string; count: number; reason: string; part: string }[];
+  revisionByKind: Record<string, number>;
   strippedComments: number;
   strippedMacros: string[];
   macroParts: string[];
@@ -344,6 +346,8 @@ export async function handleSanitizeDocument(
         piiCoverage: PII_COVERAGE,
         piiNote: piiCoverageSentence(),
         acceptedRevisions: report.acceptedRevisions,
+        unresolvedRevisions: report.unresolvedRevisions ?? [],
+        revisionByKind: report.revisionByKind ?? {},
         strippedComments: report.strippedComments,
         strippedMacros: [...report.strippedMacros],
         macroParts: [...report.macroParts],
