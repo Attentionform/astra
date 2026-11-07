@@ -19,9 +19,9 @@ export function createWordElement(doc: Document, tagName: string): Element {
 }
 
 export function stampRevision(element: Element, id: number | string, author: string, date: string): void {
-  element.setAttributeNS(WORD_NS, 'w:id', String(id));
   element.setAttributeNS(WORD_NS, 'w:author', author);
   element.setAttributeNS(WORD_NS, 'w:date', date);
+  element.setAttributeNS(WORD_NS, 'w:id', String(id));
 }
 
 export function createDrawingElement(doc: Document, tagName: string): Element {
