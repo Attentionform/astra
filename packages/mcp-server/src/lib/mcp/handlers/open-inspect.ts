@@ -98,8 +98,12 @@ export async function handleOpenDocument(
       } else {
         const nodes = handle.ast.sections.flatMap(section => section.nodes);
         const chartIds = nodes.filter(node => node.type === 'chart' || node.type === 'chart3d').map(node => node.id);
-        const headers = Object.values(handle.ast.headers).map(item => ({type:item.type, text:(item.text ?? '').slice(0,200)}));
-        const footers = Object.values(handle.ast.footers).map(item => ({type:item.type, text:(item.text ?? '').slice(0,200)}));
+        // The AST maps the same part by relationship id and by filename.
+        const uniqueParts = (parts: typeof handle.ast.headers) =>
+          [...new Map(Object.values(parts).map(item => [item.xml, item])).values()]
+            .map(item => ({type:item.type, text:(item.text ?? '').slice(0,200)}));
+        const headers = uniqueParts(handle.ast.headers);
+        const footers = uniqueParts(handle.ast.footers);
         summary = {
           summaryOnly:true, palette:extractStylePalette(handle.parser),
           counts:{nodes:nodes.length, sections:handle.ast.sections.length, headers:headers.length, footers:footers.length, charts:chartIds.length},

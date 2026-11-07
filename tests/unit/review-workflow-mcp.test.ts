@@ -89,6 +89,23 @@ describe('MCP review workflow', () => {
       expect(JSON.stringify(full)).toContain('stylesXml');
     } finally { rmSync(dir, {recursive:true, force:true}); }
   });
+
+  it('reports each header and footer once with its text and type', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'astra-header-summary-'));
+    try {
+      const zip = new AdmZip(createBlankDocxBuffer('blank'));
+      const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+      zip.addFile('word/header1.xml', Buffer.from(`<w:hdr xmlns:w="${ns}"><w:p><w:r><w:t>${'H'.repeat(220)}</w:t></w:r></w:p></w:hdr>`));
+      zip.addFile('word/footer1.xml', Buffer.from(`<w:ftr xmlns:w="${ns}"><w:p><w:r><w:t>Footer</w:t></w:r></w:p></w:ftr>`));
+      const rels = zip.readAsText('word/_rels/document.xml.rels').replace('</Relationships>', '<Relationship Id="rIdHeaderTest" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rIdFooterTest" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>');
+      zip.updateFile('word/_rels/document.xml.rels', Buffer.from(rels));
+      const document = zip.readAsText('word/document.xml').replace('<w:sectPr>', '<w:sectPr><w:headerReference w:type="first" r:id="rIdHeaderTest"/><w:footerReference w:type="even" r:id="rIdFooterTest"/>');
+      zip.updateFile('word/document.xml', Buffer.from(document));
+      const file = join(dir, 'header.docx'); writeFileSync(file, zip.toBuffer());
+      const opened = await handleOpenDocument(createMcpSessionStore(), {path:file});
+      expect(opened).toMatchObject({ok:true, summary:{counts:{headers:1, footers:1}, headers:[{type:'first',text:'H'.repeat(200)}], footers:[{type:'even',text:'Footer'}]}});
+    } finally { rmSync(dir, {recursive:true, force:true}); }
+  });
   it('writes, inspects, searches and resolves a comment', async () => {
     const store = createMcpSessionStore();
     const handle = await store.openBuffer(createBlankDocxBuffer('blank'), 'review.docx');
