@@ -1,3 +1,4 @@
+import type { RevisionResolution } from './ooxml/revisions';
 import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
@@ -810,13 +811,14 @@ export class DocumentManager {
    * Accepts or rejects every tracked change and persists the result through
    * the validated write. Without an active file path the change stays in memory.
    */
-  public async applyTrackedChanges(mode: 'accept' | 'reject'): Promise<void> {
+  public async applyTrackedChanges(mode: 'accept' | 'reject'): Promise<RevisionResolution> {
     if (!this.parser) throw new Error("No active document.");
-    this.parser.applyTrackedChanges(mode);
-    if (!this.activeDocPath) return;
+    const result = this.parser.applyTrackedChanges(mode);
+    if (!this.activeDocPath) return result;
     await this.persistValidated(this.activeDocPath, this.parser.rezip());
     await commitChange(this.activeDocPath, this.parser.readDocumentXml(), `Tracked changes ${mode}`, this.collectPackageExtras());
     this.markClean();
+    return result;
   }
 
   public getActiveDocPath(): string | null {

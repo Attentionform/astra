@@ -189,6 +189,14 @@ export async function handleExecuteBatch(
       results: BatchOpCreatedIds[];
       /** R-1: pending tracked revisions (w:ins + w:del) remaining after the batch. */
       revisionsPending: number;
+      revisionResolution?: {
+        resolved: number;
+        resolvedIds: number[];
+        byKind: Record<string, number>;
+        unresolved: { kind: string; count: number; reason: string; part: string }[];
+        removedNodeIds?: string[];
+        idsMayHaveChanged?: boolean;
+      };
       /** R-1: accept remedy, present only when revisionsPending > 0. */
       revisionsRemedy?: string;
       /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
@@ -437,6 +445,7 @@ export async function handleExecuteBatch(
         createdNodeIds,
         results,
         revisionsPending: batchRevisionsPending,
+        ...(res.revisionResolution ? { revisionResolution: res.revisionResolution } : {}),
         ...(batchRevisionsRemedy ? { revisionsRemedy: batchRevisionsRemedy } : {}),
         possiblyStaleBodyRefs: batchStaleRefs,
         // Display-only: engine result (no field yet) merged with the core

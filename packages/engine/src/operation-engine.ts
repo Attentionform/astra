@@ -1,3 +1,4 @@
+import type { RevisionResolution } from './ooxml/revisions';
 import { DocumentAST, cloneAST } from './ast';
 import { refreshAstInPlace } from './ast-refresh';
 import { reconcileSections } from './parser/sections';
@@ -202,6 +203,7 @@ export interface ExecutionResult {
   warnings: string[];
   /** R-1: pending tracked revisions (w:ins + w:del) remaining in the doc after the batch. */
   revisionsPending: number;
+  revisionResolution?: RevisionResolution;
   /** R-1: accept remedy, present only when revisionsPending > 0. */
   revisionsRemedy?: string;
   /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
@@ -576,6 +578,9 @@ export class OperationEngine {
           for (const w of collectRouteWarnings(routeOut)) {
             if (!result.warnings.includes(w)) result.warnings.push(w);
           }
+          if (op.action === 'trackedChange' && routeOut && typeof routeOut === 'object' && 'resolved' in routeOut) {
+            result.revisionResolution = routeOut as RevisionResolution;
+          }
           // OX-04: surface delete skips at the batch level too (deduped —
           // same ghost twice reports once, across ops as well as within).
           const skippedRaw: unknown = (routeOut as Record<string, unknown> | null | undefined)?.['skipped'];
@@ -728,10 +733,7 @@ export class OperationEngine {
     try {
       const dom = this.parser?.getDocumentDom?.() ?? this.parser?.getDom?.();
       if (dom && typeof (dom as Document).getElementsByTagName === 'function') {
-        return (
-          (dom as Document).getElementsByTagName('w:ins').length +
-          (dom as Document).getElementsByTagName('w:del').length
-        );
+        return this.parser?.countPackageRevisions() ?? 0;
       }
     } catch {
       /* fall through to AST scan */
@@ -1362,9 +1364,24 @@ export class OperationEngine {
       case 'comment':
         if (!this.parser) throw new Error("Parser is required for comment operations");
         return executeComment(op as CommentOperation, this.ast, this.parser);
-      case 'trackedChange':
+      case 'trackedChange': {
         if (!this.parser) throw new Error("Parser is required for trackedChange operations");
-        return executeTrackedChange(op as TrackedChangeOperation, this.ast, this.parser);
+        const tracked = op as TrackedChangeOperation;
+        if (tracked.operation === 'acceptAll' || tracked.operation === 'rejectAll') {
+          const before = new Map(this.ast.sections.flatMap(section => section.nodes).map(node => [node.id, {
+            version: node.version,
+            xml: (node.xml as Element).toString(),
+          }]));
+          const resolution = executeTrackedChange(tracked, this.ast, this.parser);
+          await refreshAstInPlace(this.ast, this.parser);
+          for (const node of this.ast.sections.flatMap(section => section.nodes)) {
+            const old = before.get(node.id);
+            if (old) node.version = old.version + (old.xml === (node.xml as Element).toString() ? 0 : 1);
+          }
+          return resolution;
+        }
+        return executeTrackedChange(tracked, this.ast, this.parser);
+      }
       case 'metadata': return executeMetadata(op as MetadataOperation, this.ast, this.parser);
       default:
         // BX-10: loud unknown-op error — carry the received value, the valid

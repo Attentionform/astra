@@ -452,10 +452,12 @@ export function hashDocumentXml(xml: string): string {
  * for the save path (which does not go through executeBatch).
  */
 export function countPendingRevisionsInParser(parser: {
+  countPackageRevisions?: () => number;
   getDocumentDom?: () => unknown;
   getDom?: () => unknown;
 }): number {
   try {
+    if (typeof parser.countPackageRevisions === 'function') return parser.countPackageRevisions();
     const dom = (parser?.getDocumentDom?.() ?? parser?.getDom?.()) as
       | { getElementsByTagName?: (tag: string) => { length: number } }
       | undefined;

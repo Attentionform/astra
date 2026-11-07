@@ -1,8 +1,10 @@
 /** WordprocessingML revision elements whose ids must be reserved for new revisions. */
 export const REVISION_TAGS = [
   'ins', 'del', 'moveFrom', 'moveTo', 'rPrChange', 'pPrChange', 'sectPrChange',
-  'tblPrChange', 'tblGridChange', 'trPrChange', 'tcPrChange', 'numberingChange',
+  'tblPrChange', 'tblPrExChange', 'tblGridChange', 'tPrChange', 'trPrChange', 'tcPrChange', 'numberingChange',
   'cellIns', 'cellDel', 'cellMerge',
+  'customXmlInsRangeStart', 'customXmlInsRangeEnd', 'customXmlDelRangeStart', 'customXmlDelRangeEnd',
+  'customXmlMoveFromRangeStart', 'customXmlMoveFromRangeEnd', 'customXmlMoveToRangeStart', 'customXmlMoveToRangeEnd',
 ] as const;
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
