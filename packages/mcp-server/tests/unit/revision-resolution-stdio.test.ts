@@ -15,7 +15,8 @@ describe('revision resolution over MCP stdio', () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-revision-stdio-'));
     fs.writeFileSync(path.join(dir, 'document.docx'), createBlankDocxBuffer('blank'));
     client = new Client({name:'revision-resolution-test',version:'1.0.0'}, {capabilities:{}});
-    await client.connect(new StdioClientTransport({command:process.execPath,args:[server,'--allowed-dir',dir],env:{...process.env}}));
+    const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+    await client.connect(new StdioClientTransport({command:process.execPath,args:[server,'--allowed-dir',dir],env}));
   });
   afterAll(async () => {
     await client?.close();
