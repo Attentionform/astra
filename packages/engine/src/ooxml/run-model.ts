@@ -6,7 +6,7 @@ type DiffChunk = { type: 'equal' | 'delete' | 'insert'; text: string };
 interface Segment { run: Element; start: number; end: number }
 interface Opaque { kind: 'field' | 'math' | 'sdt'; start: number; end: number; elements: Element[] }
 export interface RunModel { paragraph: Element; segments: Segment[]; opaque: Opaque[]; text: string }
-export interface RunEditOptions { tracked: boolean; author: string; date: string; nextId: () => number }
+export interface RunEditOptions { tracked: boolean; author: string; date: string; nextId: () => number; includeEmptyFields?: boolean }
 
 const kids = (el: Element): Element[] => Array.from(el.childNodes).filter((n): n is Element => n.nodeType === 1);
 const name = (el: Element): string => el.localName || el.tagName.split(':').pop() || '';
@@ -176,21 +176,26 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       const cuts = chunk.type === 'insert'
         ? chunk.at > item.start && chunk.at < item.end
         : chunk.at < item.end && end > item.start;
-      if (!cuts) continue;
+      const emptyField = chunk.type === 'delete' && options.includeEmptyFields && item.kind === 'field' &&
+        item.start === item.end && chunk.at <= item.start && end >= item.end;
+      if (!cuts && !emptyField) continue;
       const wholeField = chunk.type === 'delete' && item.kind === 'field' && chunk.at <= item.start && end >= item.end;
       if (!wholeField) unsupported(item.kind === 'math' ? 'paragraph contains math in the changed span' : `the changed span cuts through ${item.kind}`);
       if (options.tracked && item.elements.some(el => name(el) === 'fldSimple'))
         unsupported('tracked deletion of a simple field cannot safely preserve its field structure');
     }
   }
-  if (!positions.some(chunk => chunk.type !== 'equal' && chunk.text.length)) return [];
+  if (!positions.some(chunk => chunk.type !== 'equal' && (chunk.text.length || (chunk.type === 'delete' && options.includeEmptyFields && model.opaque.some(item => item.kind === 'field' && item.start === item.end))))) return [];
+  const fieldInDelete = (item: Opaque, start: number, end: number): boolean => item.kind === 'field' &&
+    item.start >= start && item.end <= end &&
+    (item.start !== item.end || options.includeEmptyFields === true || (item.start > start && item.end < end));
   // Reserve ids in document order before changing the tree. Applying spans
   // right to left must not make their public ids run backwards.
   const planned = new Map<typeof positions[number], number[]>();
   const ids: number[] = [];
   if (options.tracked) {
     for (const chunk of positions) {
-      if (chunk.type === 'equal' || !chunk.text.length) continue;
+      if (chunk.type === 'equal' || (!chunk.text.length && !(chunk.type === 'delete' && options.includeEmptyFields))) continue;
       const end = chunk.at + (chunk.type === 'delete' ? chunk.text.length : 0);
       const textCount = model.segments.reduce((total, segment) => {
         const parts = kids(segment.run).filter(el => name(el) !== 'rPr');
@@ -205,7 +210,7 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       }, 0);
       const count = chunk.type === 'insert' ? 1 :
         textCount +
-        model.opaque.filter(o => o.kind === 'field' && o.start >= chunk.at && o.end <= end)
+        model.opaque.filter(o => fieldInDelete(o, chunk.at, end))
           .reduce((sum, o) => sum + o.elements.length, 0);
       const reserved = Array.from({length:count}, () => options.nextId());
       planned.set(chunk, reserved);
@@ -223,7 +228,7 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       splitAt(segments, chunk.at);
       splitAt(segments, end);
       const fieldElements = model.opaque
-        .filter(value => value.kind === 'field' && value.start >= chunk.at && value.end <= end)
+        .filter(value => fieldInDelete(value, chunk.at, end))
         .flatMap(value => value.elements.map(element => ({element, field:true})));
       const textElements = segments
         .filter(s => s.start >= chunk.at && s.end <= end && s.end > s.start)

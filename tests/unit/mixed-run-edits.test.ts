@@ -156,6 +156,19 @@ describe('mixed formatting edits', () => {
     expect((await validateDocxBuffer(parser.rezip(ast))).ok).toBe(true);
   });
 
+  it('tracks and restores an empty-result complex field on whole-paragraph deletion', async () => {
+    const body = '<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>';
+    const {parser, ast, engine, id} = await fromParagraph(body);
+    const out = await engine.executeBatch({operations:[{action:'trackedChange',operation:'delete',target:id}]} as never);
+    expect(out.success, JSON.stringify(out.errors)).toBe(true);
+    expect(parser.getDocumentDom().getElementsByTagName('w:delInstrText').length).toBe(1);
+    expect((await validateDocxBuffer(parser.rezip(ast))).ok).toBe(true);
+    const restored = await engine.executeBatch({operations:[{action:'trackedChange',operation:'reject',ids:out.revisionIds}]} as never);
+    expect(restored.success, JSON.stringify(restored.errors)).toBe(true);
+    expect(parser.getDocumentDom().getElementsByTagName('w:instrText').length).toBe(1);
+    expect(parser.getDocumentDom().getElementsByTagName('w:fldChar').length).toBe(3);
+  });
+
   it('returns all new IDs in document order for a mixed-format replacement', async () => {
     const {parser, engine, id} = await setup();
     const result = await engine.executeBatch({operations:[{action:'replace',target:id,text:'Fresh plain changed italic',trackChanges:true}]} as never);
