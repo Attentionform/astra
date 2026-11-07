@@ -26,12 +26,12 @@ export function executeTrackedChange(op: TrackedChangeOperation, ast: DocumentAS
     if (typeof op.text !== 'string') {
       throw new Error('Tracked change "insert" requires "text" string content.');
     }
-    parser.insertTrackedChange(op.target, op.text, author, date);
+    parser.insertTrackedChange(op.target, op.text, author, date, undefined, () => ast.nextChangeId++);
   } else if (op.operation === 'delete') {
     if (!op.target) {
       throw new Error('Tracked change "delete" requires a "target" node ID.');
     }
-    parser.deleteTrackedChange(op.target, author, date);
+    parser.deleteTrackedChange(op.target, author, date, undefined, () => ast.nextChangeId++);
   } else {
     throw new Error(
       `Unsupported trackedChange operation: ${op.operation}. ` +

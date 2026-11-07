@@ -93,7 +93,9 @@ export async function refreshAstInPlace(
   const metadata = target.metadata as Record<string, unknown>;
   for (const k of Object.keys(metadata)) delete metadata[k];
   Object.assign(metadata, fresh.metadata);
-  target.nextChangeId = fresh.nextChangeId;
+  target.nextChangeId = options.carryIdentityFrom
+    ? options.carryIdentityFrom.nextChangeId
+    : Math.max(target.nextChangeId, fresh.nextChangeId);
   // Bare rezip() reads numbering from the AST the parser last handed out; point it at the one callers hold.
   parser.adoptAstForNumbering(target);
   return notes;
