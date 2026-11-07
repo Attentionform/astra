@@ -123,7 +123,7 @@ Every command uses the same exit codes, so scripts and CI jobs can rely on them:
 
 ### Behavior Shared by the CLI and the MCP Server
 
-- **Invalid documents are never saved:** In every ASTra interface, saving a document that fails ISO/IEC 29500 schema validation is refused with `E_VALIDATION`, and the original file is left untouched.
+- **A save never adds a validation error:** Saving is refused with `E_VALIDATION`, and the original file is left untouched, when the result has a schema (ISO/IEC 29500) validation error that the file did not already have. A file that already had validator errors can still be saved when the save adds none; the CLI prints a note with the count. `--strict` refuses every save while the result still has validator errors.
 - **Fail-closed operations:** Operations that mutate or export files (`batch`, `sanitize`, `export`) validate document integrity before writing to disk. Both `sanitize` and PDF `export` refuse invalid or schema-corrupted input upfront with exit code 1 (`E_VALIDATION`).
 - **CLI `sanitize` vs MCP `sanitize_document`:** CLI `sanitize` is a one-shot raw scrub operating directly on archive parts. In contrast, MCP `sanitize_document` followed by `save_document` runs through the full document save pipeline, so the resulting file bytes can differ. Both remove the same categories of information.
 - **Spacing and indent units:** `spacingBefore`, `spacingAfter`, `indentLeft`, `indentRight`, `indentFirstLine` and `indentHanging` are in twips (20 per point, so `240` is 12 pt). A string in points such as `"12pt"` is accepted and converted; any other unit is refused. `lineSpacing` is a separate unit, in 240ths of a line (`240` = single, `360` = 1.5).
