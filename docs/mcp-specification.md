@@ -294,7 +294,7 @@ Fast text search across paragraphs, table cells, and runs.
 | `sessionId` | `string` | Yes | Active session identifier. |
 | `query` | `string` | Yes | Search query string (1–500 characters). |
 | `regex` | `boolean` | No | Enable regular expression search (default: `false`). |
-| `scope` | `string` | No | `"body"` (default), `"comments"`, or `"all"`. Comment matches use IDs such as `comment:0`. |
+| `scope` | `string` | No | `"body"` (default), `"comments"`, or `"all"`. Comment matches use IDs such as `comment:0`; comment operations accept `comment:0` and `0` alike. |
 
 **Success Response:**
 ```json
@@ -316,6 +316,8 @@ Fast text search across paragraphs, table cells, and runs.
 ```
 
 A table hit also lists `cells`: up to five addresses of the cells that hold the match, in reading order. Pass one as the `target` of an edit (see **Table cells** under `execute_batch`).
+
+A result holds at most 50 matches. When more exist the response carries `"truncated": true`; narrow the query or search a smaller scope to see the rest.
 
 ---
 
@@ -341,9 +343,15 @@ Executes an atomic array of typed operations (1–500 ops) with schema validatio
 **Supported Operations (27 total):**
 `insert`, `replace`, `delete`, `style`, `clearFormat`, `move`, `table`, `section`, `pageSetup`, `namedStyle`, `field`, `equation`, `list`, `headerFooter`, `chart`, `image`, `callout`, `footnote`, `endnote`, `watermark`, `pageBorder`, `coverPage`, `hyperlink`, `bookmark`, `comment`, `trackedChange`, `metadata`.
 
-**Review operations.** `trackedChange` supports `acceptAll`, `rejectAll`, and selective `accept` or `reject` using exactly one of `ids`, `author`, or `target`. ID and node selections are atomic; an author selection can leave unsupported changes and reports them in `revisionResolution.unresolved`. A duplicated ID is ambiguous unless it represents the two sides of a move; select by author or node instead. Tracked edits return `revisionIds` so the complete edit can be selected later. `trackedChange` deletion can target a text span and takes a 1-based `occurrence` when it repeats. Comment operations support `insert`, `reply`, `resolve`, `unresolve`, and `delete`; deleting a comment also deletes its replies and refuses inconsistent anchors.
+**Review operations.** `trackedChange` supports `acceptAll`, `rejectAll`, and selective `accept` or `reject` using exactly one of `ids`, `author`, or `target`. ID and node selections are atomic; an author selection can leave unsupported changes and reports them in `revisionResolution.unresolved`. A duplicated ID is ambiguous unless it represents the two sides of a move; select by author or node instead. Tracked edits return `revisionIds` so the complete edit can be selected later. `trackedChange` deletion can target a text span and takes a 1-based `occurrence` when it repeats. Comment operations support `insert`, `reply`, `resolve`, `unresolve`, and `delete`; deleting a comment also deletes its replies and refuses inconsistent anchors. A thread is identified by its last paragraph, as in Word, so comments with several paragraphs and comments written by Word 2007 (which has no extended comment parts) work with every comment operation. When the last comment is deleted, the comment parts are removed from the package, as Word does.
 
-The resolver reports revision kinds it cannot safely apply. In particular, accepting `cellDel`, rejecting `cellIns` or `cellMerge`, rejecting `numberingChange`, and incomplete moves can remain unresolved. Use Word for a final visual check and for revisions reported as unresolved. `sanitize_document` can remove deleted cells when accepting all revisions.
+**Resolving whole paragraphs.** `acceptAll`, `rejectAll` and the selective forms resolve block-level revisions as Word does: a whole-paragraph deletion or insertion removes or keeps the paragraph, a whole-paragraph move (the paragraph mark carries `w:moveFrom` or `w:moveTo`) is resolved at both ends together, and a table of contents inserted as a tracked block (a block `w:sdt` between `customXmlInsRangeStart` and `customXmlInsRangeEnd`) is kept or removed as one unit. When a paragraph that is removed holds a bookmark that lies wholly inside it, the bookmark goes with it and is listed in `revisionResolution.removedBookmarks`; a link that still points at it is reported in `staleLinks`, as Word leaves a stale table-of-contents entry. A comment thread whose anchors all lie inside removed text is deleted with it (`removedComments`). When a comment is also anchored outside the removed text, the paragraph stays unresolved and is listed in `unresolved`. When a bookmark of a moved paragraph ends in the neighbouring paragraph, it is moved there, as Word does.
+
+**Pending and unresolved counts.** `revisionsPending` is the number of revision elements left in the document. It counts every element, so one move counts as each of its markers (the two paragraph-mark markers and the wrapper elements), and it is larger than the number of changes a reviewer sees in Word. After a `trackedChange` resolution, `revisionsUnresolved` counts how many of them the resolution could not resolve, and `revisionsRemedy` lists their kind, node and reason. In that case the remedy does not tell you to run `acceptAll` again, because a second run cannot resolve them. Without a resolution in the batch the remedy names `acceptAll`, as before.
+
+**Resolution speed.** Accept and reject operations in a run refresh the session's view of the document once, before the next operation of another kind and at the end of the batch. Each operation still sees the document as the previous one left it. A block that the run changed has its version raised once for the run.
+
+The resolver reports revision kinds it cannot safely apply. In particular, accepting `cellDel`, rejecting `cellIns` or `cellMerge`, rejecting `numberingChange`, and incomplete moves can remain unresolved. Use Word for a final visual check and for revisions reported as unresolved. `sanitize_document` can remove deleted cells when accepting all revisions. With `acceptAllRevisions`, `sanitize_document` is fail-closed: when any revision markup remains after accepting (unresolvable kinds, an unpaired move, or revisions the resolver does not know), it refuses with `E_VALIDATION`, names the part and the kinds, and returns no file, because a partly cleaned file could still contain deleted text and reviewer names and dates. Accept or reject those revisions in Word and sanitize again.
 
 Tracked deletion of a complete simple field (`w:fldSimple`) is refused to preserve the original field structure. Edit surrounding text or use Word for that change. Whole complex fields can be deleted as tracked changes when their full span is selected.
 
@@ -661,7 +669,7 @@ Calculates document telemetry including word count, paragraph count, and an esti
 ---
 
 #### `sanitize_document`
-Removes personally identifiable metadata, editing session traces, revision histories, RSID markers, and comments from the document in-memory.
+Removes personally identifiable metadata, editing session traces, revision histories, RSID markers, and comments from the document in-memory. With `acceptAllRevisions` it refuses, with `E_VALIDATION`, a document whose revision markup it cannot fully resolve (see **Review operations**).
 
 **Input Parameters:**
 | Parameter | Type | Required | Description |

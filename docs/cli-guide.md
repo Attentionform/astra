@@ -302,7 +302,7 @@ astra sanitize internal_draft.docx legal_submittal.docx --metadata-only
 |---|---|
 | `--zero-retention` | Cleans document properties and sets empty creator tags. |
 | `--replacement-author <name>` | Replaces revision author tags with a generic moniker (e.g. `"Reviewer"`). |
-| `--accept-all-revisions` | Force-accepts all tracked insertions and deletions. |
+| `--accept-all-revisions` | Force-accepts all tracked insertions and deletions. If revision markup remains that cannot be resolved safely, the command fails with `E_VALIDATION` (exit code 1), names the part and the kinds, and writes no output file. Bare `sanitize`, `--client-safe` and `--metadata-only` accept revisions as well and fail the same way. |
 | `--strip-comments` | Strips all comments and comment relationship files. |
 
 ---

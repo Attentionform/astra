@@ -178,7 +178,7 @@ Fast text search returning matching stable node IDs and text snippets.
 | `regex` | `boolean` | No | Treat query as regular expression (default: `false`). |
 | `scope` | `string` | No | Search scope: `"body"` (default), `"comments"`, or `"all"`. |
 
-**Returns:** `{ ok: true, sessionId, matches: [{ id, preview, cells? }] }`. A table hit lists `cells`, up to five cell addresses such as `t_001:r3c1`, that you can pass as the `target` of `replace`, `style`, `namedStyle`, `clearFormat`, `hyperlink`, `bookmark` or `comment`. Cell addresses are `<tableId>:r<row>c<col>`, 1-based as `inspect_document` prints the grid (add `:p<n>` for a cell with several paragraphs).
+**Returns:** `{ ok: true, sessionId, matches: [{ id, preview, cells? }], truncated? }`. At most 50 matches are returned; `truncated: true` says more exist. A table hit lists `cells`, up to five cell addresses such as `t_001:r3c1`, that you can pass as the `target` of `replace`, `style`, `namedStyle`, `clearFormat`, `hyperlink`, `bookmark` or `comment`. Cell addresses are `<tableId>:r<row>c<col>`, 1-based as `inspect_document` prints the grid (add `:p<n>` for a cell with several paragraphs).
 
 ---
 
@@ -196,7 +196,7 @@ Executes an atomic array of typed operations with schema validation and rollback
 | `allowedDir` | `string` | No | Jail directory for image `filePath` reads. |
 | `styleGuide` | `string` | No | Per-batch style guide override (name or `.md` path). |
 
-**Returns:** `{ ok: true, sessionId, appliedCount, revision, createdNodeIds }`
+**Returns:** `{ ok: true, sessionId, appliedCount, revision, createdNodeIds, revisionsPending, revisionsUnresolved?, revisionsRemedy?, revisionResolution? }`. `revisionsPending` counts every revision element left (a move counts as each of its markers). After a `trackedChange` that left revisions it could not resolve, `revisionsUnresolved` counts them and `revisionsRemedy` lists kind, node and reason instead of repeating `acceptAll`. `revisionResolution` also lists `removedBookmarks`, `removedComments` and `staleLinks` when a removed paragraph carried them.
 
 ---
 
@@ -421,7 +421,7 @@ Scrub metadata, revision IDs, authors, comments, and PII from a document session
 | `purgeAuthors` | `boolean` | No | Strip author identity metadata. |
 | `purgeExif` | `boolean` | No | Strip metadata and EXIF profiles from embedded images. |
 | `purgePII` | `boolean` | No | Redact potential PII patterns from text and comments. |
-| `acceptAllRevisions` | `boolean` | No | Accept all tracked changes before scrubbing. |
+| `acceptAllRevisions` | `boolean` | No | Accept all tracked changes before scrubbing. Refuses with `E_VALIDATION` (no file) when revision markup remains that cannot be resolved. |
 | `stripComments` | `boolean` | No | Remove all comments and comment references. |
 | `replacementAuthor` | `string` | No | Author replacement string (≤ 256 chars). |
 | `allowMacros` | `boolean` | No | Preserve macro parts byte-for-byte during scrub. |

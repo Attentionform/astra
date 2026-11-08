@@ -73,7 +73,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
   ),
   search_content: withSharedDocs(
     'Search live paragraph/table w:t text; returns [{id,preview}] node hits for anchors/targets. ' +
-      'Use scope:"comments" or scope:"all" to search comment text; the default scope is body. ' +
+      'Use scope:"comments" or scope:"all" to search comment text; the default scope is body. At most 50 matches come back; truncated:true says more exist. ' +
       'A table hit also lists `cells` (up to 5 addresses such as t_001:r3c1) for the cells that hold the match; pass one as the target of replace/style/namedStyle/clearFormat/hyperlink/bookmark/comment. ' +
       'Chart titles/series are NOT matched by search (they live in the chart part, not w:t); discover them in inspect TOON chart rows, then anchor by the chart node id. ' +
       'Image alt text and footnote/endnote bodies are NOT matched either (search covers body w:t text only); ' +
@@ -87,7 +87,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
   ),
   execute_batch: withSharedDocs(
     'Apply 1..500 strictly-typed operations atomically (strict discriminatedUnion per action; sequential:true default preserves document order; ' +
-      'Tracked edits return revisionIds; trackedChange accept/reject selects by ids, author or target. Comment operations include resolve, unresolve and delete. ' +
+      'Tracked edits return revisionIds; trackedChange accept/reject selects by ids, author or target and reports revisionResolution {resolved,unresolved,removedBookmarks,removedComments,staleLinks}. Comment operations include resolve, unresolve and delete and take an id as 3 or comment:3. ' +
       'single edit = 1-item batch). Caps 500 ops / 200MB throw E_QUOTA with remedy (maxSteps is an optional positive integer, unbounded when omitted). ' +
       'Client-supplied op ids are honored where the schema allows (insert/equation/footnote/chart accept `id`; strict schemas reject it elsewhere). ' +
       'Style ops support word-level spans: `match` styles only the matched substring (run splitting; `matchAll` styles ' +
@@ -244,6 +244,7 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'path CLI sanitize calls. Body text is kept. Options mirror the engine scrub keys 1:1 ' +
       '(zeroRetention, purgeRSIDs, purgeAuthors, purgeExif, purgePII, acceptAllRevisions, stripComments, ' +
       'replacementAuthor, allowMacros, stripMacros); omitted options take engine defaults. ' +
+      'With acceptAllRevisions it returns E_VALIDATION and no file when revision markup remains that cannot be resolved. ' +
       'allowMacros and stripMacros together fail with E_VALIDATION. ' +
       `${piiCoverageSentence()} ` +
       'Returns {ok:true,sessionId,revision,dirty,removedRSIDs,purgedAuthors,strippedExifBytes,purgedPII,bodyPII,piiCoverage,' +
