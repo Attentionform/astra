@@ -140,13 +140,14 @@ export function executeReplace(op: ReplaceOperation, ast: DocumentAST): ReplaceO
   if (trackOn) {
     const carried = snapshotNoteRefs(targetNode.xml as Element);
     const stamp = resolveRevisionStamp(pick('author', op.author), pick('date', op.date), ast.settings.defaultAuthor);
+    const revisionIds: number[] = [];
     const hasRevs = emitTrackedReplace(
       targetNode.xml,
       targetNode.metadata.text,
       resolvedText,
       stamp.author,
       stamp.date,
-      { getNextId: () => takeRevisionId(ast) }
+      { getNextId: () => { const id = takeRevisionId(ast); revisionIds.push(id); return id; } }
     );
     if (hasRevs || targetNode.metadata.text !== resolvedText) {
       targetNode.metadata.hasTrackedChanges = true;
@@ -162,7 +163,7 @@ export function executeReplace(op: ReplaceOperation, ast: DocumentAST): ReplaceO
     // Update AST node metadata
     targetNode.metadata.text = resolvedText;
     targetNode.version += 1;
-    return { warnings };
+    return { warnings, ...(revisionIds.length ? { revisionIds } : {}) };
   }
   const out = replaceText(targetNode.xml, resolvedText, resolvedPreserve, resolvedSz, resolvedReset);
   out.warnings.push(...restoreObjectRuns(targetNode.xml as Element, keptRuns));

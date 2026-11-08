@@ -328,6 +328,8 @@ export interface TableOperation extends BaseOperation {
 export interface TableOperationResult {
   /** Advisory warnings (e.g. low-contrast fills). Ops still apply; never a failure. */
   warnings: string[];
+  /** Ids of the tracked revisions this operation created (tracked updateCell), in creation order. */
+  revisionIds?: number[];
 }
 
 /**
@@ -635,6 +637,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
   // Advisory warnings collected across shading ops (contrast guardrail).
   // Returned to the caller in the typed result; never a failure.
   const warnings: string[] = [];
+  const revisionIds: number[] = [];
   const warnedContrastPairs = new Set<string>();
 
   // Structural tracking gate (explicit per-op flag only; see helper docs).
@@ -678,6 +681,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
   switch (P.op) {
     case 'updateCell': {
       const { rowIndex, colIndex, text } = P;
+      const takeId = (): number => { const id = takeRevisionId(ast); revisionIds.push(id); return id; };
       // Who and when for a tracked cell edit: this call's author/date, else the document default.
       const stamp = resolveRevisionStamp(pick('author', op.author), pick('date', op.date), ast.settings.defaultAuthor);
       const trackChanges = op.trackChanges ?? raw.trackChanges ?? ast.settings.trackChanges;
@@ -739,7 +743,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
             text,
             stamp.author,
             stamp.date,
-            { getNextId: () => takeRevisionId(ast) }
+            { getNextId: takeId }
           );
           if (hasRevs) {
             tableNode.metadata.hasTrackedChanges = true;
@@ -766,7 +770,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
           text,
           stamp.author,
           stamp.date,
-          { getNextId: () => takeRevisionId(ast) }
+          { getNextId: takeId }
         );
         if (hasRevs) {
           tableNode.metadata.hasTrackedChanges = true;
@@ -2122,5 +2126,5 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
     default:
       throw new Error(`table.${P.op} is not supported yet`);
   }
-  return { warnings };
+  return { warnings, ...(revisionIds.length ? { revisionIds } : {}) };
 }
