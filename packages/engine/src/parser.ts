@@ -3537,11 +3537,9 @@ export class DocxParser {
     return extractStylePalette(this.stylesDom);
   }
 
-  private cachedRevisionPartNames: string[] | null = null;
-  private cachedRevisionDoms = new Map<string, Document>();
-
+  // Package parts are always read from the current zip bytes. A stored copy would
+  // go stale whenever another operation edits a part or a batch rolls back.
   private revisionPartNames(): string[] {
-    if (this.cachedRevisionPartNames) return this.cachedRevisionPartNames;
     const names = new Set<string>();
     // Header/footer and note parts can have custom package names. Select them
     // from content types as well as conventional names, without parsing
@@ -3561,19 +3559,13 @@ export class DocxParser {
     for (const entry of this.zip.getEntries()) {
       if (!entry.isDirectory && /^word\/(?:header[^/]*|footer[^/]*|footnotes|endnotes)\.xml$/i.test(entry.entryName)) names.add(entry.entryName);
     }
-    const filtered = [...names].filter(name => !!this.zip.getEntry(name));
-    this.cachedRevisionPartNames = filtered;
-    return filtered;
+    return [...names].filter(name => !!this.zip.getEntry(name));
   }
 
   private revisionPartDom(name: string): Document {
-    const cached = this.cachedRevisionDoms.get(name);
-    if (cached) return cached;
     const xml = this.zip.getEntry(name)!.getData().toString('utf8');
     assertNoXxe(xml, name);
-    const dom = this.parser.parseFromString(xml, 'text/xml');
-    this.cachedRevisionDoms.set(name, dom);
-    return dom;
+    return this.parser.parseFromString(xml, 'text/xml');
   }
 
   private maxPackageRevisionId(): number {
