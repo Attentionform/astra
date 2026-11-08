@@ -14,6 +14,11 @@ import { DOMParser } from '../ooxml/dom-parser';
 import { resolveDeterministicAuthor } from '../ooxml/track-changes-emitter';
 import { toError } from '../errors';
 
+/** A comment id as a client holds it: the number, or the comment:<n> form that search_content returns. */
+const COMMENT_TARGET = /^(?:comment:)?\d+$/;
+const COMMENT_TARGET_MESSAGE = 'E_VALIDATION: Supply a comment id such as 3 or comment:3 (the form search_content returns).';
+const commentIdOf = (target: string): number => parseInt(target.replace(/^comment:/, ''), 10);
+
 export interface CommentOperation extends BaseOperation {
   action: 'comment';
   operation: 'insert' | 'reply' | 'resolve' | 'unresolve' | 'delete';
@@ -105,17 +110,17 @@ export function executeComment(op: CommentOperation, ast: DocumentAST, parser: D
         throw toError(
           'E_VALIDATION',
           `Node ${op.target} has no comment to reply to.`,
-          'Target a paragraph that carries comments or pass a numeric comment id.'
+          'Target a paragraph that carries comments or pass a comment id such as 3 or comment:3.'
         );
       }
       parentCommentId = foundId;
-    } else if (/^\d+$/.test(op.target)) {
-      parentCommentId = parseInt(op.target, 10);
+    } else if (COMMENT_TARGET.test(op.target)) {
+      parentCommentId = commentIdOf(op.target);
     } else {
       throw toError(
         'E_VALIDATION',
         `Invalid parent for reply: '${op.target}' is neither a comment id nor a node id.`,
-        'Target a paragraph node id from inspect_document or pass a numeric comment id.'
+        'Target a paragraph node id from inspect_document or pass a comment id such as 3 or comment:3.'
       );
     }
 
@@ -124,11 +129,11 @@ export function executeComment(op: CommentOperation, ast: DocumentAST, parser: D
     publishPackageRelationships(ast, parser);
     anchorCommentReply(parser.getDocumentDom(), parentCommentId, replyId);
   } else if (op.operation === 'resolve' || op.operation === 'unresolve') {
-    if (!/^\d+$/.test(op.target)) throw new Error('E_VALIDATION: Supply a numeric comment ID.');
-    setCommentResolved(zipAdapter, Number(op.target), op.operation === 'resolve');
+    if (!COMMENT_TARGET.test(op.target)) throw new Error(COMMENT_TARGET_MESSAGE);
+    setCommentResolved(zipAdapter, commentIdOf(op.target), op.operation === 'resolve');
   } else if (op.operation === 'delete') {
-    if (!/^\d+$/.test(op.target)) throw new Error('E_VALIDATION: Supply a numeric comment ID.');
-    deleteCommentThread(zipAdapter, parser.getDocumentDom(), Number(op.target));
+    if (!COMMENT_TARGET.test(op.target)) throw new Error(COMMENT_TARGET_MESSAGE);
+    deleteCommentThread(zipAdapter, parser.getDocumentDom(), commentIdOf(op.target));
     for (const section of ast.sections) for (const node of section.nodes) {
       if (node.metadata.hasComment && node.xml.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'commentReference').length === 0) {
         node.metadata.hasComment = false;

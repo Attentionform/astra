@@ -78,6 +78,8 @@ export async function handleSearchContent(
       matches: Array<{ id: string; preview: string; cells?: string[] }>;
       results: Array<{ id: string; preview: string; cells?: string[] }>;
       hint?: string;
+      /** True when more than 50 items matched and the list was cut at 50. */
+      truncated?: boolean;
     }
   | McpErrorShape
 > {
@@ -123,8 +125,9 @@ export async function handleSearchContent(
             }
             if (hit) {
               matches.push({ id: n.id, preview: text.slice(0, 120), ...cellsOf(n, (cell) => Date.now() < deadline && re.test(cell)) });
-              if (matches.length >= 50) {
-                return { ok: true as const, sessionId: handle.sessionId, matches, results: matches };
+              if (matches.length > 50) {
+                const page = matches.slice(0, 50);
+                return { ok: true as const, sessionId: handle.sessionId, matches: page, results: page, truncated: true };
               }
             }
             scanned += 1;
@@ -140,36 +143,43 @@ export async function handleSearchContent(
           for (const comment of handle.parser.listPackageComments()) {
             if (Date.now() > deadline) throw Object.assign(new Error('search_content: regex query could not be completed.'), {code:'E_QUOTA', remedy:SEARCH_REGEX_GENERIC_REMEDY});
             if (re.test(comment.text)) matches.push({id:`comment:${comment.id}`, preview:comment.text.slice(0,120)});
-            if (matches.length >= 50) break;
+            if (matches.length > 50) break;
           }
         }
-        return { ok: true as const, sessionId: handle.sessionId, matches, results: matches };
+        const truncated = matches.length > 50;
+        const page = truncated ? matches.slice(0, 50) : matches;
+        return { ok: true as const, sessionId: handle.sessionId, matches: page, results: page, ...(truncated ? { truncated: true } : {}) };
       }
       // Literal path: current behavior, unchanged.
       const hits = parsed.data.scope === 'comments' ? [] : handle.parser.searchNodesInAST(handle.ast, parsed.data.query);
       const needle = parsed.data.query.toLowerCase();
-      const matches = hits.slice(0, 50).map((n) => ({
+      const matches = hits.slice(0, 51).map((n) => ({
         id: n.id,
         preview: String(n.metadata.text ?? '').slice(0, 120),
         ...cellsOf(n, (cell) => cell.toLowerCase().includes(needle)),
       }));
       if (parsed.data.scope === 'comments' || parsed.data.scope === 'all') {
         for (const comment of handle.parser.listPackageComments()) {
-          if (matches.length >= 50) break;
+          if (matches.length > 50) break;
           if (comment.text.toLowerCase().includes(needle)) matches.push({id:`comment:${comment.id}`, preview:comment.text.slice(0,120)});
         }
       }
+      const truncated = matches.length > 50;
+      if (truncated) matches.length = 50;
       const out: {
         ok: true;
         sessionId: string;
         matches: Array<{ id: string; preview: string; cells?: string[] }>;
         results: Array<{ id: string; preview: string; cells?: string[] }>;
         hint?: string;
+        /** True when more than 50 items matched and the list was cut at 50. */
+        truncated?: boolean;
       } = {
         ok: true as const,
         sessionId: handle.sessionId,
         matches,
         results: matches,
+        ...(truncated ? { truncated: true } : {}),
       };
       if (queryLooksLikeRegexPattern(parsed.data.query)) {
         out.hint =

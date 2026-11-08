@@ -113,6 +113,35 @@ export interface CommentRecord {
   resolved: boolean; text: string;
 }
 
+/** The comment element with this id, or null. */
+function findCommentElement(commentsDoc: Document, id: number): Element | null {
+  return Array.from(commentsDoc.getElementsByTagNameNS(W, 'comment')).find(el => el.getAttributeNS(W, 'id') === String(id)) ?? null;
+}
+
+/** The thread key of a comment: the w14:paraId of its LAST paragraph (MS-DOCX), or '' when it has none. */
+export function commentThreadKey(commentEl: Element): string {
+  const paragraphs = Array.from(commentEl.getElementsByTagNameNS(W, 'p'));
+  return paragraphs[paragraphs.length - 1]?.getAttributeNS(W14, 'paraId') ?? '';
+}
+
+/**
+ * The thread key of a comment, giving its last paragraph a fresh id when it has none (comments from
+ * Word 2007 and other generators). Changes the DOM only; the caller writes comments.xml.
+ */
+function ensureThreadKey(commentsDoc: Document, commentEl: Element, seed: string): string {
+  const existing = commentThreadKey(commentEl);
+  if (existing) return existing;
+  const paragraphs = Array.from(commentEl.getElementsByTagNameNS(W, 'p'));
+  const last = paragraphs[paragraphs.length - 1];
+  if (!last) throw new Error('E_VALIDATION: The comment has no paragraph to carry a thread id.');
+  const used = new Set(Array.from(commentsDoc.getElementsByTagNameNS(W, 'p')).map(p => p.getAttributeNS(W14, 'paraId')).filter(Boolean));
+  let paraId = generateParaId(seed);
+  for (let n = 1; used.has(paraId); n++) paraId = generateParaId(`${seed}:${n}`);
+  ensureCommentPartNamespaceAliases(commentsDoc);
+  last.setAttributeNS(W14, 'w14:paraId', paraId);
+  return paraId;
+}
+
 /** Read comments and thread metadata without modifying the package. */
 export function listComments(zip: DocxZipAdapter): CommentRecord[] {
   const xml = zip.readTextOrNull('word/comments.xml');
@@ -127,9 +156,7 @@ export function listComments(zip: DocxZipAdapter): CommentRecord[] {
   }
   return Array.from(comments.getElementsByTagNameNS(W, 'comment')).map(el => {
     const rawId = el.getAttributeNS(W, 'id');
-    const paragraphs = Array.from(el.getElementsByTagNameNS(W, 'p'));
-    const p = paragraphs[paragraphs.length - 1];
-    const paraId = p?.getAttributeNS(W14, 'paraId') ?? '';
+    const paraId = commentThreadKey(el);
     const ex = byPara.get(paraId);
     const parent = ex?.getAttributeNS(W15, 'paraIdParent');
     return {
@@ -143,69 +170,86 @@ export function listComments(zip: DocxZipAdapter): CommentRecord[] {
 }
 
 export function setCommentResolved(zip: DocxZipAdapter, id: number, done: boolean): void {
-  const comment = listComments(zip).find(entry => entry.id === id);
-  if (!comment || !comment.paraId) throw new Error(`E_VALIDATION: Comment ${id} was not found or has no paragraph ID.`);
-  if (!zip.readTextOrNull('word/commentsExtended.xml')) throw new Error('E_VALIDATION: Comment metadata is missing.');
-  ensureCommentExEntry(zip, comment.paraId);
+  const commentsXml = zip.readTextOrNull('word/comments.xml');
+  const commentsDoc = commentsXml ? parseXml(commentsXml) : null;
+  const commentEl = commentsDoc ? findCommentElement(commentsDoc, id) : null;
+  if (!commentsDoc || !commentEl) throw new Error(`E_VALIDATION: Comment ${id} was not found.`);
+  // Optional parts that a generator left out are created; nothing is written until the key exists.
+  const key = ensureThreadKey(commentsDoc, commentEl, `comment:${id}:resolve`);
+  bootstrapCommentParts(zip);
+  zip.writeText('word/comments.xml', serializeXml(commentsDoc));
+  ensureCommentExEntry(zip, key);
   const ext = parseXml(zip.readText('word/commentsExtended.xml'));
-  const entry = Array.from(ext.getElementsByTagNameNS(W15, 'commentEx')).find(el => el.getAttributeNS(W15, 'paraId') === comment.paraId);
+  const entry = Array.from(ext.getElementsByTagNameNS(W15, 'commentEx')).find(el => el.getAttributeNS(W15, 'paraId') === key);
   if (!entry) throw new Error('E_VALIDATION: Comment metadata could not be created.');
   entry.setAttributeNS(W15, 'w15:done', done ? '1' : '0');
   zip.writeText('word/commentsExtended.xml', serializeXml(ext));
 }
 
-/** Remove a whole comment thread only after validating every referenced part. */
+/**
+ * Remove a whole comment thread. Every reference is checked before anything is changed. Optional parts
+ * that a generator did not write (commentsExtended, commentsIds, commentsExtensible, a paragraph id) are
+ * skipped. References that contradict each other make the call fail with no change.
+ */
 export function deleteCommentThread(zip: DocxZipAdapter, document: Document, id: number): void {
   const records = listComments(zip);
   const root = records.find(c => c.id === id);
-  if (!root || !root.paraId) throw new Error(`E_VALIDATION: Comment ${id} is missing or has no paragraph ID.`);
+  if (!root) throw new Error(`E_VALIDATION: Comment ${id} was not found.`);
   const thread = [root];
   for (let i = 0; i < thread.length; i++) {
+    if (!thread[i].paraId) continue;
     for (const child of records.filter(c => c.paraIdParent === thread[i].paraId)) {
       if (thread.includes(child)) throw new Error('E_VALIDATION: Comment thread contains a cycle.');
       thread.push(child);
     }
   }
   const commentsXml = zip.readTextOrNull('word/comments.xml');
+  if (!commentsXml) throw new Error('E_VALIDATION: Comment parts are incomplete.');
   const extendedXml = zip.readTextOrNull('word/commentsExtended.xml');
-  if (!commentsXml || !extendedXml) throw new Error('E_VALIDATION: Comment parts are incomplete.');
   const comments = parseXml(commentsXml);
-  const extended = parseXml(extendedXml);
+  const extended = extendedXml ? parseXml(extendedXml) : null;
   const commentElements = Array.from(comments.getElementsByTagNameNS(W, 'comment'));
-  const extendedElements = Array.from(extended.getElementsByTagNameNS(W15, 'commentEx'));
+  const extendedElements = extended ? Array.from(extended.getElementsByTagNameNS(W15, 'commentEx')) : [];
   const idsXml = zip.readTextOrNull('word/commentsIds.xml');
   const idsDoc = idsXml ? parseXml(idsXml) : null;
+  const extensibleXml = zip.readTextOrNull('word/commentsExtensible.xml');
+  const extensible = extensibleXml ? parseXml(extensibleXml) : null;
   const markers: Element[] = [];
+  const durableIds = new Set<string>();
   for (const comment of thread) {
-    if (!comment.paraId || commentElements.filter(el => el.getAttributeNS(W, 'id') === String(comment.id)).length !== 1)
+    if (comment.id < 0 || commentElements.filter(el => el.getAttributeNS(W, 'id') === String(comment.id)).length !== 1)
       throw new Error('E_VALIDATION: Comment records are inconsistent.');
-    if (records.filter(item => item.paraId === comment.paraId).length !== 1 ||
-        extendedElements.filter(el => el.getAttributeNS(W15, 'paraId') === comment.paraId).length > 1)
-      throw new Error('E_VALIDATION: Comment paragraph metadata is ambiguous.');
+    if (comment.paraId) {
+      if (records.filter(item => item.paraId === comment.paraId).length !== 1 ||
+          extendedElements.filter(el => el.getAttributeNS(W15, 'paraId') === comment.paraId).length > 1)
+        throw new Error('E_VALIDATION: Comment paragraph metadata is ambiguous.');
+    }
     if (comment.paraIdParent && extendedElements.filter(el => el.getAttributeNS(W15, 'paraId') === comment.paraId).length !== 1)
       throw new Error('E_VALIDATION: Reply metadata is inconsistent.');
+    const found: Record<string, Element[]> = {};
     for (const kind of ['commentRangeStart', 'commentRangeEnd', 'commentReference']) {
-      const found = Array.from(document.getElementsByTagNameNS(W, kind)).filter(el => (el.getAttributeNS(W, 'id') || el.getAttribute('w:id')) === String(comment.id));
-      if (found.length !== 1) throw new Error(`E_VALIDATION: Comment ${comment.id} has inconsistent ${kind} markup.`);
-      markers.push(found[0]);
+      found[kind] = Array.from(document.getElementsByTagNameNS(W, kind)).filter(el => (el.getAttributeNS(W, 'id') || el.getAttribute('w:id')) === String(comment.id));
+      if (found[kind].length > 1) throw new Error(`E_VALIDATION: Comment ${comment.id} has inconsistent ${kind} markup.`);
     }
-    const inParagraph = (el: Element): Element | null => {
-      for (let node: Node | null = el; node; node = node.parentNode) if (node.nodeType === 1 && (node as Element).namespaceURI === W && (node as Element).localName === 'p') return node as Element;
-      return null;
-    };
-    const current = markers.slice(-3).map(inParagraph);
-    if (!current[0] || current.some(item => item !== current[0])) throw new Error('E_VALIDATION: Comment markers belong to different paragraphs.');
-    if (idsDoc) {
+    // A range always has both ends; a comment without a range keeps only its reference.
+    if (found['commentRangeStart'].length !== found['commentRangeEnd'].length)
+      throw new Error(`E_VALIDATION: Comment ${comment.id} has inconsistent commentRangeStart/commentRangeEnd markup.`);
+    markers.push(...found['commentRangeStart'], ...found['commentRangeEnd'], ...found['commentReference']);
+    if (idsDoc && comment.paraId) {
       const matches = Array.from(idsDoc.getElementsByTagName('*')).filter(el => Array.from(el.attributes).some(attr => attr.localName === 'paraId' && attr.value === comment.paraId));
-      if (matches.length !== 1) throw new Error('E_VALIDATION: Comment ID mapping is missing or ambiguous.');
+      if (matches.length > 1) throw new Error('E_VALIDATION: Comment ID mapping is ambiguous.');
+      for (const match of matches) for (const attr of Array.from(match.attributes)) if (attr.localName === 'durableId') durableIds.add(attr.value);
     }
   }
-  const paraIds = new Set(thread.map(c => c.paraId));
+  const paraIds = new Set(thread.map(c => c.paraId).filter(Boolean));
   const commentIds = new Set(thread.map(c => String(c.id)));
   for (const el of commentElements) if (commentIds.has(el.getAttributeNS(W, 'id') ?? '')) el.parentNode?.removeChild(el);
   for (const el of extendedElements) if (paraIds.has(el.getAttributeNS(W15, 'paraId') ?? '')) el.parentNode?.removeChild(el);
   if (idsDoc) for (const el of Array.from(idsDoc.getElementsByTagName('*'))) {
     if (Array.from(el.attributes).some(attr => attr.localName === 'paraId' && paraIds.has(attr.value))) el.parentNode?.removeChild(el);
+  }
+  if (extensible && durableIds.size) for (const el of Array.from(extensible.getElementsByTagName('*'))) {
+    if (Array.from(el.attributes).some(attr => attr.localName === 'durableId' && durableIds.has(attr.value))) el.parentNode?.removeChild(el);
   }
   for (const marker of markers) {
     const parent = marker.parentNode;
@@ -214,8 +258,9 @@ export function deleteCommentThread(zip: DocxZipAdapter, document: Document, id:
         Array.from(parent.childNodes).every(n => n.nodeType !== 1 || (n as Element).localName === 'rPr')) parent.parentNode?.removeChild(parent);
   }
   zip.writeText('word/comments.xml', serializeXml(comments));
-  zip.writeText('word/commentsExtended.xml', serializeXml(extended));
+  if (extended) zip.writeText('word/commentsExtended.xml', serializeXml(extended));
   if (idsDoc) zip.writeText('word/commentsIds.xml', serializeXml(idsDoc));
+  if (extensible && durableIds.size) zip.writeText('word/commentsExtensible.xml', serializeXml(extensible));
 }
 
 export function bootstrapCommentParts(zip: DocxZipAdapter): void {
@@ -373,22 +418,11 @@ export function addCommentReply(
   const commentsXml = zip.readText('word/comments.xml');
   const commentsDoc = parseXml(commentsXml);
   
-  let parentParaId: string | null = null;
-  const commentEls = commentsDoc.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'comment');
-  for (let i = 0; i < commentEls.length; i++) {
-    const el = commentEls.item(i) as Element;
-    if (el.getAttribute('w:id') === String(parentCommentId)) {
-      const p = el.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'p').item(0) as Element;
-      if (p) {
-        parentParaId = p.getAttributeNS('http://schemas.microsoft.com/office/word/2010/wordml', 'paraId') ?? p.getAttribute('w14:paraId');
-      }
-      break;
-    }
-  }
-
-  if (!parentParaId) {
-    throw new Error(`Parent comment ID ${parentCommentId} not found in comments.xml`);
-  }
+  const parentEl = findCommentElement(commentsDoc, parentCommentId);
+  if (!parentEl) throw new Error(`Parent comment ID ${parentCommentId} not found in comments.xml`);
+  // Replies point at the last paragraph of the parent. A parent from Word 2007 has no paragraph id yet.
+  const parentParaId = ensureThreadKey(commentsDoc, parentEl, `comment:${parentCommentId}:thread`);
+  bootstrapCommentParts(zip);
 
   const commentId = allocateNextCommentId(commentsDoc);
   const replyParaId = generateParaId(`comment:${commentId}:${author}:${text}:reply:${parentCommentId}`);
