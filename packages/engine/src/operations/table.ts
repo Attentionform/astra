@@ -8,6 +8,7 @@ import { ensureTableGrid, sortChildrenBySchema, RPR_CHILD_ORDER, TCPR_CHILD_ORDE
 import { createWordElement } from '../ooxml/ns';
 import { emitTrackedCellReplace, resolveRevisionStamp } from '../ooxml/track-changes-emitter';
 import { toError } from '../errors';
+import { takeRevisionId } from '../ooxml/revision-ids';
 
 function isTableReproducible(): boolean {
   try {
@@ -738,7 +739,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
             text,
             stamp.author,
             stamp.date,
-            { getNextId: () => ast.nextChangeId++ }
+            { getNextId: () => takeRevisionId(ast) }
           );
           if (hasRevs) {
             tableNode.metadata.hasTrackedChanges = true;
@@ -765,7 +766,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
           text,
           stamp.author,
           stamp.date,
-          { getNextId: () => ast.nextChangeId++ }
+          { getNextId: () => takeRevisionId(ast) }
         );
         if (hasRevs) {
           tableNode.metadata.hasTrackedChanges = true;

@@ -7,6 +7,7 @@ import { BaseOperation } from './base';
 import { DocxParser } from '../parser';
 import { resolveRevisionStamp } from '../ooxml/track-changes-emitter';
 import { PPR_CHILD_ORDER, sortChildrenBySchema } from '../ooxml/schema-order';
+import { takeRevisionId } from '../ooxml/revision-ids';
 
 export interface TrackedChangeOperation extends BaseOperation {
   action: 'trackedChange';
@@ -44,7 +45,7 @@ export function executeTrackedChange(op: TrackedChangeOperation, ast: DocumentAS
     const node = findNode(ast, op.target);
     if (node) validateVersion(node, op.expectedVersion);
     const id = ast.nextChangeId;
-    parser.insertTrackedChange(op.target, op.text, author, date, undefined, () => ast.nextChangeId++);
+    parser.insertTrackedChange(op.target, op.text, author, date, undefined, () => takeRevisionId(ast));
     if (node && (node.xml as Element).tagName === 'w:p') {
       node.metadata.text += op.text;
       node.metadata.hasTrackedChanges = true;
@@ -96,7 +97,7 @@ export function executeTrackedChange(op: TrackedChangeOperation, ast: DocumentAS
       {type:'delete',text:model.text.slice(at,at+length)},
       {type:'equal',text:model.text.slice(at+length)},
     ];
-    const revisionIds = applyChunks(model, chunks, {tracked:true, author, date, nextId:()=>ast.nextChangeId++, includeEmptyFields:op.text === undefined, allowObjectDelete:op.text === undefined});
+    const revisionIds = applyChunks(model, chunks, {tracked:true, author, date, nextId:()=>takeRevisionId(ast), includeEmptyFields:op.text === undefined, allowObjectDelete:op.text === undefined});
     if (op.text === undefined) {
       const doc = paragraph.ownerDocument!;
       let pPr = Array.from(paragraph.childNodes).find(n => n.nodeType === 1 && (n as Element).tagName === 'w:pPr') as Element | undefined;
@@ -104,7 +105,7 @@ export function executeTrackedChange(op: TrackedChangeOperation, ast: DocumentAS
       let rPr = Array.from(pPr.childNodes).find(n => n.nodeType === 1 && (n as Element).tagName === 'w:rPr') as Element | undefined;
       if (!rPr) { rPr = createWordElement(doc, 'w:rPr'); pPr.appendChild(rPr); sortChildrenBySchema(pPr, PPR_CHILD_ORDER); }
       const mark = createWordElement(doc, 'w:del');
-      const id = ast.nextChangeId++; revisionIds.push(id);
+      const id = takeRevisionId(ast); revisionIds.push(id);
       stampRevision(mark, id, author, date);
       rPr.insertBefore(mark, rPr.firstChild);
     }

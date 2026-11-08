@@ -5,6 +5,7 @@ import { BaseOperation, createTextElement, validateVersion, findNode } from './b
 import { emitTrackedReplace, resolveRevisionStamp } from '../ooxml/track-changes-emitter';
 import { RPR_CHILD_ORDER, sortChildrenBySchema } from '../ooxml/schema-order';
 import { parseFontSize } from '../operation-schema';
+import { takeRevisionId } from '../ooxml/revision-ids';
 
 export interface ReplaceOperation extends BaseOperation {
   action: 'replace';
@@ -83,7 +84,7 @@ export function executeReplace(op: ReplaceOperation, ast: DocumentAST): ReplaceO
     const model = buildRunModel(targetNode.xml as Element, targetNode.metadata.text);
     const chunks = diffForEdit(model.text, resolvedText);
     const stamp = resolveRevisionStamp(pick('author', op.author), pick('date', op.date), ast.settings.defaultAuthor);
-    const revisionIds = applyChunks(model, chunks, {tracked:trackOn, ...stamp, nextId: () => ast.nextChangeId++});
+    const revisionIds = applyChunks(model, chunks, {tracked:trackOn, ...stamp, nextId: () => takeRevisionId(ast)});
     if (trackOn && revisionIds.length) targetNode.metadata.hasTrackedChanges = true;
     if (resolvedSz !== undefined) applyRunFontSize(targetNode.xml as Element, resolvedSz);
     targetNode.metadata.text = resolvedText;
@@ -145,7 +146,7 @@ export function executeReplace(op: ReplaceOperation, ast: DocumentAST): ReplaceO
       resolvedText,
       stamp.author,
       stamp.date,
-      { getNextId: () => ast.nextChangeId++ }
+      { getNextId: () => takeRevisionId(ast) }
     );
     if (hasRevs || targetNode.metadata.text !== resolvedText) {
       targetNode.metadata.hasTrackedChanges = true;

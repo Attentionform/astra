@@ -1,4 +1,4 @@
-import { maxRevisionId, REVISION_TAGS } from './ooxml/revision-ids';
+import { firstFreeRevisionId, maxRevisionId, REVISION_TAGS, takeRevisionId } from './ooxml/revision-ids';
 import { countRevisions, resolveRevisions, listRevisions, readRevision, expandMoveSelection, type RevisionResolution, type RevisionSelector } from './ooxml/revisions';
 import { listComments } from './ooxml/comments';
 import fs from 'fs';
@@ -2046,7 +2046,7 @@ export class DocxParser {
     } catch { ast.sectPrFlags = { titlePg: false, evenAndOddHeaders: false }; }
 
     // Reserve revision IDs across WordprocessingML parts, including headers and notes.
-    ast.nextChangeId = this.maxPackageRevisionId() + 1;
+    ast.nextChangeId = firstFreeRevisionId(this.maxPackageRevisionId());
 
     // One section per section the file defines; a file with no break has just sec_root.
     ast.sections.push(...splitIntoSections(rootNodes, fileSections));
@@ -3680,10 +3680,10 @@ export class DocxParser {
 
   private nextTrackedChangeId(idFactory?: () => number): string {
     if (idFactory) return String(idFactory());
-    if (this.lastAstForNumbering) return String(this.lastAstForNumbering.nextChangeId++);
+    if (this.lastAstForNumbering) return String(takeRevisionId(this.lastAstForNumbering));
     // Direct parser callers may edit before creating an AST. Their first edit
     // reserves IDs from the live package; normal engine operations use the AST.
-    return String(this.maxPackageRevisionId() + 1);
+    return String(takeRevisionId({nextChangeId: firstFreeRevisionId(this.maxPackageRevisionId())}));
   }
 
   public insertTrackedChange(targetNodeId: string, text: string, author: string = 'ASTra', date?: string, reproducible?: boolean, idFactory?: () => number): void {

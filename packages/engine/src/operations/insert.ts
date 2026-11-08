@@ -20,6 +20,7 @@ import { toError } from '../errors';
 import { HYPERLINK_REL_TYPE } from './hyperlink';
 import { COMPOSE_CODE_FONT } from '../compose/constants';
 import { unescapeMarkedText } from '../compose/text-spans';
+import { takeRevisionId } from '../ooxml/revision-ids';
 
 export interface InsertOperation extends BaseOperation {
   action: 'insert';
@@ -664,7 +665,7 @@ function populateTableCell(
   }
 }
 
-export async function executeInsert(op: InsertOperation, ast: DocumentAST, parser?: DocxParser, guide?: StyleGuideConfig, paraIdCache?: ParaIdScanCache): Promise<void> {  let anchorSection: Section | null = null;
+export async function executeInsert(op: InsertOperation, ast: DocumentAST, parser?: DocxParser, guide?: StyleGuideConfig, paraIdCache?: ParaIdScanCache): Promise<{ revisionIds: number[] } | void> {  let anchorSection: Section | null = null;
   let anchorIndex = -1;
   let anchorNode: Node | undefined;
 
@@ -791,6 +792,7 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
   // True when the paragraph path wrapped its runs in w:ins (drives the
   // metadata flag below so it never claims markup that is not in the XML).
   let trackedWrapped = false;
+  const trackedIds: number[] = [];
 
   // Code-bookmark id minted by the paragraph path for fenced code (null for
   // every other insert type); drives the hasBookmark metadata flag below.
@@ -895,7 +897,9 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
       if (trackOn) {
         const ins = createWordElement(doc, 'w:ins');
         const stamp = resolveRevisionStamp(op.author, op.date, ast.settings.defaultAuthor);
-        stampRevision(ins, ast.nextChangeId++, stamp.author, stamp.date);
+        const insId = takeRevisionId(ast);
+        trackedIds.push(insId);
+        stampRevision(ins, insId, stamp.author, stamp.date);
         for (const r of contentRuns) ins.appendChild(r);
         if (contentRuns.length > 0) {
           newNodeXml.appendChild(ins);
@@ -1551,4 +1555,5 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
       },
     }, ast);
   }
+  if (trackedIds.length) return { revisionIds: trackedIds };
 }
