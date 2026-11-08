@@ -1,6 +1,6 @@
 import { firstFreeRevisionId, maxRevisionId, REVISION_TAGS, takeRevisionId } from './ooxml/revision-ids';
 import { countRevisions, resolveRevisions, listRevisions, readRevision, expandMoveSelection, type RevisionResolution, type RevisionSelector } from './ooxml/revisions';
-import { listComments } from './ooxml/comments';
+import { deleteCommentThread, listComments } from './ooxml/comments';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from './adm-zip-safe';
@@ -3610,6 +3610,68 @@ export class DocxParser {
     });
   }
 
+  /** The thread of a comment: its root and every reply below it. */
+  private commentThreads(): Map<number, number[]> {
+    const records = listComments(this.getZipAdapter());
+    const byPara = new Map(records.filter(r => r.paraId).map(r => [r.paraId, r]));
+    const rootOf = (record: typeof records[number]): typeof records[number] | null => {
+      let current = record;
+      for (let i = 0; i < records.length; i++) {
+        if (!current.paraIdParent) return current;
+        const parent = byPara.get(current.paraIdParent);
+        if (!parent) return null;
+        current = parent;
+      }
+      return null;
+    };
+    const threads = new Map<number, number[]>();
+    for (const record of records) {
+      const root = rootOf(record);
+      if (!root) continue;
+      threads.set(root.id, [...(threads.get(root.id) ?? []), record.id]);
+    }
+    return threads;
+  }
+
+  /** True when every comment thread touched by these anchor ids has all of its comments among them. */
+  private commentThreadsCovered(ids: number[]): boolean {
+    const wanted = new Set(ids);
+    const threads = this.commentThreads();
+    for (const id of wanted) {
+      const thread = [...threads.values()].find(members => members.includes(id));
+      if (!thread || !thread.every(member => wanted.has(member))) return false;
+    }
+    return true;
+  }
+
+  private deleteCommentsOfRemovedAnchors(ids: number[]): void {
+    const wanted = new Set(ids);
+    const zip = this.getZipAdapter();
+    for (const [root, members] of this.commentThreads()) {
+      if (members.some(member => wanted.has(member))) deleteCommentThread(zip, this.documentDom, root);
+    }
+    this.removeEmptyCommentParts();
+  }
+
+  /** Word drops the comment parts, their relationships and content types when the last comment goes. */
+  private removeEmptyCommentParts(): void {
+    const comments = this.zip.getEntry('word/comments.xml');
+    if (!comments || /<w:comment[\s>]/.test(comments.getData().toString('utf8'))) return;
+    const parts = ['comments', 'commentsExtended', 'commentsIds', 'commentsExtensible'].map(n => `${n}.xml`);
+    for (const part of parts) if (this.zip.getEntry(`word/${part}`)) this.zip.deleteFile(`word/${part}`);
+    const edit = (path: string, tag: string, attr: string, drop: (value: string) => boolean): void => {
+      const entry = this.zip.getEntry(path);
+      if (!entry) return;
+      const dom = this.parser.parseFromString(entry.getData().toString('utf8'), 'text/xml');
+      for (const el of Array.from(dom.getElementsByTagName(tag))) if (drop(el.getAttribute(attr) ?? '')) el.parentNode?.removeChild(el);
+      this.zip.updateFile(path, Buffer.from(this.serializer.serializeToString(dom), 'utf8'));
+    };
+    edit('word/_rels/document.xml.rels', 'Relationship', 'Target', value => parts.includes(value.replace(/^\/?(word\/)?/, '')));
+    edit('[Content_Types].xml', 'Override', 'PartName', value => parts.map(p => `/word/${p}`).includes(value));
+    const ast = this.lastAstForNumbering;
+    if (ast) for (const [id, rel] of Object.entries(ast.relationships)) if (parts.includes(rel.target.replace(/^\/?(word\/)?/, ''))) delete ast.relationships[id];
+  }
+
   public resolvePackageRevisions(mode: 'accept' | 'reject', selector?: RevisionSelector): RevisionResolution {
     const oldIds = new Map<Element, string>();
     for (const [id, element] of this.nodeMap) oldIds.set(element, id);
@@ -3648,14 +3710,19 @@ export class DocxParser {
     }
     const result: RevisionResolution = {resolved:0, resolvedIds:[], byKind:{}, unresolved:[]};
     for (const {part:name, document:dom, nodeIdOf} of parts) {
-      const part = resolveRevisions([dom], mode, {part:name, nodeIdOf, ...(selector ? {selected:selected.get(dom)} : {})});
+      const part = resolveRevisions([dom], mode, {part:name, nodeIdOf, commentsOk:ids => this.commentThreadsCovered(ids), ...(selector ? {selected:selected.get(dom)} : {})});
       for (const entry of part.unresolved) entry.part = name;
       if (part.resolved && name !== 'word/document.xml') this.zip.updateFile(name, Buffer.from(this.serializer.serializeToString(dom), 'utf8'));
       result.resolved += part.resolved;
       result.resolvedIds.push(...part.resolvedIds);
       result.unresolved.push(...part.unresolved);
+      if (part.removedBookmarks) result.removedBookmarks = [...(result.removedBookmarks ?? []), ...part.removedBookmarks];
+      if (part.removedComments) result.removedComments = [...(result.removedComments ?? []), ...part.removedComments];
+      if (part.staleLinks) result.staleLinks = [...(result.staleLinks ?? []), ...part.staleLinks];
       for (const [kind, count] of Object.entries(part.byKind)) result.byKind[kind] = (result.byKind[kind] ?? 0) + count;
     }
+    // Comments whose anchors went with a removed paragraph are deleted with their replies, as Word does.
+    if (result.removedComments?.length) this.deleteCommentsOfRemovedAnchors(result.removedComments);
     // Structural resolution can detach paragraphs, rows or entire tables.
     // Rebuild the live map and carry IDs for surviving elements in the same DOM.
     this.assignStableIds();

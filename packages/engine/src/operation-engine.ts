@@ -590,6 +590,9 @@ export class OperationEngine {
                 unresolved: [...nextRes.unresolved],
                 ...(nextRes.removedNodeIds ? { removedNodeIds: [...nextRes.removedNodeIds] } : {}),
                 ...(nextRes.idsMayHaveChanged ? { idsMayHaveChanged: true } : {}),
+                ...(nextRes.removedBookmarks ? { removedBookmarks: [...nextRes.removedBookmarks] } : {}),
+                ...(nextRes.removedComments ? { removedComments: [...nextRes.removedComments] } : {}),
+                ...(nextRes.staleLinks ? { staleLinks: nextRes.staleLinks.map(link => ({ ...link })) } : {}),
               };
             } else {
               const cur = result.revisionResolution;
@@ -608,6 +611,9 @@ export class OperationEngine {
                 }
               }
               if (nextRes.idsMayHaveChanged) cur.idsMayHaveChanged = true;
+              if (nextRes.removedBookmarks) cur.removedBookmarks = [...new Set([...(cur.removedBookmarks ?? []), ...nextRes.removedBookmarks])];
+              if (nextRes.removedComments) cur.removedComments = [...new Set([...(cur.removedComments ?? []), ...nextRes.removedComments])];
+              if (nextRes.staleLinks) cur.staleLinks = [...(cur.staleLinks ?? []), ...nextRes.staleLinks.map(link => ({ ...link }))];
             }
           }
           if (routeOut && typeof routeOut === 'object' && 'revisionIds' in routeOut &&

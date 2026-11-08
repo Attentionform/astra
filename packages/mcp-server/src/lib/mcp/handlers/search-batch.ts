@@ -219,6 +219,10 @@ export async function handleExecuteBatch(
         unresolved: { kind: string; count: number; reason: string; part: string }[];
         removedNodeIds?: string[];
         idsMayHaveChanged?: boolean;
+        /** Bookmarks, comment ids and links affected when a deleted or moved paragraph was removed. */
+        removedBookmarks?: string[];
+        removedComments?: number[];
+        staleLinks?: { bookmark: string; count: number }[];
       };
       /** R-1: accept remedy, present only when revisionsPending > 0. */
       revisionsRemedy?: string;
