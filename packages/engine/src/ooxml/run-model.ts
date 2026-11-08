@@ -4,9 +4,11 @@ import { wordDiff } from './track-changes-emitter';
 
 type DiffChunk = { type: 'equal' | 'delete' | 'insert'; text: string };
 interface Segment { run: Element; start: number; end: number }
-interface Opaque { kind: 'field' | 'math' | 'sdt'; start: number; end: number; elements: Element[] }
+interface Opaque { kind: 'field' | 'math' | 'sdt' | 'object' | 'hidden'; start: number; end: number; elements: Element[] }
 export interface RunModel { paragraph: Element; segments: Segment[]; opaque: Opaque[]; text: string }
-export interface RunEditOptions { tracked: boolean; author: string; date: string; nextId: () => number; includeEmptyFields?: boolean }
+export interface RunEditOptions { tracked: boolean; author: string; date: string; nextId: () => number; includeEmptyFields?: boolean;
+  /** A tracked delete of the whole paragraph may wrap a run that holds a text box or drawing that contains text. */
+  allowObjectDelete?: boolean }
 
 const kids = (el: Element): Element[] => Array.from(el.childNodes).filter((n): n is Element => n.nodeType === 1);
 const name = (el: Element): string => el.localName || el.tagName.split(':').pop() || '';
@@ -15,10 +17,13 @@ const textOf = (run: Element): string => kids(run).filter(el => name(el) === 't'
 const SAFE_ATOMS = new Set([
   'tab', 'br', 'cr', 'drawing', 'pict', 'object',
   'footnoteReference', 'endnoteReference', 'commentReference',
-  'lastRenderedPageBreak', 'noBreakHyphen', 'softHyphen', 'sym', 'ptab',
+  'AlternateContent', 'lastRenderedPageBreak', 'noBreakHyphen', 'softHyphen', 'sym', 'ptab',
   'footnoteRef', 'endnoteRef', 'annotationRef',
   'dayShort', 'monthShort', 'yearShort', 'dayLong', 'monthLong', 'yearLong',
 ]);
+
+const FIELD_SPAN = 'this paragraph holds the start or end of a field that spans paragraphs, such as a table of contents; edit text outside the field, or update the field in Word';
+const PARTIAL_MOVE = 'this paragraph holds part of a tracked move (a partial move); accept or reject the move with trackedChange first, then edit';
 
 function unsupported(reason: string): never {
   throw Object.assign(new Error(`E_VALIDATION: Cannot edit this paragraph safely: ${reason}. Remedy: edit around the affected structure or replace the paragraph explicitly.`), {code: 'E_VALIDATION'});
@@ -49,8 +54,18 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
           if (end) { field.end = text.length; opaque.push(field); field = null; }
           continue;
         }
+        if (parts.some(el => name(el) === 'fldChar' || name(el) === 'instrText')) unsupported(FIELD_SPAN);
         if (parts.some(el => name(el) !== 't' && !safeAtoms.has(name(el)))) unsupported('a run contains an unsupported field marker');
         const content = parts.filter(el => name(el) === 't').map(el => el.textContent ?? '').join('');
+        // A text box or drawing keeps its text in w:t elements below the run. The stored paragraph text
+        // counts them, so the model counts them too, as one block that no edit may cut.
+        const hidden = parts.filter(el => name(el) !== 't').map(wordText).join('');
+        if (hidden) {
+          if (content) unsupported('a run holds both text and a text box or drawing with text; edit the other runs');
+          opaque.push({kind:'object', start:text.length, end:text.length + hidden.length, elements:[child]});
+          text += hidden;
+          continue;
+        }
         if (content) segments.push({run:child, start:text.length, end:text.length + content.length});
         text += content;
       } else if (tag === 'fldSimple' || tag === 'sdt') {
@@ -64,7 +79,22 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
         text += value;
       } else if (tag === 'hyperlink' || tag === 'smartTag' || tag === 'ins') {
         visit(child);
-      } else if (tag === 'del' || tag === 'pPr' || tag === 'proofErr' || tag.startsWith('bookmark') || tag.startsWith('commentRange')) {
+      } else if (tag === 'AlternateContent') {
+        const hidden = wordText(child);
+        if (hidden) {
+          opaque.push({kind:'object', start:text.length, end:text.length + hidden.length, elements:[child]});
+          text += hidden;
+        }
+      } else if (tag === 'del') {
+        // Text of an insertion inside a deletion is still counted by the stored paragraph text.
+        const hidden = wordText(child);
+        if (hidden) {
+          opaque.push({kind:'hidden', start:text.length, end:text.length + hidden.length, elements:[child]});
+          text += hidden;
+        }
+      } else if (tag === 'moveFrom' || tag === 'moveTo' || tag.startsWith('moveFromRange') || tag.startsWith('moveToRange')) {
+        unsupported(PARTIAL_MOVE);
+      } else if (tag === 'pPr' || tag === 'proofErr' || tag.startsWith('bookmark') || tag.startsWith('commentRange')) {
         continue;
       } else {
         unsupported(`unsupported ${child.tagName} structure`);
@@ -72,7 +102,7 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
     }
   }
   visit(paragraph);
-  if (field) unsupported('a field has no end marker');
+  if (field) unsupported(FIELD_SPAN);
   if (text !== expectedText) unsupported('the paragraph text and text map differ');
   return {paragraph, segments, opaque, text};
 }
@@ -184,6 +214,13 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       const emptyField = chunk.type === 'delete' && options.includeEmptyFields && item.kind === 'field' &&
         item.start === item.end && chunk.at <= item.start && end >= item.end;
       if (!cuts && !emptyField) continue;
+      if (item.kind === 'object' || item.kind === 'hidden') {
+        const covered = chunk.type === 'delete' && chunk.at <= item.start && end >= item.end;
+        if (covered && options.allowObjectDelete) continue;
+        unsupported(item.kind === 'object'
+          ? 'the changed span would cut or remove a text box or drawing that contains text; edit the text outside it'
+          : 'the changed span reaches text inside a deleted revision; accept or reject that revision first');
+      }
       const wholeField = chunk.type === 'delete' && item.kind === 'field' && chunk.at <= item.start && end >= item.end;
       if (!wholeField) unsupported(item.kind === 'math' ? 'paragraph contains math in the changed span' : `the changed span cuts through ${item.kind}`);
       if (options.tracked && item.elements.some(el => name(el) === 'fldSimple'))
@@ -207,8 +244,9 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       return [];
     }
   }
-  const fieldInDelete = (item: Opaque, start: number, end: number): boolean => item.kind === 'field' &&
-    item.start >= start && item.end <= end &&
+  const fieldInDelete = (item: Opaque, start: number, end: number): boolean => item.kind === 'hidden' ? false :
+    item.kind === 'object' ? item.start >= start && item.end <= end :
+    item.kind === 'field' && item.start >= start && item.end <= end &&
     (item.start !== item.end || options.includeEmptyFields === true || (item.start > start && item.end < end));
   // Reserve ids in document order before changing the tree. Applying spans
   // right to left must not make their public ids run backwards.
@@ -250,10 +288,11 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       splitAt(segments, end);
       const fieldElements = model.opaque
         .filter(value => fieldInDelete(value, chunk.at, end))
-        .flatMap(value => value.elements.map(element => ({element, field:true})));
+        .flatMap(value => value.elements.map(element => ({element, field:value.kind === 'field'})));
       const textElements = segments
         .filter(s => s.start >= chunk.at && s.end <= end && s.end > s.start)
         .map(s => ({element:s.run, field:false}));
+      const isObject = new Set(model.opaque.filter(value => value.kind === 'object').flatMap(value => value.elements));
       const order = new Map(Array.from(model.paragraph.getElementsByTagName('*')).map((el, i) => [el, i]));
       const targets = [...fieldElements, ...textElements].sort((a,b) =>
         (order.get(a.element) ?? -1) - (order.get(b.element) ?? -1)
@@ -276,7 +315,7 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
                 source.parentNode!.replaceChild(replacement, source);
               }
             }
-          } else setText(element, textOf(element), true);
+          } else if (!isObject.has(element)) setText(element, textOf(element), true);
         } else parent.removeChild(element);
       }
     } else {

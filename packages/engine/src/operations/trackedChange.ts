@@ -96,7 +96,7 @@ export function executeTrackedChange(op: TrackedChangeOperation, ast: DocumentAS
       {type:'delete',text:model.text.slice(at,at+length)},
       {type:'equal',text:model.text.slice(at+length)},
     ];
-    const revisionIds = applyChunks(model, chunks, {tracked:true, author, date, nextId:()=>ast.nextChangeId++, includeEmptyFields:op.text === undefined});
+    const revisionIds = applyChunks(model, chunks, {tracked:true, author, date, nextId:()=>ast.nextChangeId++, includeEmptyFields:op.text === undefined, allowObjectDelete:op.text === undefined});
     if (op.text === undefined) {
       const doc = paragraph.ownerDocument!;
       let pPr = Array.from(paragraph.childNodes).find(n => n.nodeType === 1 && (n as Element).tagName === 'w:pPr') as Element | undefined;
