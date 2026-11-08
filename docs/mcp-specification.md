@@ -257,16 +257,18 @@ Returns document structure using Token-Optimized Outline Notation (TOON).
 | `fidelity` | `string` | No | `"compact"`, `"standard"` (default), or `"full"`. |
 | `sectionId` | `string` | No | Filter output to a specific section ID. |
 | `maxTextLength` | `number` | No | Truncate run text at character limit. |
-| `offset` | `number` | No | Pagination start row (default: 0). |
-| `limit` | `number` | No | Maximum rows to return (default: 50, max: 200). |
+| `offset` | `number` | No | Pagination start row for document nodes only (default: 0). An offset past the last node is rejected with `E_VALIDATION`, with or without `include`. |
+| `limit` | `number` | No | Maximum node rows to return (default: 50, max: 200). |
 | `aroundNode` | `string` | No | Node ID to center the inspection window around. |
 | `window` | `number` | No | Half-width of rows around `aroundNode` (default: 5). |
 | `maxTokens` | `number` | No | Cap output on a clean row boundary (200–8000 tokens). |
 | `include` | `string[]` | No | Add `comments`, `revisions`, or both to the response. |
-| `commentId` | `number` | No | With `include:["comments"]`, return that comment and its replies in full. |
-| `revisionId` | `number` | No | With `include:["revisions"]`, return every element sharing that ID and report ambiguity. |
+| `reviewOffset` | `number` | No | Start record for the `include` lists (default: 0). |
+| `reviewLimit` | `number` | No | Records per `include` list (default: 50; larger values are clamped to 50). |
+| `commentId` | `number` | No | Requires `include:["comments"]`; return that comment and its replies in full. |
+| `revisionId` | `number` | No | Requires `include:["revisions"]`; return every element sharing that ID and report ambiguity. |
 
-Review lists use `offset` and `limit`, return at most 50 records, and include `nextOffset` when more are available. Comment previews are capped at 200 characters and revision previews at 60; the targeted read returns full text.
+Review lists page with `reviewOffset` and `reviewLimit`, independently of the node window set by `offset` and `limit`. They return at most 50 records and include `nextOffset` when more are available. A `commentId` without `include:["comments"]`, or a `revisionId` without `include:["revisions"]`, is rejected. Comment previews are capped at 200 characters and revision previews at 60; the targeted read returns full text.
 
 **Success Response:**
 ```json

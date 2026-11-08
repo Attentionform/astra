@@ -45,7 +45,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       '{availableStyles,brandColors,primaryFont} parsed from word/styles.xml, plus document core properties ' +
       '`metadata` {title,creator,subject,description,keywords,category,lastModifiedBy,revision,created,modified} ' +
       'read from docProps/core.xml (absent when the docx has no core part). ' +
-      'Use include:["comments","revisions"] for paged review records; commentId or revisionId reads full detail. ' +
+      'Use include:["comments","revisions"] for review records paged by reviewOffset/reviewLimit (max 50; offset/limit page nodes only); commentId or revisionId reads full detail and needs its include. ' +
       'Renders the in-memory session state (includes unsaved execute_batch edits); `dirty:true` means the ' +
       'session differs from the last saved file, `revision` is the in-memory revision. ' +
       'Node ids are verbatim: paragraphs carry 8-hex w14:paraId (e.g. 3F2A9C1B), tables t_001.., sections sec_root, sec_2, sec_3.. by position; use them as-is for targets/anchors. ' +

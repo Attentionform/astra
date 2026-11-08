@@ -19,7 +19,7 @@ describe('MCP review workflow', () => {
     const handle = await store.openBuffer(zip.toBuffer(), 'many-revisions.docx');
     const first = await handleInspectDocument(store, {sessionId:handle.sessionId, include:['revisions']});
     expect(first).toMatchObject({ok:true, revisions:{total:55, nextOffset:50}});
-    const second = await handleInspectDocument(store, {sessionId:handle.sessionId, include:['revisions'], offset:50});
+    const second = await handleInspectDocument(store, {sessionId:handle.sessionId, include:['revisions'], reviewOffset:50});
     expect(second).toMatchObject({ok:true, revisions:{total:55}});
     if (!second.ok) throw new Error('review page failed');
     expect((second.revisions as {revisions:unknown[]}).revisions).toHaveLength(5);

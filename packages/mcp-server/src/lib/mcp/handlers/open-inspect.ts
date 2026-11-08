@@ -221,6 +221,15 @@ export async function handleInspectDocument(
   const limit = parsed.data.limit ?? 50;
   const window = parsed.data.window ?? 5;
   const maxTokens = parsed.data.maxTokens;
+  const reviewOffset = parsed.data.reviewOffset ?? 0;
+  const reviewLimit = Math.min(parsed.data.reviewLimit ?? 50, 50);
+  // FX-13: an id that selects one review record only means something with its include.
+  if (parsed.data.revisionId !== undefined && !parsed.data.include?.includes('revisions')) {
+    return invalidInput('inspect_document: revisionId needs include:["revisions"]. Add it, or drop revisionId.');
+  }
+  if (parsed.data.commentId !== undefined && !parsed.data.include?.includes('comments')) {
+    return invalidInput('inspect_document: commentId needs include:["comments"]. Add it, or drop commentId.');
+  }
   // Explicit windowing = a C-2 key the CALLER actually sent. Two layers:
   // (1) the wire schema above carries no .default(), so a real-wire
   // aroundNode-only call arrives without offset/limit/window; (2) a key
@@ -253,7 +262,7 @@ export async function handleInspectDocument(
       if (parsed.data.include?.includes('revisions')) {
         review.revisions = parsed.data.revisionId !== undefined
           ? handle.parser.readPackageRevision(parsed.data.revisionId)
-          : handle.parser.listPackageRevisions(offset, Math.min(limit, 50));
+          : handle.parser.listPackageRevisions(reviewOffset, reviewLimit);
       }
       if (parsed.data.include?.includes('comments')) {
         const all = handle.parser.listPackageComments();
@@ -264,9 +273,9 @@ export async function handleInspectDocument(
           for (let i = 0; i < thread.length; i++) for (const child of all.filter(c => c.paraIdParent === thread[i].paraId)) if (!thread.includes(child)) thread.push(child);
           review.comments = {thread};
         } else {
-          const page = all.slice(offset, offset + Math.min(limit, 50));
+          const page = all.slice(reviewOffset, reviewOffset + reviewLimit);
           review.comments = {comments:page.map(c => ({...c, text:c.text.slice(0,200), textLength:c.text.length})), total:all.length,
-            ...(offset + page.length < all.length ? {nextOffset:offset + page.length} : {})};
+            ...(reviewOffset + page.length < all.length ? {nextOffset:reviewOffset + page.length} : {})};
         }
       }
       let table;
@@ -352,7 +361,7 @@ export async function handleInspectDocument(
         end = Math.min(totalNodes, idx + window + 1);
         effectiveLimit = end - start;
       } else {
-        if (offset >= totalNodes && totalNodes > 0 && !parsed.data.include?.length) {
+        if (offset >= totalNodes && totalNodes > 0) {
           throw Object.assign(
             new Error(`inspect_document: offset ${offset} is beyond totalNodes ${totalNodes}.`),
             {

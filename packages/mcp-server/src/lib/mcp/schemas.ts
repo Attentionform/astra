@@ -55,6 +55,10 @@ export const InspectDocumentSchema = z
     window: z.number().int().min(1).max(20).optional(),
     maxTokens: z.number().int().min(200).max(8000).optional(),
     include: z.array(z.enum(['comments', 'revisions'])).optional(),
+    // FX-13: review records (include) page on their own window, so they never move the node window.
+    // reviewLimit above 50 is clamped to 50 by the handler, as limit was before.
+    reviewOffset: z.number().int().min(0).optional(),
+    reviewLimit: z.number().int().min(1).max(200).optional(),
     commentId: z.number().int().nonnegative().optional(),
     revisionId: z.number().int().nonnegative().optional(),
   })

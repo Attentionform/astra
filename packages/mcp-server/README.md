@@ -152,14 +152,16 @@ Inspects document structure using Token-Optimized Outline Notation (TOON).
 | `fidelity` | `string` | No | `"compact"` (default), `"standard"`, or `"full"`. |
 | `sectionId` | `string` | No | Restrict outline to a specific section. |
 | `maxTextLength` | `number` | No | Truncate run text at character limit. |
-| `offset` | `number` | No | Pagination start row (default: 0). |
-| `limit` | `number` | No | Maximum rows to return (default: 50, max: 200). |
+| `offset` | `number` | No | Pagination start row for document nodes only (default: 0). An offset past the last node is rejected. |
+| `limit` | `number` | No | Maximum node rows to return (default: 50, max: 200). |
 | `aroundNode` | `string` | No | Node ID to center the inspection window around. |
 | `window` | `number` | No | Half-width of rows around `aroundNode` (default: 5). |
 | `maxTokens` | `number` | No | Token budget cutoff on clean row boundary (200–8000). |
 | `include` | `array` | No | Optional review records to include: `["comments"]`, `["revisions"]`, or both. |
-| `commentId` | `number` | No | Specific comment ID to inspect. |
-| `revisionId` | `number` | No | Specific tracked revision ID to inspect. |
+| `reviewOffset` | `number` | No | Start record for the `include` lists (default: 0). Pages comments and revisions without moving the node window. |
+| `reviewLimit` | `number` | No | Records per `include` list (default: 50; values above 50 are clamped to 50). |
+| `commentId` | `number` | No | Specific comment ID to inspect. Needs `include:["comments"]`. |
+| `revisionId` | `number` | No | Specific tracked revision ID to inspect. Needs `include:["revisions"]`. |
 
 **Returns:** `{ ok: true, sessionId, revision, fidelity, palette, toonText, rowCount }`
 
