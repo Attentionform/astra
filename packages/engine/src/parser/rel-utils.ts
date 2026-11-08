@@ -52,6 +52,13 @@ export function contentTypeForRelationship(relType: string, target: string): str
   if (lowerType.endsWith('/commentsextended') || lowerTarget.includes('commentsextended')) {
     return 'application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml';
   }
+  // commentsIds and commentsExtensible also contain "comments" and have their own content types.
+  if (lowerType.endsWith('/commentsids') || lowerTarget.endsWith('/commentsids.xml') || lowerTarget === 'commentsids.xml') {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml';
+  }
+  if (lowerType.endsWith('/commentsextensible') || lowerTarget.endsWith('/commentsextensible.xml') || lowerTarget === 'commentsextensible.xml') {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtensible+xml';
+  }
   if (lowerType.endsWith('/comments') || lowerTarget.includes('comments')) {
     return 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
   }
