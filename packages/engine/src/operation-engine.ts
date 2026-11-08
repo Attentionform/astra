@@ -431,6 +431,13 @@ export class OperationEngine {
   };
 
   private history: BaseOperation[] = [];
+  /**
+   * FX-14: accept and reject operations read and change the live document, not the model, so the model
+   * is brought up to date once for a run of them instead of after each one. Set while a refresh is owed:
+   * the text and version of every block before the first operation of the run. Settled before any other
+   * operation, and before a batch finishes.
+   */
+  private owedRevisionRefresh: Map<string, { version: number; xml: string }> | null = null;
   /** Paragraph ids in use, shared by consecutive insert operations of one batch; null whenever anything else ran. */
   private insertParaIds: ParaIdScanCache | null = null;
 
@@ -477,6 +484,7 @@ export class OperationEngine {
     const historyBase = this.history.length;
     try {
       const routeOut: unknown = await this.routeOperation(op, this.engineAllowedDir);
+      await this.settleRevisionRefresh();
       const warnings = collectRouteWarnings(routeOut);
       const sectionNote = this.reconcileSections();
       if (sectionNote) warnings.push(sectionNote);
@@ -485,6 +493,7 @@ export class OperationEngine {
       this.history.push(op);
       return { warnings };
     } catch (err: unknown) {
+      this.owedRevisionRefresh = null;
       this.history.splice(historyBase);
       await this.restoreAfterFailedBatch(snapshot, pkgSnap);
       throw err;
@@ -593,6 +602,7 @@ export class OperationEngine {
     const dryRunTouched = dryRun ? collectBatchTouchedIds(sortedOps, this.ast) : null;
     // B-1: faults the document already has do not refuse this batch; only faults it adds do.
     const structuralBaseline = this.structuralBaselineFor(sortedOps);
+    this.owedRevisionRefresh = null;
 
     try {
       for (let i = 0; i < sortedOps.length; i++) {
@@ -714,6 +724,7 @@ export class OperationEngine {
         }
       }
 
+      await this.settleRevisionRefresh();
       // Post-Batch structural validation
       // B-1 validate-on-batch gate: when a batch touches table/chart/drawing
       // content, run a cheap O(N) structural check BEFORE commit so
@@ -754,6 +765,7 @@ export class OperationEngine {
       }
 
     } catch (criticalErr: unknown) {
+      this.owedRevisionRefresh = null;
       const criticalMsg = criticalErr instanceof Error ? criticalErr.message : String(criticalErr);
       // Typed ExecutionResult (errors + rollbackTriggered + onProgress 'error')
       // is the channel; CLI remains the logging surface. Full diagnostic text
@@ -1239,10 +1251,29 @@ export class OperationEngine {
 
   private async routeOperation(op: BaseOperation, allowedDir?: string): Promise<unknown> {
     try {
+      // Only another accept or reject can run on a model that is out of date.
+      if (!OperationEngine.isRevisionResolution(op)) await this.settleRevisionRefresh();
       return await this.routeOperationCore(op, allowedDir);
     } finally {
       // Edits made through a table-cell address belong to the table node: fold them in.
       await syncCellStandIns(this.ast);
+    }
+  }
+
+  private static isRevisionResolution(op: BaseOperation): boolean {
+    const fields = op as unknown as { action?: string; operation?: string };
+    return fields.action === 'trackedChange' && ['acceptAll', 'rejectAll', 'accept', 'reject'].includes(fields.operation ?? '');
+  }
+
+  /** Brings the model in line with the document after a run of accept or reject operations, and bumps the version of each block that changed. */
+  private async settleRevisionRefresh(): Promise<void> {
+    const before = this.owedRevisionRefresh;
+    this.owedRevisionRefresh = null;
+    if (!before || !this.parser) return;
+    await refreshAstInPlace(this.ast, this.parser);
+    for (const node of this.ast.sections.flatMap(section => section.nodes)) {
+      const old = before.get(node.id);
+      if (old) node.version = old.version + (old.xml === (node.xml as Element).toString() ? 0 : 1);
     }
   }
 
@@ -1433,16 +1464,13 @@ export class OperationEngine {
         if (!this.parser) throw new Error("Parser is required for trackedChange operations");
         const tracked = op as TrackedChangeOperation;
         if (tracked.operation === 'acceptAll' || tracked.operation === 'rejectAll' || tracked.operation === 'accept' || tracked.operation === 'reject') {
-          const before = new Map(this.ast.sections.flatMap(section => section.nodes).map(node => [node.id, {
+          const before = this.owedRevisionRefresh ?? new Map(this.ast.sections.flatMap(section => section.nodes).map(node => [node.id, {
             version: node.version,
             xml: (node.xml as Element).toString(),
           }]));
           const resolution = executeTrackedChange(tracked, this.ast, this.parser);
-          await refreshAstInPlace(this.ast, this.parser);
-          for (const node of this.ast.sections.flatMap(section => section.nodes)) {
-            const old = before.get(node.id);
-            if (old) node.version = old.version + (old.xml === (node.xml as Element).toString() ? 0 : 1);
-          }
+          // The model is refreshed when something needs it (see owedRevisionRefresh), not after each operation.
+          this.owedRevisionRefresh = before;
           return resolution;
         }
         return executeTrackedChange(tracked, this.ast, this.parser);
