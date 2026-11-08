@@ -1,4 +1,4 @@
-import type { RevisionResolution } from './ooxml/revisions';
+import type { RevisionResolution, UnresolvedRevision } from './ooxml/revisions';
 import { DocumentAST, cloneAST } from './ast';
 import { refreshAstInPlace } from './ast-refresh';
 import { reconcileSections } from './parser/sections';
@@ -206,8 +206,10 @@ export interface ExecutionResult {
   revisionResolution?: RevisionResolution;
   /** Every revision id created by tracked edits in this batch, in operation order. */
   revisionIds?: number[];
-  /** R-1: accept remedy, present only when revisionsPending > 0. */
+  /** R-1: remedy, present only when revisionsPending > 0. Names acceptAll only when running it can still help. */
   revisionsRemedy?: string;
+  /** FX-07: revisions in `revisionsPending` that this batch's resolution tried and could not resolve. Absent when none. */
+  revisionsUnresolved?: number;
   /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
   /**
@@ -228,15 +230,46 @@ export interface ExecutionResult {
 /**
  * R-1: builds the pending-revisions remedy. Present only when count > 0.
  * Purely advisory — never flips trackChanges defaults, never auto-accepts.
+ *
+ * With `unresolved` (FX-07) the remedy describes what a resolution attempt could not do, and does
+ * not tell the caller to run acceptAll again: a second run cannot resolve the same revisions.
  */
-export function revisionsRemedy(count: number): string | undefined {
+export function revisionsRemedy(count: number, unresolved?: readonly UnresolvedRevision[]): string | undefined {
   if (!Number.isFinite(count) || count <= 0) return undefined;
   const n = Math.floor(count);
+  const list = unresolved ?? [];
+  const stuck = Math.min(n, list.reduce((sum, item) => sum + item.count, 0));
+  if (stuck <= 0) {
+    return (
+      `Document has ${n} pending tracked revision(s) (w:ins/w:del) — exports/PDFs will show redline markup. ` +
+      `Remedy: run { action: 'trackedChange', operation: 'acceptAll' } to accept, ` +
+      `or sanitize --accept-all-revisions before shipping a redline-free file.`
+    );
+  }
+  const shown = list.slice(0, 5).map(item =>
+    `${item.kind} x${item.count}${item.nodeId ? ` at ${item.nodeId}` : ''} (${item.reason})`).join('; ');
+  const more = list.length > 5 ? `; and ${list.length - 5} more` : '';
+  const free = n - stuck;
   return (
-    `Document has ${n} pending tracked revision(s) (w:ins/w:del) — exports/PDFs will show redline markup. ` +
-    `Remedy: run { action: 'trackedChange', operation: 'acceptAll' } to accept, ` +
-    `or sanitize --accept-all-revisions before shipping a redline-free file.`
+    `Document still has ${n} tracked revision element(s) (a move counts as each of its markers). ` +
+    `${stuck} cannot be resolved automatically: ${shown}${more}. ` +
+    `Running acceptAll or rejectAll again does not resolve them. ` +
+    (free > 0 ? `The other ${free} are not blocked. ` : '') +
+    `Resolve the listed revisions in Word, or edit the named paragraphs so the revision no longer applies, ` +
+    `before shipping a redline-free file. See revisionResolution.unresolved for each reason.`
   );
+}
+
+/**
+ * Sets revisionsPending, revisionsUnresolved and revisionsRemedy from the live document and the
+ * batch's resolution, so every exit path reports the same way.
+ */
+function applyRevisionReport(result: ExecutionResult, pending: number, resolution: RevisionResolution | undefined): void {
+  result.revisionsPending = pending;
+  const stuck = Math.min(pending, (resolution?.unresolved ?? []).reduce((sum, item) => sum + item.count, 0));
+  if (stuck > 0) result.revisionsUnresolved = stuck; else delete result.revisionsUnresolved;
+  const remedy = revisionsRemedy(pending, resolution?.unresolved);
+  if (remedy) result.revisionsRemedy = remedy; else delete result.revisionsRemedy;
 }
 
 /** Extracts advisory warnings from a routed op result (table/callout ops). */
@@ -511,9 +544,7 @@ export class OperationEngine {
         });
         // R-1: surface pre-batch pending revisions even on this early return
         // (no mutation happened, so this is the live remaining count).
-        result.revisionsPending = this.countPendingRevisions();
-        const earlyRemedy = revisionsRemedy(result.revisionsPending);
-        if (earlyRemedy) result.revisionsRemedy = earlyRemedy;
+        applyRevisionReport(result, this.countPendingRevisions(), undefined);
         return result;
       }
       if (OperationEngine.mintsNodeId(batch.operations[i]) && liveIdSet.has(customId)) {
@@ -523,9 +554,7 @@ export class OperationEngine {
           error: `[E_VALIDATION] Operation id '${customId}' collides with a live node id in this session.`,
           hint: `Ids are session-scoped and must be unique among live nodes. Omit 'id' to auto-generate a unique _bk_new_* id, or re-read ids via inspect_document and retry with a fresh id distinct from '${customId}'.`
         });
-        result.revisionsPending = this.countPendingRevisions();
-        const liveRemedy = revisionsRemedy(result.revisionsPending);
-        if (liveRemedy) result.revisionsRemedy = liveRemedy;
+        applyRevisionReport(result, this.countPendingRevisions(), undefined);
         return result;
       }
       pendingCustomIds.add(customId);
@@ -603,7 +632,11 @@ export class OperationEngine {
               for (const [k, v] of Object.entries(nextRes.byKind)) {
                 cur.byKind[k] = (cur.byKind[k] ?? 0) + v;
               }
-              cur.unresolved.push(...nextRes.unresolved);
+              for (const item of nextRes.unresolved) {
+                // The same stuck revision reported by two operations is one revision, not two.
+                const same = cur.unresolved.find(o => o.kind === item.kind && o.part === item.part && o.nodeId === item.nodeId && o.reason === item.reason);
+                if (same) same.count = Math.max(same.count, item.count); else cur.unresolved.push({ ...item });
+              }
               if (nextRes.removedNodeIds) {
                 cur.removedNodeIds ??= [];
                 for (const nid of nextRes.removedNodeIds) {
@@ -700,9 +733,7 @@ export class OperationEngine {
       this.validateASTIntegrity();
       batch.onProgress?.(result.appliedCount, sortedOps.length, 'completed');
       // R-1: remaining w:ins + w:del in the doc (batch-created + pre-existing).
-      result.revisionsPending = this.countPendingRevisions();
-      const okRemedy = revisionsRemedy(result.revisionsPending);
-      if (okRemedy) result.revisionsRemedy = okRemedy;
+      applyRevisionReport(result, this.countPendingRevisions(), result.revisionResolution);
       if (dryRun) {
         // Preview mode: the attempt above is the validation. Capture the
         // post-batch package for out-of-band checks, publish the preview,
@@ -719,10 +750,7 @@ export class OperationEngine {
         result.preview = buildDryRunPreview(dryRunBefore as Map<string, string>, dryRunTouched as string[], this.ast);
         await this.restoreAfterFailedBatch(snapshot, pkgSnap);
         this.history.splice(historyBase);
-        result.revisionsPending = this.countPendingRevisions();
-        const dryRemedy = revisionsRemedy(result.revisionsPending);
-        if (dryRemedy) result.revisionsRemedy = dryRemedy;
-        else delete result.revisionsRemedy;
+        applyRevisionReport(result, this.countPendingRevisions(), result.revisionResolution);
       }
 
     } catch (criticalErr: unknown) {
@@ -745,10 +773,7 @@ export class OperationEngine {
       result.warnings = [];
       result.possiblyStaleBodyRefs = [];
       // R-1: rewound state — report what remains after rollback, not the attempt.
-      result.revisionsPending = this.countPendingRevisions();
-      const rbRemedy = revisionsRemedy(result.revisionsPending);
-      if (rbRemedy) result.revisionsRemedy = rbRemedy;
-      else delete result.revisionsRemedy;
+      applyRevisionReport(result, this.countPendingRevisions(), undefined);
       // Pass the critical error into the result with the full diagnostic text:
       // stack (was message-only), the rollback sentence (was a console.warn),
       // and the no-parser legacy detail when that path was taken.

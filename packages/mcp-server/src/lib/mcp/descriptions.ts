@@ -127,7 +127,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'A file that already had validator errors when it was opened is saved when the edit adds none: the envelope then carries validation:{ok:false,tolerated:true,preExistingErrors,introducedErrors:0,messages}. ' +
       'An edit that adds an error is refused with E_VALIDATION naming both numbers. Pass {"strict":true} (or start the server with --strict-validation, or set ASTRA_STRICT_VALIDATION=1) to refuse every validator error as before. ' +
       'Paragraphs that share a w14:paraId are renumbered by the save: the first keeps its id, each later copy gets a new one and is listed in normalized, and the state before is recorded in the history (revert_document returns it); strict refuses such a document instead. ' +
-      'The success envelope also carries revisionsPending (tracked revisions left in the saved package) plus a revisionsRemedy naming accept when >0. ' +
+      'The success envelope also carries revisionsPending (every revision element left in the saved package; a move counts as each of its markers) plus a revisionsRemedy when >0. ' +
+      'After a trackedChange that left revisions it could not resolve, revisionsUnresolved counts them and the remedy lists kind and reason instead of repeating acceptAll. ' +
       'The success envelope also carries advisory changedValues [{nodeId,before,after}] (old saved text -> new live text, ' +
       `bounded: at most ${CHANGED_VALUES_MAX} entries, each side at most ${CHANGED_VALUE_TEXT_MAX} chars, truncated flag honest; ` +
       'empty + reason when no baseline is computable). ' +

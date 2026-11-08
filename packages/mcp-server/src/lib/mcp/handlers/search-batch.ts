@@ -224,8 +224,10 @@ export async function handleExecuteBatch(
         removedComments?: number[];
         staleLinks?: { bookmark: string; count: number }[];
       };
-      /** R-1: accept remedy, present only when revisionsPending > 0. */
+      /** R-1: remedy, present only when revisionsPending > 0. Names acceptAll only when running it can still help. */
       revisionsRemedy?: string;
+      /** FX-07: how many of revisionsPending the resolution in this batch could not resolve. Absent when none. */
+      revisionsUnresolved?: number;
       /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
       possiblyStaleBodyRefs: { nodeId: string; preview: string }[];
       /** Normalizer rewrites reported for this batch (display-only core log). */
@@ -445,7 +447,11 @@ export async function handleExecuteBatch(
       const batchRevisionsRemedy =
         typeof (res as { revisionsRemedy?: unknown }).revisionsRemedy === 'string'
           ? String((res as { revisionsRemedy: string }).revisionsRemedy)
-          : revisionsRemedy(batchRevisionsPending);
+          : revisionsRemedy(batchRevisionsPending, res.revisionResolution?.unresolved);
+      const batchRevisionsUnresolved =
+        typeof (res as { revisionsUnresolved?: unknown }).revisionsUnresolved === 'number'
+          ? (res as { revisionsUnresolved: number }).revisionsUnresolved
+          : 0;
       // R-14: carry the engine stale-refs array through (advisory, additive, same shape).
       const batchStaleRefs = Array.isArray((res as { possiblyStaleBodyRefs?: unknown }).possiblyStaleBodyRefs)
         ? ((res as { possiblyStaleBodyRefs: unknown[] }).possiblyStaleBodyRefs.filter(
@@ -474,6 +480,7 @@ export async function handleExecuteBatch(
         ...(res.revisionResolution ? { revisionResolution: res.revisionResolution } : {}),
         ...(res.revisionIds?.length ? { revisionIds: res.revisionIds } : {}),
         ...(batchRevisionsRemedy ? { revisionsRemedy: batchRevisionsRemedy } : {}),
+        ...(batchRevisionsUnresolved > 0 ? { revisionsUnresolved: batchRevisionsUnresolved } : {}),
         possiblyStaleBodyRefs: batchStaleRefs,
         // Display-only: engine result (no field yet) merged with the core
         // log from this batch's bookkeeping rezip.
