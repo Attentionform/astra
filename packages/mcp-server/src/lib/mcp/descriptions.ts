@@ -92,7 +92,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'Client-supplied op ids are honored where the schema allows (insert/equation/footnote/chart accept `id`; strict schemas reject it elsewhere). ' +
       'Style ops support word-level spans: `match` styles only the matched substring (run splitting; `matchAll` styles ' +
       'every occurrence, `matchCase:false` matches case-insensitively); an absent match fails with E_NOT_FOUND. ' +
-      'Returns {ok:true,appliedCount,revision,skippedIds,createdNodeIds,results:[{index,action,createdNodeIds}],revisionsPending,revisionsRemedy?} where createdNodeIds ' +
+      'Returns {ok:true,appliedCount,revision,skippedIds,createdNodeIds,results:[{index,action,createdNodeIds}],revisionsPending,revisionsUnresolved?,revisionsRemedy?} where createdNodeIds ' +
+      'After a trackedChange that left revisions it could not resolve, revisionsUnresolved counts them and revisionsRemedy lists kind, node and reason instead of repeating acceptAll. ' +
       'lists new node ids in document order (use them as anchors in the next batch without re-inspecting). ' +
       'A batch that drops a non-empty redo stack signals it (redoCleared:true + redoClearedWarning naming the depth): ' +
       'a fresh edit invalidates redo, so redo_document afterwards reports an empty stack. ' +
@@ -128,7 +129,6 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'An edit that adds an error is refused with E_VALIDATION naming both numbers. Pass {"strict":true} (or start the server with --strict-validation, or set ASTRA_STRICT_VALIDATION=1) to refuse every validator error as before. ' +
       'Paragraphs that share a w14:paraId are renumbered by the save: the first keeps its id, each later copy gets a new one and is listed in normalized, and the state before is recorded in the history (revert_document returns it); strict refuses such a document instead. ' +
       'The success envelope also carries revisionsPending (every revision element left in the saved package; a move counts as each of its markers) plus a revisionsRemedy when >0. ' +
-      'After a trackedChange that left revisions it could not resolve, revisionsUnresolved counts them and the remedy lists kind and reason instead of repeating acceptAll. ' +
       'The success envelope also carries advisory changedValues [{nodeId,before,after}] (old saved text -> new live text, ' +
       `bounded: at most ${CHANGED_VALUES_MAX} entries, each side at most ${CHANGED_VALUE_TEXT_MAX} chars, truncated flag honest; ` +
       'empty + reason when no baseline is computable). ' +
