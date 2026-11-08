@@ -669,7 +669,7 @@ Calculates document telemetry including word count, paragraph count, and an esti
 ---
 
 #### `sanitize_document`
-Removes personally identifiable metadata, editing session traces, revision histories, RSID markers, and comments from the document in-memory. With `acceptAllRevisions` it refuses, with `E_VALIDATION`, a document whose revision markup it cannot fully resolve (see **Review operations**).
+Removes personally identifiable metadata, editing session traces, revision histories, RSID markers, and comments from the document in-memory. With `acceptAllRevisions` it refuses, with `E_VALIDATION`, a document whose revision markup it cannot fully resolve (see **Review operations**). Accepting a deleted paragraph also deletes the comment threads anchored only inside it, and the comment parts go when no comment is left; a thread that is also anchored outside the deleted text makes it refuse (use `stripComments`).
 
 **Input Parameters:**
 | Parameter | Type | Required | Description |

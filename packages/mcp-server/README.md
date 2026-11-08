@@ -421,8 +421,8 @@ Scrub metadata, revision IDs, authors, comments, and PII from a document session
 | `purgeAuthors` | `boolean` | No | Strip author identity metadata. |
 | `purgeExif` | `boolean` | No | Strip metadata and EXIF profiles from embedded images. |
 | `purgePII` | `boolean` | No | Redact potential PII patterns from text and comments. |
-| `acceptAllRevisions` | `boolean` | No | Accept all tracked changes before scrubbing. Refuses with `E_VALIDATION` (no file) when revision markup remains that cannot be resolved. |
-| `stripComments` | `boolean` | No | Remove all comments and comment references. |
+| `acceptAllRevisions` | `boolean` | No | Accept all tracked changes before scrubbing. Refuses with `E_VALIDATION` (no file) when revision markup remains that cannot be resolved, or when a comment thread of a deleted paragraph is also anchored outside it (add `stripComments`). Comments of accepted deleted paragraphs are removed. |
+| `stripComments` | `boolean` | No | Remove all comments, comment references and every comment part (including comment IDs and timestamps). |
 | `replacementAuthor` | `string` | No | Author replacement string (≤ 256 chars). |
 | `allowMacros` | `boolean` | No | Preserve macro parts byte-for-byte during scrub. |
 | `stripMacros` | `boolean` | No | Strip macro parts during scrub. |

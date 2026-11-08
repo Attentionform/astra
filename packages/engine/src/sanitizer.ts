@@ -1,4 +1,6 @@
 import { resolveRevisions, type UnresolvedRevision } from './ooxml/revisions';
+import { commentThreadMap, commentThreadsCoveredBy, deleteCommentThread } from './ooxml/comments';
+import type { DocxZipAdapter } from './parser/types';
 import { z } from 'zod';
 import AdmZip from './adm-zip-safe';
 import { XMLSerializer } from '@xmldom/xmldom';
@@ -1404,7 +1406,8 @@ function redactSplitRunPiiInParagraph(inner: string, redact: boolean): { text: s
 export function sanitizeDocumentXml(
   xml: string,
   opts?: SanitizeOptions,
-  partName = 'word XML part'
+  partName = 'word XML part',
+  hooks?: RevisionCommentHooks
 ): {
   xml: string;
   removedRSIDs: number;
@@ -1414,6 +1417,7 @@ export function sanitizeDocumentXml(
   revisionByKind: Record<string, number>;
   strippedCommentRefs: number;
   bodyPII: number;
+  removedComments?: number[];
 } {
   assertNoForbiddenMarkup(xml, partName);
   const o = resolveOptions(opts);
@@ -1456,8 +1460,10 @@ export function sanitizeDocumentXml(
   let unresolvedRevisions: UnresolvedRevision[] = [];
   let revisionByKind: Record<string, number> = {};
   let strippedCommentRefs = 0;
+  let removedComments: number[] | undefined;
   if (o.acceptAllRevisions || o.stripComments) {
-    const r = applyRevisionAndCommentPass(out, o, partName);
+    const r = applyRevisionAndCommentPass(out, o, partName, hooks);
+    removedComments = r.removedComments;
     out = r.xml;
     acceptedRevisions = r.acceptedRevisions;
     unresolvedRevisions = r.unresolvedRevisions;
@@ -1511,7 +1517,7 @@ export function sanitizeDocumentXml(
       }
     }
   }
-  return { xml: out, removedRSIDs, purgedAuthors, acceptedRevisions, unresolvedRevisions, revisionByKind, strippedCommentRefs, bodyPII };
+  return { xml: out, removedRSIDs, purgedAuthors, acceptedRevisions, unresolvedRevisions, revisionByKind, strippedCommentRefs, bodyPII, ...(removedComments?.length ? { removedComments } : {}) };
 }
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -1524,14 +1530,20 @@ const COMMENT_REL_TYPES = new Set([
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments',
   'http://schemas.microsoft.com/office/2011/relationships/commentsExtended',
   'http://schemas.microsoft.com/office/2011/relationships/people',
+  'http://schemas.microsoft.com/office/2016/09/relationships/commentsIds',
+  'http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible',
 ]);
-const COMMENT_PART_NAMES = ['word/comments.xml', 'word/commentsExtended.xml', 'word/people.xml'];
+const COMMENT_PART_NAMES = [
+  'word/comments.xml', 'word/commentsExtended.xml', 'word/commentsIds.xml', 'word/commentsExtensible.xml', 'word/people.xml',
+];
 const COMMENT_PART_CTS = new Map([
   ['/word/comments.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml'],
   [
     '/word/commentsExtended.xml',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml',
   ],
+  ['/word/commentsIds.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml'],
+  ['/word/commentsExtensible.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtensible+xml'],
   ['/word/people.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.people+xml'],
 ]);
 const COMMENT_REF_LOCALS = ['commentRangeStart', 'commentRangeEnd', 'commentReference'];
@@ -1651,11 +1663,18 @@ function residualRevisionMarkup(doc: Document): string[] {
  * (byte-identical) when there is nothing to change. Fail-closed: malformed
  * XML under an active flag throws E_VALIDATION (never a silent clean report).
  */
+/** What the package-level sanitizer lends the per-part pass so comments follow the paragraphs that accepting revisions removes. */
+interface RevisionCommentHooks {
+  /** Whether comment threads anchored wholly inside removed text may go with it (see resolveRevisions). */
+  commentsOk?: (ids: number[]) => boolean;
+}
+
 function applyRevisionAndCommentPass(
   xml: string,
   o: { acceptAllRevisions: boolean; stripComments: boolean },
-  context = 'word XML part'
-): { xml: string; acceptedRevisions: number; unresolvedRevisions: UnresolvedRevision[]; revisionByKind: Record<string, number>; strippedCommentRefs: number } {
+  context = 'word XML part',
+  hooks?: RevisionCommentHooks
+): { xml: string; acceptedRevisions: number; unresolvedRevisions: UnresolvedRevision[]; revisionByKind: Record<string, number>; strippedCommentRefs: number; removedComments?: number[] } {
   assertNoForbiddenMarkup(xml, context);
   const none = { xml, acceptedRevisions: 0, unresolvedRevisions: [] as UnresolvedRevision[], revisionByKind: {} as Record<string, number>, strippedCommentRefs: 0 };
   const { head, body } = splitXmlProlog(xml);
@@ -1665,8 +1684,10 @@ function applyRevisionAndCommentPass(
   let revisionByKind: Record<string, number> = {};
   let strippedCommentRefs = 0;
   let modifiedRevisions = false;
+  let removedComments: number[] | undefined;
   if (o.acceptAllRevisions) {
-    const result = resolveRevisions([doc], 'accept', { removeDeletedCells: true, part: context });
+    const result = resolveRevisions([doc], 'accept', { removeDeletedCells: true, part: context, ...(hooks?.commentsOk ? { commentsOk: hooks.commentsOk } : {}) });
+    removedComments = result.removedComments;
     acceptedRevisions = result.resolved;
     unresolvedRevisions = result.unresolved;
     revisionByKind = result.byKind;
@@ -1677,7 +1698,7 @@ function applyRevisionAndCommentPass(
     if (residual.length) {
       throw Object.assign(new Error(
         `E_VALIDATION: Cannot sanitize ${context}: revision markup remains that accept-all cannot resolve safely (${residual.join(', ')}). ` +
-        'Remedy: accept or reject these revisions in Word, then sanitize again. Sanitizing without acceptAllRevisions can leave deleted content and reviewer names and dates in the file.'
+        'Remedy: accept or reject these revisions in Word, then sanitize again (or set stripComments when the cause is a comment that is also anchored outside the removed text). Sanitizing without acceptAllRevisions can leave deleted content and reviewer names and dates in the file.'
       ), { code: 'E_VALIDATION' });
     }
   }
@@ -1689,6 +1710,7 @@ function applyRevisionAndCommentPass(
     unresolvedRevisions,
     revisionByKind,
     strippedCommentRefs,
+    ...(removedComments?.length ? { removedComments } : {}),
   };
 }
 
@@ -2103,6 +2125,61 @@ export function sanitizeEmbeddedWorkbookBytes(
 const XML_PART_RE =
   /^(word\/document\.xml|word\/styles\.xml|word\/stylesWithEffects\.xml|word\/numbering\.xml|word\/comments\.xml|word\/commentsExtended\.xml|word\/footnotes\.xml|word\/endnotes\.xml|word\/settings\.xml|word\/header.*\.xml|word\/footer.*\.xml|word\/people\.xml|word\/customXml\/.*\.xml|word\/charts\/.*\.xml|word\/embeddings\/.*\.xml)$/i;
 
+/** A read/write view of a package map, so the comment helpers that work on a parser's zip can work on it. */
+function bufferZipAdapter(files: Map<string, Buffer>, touched?: Set<string>): DocxZipAdapter {
+  const write = (path: string, content: Buffer): void => {
+    files.set(path, content);
+    touched?.add(path);
+  };
+  return {
+    hasFile: path => files.has(path),
+    readText: path => {
+      const data = files.get(path);
+      if (!data) throw new Error(`E_VALIDATION: Part ${path} was not found.`);
+      return data.toString('utf8');
+    },
+    readTextOrNull: path => files.get(path)?.toString('utf8') ?? null,
+    writeText: (path, content) => write(path, Buffer.from(content, 'utf8')),
+    writeBuffer: (path, content) => write(path, Buffer.from(content)),
+  };
+}
+
+/**
+ * Deletes the comment threads that hold any of `ids` from the comment parts of `files`, and drops the
+ * whole comment family (parts, relationships, content types) when no comment is left. Returns how many
+ * comments were deleted. A thread is deleted whole, with its replies and its extended data.
+ */
+function deleteRemovedComments(files: Map<string, Buffer>, ids: ReadonlySet<number>, touched: Set<string>): number {
+  const zip = bufferZipAdapter(files, touched);
+  // The anchors went with the removed paragraphs, so the thread is deleted from the comment parts only.
+  const noMarkup = new DOMParser().parseFromString('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>', 'text/xml');
+  let deleted = 0;
+  for (const [root, members] of commentThreadMap(zip)) {
+    if (!members.some(member => ids.has(member))) continue;
+    deleteCommentThread(zip, noMarkup, root);
+    deleted += members.length;
+  }
+  if (/<w:comment[\s>]/.test(files.get('word/comments.xml')?.toString('utf8') ?? '')) return deleted;
+  // The last comment is gone: the family goes with it, as Word does.
+  const dropped = new Set(COMMENT_PART_NAMES.filter(name => files.has(name)));
+  for (const name of dropped) {
+    files.delete(name);
+    touched.add(name);
+    const relsName = `word/_rels/${name.split('/').pop()}.rels`;
+    if (files.has(relsName)) { files.delete(relsName); touched.add(relsName); }
+  }
+  for (const [name, data] of [...files]) {
+    if (name === '[Content_Types].xml') {
+      const r = stripCommentContentTypes(data.toString('utf8'), dropped);
+      if (r.removed) { files.set(name, Buffer.from(r.xml, 'utf8')); touched.add(name); }
+    } else if (name.endsWith('.rels')) {
+      const r = stripCommentRelationships(data.toString('utf8'), dropped, name);
+      if (r.removed) { files.set(name, Buffer.from(r.xml, 'utf8')); touched.add(name); }
+    }
+  }
+  return deleted;
+}
+
 /**
  * Sanitizes an in-memory package map (entry path -> bytes). Word XML parts
  * (document/styles/stylesWithEffects/numbering/comments/commentsExtended/footnotes/endnotes/
@@ -2200,7 +2277,7 @@ export function sanitizePackageEntries(
     const hasComments = current.has('word/comments.xml');
     for (const name of COMMENT_PART_NAMES) {
       if (!current.has(name)) continue;
-      if ((name === 'word/people.xml' || name === 'word/commentsExtended.xml') && !hasComments) {
+      if (name !== 'word/comments.xml' && !hasComments) {
         continue;
       }
       droppedCommentParts.add(name);
@@ -2218,6 +2295,18 @@ export function sanitizePackageEntries(
     strippedComments += droppedCommentParts.size + droppedOrphanRels.size;
   }
 
+  // Accepting revisions removes paragraphs; the comments anchored in them go too (as Word does), so
+  // their text, authors and dates do not outlive the text they were written about. The resolver asks
+  // first (commentsOk): a thread that is also anchored outside the removed text keeps the paragraph.
+  const removedCommentIds = new Set<number>();
+  const commentHooks: RevisionCommentHooks | undefined =
+    o.acceptAllRevisions && !o.stripComments && current.has('word/comments.xml')
+      ? (() => {
+          const threads = commentThreadMap(bufferZipAdapter(current));
+          return { commentsOk: (ids: number[]) => commentThreadsCoveredBy(threads, ids) };
+        })()
+      : undefined;
+
   for (const [name, data] of current) {
     if (droppedCommentParts.has(name) || droppedOrphanRels.has(name)) continue;
     if (isDroppedEntry(name)) {
@@ -2227,7 +2316,8 @@ export function sanitizePackageEntries(
     if (XML_PART_RE.test(name)) {
       scanned.add(name);
       const xml = data.toString('utf8');
-      const r = sanitizeDocumentXml(xml, o, name);
+      const r = sanitizeDocumentXml(xml, o, name, commentHooks);
+      for (const id of r.removedComments ?? []) removedCommentIds.add(id);
       removedRSIDs += r.removedRSIDs;
       purgedAuthors += r.purgedAuthors;
       acceptedRevisions += r.acceptedRevisions;
@@ -2309,6 +2399,10 @@ export function sanitizePackageEntries(
       // --strip-macros removes them. Only macro-free parts flow here.
       out.set(name, Buffer.from(data));
     }
+  }
+
+  if (removedCommentIds.size > 0 && out.has('word/comments.xml')) {
+    strippedComments += deleteRemovedComments(out, removedCommentIds, touched);
   }
 
   return {

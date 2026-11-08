@@ -1,6 +1,6 @@
 import { firstFreeRevisionId, maxRevisionId, REVISION_TAGS, takeRevisionId } from './ooxml/revision-ids';
 import { countRevisions, resolveRevisions, listRevisions, readRevision, expandMoveSelection, type RevisionResolution, type RevisionSelector } from './ooxml/revisions';
-import { deleteCommentThread, listComments } from './ooxml/comments';
+import { commentThreadMap, commentThreadsCoveredBy, deleteCommentThread, listComments } from './ooxml/comments';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from './adm-zip-safe';
@@ -3612,36 +3612,12 @@ export class DocxParser {
 
   /** The thread of a comment: its root and every reply below it. */
   private commentThreads(): Map<number, number[]> {
-    const records = listComments(this.getZipAdapter());
-    const byPara = new Map(records.filter(r => r.paraId).map(r => [r.paraId, r]));
-    const rootOf = (record: typeof records[number]): typeof records[number] | null => {
-      let current = record;
-      for (let i = 0; i < records.length; i++) {
-        if (!current.paraIdParent) return current;
-        const parent = byPara.get(current.paraIdParent);
-        if (!parent) return null;
-        current = parent;
-      }
-      return null;
-    };
-    const threads = new Map<number, number[]>();
-    for (const record of records) {
-      const root = rootOf(record);
-      if (!root) continue;
-      threads.set(root.id, [...(threads.get(root.id) ?? []), record.id]);
-    }
-    return threads;
+    return commentThreadMap(this.getZipAdapter());
   }
 
   /** True when every comment thread touched by these anchor ids has all of its comments among them. */
   private commentThreadsCovered(ids: number[]): boolean {
-    const wanted = new Set(ids);
-    const threads = this.commentThreads();
-    for (const id of wanted) {
-      const thread = [...threads.values()].find(members => members.includes(id));
-      if (!thread || !thread.every(member => wanted.has(member))) return false;
-    }
-    return true;
+    return commentThreadsCoveredBy(this.commentThreads(), ids);
   }
 
   private deleteCommentsOfRemovedAnchors(ids: number[]): void {

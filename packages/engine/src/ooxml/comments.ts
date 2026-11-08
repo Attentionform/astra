@@ -191,6 +191,39 @@ export function setCommentResolved(zip: DocxZipAdapter, id: number, done: boolea
  * that a generator did not write (commentsExtended, commentsIds, commentsExtensible, a paragraph id) are
  * skipped. References that contradict each other make the call fail with no change.
  */
+/** Every comment thread as root comment id -> ids of the root and each reply below it. */
+export function commentThreadMap(zip: DocxZipAdapter): Map<number, number[]> {
+  const records = listComments(zip);
+  const byPara = new Map(records.filter(r => r.paraId).map(r => [r.paraId, r]));
+  const rootOf = (record: CommentRecord): CommentRecord | null => {
+    let current = record;
+    for (let i = 0; i < records.length; i++) {
+      if (!current.paraIdParent) return current;
+      const parent = byPara.get(current.paraIdParent);
+      if (!parent) return null;
+      current = parent;
+    }
+    return null;
+  };
+  const threads = new Map<number, number[]>();
+  for (const record of records) {
+    const root = rootOf(record);
+    if (!root) continue;
+    threads.set(root.id, [...(threads.get(root.id) ?? []), record.id]);
+  }
+  return threads;
+}
+
+/** True when every thread that holds one of these comment ids has all of its comments among them. */
+export function commentThreadsCoveredBy(threads: Map<number, number[]>, ids: readonly number[]): boolean {
+  const wanted = new Set(ids);
+  for (const id of wanted) {
+    const thread = [...threads.values()].find(members => members.includes(id));
+    if (!thread || !thread.every(member => wanted.has(member))) return false;
+  }
+  return true;
+}
+
 export function deleteCommentThread(zip: DocxZipAdapter, document: Document, id: number): void {
   const records = listComments(zip);
   const root = records.find(c => c.id === id);
