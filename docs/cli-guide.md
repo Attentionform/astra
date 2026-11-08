@@ -295,7 +295,9 @@ astra sanitize internal_draft.docx legal_submittal.docx --metadata-only
 |---|:---:|:---:|:---:|:---:|:---:|
 | Bare `sanitize` | Scrubbed | Scrubbed | Scrubbed | Accepted | **Preserved** |
 | `--client-safe` | Scrubbed | Scrubbed | Scrubbed | Accepted | **Redacted** |
-| `--metadata-only` | Scrubbed | Scrubbed | Preserved | Preserved | **Preserved** |
+| `--metadata-only` | Scrubbed | Scrubbed | Scrubbed | Accepted | **Preserved** |
+
+`--metadata-only` is the same as bare `sanitize`: comments are scrubbed and tracked changes are accepted, so deleted text is removed and the body text that remains is kept. It does not preserve review history. If a tracked change cannot be accepted safely, the command fails with `E_VALIDATION` and writes no file. To keep tracked changes, pass only the individual flags you want (for example `--strip-comments` alone leaves tracked changes in place); bare, `--metadata-only`, `--client-safe` and `--redact-pii` all accept them.
 
 **Additional Options:**
 | Flag | Description |
@@ -303,7 +305,7 @@ astra sanitize internal_draft.docx legal_submittal.docx --metadata-only
 | `--zero-retention` | Cleans document properties and sets empty creator tags. |
 | `--replacement-author <name>` | Replaces revision author tags with a generic moniker (e.g. `"Reviewer"`). |
 | `--accept-all-revisions` | Force-accepts all tracked insertions and deletions. If revision markup remains that cannot be resolved safely, the command fails with `E_VALIDATION` (exit code 1), names the part and the kinds, and writes no output file. Bare `sanitize`, `--client-safe` and `--metadata-only` accept revisions as well and fail the same way. |
-| `--strip-comments` | Strips all comments and comment relationship files. |
+| `--strip-comments` | Strips all comments and every comment part (comments, extended, IDs, extensible and people), with their relationships and content types. |
 
 ---
 
