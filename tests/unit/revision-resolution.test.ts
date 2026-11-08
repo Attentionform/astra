@@ -194,14 +194,25 @@ describe('revision resolution', () => {
     expect(parser.getDocumentDom().getElementsByTagName('w:tblPrEx')[0].getElementsByTagName('w:tblW')[0].getAttribute('w:w')).toBe('2000');
   });
 
-  it('reports custom XML revision ranges instead of silently hiding them', async () => {
+  it('accepts custom XML insert ranges by dropping the markers and keeping the content', async () => {
     const body = '<w:p><w:customXmlInsRangeStart w:id="19" w:author="Alice"/><w:r><w:t>Value</w:t></w:r><w:customXmlInsRangeEnd w:id="19"/></w:p>';
+    const parser = new DocxParser(documentWithRevisions(body));
+    const ast = await parser.getAST();
+    const result = await new OperationEngine(ast, parser).executeBatch({operations:[{action:'trackedChange',operation:'acceptAll'}]} as never);
+    expect(result.revisionsPending).toBe(0);
+    expect(result.revisionResolution?.unresolved).toHaveLength(0);
+    expect(parser.getDocumentDom().getElementsByTagName('w:customXmlInsRangeStart').length).toBe(0);
+    expect(parser.getDocumentDom().getElementsByTagName('w:t')[0].textContent).toBe('Value');
+  });
+
+  it('reports custom XML delete ranges around content instead of silently hiding them', async () => {
+    const body = '<w:p><w:customXmlDelRangeStart w:id="19" w:author="Alice"/><w:r><w:t>Value</w:t></w:r><w:customXmlDelRangeEnd w:id="19"/></w:p>';
     const parser = new DocxParser(documentWithRevisions(body));
     const ast = await parser.getAST();
     const result = await new OperationEngine(ast, parser).executeBatch({operations:[{action:'trackedChange',operation:'acceptAll'}]} as never);
     expect(result.revisionsPending).toBe(2);
     expect(result.revisionResolution?.unresolved).toHaveLength(2);
-    expect(parser.getDocumentDom().getElementsByTagName('w:customXmlInsRangeStart').length).toBe(1);
+    expect(parser.getDocumentDom().getElementsByTagName('w:customXmlDelRangeStart').length).toBe(1);
   });
 
   it('leaves every part of a move group intact when nested revisions are unsupported', async () => {

@@ -1,5 +1,4 @@
 import { resolveRevisions, type UnresolvedRevision } from './ooxml/revisions';
-import { REVISION_TAGS } from './ooxml/revision-ids';
 import { z } from 'zod';
 import AdmZip from './adm-zip-safe';
 import { XMLSerializer } from '@xmldom/xmldom';
@@ -1619,6 +1618,34 @@ function stripCommentRefsInDom(doc: Document): number {
 }
 
 /**
+ * Every revision element and marker that carries reviewer identity or deleted content. Kept apart from
+ * REVISION_TAGS on purpose: this list defines what must not survive a privacy sanitize. The sanitizer
+ * recognizes exactly these names and makes no claim about extensions it does not know.
+ */
+const RESIDUAL_REVISION_MARKUP: ReadonlySet<string> = new Set([
+  'ins', 'del', 'moveFrom', 'moveTo',
+  'moveFromRangeStart', 'moveFromRangeEnd', 'moveToRangeStart', 'moveToRangeEnd',
+  'customXmlInsRangeStart', 'customXmlInsRangeEnd', 'customXmlDelRangeStart', 'customXmlDelRangeEnd',
+  'customXmlMoveFromRangeStart', 'customXmlMoveFromRangeEnd', 'customXmlMoveToRangeStart', 'customXmlMoveToRangeEnd',
+  'cellIns', 'cellDel', 'cellMerge',
+  'rPrChange', 'pPrChange', 'sectPrChange', 'tblPrChange', 'tblPrExChange', 'tblGridChange',
+  'tcPrChange', 'trPrChange', 'tPrChange', 'numberingChange',
+]);
+
+/** Names of revision elements left in a document, with counts, for the error message. */
+function residualRevisionMarkup(doc: Document): string[] {
+  const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const counts = new Map<string, number>();
+  for (const el of Array.from(doc.getElementsByTagName('*'))) {
+    const local = el.localName || el.tagName.split(':').pop() || '';
+    if (!RESIDUAL_REVISION_MARKUP.has(local)) continue;
+    if (el.namespaceURI !== W && !el.tagName.startsWith('w:')) continue;
+    counts.set(local, (counts.get(local) ?? 0) + 1);
+  }
+  return [...counts].map(([name, count]) => `${count} ${name}`);
+}
+
+/**
  * Shared revision/comment pass for every word XML part (document, headers,
  * footers, styles, numbering, …). Returns the input string untouched
  * (byte-identical) when there is nothing to change. Fail-closed: malformed
@@ -1644,27 +1671,14 @@ function applyRevisionAndCommentPass(
     unresolvedRevisions = result.unresolved;
     revisionByKind = result.byKind;
     if (acceptedRevisions > 0) modifiedRevisions = true;
-    // Privacy sanitizer guarantee: strip author and date from any surviving revision markup
-    const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-    for (const tag of REVISION_TAGS) {
-      for (const el of Array.from(doc.getElementsByTagNameNS(W_NS, tag))) {
-        if (el.hasAttributeNS(W_NS, 'author') || el.hasAttribute('w:author') || el.hasAttributeNS(W_NS, 'date') || el.hasAttribute('w:date')) {
-          el.removeAttributeNS(W_NS, 'author');
-          el.removeAttributeNS(W_NS, 'date');
-          el.removeAttribute('w:author');
-          el.removeAttribute('w:date');
-          modifiedRevisions = true;
-        }
-      }
-      for (const el of Array.from(doc.getElementsByTagName(`w:${tag}`))) {
-        if (el.hasAttributeNS(W_NS, 'author') || el.hasAttribute('w:author') || el.hasAttributeNS(W_NS, 'date') || el.hasAttribute('w:date')) {
-          el.removeAttributeNS(W_NS, 'author');
-          el.removeAttributeNS(W_NS, 'date');
-          el.removeAttribute('w:author');
-          el.removeAttribute('w:date');
-          modifiedRevisions = true;
-        }
-      }
+    // Fail closed. Anything the resolver could not handle still holds deleted text or reviewer
+    // metadata, so the sanitizer returns no file instead of a partly cleaned one.
+    const residual = residualRevisionMarkup(doc);
+    if (residual.length) {
+      throw Object.assign(new Error(
+        `E_VALIDATION: Cannot sanitize ${context}: revision markup remains that accept-all cannot resolve safely (${residual.join(', ')}). ` +
+        'Remedy: accept or reject these revisions in Word, then sanitize again. Sanitizing without acceptAllRevisions can leave deleted content and reviewer names and dates in the file.'
+      ), { code: 'E_VALIDATION' });
     }
   }
   if (o.stripComments) strippedCommentRefs = stripCommentRefsInDom(doc);

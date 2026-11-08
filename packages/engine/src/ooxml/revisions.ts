@@ -220,11 +220,31 @@ export function resolveRevisions(documents: readonly Document[], mode: 'accept' 
       }
       return false;
     };
+    // A marker pass can detach whole subtrees that still hold revision elements; those are already gone.
+    const isAttached = (element: Element): boolean => {
+      let node: Node | null = element;
+      while (node.parentNode) node = node.parentNode;
+      return node === doc;
+    };
+    const isUnselectedRevision = (element: Element): boolean =>
+      !!options.selected && element.namespaceURI === W_NS && REVISION_NAMES.has(element.localName) && !options.selected.has(element);
+    const matchingRangeStart = (end: Element): Element | null => {
+      const wanted = end.localName.replace('RangeEnd', 'RangeStart');
+      const id = end.getAttributeNS(W_NS, 'id');
+      for (let node: Node | null = end.previousSibling; node; node = node.previousSibling) {
+        if (node.nodeType === 1 && (node as Element).namespaceURI === W_NS && (node as Element).localName === wanted && (node as Element).getAttributeNS(W_NS, 'id') === id) return node as Element;
+      }
+      return null;
+    };
+    const everyBetween = (start: Node, end: Node, test: (node: Node) => boolean): boolean => {
+      for (let node: Node | null = start.nextSibling; node && node !== end; node = node.nextSibling) if (!test(node)) return false;
+      return true;
+    };
     const moveGroups = findMoveGroups(doc);
     const elements = Array.from(doc.getElementsByTagName('*')).filter(el => el.namespaceURI === W_NS && REVISION_NAMES.has(el.localName));
     for (const el of elements.reverse()) {
       if (options.selected && !options.selected.has(el)) continue;
-      if (!el.parentNode) continue;
+      if (!el.parentNode || !isAttached(el)) continue;
       const kind = el.localName;
       const parent = el.parentNode as Element;
       const parentKind = local(parent);
@@ -322,6 +342,44 @@ export function resolveRevisions(documents: readonly Document[], mode: 'accept' 
             parent.removeChild(el);
           }
         }
+      } else if (/^customXml(Ins|MoveTo)Range(Start|End)$/.test(kind) && mode === 'accept') {
+        // The markers only delimit content that stays. Drop them and keep the content.
+        parent.removeChild(el);
+      } else if (kind === 'customXmlInsRangeEnd' && mode === 'reject') {
+        const start = matchingRangeStart(el);
+        if (!start) {
+          reason = 'the matching start marker is missing or in another container';
+          supported = false;
+        } else {
+          const between: Node[] = [];
+          for (let node: Node | null = start.nextSibling; node && node !== el; node = node.nextSibling) between.push(node);
+          if (between.some(node => node.nodeType === 1 && (pending.has(node as Element) || containsPending(node as Element) || isUnselectedRevision(node as Element)))) {
+            reason = 'the inserted content holds revisions that cannot be resolved';
+            supported = false;
+          } else {
+            for (const node of between) parent.removeChild(node);
+            parent.removeChild(start);
+            parent.removeChild(el);
+          }
+        }
+      } else if (kind === 'customXmlInsRangeStart' && mode === 'reject') {
+        // Resolved together with its end marker, which is visited first.
+        reason = 'the matching end marker is missing or in another container';
+        supported = false;
+      } else if (/^customXml(Del|MoveFrom)RangeEnd$/.test(kind)) {
+        const start = matchingRangeStart(el);
+        const empty = start && everyBetween(start, el, node => node.nodeType !== 1 && !(node.textContent ?? '').trim());
+        if (start && empty) {
+          for (let node: Node | null = start.nextSibling; node && node !== el;) { const next: Node | null = node.nextSibling; parent.removeChild(node); node = next; }
+          parent.removeChild(start);
+          parent.removeChild(el);
+        } else {
+          reason = 'customXml markers around deleted or moved content are not supported';
+          supported = false;
+        }
+      } else if (/^customXml(Del|MoveFrom)RangeStart$/.test(kind)) {
+        reason = 'customXml markers around deleted or moved content are not supported';
+        supported = false;
       } else {
         supported = false;
       }

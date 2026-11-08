@@ -342,10 +342,10 @@ describe('Phase D sanitization closure: accept-all-revisions + strip-comments', 
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it('acceptAll reports and preserves unpaired moves', () => {
+  it('acceptAll refuses unpaired moves instead of returning a partly cleaned part', () => {
     const SECRET_MOVE = 'LEAK-MOVE-FROM-8m2x';
     const KEPT_MOVE = 'kept-move-to-9t4y';
-    const r = sanitizeDocumentXml(
+    const xml =
       `<w:p xmlns:w="${W_NS}">` +
         `<w:moveFrom w:id="1" w:author="Mallory" w:date="2026-01-02T00:00:00Z"><w:r><w:t>${SECRET_MOVE}</w:t></w:r></w:moveFrom>` +
         `<w:moveTo w:id="2" w:author="Mallory" w:date="2026-01-02T00:00:00Z"><w:r><w:t>${KEPT_MOVE}</w:t></w:r></w:moveTo>` +
@@ -353,18 +353,9 @@ describe('Phase D sanitization closure: accept-all-revisions + strip-comments', 
         `<w:moveFromRangeEnd w:id="3" w:name="m1"/>` +
         `<w:moveToRangeStart w:id="4" w:author="Mallory" w:date="2026-01-02T00:00:00Z" w:name="m2"/>` +
         `<w:moveToRangeEnd w:id="4" w:name="m2"/>` +
-        `</w:p>`,
-      { acceptAllRevisions: true }
-    );
-    expect(r.acceptedRevisions).toBe(0);
-    expect(r.xml).toContain(SECRET_MOVE);
-    expect(r.xml).toContain(KEPT_MOVE);
-    expect(r.xml).toContain('moveFromRangeStart');
-    expect(r.xml).toContain('moveToRangeEnd');
-    expect(r.unresolvedRevisions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'moveFrom' }),
-      expect.objectContaining({ kind: 'moveTo' }),
-    ]));
+        `</w:p>`;
+    expect(() => sanitizeDocumentXml(xml, { acceptAllRevisions: true })).toThrow(/E_VALIDATION.*moveFrom.*moveTo/s);
+    expect(() => sanitizeDocumentXml(xml, { acceptAllRevisions: true })).toThrow(/without acceptAllRevisions/);
   });
 
   it('acceptAll closure: cellIns/cellMerge kept, cellDel drops its cell', () => {
