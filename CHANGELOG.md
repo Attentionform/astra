@@ -8,7 +8,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [0.3.0] - 2026-11-10
 
-The four npm packages move to 0.3.0. Native validator platform packages remain at 0.2.1; the native validator is unchanged.
+All ten npm packages move to 0.3.0, including the six native validator platform packages. The native validator source is unchanged; the platform packages are rebuilt so that they carry the licence terms for new versions.
 
 ### Added
 
