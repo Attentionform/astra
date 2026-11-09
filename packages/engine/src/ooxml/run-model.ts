@@ -1,10 +1,10 @@
 import { ommlToLatex } from './omml';
-import { createWordElement, stampRevision } from './ns';
+import { WORD_NS, createWordElement, stampRevision } from './ns';
 import { wordDiff } from './track-changes-emitter';
 
 type DiffChunk = { type: 'equal' | 'delete' | 'insert'; text: string };
 interface Segment { run: Element; start: number; end: number }
-interface Opaque { kind: 'field' | 'math' | 'sdt' | 'object' | 'hidden'; start: number; end: number; elements: Element[] }
+interface Opaque { kind: 'field' | 'math' | 'sdt' | 'object' | 'hidden' | 'ruby'; start: number; end: number; elements: Element[] }
 export interface RunModel { paragraph: Element; segments: Segment[]; opaque: Opaque[]; text: string }
 export interface RunEditOptions { tracked: boolean; author: string; date: string; nextId: () => number; includeEmptyFields?: boolean;
   /** A tracked delete of the whole paragraph may wrap a run that holds a text box or drawing that contains text. */
@@ -13,6 +13,28 @@ export interface RunEditOptions { tracked: boolean; author: string; date: string
 const kids = (el: Element): Element[] => Array.from(el.childNodes).filter((n): n is Element => n.nodeType === 1);
 const name = (el: Element): string => el.localName || el.tagName.split(':').pop() || '';
 const textOf = (run: Element): string => kids(run).filter(el => name(el) === 't').map(el => el.textContent ?? '').join('');
+
+/**
+ * Copy of a run's properties for a run that continues the same text (one half of a split). A tracked formatting
+ * change (w:rPrChange) is a revision with its own id, so each copy gets a fresh id and the file keeps unique ids.
+ * Author, date and the old properties stay: the same formatting change now covers each part.
+ */
+function copyProperties(properties: Element, nextId: () => number): Element {
+  const copy = properties.cloneNode(true) as Element;
+  for (const change of Array.from(copy.childNodes)) {
+    if (change.nodeType === 1 && name(change as Element) === 'rPrChange') (change as Element).setAttributeNS(WORD_NS, 'w:id', String(nextId()));
+  }
+  return copy;
+}
+
+/** Copy of a run's properties for new text: the new text was not reformatted by a reviewer, so no formatting change is carried over. */
+function propertiesForNewText(properties: Element): Element {
+  const copy = properties.cloneNode(true) as Element;
+  for (const change of Array.from(copy.childNodes)) {
+    if (change.nodeType === 1 && name(change as Element) === 'rPrChange') copy.removeChild(change);
+  }
+  return copy;
+}
 
 const SAFE_ATOMS = new Set([
   'tab', 'br', 'cr', 'drawing', 'pict', 'object',
@@ -29,6 +51,7 @@ const GENERIC_REMEDY = 'Remedy: edit around the affected structure or replace th
 // Replacing the whole paragraph is refused for these two as well, so the generic remedy would send the caller in a circle.
 const INLINE_OBJECT_REMEDY = 'Remedy: edit the text outside the content control or equation, delete the whole paragraph with trackChanges false, or make the change in Word.';
 const SIMPLE_FIELD_REMEDY = 'Remedy: edit the text outside the field, or make the change in Word.';
+const RUBY_REMEDY = 'Remedy: edit the text outside the ruby text, delete the whole paragraph with trackChanges false, or make the change in Word.';
 
 /** Refuses an edit before anything changes. `remedy` is the full sentence; `null` means the reason already says what to do. */
 function unsupported(reason: string, remedy: string | null = GENERIC_REMEDY): never {
@@ -61,7 +84,19 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
           continue;
         }
         if (parts.some(el => name(el) === 'fldChar' || name(el) === 'instrText')) unsupported(FIELD_SPAN, null);
-        if (parts.some(el => name(el) !== 't' && !safeAtoms.has(name(el)))) unsupported('a run contains an unsupported field marker');
+        if (parts.some(el => name(el) === 'ruby')) {
+          // Ruby text (furigana): the stored paragraph text counts the annotation and the base text, so the model counts both
+          // as one block that no edit may cut. The text around it can be edited.
+          if (parts.some(el => name(el) !== 'ruby' && name(el) !== 't') || parts.some(el => name(el) === 't')) unsupported('a run holds ruby text together with other content; edit the other runs', RUBY_REMEDY);
+          const hidden = parts.map(wordText).join('');
+          if (hidden) {
+            opaque.push({kind:'ruby', start:text.length, end:text.length + hidden.length, elements:[child]});
+            text += hidden;
+          }
+          continue;
+        }
+        const unknown = parts.find(el => name(el) !== 't' && !safeAtoms.has(name(el)));
+        if (unknown) unsupported(`a run contains an element that the editor does not model (w:${name(unknown)})`);
         const content = parts.filter(el => name(el) === 't').map(el => el.textContent ?? '').join('');
         // A text box or drawing keeps its text in w:t elements below the run. The stored paragraph text
         // counts them, so the model counts them too, as one block that no edit may cut.
@@ -83,7 +118,9 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
         const value = `\\(${latex}\\)`;
         opaque.push({kind:'math', start:text.length, end:text.length + value.length, elements:[child]});
         text += value;
-      } else if (tag === 'hyperlink' || tag === 'smartTag' || tag === 'ins') {
+      } else if (tag === 'hyperlink' || tag === 'smartTag' || tag === 'ins' || tag === 'bdo' || tag === 'dir' || tag === 'customXml') {
+        // Wrappers that hold ordinary runs. A run that an edit splits stays inside its wrapper, because the split
+        // inserts the new run into the run's own parent.
         visit(child);
       } else if (tag === 'AlternateContent') {
         const hidden = wordText(child);
@@ -100,7 +137,7 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
         }
       } else if (tag === 'moveFrom' || tag === 'moveTo' || tag.startsWith('moveFromRange') || tag.startsWith('moveToRange')) {
         unsupported(PARTIAL_MOVE, null);
-      } else if (tag === 'pPr' || tag === 'proofErr' || tag.startsWith('bookmark') || tag.startsWith('commentRange')) {
+      } else if (tag === 'pPr' || tag === 'proofErr' || tag.startsWith('bookmark') || tag.startsWith('commentRange') || tag === 'permStart' || tag === 'permEnd') {
         continue;
       } else {
         unsupported(`unsupported ${child.tagName} structure`);
@@ -144,7 +181,7 @@ function setText(run: Element, text: string, deleted = false): void {
 }
 
 /** Split mixed text/object runs at child boundaries while retaining each atom. */
-function separateMixedRuns(model: RunModel, changes: readonly {type: DiffChunk['type']; text: string; at: number}[]): void {
+function separateMixedRuns(model: RunModel, changes: readonly {type: DiffChunk['type']; text: string; at: number}[], nextId: () => number): void {
   for (const segment of [...model.segments]) {
     const run = segment.run;
     const parts = kids(run).filter(el => name(el) !== 'rPr');
@@ -156,9 +193,9 @@ function separateMixedRuns(model: RunModel, changes: readonly {type: DiffChunk['
     const parent = run.parentNode;
     if (!parent) continue;
     const properties = kids(run).find(el => name(el) === 'rPr');
-    for (const child of parts) {
+    for (const [index, child] of parts.entries()) {
       const next = run.cloneNode(false) as Element;
-      if (properties) next.appendChild(properties.cloneNode(true));
+      if (properties) next.appendChild(index === 0 ? properties.cloneNode(true) : copyProperties(properties, nextId));
       next.appendChild(child);
       parent.insertBefore(next, run);
     }
@@ -169,13 +206,15 @@ function separateMixedRuns(model: RunModel, changes: readonly {type: DiffChunk['
   model.opaque = refreshed.opaque;
 }
 
-function splitAt(segments: Segment[], offset: number): void {
+function splitAt(segments: Segment[], offset: number, nextId: () => number): void {
   const i = segments.findIndex(segment => segment.start < offset && offset < segment.end);
   if (i < 0) return;
   const segment = segments[i];
   const current = textOf(segment.run);
   const index = offset - segment.start;
   const clone = segment.run.cloneNode(true) as Element;
+  const cloneProps = kids(clone).find(el => name(el) === 'rPr');
+  if (cloneProps) clone.replaceChild(copyProperties(cloneProps, nextId), cloneProps);
   setText(segment.run, current.slice(0, index));
   setText(clone, current.slice(index));
   segment.run.parentNode!.insertBefore(clone, segment.run.nextSibling);
@@ -227,6 +266,7 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
           ? 'the changed span would cut or remove a text box or drawing that contains text; edit the text outside it'
           : 'the changed span reaches text inside a deleted revision; accept or reject that revision first');
       }
+      if (item.kind === 'ruby') unsupported('the changed span would cut or remove ruby text (furigana)', RUBY_REMEDY);
       const wholeField = chunk.type === 'delete' && item.kind === 'field' && chunk.at <= item.start && end >= item.end;
       if (!wholeField) {
         if (item.kind === 'math' || item.kind === 'sdt') unsupported(item.kind === 'math' ? 'paragraph contains math in the changed span' : 'the changed span cuts through sdt', INLINE_OBJECT_REMEDY);
@@ -285,7 +325,7 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       ids.push(...reserved);
     }
   }
-  separateMixedRuns(model, positions);
+  separateMixedRuns(model, positions, options.nextId);
   const segments = model.segments;
   for (const chunk of positions.reverse()) {
     if (chunk.type === 'equal') continue;
@@ -293,8 +333,8 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
     let used = 0;
     if (chunk.type === 'delete') {
       const end = chunk.at + chunk.text.length;
-      splitAt(segments, chunk.at);
-      splitAt(segments, end);
+      splitAt(segments, chunk.at, options.nextId);
+      splitAt(segments, end, options.nextId);
       const fieldElements = model.opaque
         .filter(value => fieldInDelete(value, chunk.at, end))
         .flatMap(value => value.elements.map(element => ({element, field:value.kind === 'field'})));
@@ -328,13 +368,13 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
         } else parent.removeChild(element);
       }
     } else {
-      splitAt(segments, chunk.at);
+      splitAt(segments, chunk.at, options.nextId);
       const previous = segments.find(s => s.end === chunk.at && s.end > s.start);
       const ref = previous ?? segments.find(s => s.start === chunk.at);
       const doc = model.paragraph.ownerDocument!;
       const run = createWordElement(doc, 'w:r');
       const properties = ref && kids(ref.run).find(el => name(el) === 'rPr');
-      if (properties) run.appendChild(properties.cloneNode(true));
+      if (properties) run.appendChild(propertiesForNewText(properties));
       setText(run, chunk.text);
       let inserted: Element = run;
       if (options.tracked) {

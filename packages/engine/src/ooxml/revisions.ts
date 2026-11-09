@@ -241,11 +241,15 @@ const ZERO_WIDTH = new Set([
   'moveFromRangeStart', 'moveFromRangeEnd', 'moveToRangeStart', 'moveToRangeEnd', 'permStart', 'permEnd',
 ]);
 
+const TEXT_CONTAINERS = new Set(['hyperlink', 'smartTag', 'bdo', 'dir', 'customXml']);
+
 /** True when every child of the paragraph is its properties, a zero-width marker, a run that only carries a comment reference, or one of `wrappers`. */
 function onlyWrapped(paragraph: Element, wrappers: readonly string[]): boolean {
   return children(paragraph).every(child => {
     if (child.namespaceURI !== W_NS) return false;
     if (child.localName === 'pPr' || ZERO_WIDTH.has(child.localName) || wrappers.includes(child.localName)) return true;
+    // A container that only groups runs (the deleted runs of a deleted paragraph can sit inside a hyperlink, as Word writes them).
+    if (TEXT_CONTAINERS.has(child.localName)) return onlyWrapped(child, wrappers);
     return child.localName === 'r' && children(child).every(part => part.localName === 'rPr' || part.localName === 'commentReference');
   });
 }
