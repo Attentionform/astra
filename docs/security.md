@@ -104,6 +104,13 @@ When configured in client-safe mode, ASTra redacts sensitive Personally Identifi
 - Detects and redacts telephone numbers, email addresses, US social security numbers and credit card numbers. Other kinds of personal data (names, street addresses and so on) are not detected, so review the result.
 - **Clause Number Protection**: Clause references such as `FAR 52.204-21` and `DFARS 252.204-7012` are recognized and are not mistaken for telephone numbers.
 
+### 5.3 Kept Review History
+The CLI presets accept tracked changes and remove comments. `--keep-revisions` and `--keep-comments` turn off one of those steps each. When you use them, review the result before you send it:
+- A kept tracked deletion still holds the deleted text, so a reader of the file can read what was removed. With `--client-safe` or `--redact-pii`, the emails, phone numbers and other detected personal data inside deleted and inserted text are redacted too.
+- The dates of kept revisions and comments stay in the file. Only the authors are emptied.
+- Comment text is kept as written, apart from the redaction above. Names and other personal data that the detector does not recognize stay in it.
+- The MCP tool `sanitize_document` keeps both revisions and comments unless you pass `acceptAllRevisions` or `stripComments`, which is the opposite of the CLI default.
+
 ---
 
 ## 6. Network & Credentials

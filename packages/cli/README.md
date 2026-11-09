@@ -80,7 +80,7 @@ Structure, node IDs, and document stats; `--visual` adds spatial telemetry plus 
 ECMA-376 schema conformance and package integrity; never writes.
 
 ### 3. Sanitize Document (`astra sanitize`)
-Scrubs metadata, comments, revision history, and RSIDs; `--redact-pii` also redacts body PII.
+Scrubs metadata, comments, revision history, and RSIDs; `--redact-pii` also redacts body PII. Add `--keep-revisions` or `--keep-comments` to keep tracked changes or comments while the metadata, authors and edit-session tags are still scrubbed. Kept deleted text and the dates of kept changes stay readable in the file; see the guide in `docs/cli-guide.md`.
 
 ### 4. Atomic Batch Operations (`astra batch`)
 Applies an ops file with rollback; supports `--stream`, `--matrix`, and shortcut flags.

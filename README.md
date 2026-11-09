@@ -182,7 +182,7 @@ Each of these is something ASTra does today.
 | **Build a report from notes** | Ask: *"Turn `notes.md` into a board report with a revenue table, charts and a risks callout."* |
 | **Change your mind** | Every save is a commit. Ask: *"Show me what the last save changed, then restore the version before it."* |
 | **Fill a template for every client** | One `batch --matrix` run. Each row of a CSV file fills the `{{column}}` placeholders, in the text and in the output file name. |
-| **Clean a document before it leaves the building** | `sanitize --client-safe --redact-pii` strips author names, comments, revision history and metadata, and redacts emails and phone numbers. |
+| **Clean a document before it leaves the building** | `sanitize --client-safe --redact-pii` strips author names, comments, revision history and metadata, and redacts emails and phone numbers. Add `--keep-revisions --keep-comments` to keep the review history and still clear the authors. |
 | **Check documents in CI** | `validate` exits with code 1 when a file is not valid. |
 
 For scripts and CI:
