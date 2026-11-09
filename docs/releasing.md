@@ -45,7 +45,7 @@ Raise the binary `version` when the native validator changes. Move the `range` u
 
 ## Versions and tags
 
-Raise versions in a normal commit before releasing; the workflow publishes what the `package.json` files say. After a real publish, each package published in that run is tagged on the released commit: `validator-binary-v<version>` (only when all six platforms are on npm at it), `validator-v<version>`, `engine-v<version>`, `cli-v<version>`, `mcp-server-v<version>`. A tag that already exists is left alone.
+Raise versions in a normal commit before releasing; the workflow publishes what the `package.json` files say. Also raise `version` in `registries/glama.json` and `registries/smithery.json` to the MCP server version; a test in `tests/unit/docs-truth.test.ts` fails when they differ. After a real publish, each package published in that run is tagged on the released commit: `validator-binary-v<version>` (only when all six platforms are on npm at it), `validator-v<version>`, `engine-v<version>`, `cli-v<version>`, `mcp-server-v<version>`. A tag that already exists is left alone.
 
 ## A partial release
 

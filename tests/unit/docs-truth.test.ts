@@ -203,6 +203,18 @@ describe('docs truth: mcp tools and params match live', () => {
     expect(smitheryNames).toEqual(live);
   });
 
+  it('both registry listings carry the version of the MCP server package', () => {
+    const pkg = JSON.parse(
+      readText(path.join(REPO_ROOT, 'packages', 'mcp-server', 'package.json'))
+    ) as { version: string };
+    const glama = JSON.parse(readText(GLAMA_JSON)) as { version?: string };
+    const smithery = JSON.parse(readText(SMITHERY_JSON)) as { version?: string };
+    expect({ glama: glama.version, smithery: smithery.version }).toEqual({
+      glama: pkg.version,
+      smithery: pkg.version,
+    });
+  });
+
   it('README param tables match live zod schema keys per tool', () => {
     const md = readText(MCP_README);
     const sections = readmeToolSections(md);

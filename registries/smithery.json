@@ -1,8 +1,8 @@
 {
   "$schema": "https://smithery.ai/schema/config.json",
   "name": "@attentionform/astra-mcp-server",
-  "version": "0.1.0",
-  "description": "Official Model Context Protocol (MCP) server for ASTra document IDE",
+  "version": "0.3.0",
+  "description": "Model Context Protocol (MCP) server that lets AI agents read, edit and build Word (.docx) documents, with every save checked against the Office schema",
   "command": "npx",
   "args": [
     "-y",
@@ -29,15 +29,15 @@
       },
       {
         "name": "inspect_document",
-        "description": "Generate a Token-Optimized Outline Notation (TOON) outline and typography palette"
+        "description": "Generate a Token-Optimized Outline Notation (TOON) outline, style palette and document properties; with include, also page through comments and tracked revisions"
       },
       {
         "name": "search_content",
-        "description": "Literal substring search (default, case-insensitive) with opt-in regex via regex:true, returning matched element IDs and text previews"
+        "description": "Literal substring search (default, case-insensitive) with opt-in regex via regex:true, returning matched element IDs and text previews; scope comments or all also searches comment text"
       },
       {
         "name": "execute_batch",
-        "description": "Execute an atomic batch of typed OOXML mutation operations with automatic rollback"
+        "description": "Execute an atomic batch of typed OOXML mutation operations with automatic rollback, including tracked edits and accepting or rejecting tracked changes"
       },
       {
         "name": "save_document",
@@ -89,7 +89,7 @@
       },
       {
         "name": "sanitize_document",
-        "description": "Scrub metadata, revision IDs, authors, comments, and PII from a document session"
+        "description": "Scrub revision IDs, authorship, embedded EXIF and hidden-text PII from a document session; tracked changes and comments are kept unless acceptAllRevisions or stripComments is set"
       },
       {
         "name": "normalize_document",
