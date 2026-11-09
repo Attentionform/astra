@@ -371,8 +371,23 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
           if (!report.filesTouched.includes(name)) report.filesTouched.push(name);
         }
       }
-      report.propsPII = extraPropsPII;
-      report.purgedPII = extraPropsPII + report.bodyPII;
+      // This path runs the engine with purgePII false, so a people.xml that survives (comments were kept) would keep
+      // the account id of every commenter (w15:userId, for example an email or a Windows SID) although the author
+      // name is emptied. Redact the attributes of that one part, as the engine does when purgePII is on.
+      let peoplePII = 0;
+      const peopleEntry = zip.getEntry('word/people.xml');
+      if (peopleEntry) {
+        const peopleXml = peopleEntry.getData().toString('utf8');
+        const r = redactAttributePii(peopleXml, true);
+        peoplePII = r.count;
+        if (r.xml !== peopleXml) {
+          zip.updateFile('word/people.xml', Buffer.from(r.xml, 'utf8'));
+          propsChanged = true;
+          if (!report.filesTouched.includes('word/people.xml')) report.filesTouched.push('word/people.xml');
+        }
+      }
+      report.propsPII = extraPropsPII + peoplePII;
+      report.purgedPII = extraPropsPII + peoplePII + report.bodyPII;
       report.filesTouched.sort();
       if (propsChanged) {
         try {
