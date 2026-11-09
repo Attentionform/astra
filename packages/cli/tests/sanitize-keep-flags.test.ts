@@ -283,6 +283,17 @@ describe('the result line and --json say what happened', () => {
   });
 });
 
+describe('the warning counts comments, not their markers', () => {
+  it('one comment is reported as one, and three comments as three', async () => {
+    expect((await sanitize(genFile, '--keep-comments')).err).toMatch(/comments \(1\) kept because of --keep-comments/);
+    expect((await sanitize(genFile, '--zero-retention')).err).toMatch(/comments \(1\) survive/);
+    const input = new AdmZip(WORD_FIXTURE);
+    const threeComments = (input.readAsText('word/comments.xml').match(/<w:comment[\s>]/g) ?? []).length;
+    expect(threeComments).toBeGreaterThan(1);
+    expect((await sanitize(WORD_FIXTURE, '--zero-retention')).err).toContain(`comments (${threeComments}) survive`);
+  });
+});
+
 describe('the --metadata-only hint', () => {
   it('is printed once when --metadata-only accepted tracked changes or removed comments', async () => {
     const r = await sanitize(genFile, '--metadata-only');

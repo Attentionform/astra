@@ -62,7 +62,8 @@ export function countSanitizeSurvivors(docxBuf: Buffer): { revisions: number; co
   try {
     const zip = new AdmZip(docxBuf);
     let revisions = 0;
-    let comments = 0;
+    let commentDefinitions = 0;
+    let commentReferences = 0;
     for (const entry of zip.getEntries()) {
       if (entry.isDirectory) continue;
       const name = entry.entryName;
@@ -80,14 +81,16 @@ export function countSanitizeSurvivors(docxBuf: Buffer): { revisions: number; co
       if (core) revisions += core.length;
       const changes = xml.match(/<w:[A-Za-z0-9]+Change[\s>/]/g);
       if (changes) revisions += changes.length;
-      const refs = xml.match(/<w:comment(RangeStart|RangeEnd|Reference)[\s>/]/g);
-      if (refs) comments += refs.length;
-      if (name === 'word/comments.xml' || name === 'word/commentsExtended.xml') {
+      // A comment is one definition in comments.xml and one reference in the text. Counting its range markers too
+      // reported four for each comment.
+      const refs = xml.match(/<w:commentReference[\s>/]/g);
+      if (refs) commentReferences += refs.length;
+      if (name === 'word/comments.xml') {
         const defs = xml.match(/<w:comment[\s>/]/g);
-        if (defs) comments += defs.length;
+        if (defs) commentDefinitions += defs.length;
       }
     }
-    return { revisions, comments };
+    return { revisions, comments: Math.max(commentDefinitions, commentReferences) };
   } catch {
     return { revisions: 0, comments: 0 };
   }
