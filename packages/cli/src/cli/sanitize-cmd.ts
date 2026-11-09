@@ -192,6 +192,67 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+/** What the run did with review history, and which of the choices the user made by name. */
+interface ReviewChoices {
+  /** The run left tracked changes in the file (it did not accept them). */
+  keptRevisions: boolean;
+  /** The run left comments in the file (it did not remove them). */
+  keptComments: boolean;
+  /** `--keep-revisions` was given. */
+  askedKeepRevisions: boolean;
+  /** `--keep-comments` was given. */
+  askedKeepComments: boolean;
+}
+
+/**
+ * The SANITIZED line. `metadataOnly` is named only when `--metadata-only` was given: every run that does not
+ * redact the body used to print it, which said "metadata only" about runs that never used the flag.
+ */
+function sanitizedLine(
+  input: string,
+  output: string,
+  report: { removedRSIDs: number; purgedAuthors: number; strippedExifBytes: number; purgedPII: number; bodyPII: number; acceptedRevisions: number; strippedComments: number; filesTouched: string[] },
+  bodyLocations: string,
+  metadataOnly: boolean
+): string {
+  return (
+    `SANITIZED ${input} -> ${output} ` +
+    `(rsids=${report.removedRSIDs} authors=${report.purgedAuthors} ` +
+    `exifBytes=${report.strippedExifBytes} pii=${report.purgedPII} ` +
+    `bodyRedactions=${report.bodyPII} bodyLocations=${bodyLocations}${metadataOnly ? ' metadataOnly' : ''} ` +
+    `revisions=${report.acceptedRevisions} comments=${report.strippedComments} files=${report.filesTouched.length})`
+  );
+}
+
+/**
+ * Sentences about the revisions and comments that are still in the output. A run that kept them because the user
+ * asked says so and says what that means (deleted text is readable, dates stay); any other run that kept them
+ * (an individual flag) says that they survive. Quiet when nothing survived.
+ */
+function reviewSurvivors(lived: { revisions: number; comments: number }, choices: ReviewChoices): string[] {
+  const out: string[] = [];
+  if (choices.keptRevisions && lived.revisions > 0) {
+    out.push(
+      choices.askedKeepRevisions
+        ? `tracked revisions (${lived.revisions}) kept because of --keep-revisions; deleted text is still readable in this file and the revision dates are kept`
+        : `tracked revisions (${lived.revisions}) survive (w:ins/w:del)`
+    );
+  }
+  if (choices.keptComments && lived.comments > 0) {
+    out.push(
+      choices.askedKeepComments
+        ? `comments (${lived.comments}) kept because of --keep-comments; the comment dates are kept`
+        : `comments (${lived.comments}) survive`
+    );
+  }
+  return out;
+}
+
+/** The flags that asked to keep review history, for a remedy that says what to remove. */
+function keepFlagNames(choices: ReviewChoices): string[] {
+  return [choices.askedKeepRevisions ? '--keep-revisions' : '', choices.askedKeepComments ? '--keep-comments' : ''].filter(Boolean);
+}
+
 export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'sanitize');
   let input: string | undefined;
@@ -203,6 +264,8 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
   let clientSafe = false;
   let redactPii = false;
   let metadataOnly = false;
+  let keepRevisions = false;
+  let keepComments = false;
   let allowMacros = false;
   let stripMacros = false;
   let force = false;
@@ -226,6 +289,8 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
     } else if (a === '--accept-all-revisions') acceptAllRevisions = true;
     else if (a === '--strip-comments') stripComments = true;
     else if (a === '--metadata-only') metadataOnly = true;
+    else if (a === '--keep-revisions') keepRevisions = true;
+    else if (a === '--keep-comments') keepComments = true;
     else if (a === '--allow-macros') allowMacros = true;
     else if (a === '--strip-macros') stripMacros = true;
     else if (a === '--force') force = true;
@@ -236,6 +301,12 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
   }
   if (!input || !output) return usage(out, 'sanitize requires <in.docx> <out.docx>');
   if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
+  if (keepRevisions && acceptAllRevisions) {
+    return usage(out, 'sanitize: --keep-revisions and --accept-all-revisions contradict each other; use one of them');
+  }
+  if (keepComments && stripComments) {
+    return usage(out, 'sanitize: --keep-comments and --strip-comments contradict each other; use one of them');
+  }
   if (replacementAuthor !== undefined && replacementAuthor.trim() === '') {
     return usage(out, 'sanitize --replacement-author must be non-empty');
   }
@@ -256,10 +327,18 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
   const bare = !zeroRetention && !acceptAllRevisions && !stripComments && replacementAuthor === undefined && !clientSafe && !redactPii;
   const preset = bare || clientSafe || metadataOnly || redactPii;
   const effZeroRetention = zeroRetention || preset;
-  const effAcceptAll = acceptAllRevisions || preset;
-  const effStripComments = stripComments || preset;
+  // The keep flags are not option flags (a run with only --keep-revisions is still the metadata preset), they turn
+  // one step of the preset off.
+  const effAcceptAll = acceptAllRevisions || (preset && !keepRevisions);
+  const effStripComments = stripComments || (preset && !keepComments);
   const effAuthor = replacementAuthor ?? (preset ? SANITIZER_DEFAULT_AUTHOR : undefined);
   const doBodyRedact = (clientSafe || redactPii) && !metadataOnly;
+  const choices: ReviewChoices = {
+    keptRevisions: !effAcceptAll,
+    keptComments: !effStripComments,
+    askedKeepRevisions: keepRevisions,
+    askedKeepComments: keepComments,
+  };
   let buf: Buffer;
   try {
     buf = await readDocx(input);
@@ -286,28 +365,22 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
         bodyLocations.length > 0
           ? bodyLocations.slice(0, 20).join(',') + (bodyLocations.length > 20 ? `,+${bodyLocations.length - 20} more` : '')
           : 'none';
-      print(
-        out,
-        `SANITIZED ${input} -> ${output} ` +
-          `(rsids=${report.removedRSIDs} authors=${report.purgedAuthors} ` +
-          `exifBytes=${report.strippedExifBytes} pii=${report.purgedPII} ` +
-          `bodyRedactions=${report.bodyPII} bodyLocations=${locDisplay} ` +
-          `revisions=${report.acceptedRevisions} comments=${report.strippedComments} files=${report.filesTouched.length})`
-      );
+      print(out, sanitizedLine(input, output, report, locDisplay, false));
       // Partial flags leave content behind by request — say so loudly on stderr
       // (fail-closed DX: the caller must see exactly what survives). Warn only
       // when markup actually survived in the output (counts > 0); a clean file
       // stays quiet instead of a flag-semantics warning.
       const survivors: string[] = [];
       if (!effAcceptAll || !effStripComments) {
-        const lived = countSanitizeSurvivors(buffer);
-        if (!effAcceptAll && lived.revisions > 0)
-          survivors.push(`tracked revisions (${lived.revisions}) survive (w:ins/w:del)`);
-        if (!effStripComments && lived.comments > 0) survivors.push(`comments (${lived.comments}) survive`);
+        survivors.push(...reviewSurvivors(countSanitizeSurvivors(buffer), choices));
       }
       if (survivors.length > 0 && !out.json) {
+        const asked = keepFlagNames(choices);
         printStderr(
-          `${CLI_NAME}: sanitize WARNING: ${survivors.join(' + ')}. Remedy: re-run with --client-safe (or --accept-all-revisions --strip-comments) for a fully clean file`
+          `${CLI_NAME}: sanitize WARNING: ${survivors.join(' + ')}. Remedy: ` +
+            (asked.length > 0
+              ? `re-run without ${asked.join(' and ')} for a file without review history`
+              : 're-run with --client-safe (or --accept-all-revisions --strip-comments) for a fully clean file')
         );
       }
       if (!out.json) printStderr(piiNote(report, true));
@@ -317,6 +390,8 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
         output,
         report,
         bodyLocations,
+        keptRevisions: choices.keptRevisions,
+        keptComments: choices.keptComments,
         piiCoverage: PII_COVERAGE,
         ...(survivors.length > 0 ? { warnings: survivors } : {}),
       });
@@ -403,26 +478,28 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
     await assertValidDocx(finalBuffer, 'Sanitized document');
     await writeDocx(output, finalBuffer);
     const bodyLocations: string[] = [];
-    print(
-      out,
-      `SANITIZED ${input} -> ${output} ` +
-        `(rsids=${report.removedRSIDs} authors=${report.purgedAuthors} ` +
-        `exifBytes=${report.strippedExifBytes} pii=${report.purgedPII} ` +
-        `bodyRedactions=${report.bodyPII} bodyLocations=none metadataOnly ` +
-        `revisions=${report.acceptedRevisions} comments=${report.strippedComments} files=${report.filesTouched.length})`
+    print(out, sanitizedLine(input, output, report, 'none', metadataOnly));
+    const survivors: string[] = reviewSurvivors(countSanitizeSurvivors(finalBuffer), choices);
+    // `--metadata-only` is the same as bare sanitize and names no review history. Say so when it just removed some.
+    const hint =
+      metadataOnly && !keepRevisions && !keepComments && (report.acceptedRevisions > 0 || report.strippedComments > 0)
+        ? `${CLI_NAME}: sanitize NOTE: --metadata-only accepted ${report.acceptedRevisions} tracked changes and removed ${report.strippedComments} comments, as bare sanitize does. To keep them, add --keep-revisions and/or --keep-comments.`
+        : null;
+    survivors.push(
+      metadataOnly
+        ? 'body PII survives (body text kept; re-run without --metadata-only with --redact-pii or --client-safe to redact)'
+        : 'body PII survives (body text kept; re-run with --redact-pii or --client-safe to redact)'
     );
-    const survivors: string[] = [];
-    {
-      const lived = countSanitizeSurvivors(finalBuffer);
-      if (!effAcceptAll && lived.revisions > 0)
-        survivors.push(`tracked revisions (${lived.revisions}) survive (w:ins/w:del)`);
-      if (!effStripComments && lived.comments > 0) survivors.push(`comments (${lived.comments}) survive`);
-    }
-    survivors.push('body PII survives (body text kept; re-run without --metadata-only with --redact-pii or --client-safe to redact)');
     if (!out.json) {
       printStderr(piiNote(report, false));
+      if (hint) printStderr(hint);
+      const asked = keepFlagNames(choices);
       printStderr(
-        `${CLI_NAME}: sanitize WARNING: ${survivors.join(' + ')}. Remedy: re-run without --metadata-only (with --redact-pii or --client-safe) for full body redaction`
+        `${CLI_NAME}: sanitize WARNING: ${survivors.join(' + ')}. Remedy: ` +
+          (metadataOnly
+            ? 're-run without --metadata-only (with --redact-pii or --client-safe) for full body redaction'
+            : 're-run with --redact-pii or --client-safe for full body redaction') +
+          (asked.length > 0 ? `; re-run without ${asked.join(' and ')} for a file without review history` : '')
       );
     }
     printJson(out, {
@@ -431,7 +508,9 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
       output,
       report,
       bodyLocations,
-      metadataOnly: true,
+      ...(metadataOnly ? { metadataOnly: true } : {}),
+      keptRevisions: choices.keptRevisions,
+      keptComments: choices.keptComments,
       piiCoverage: PII_COVERAGE,
       warnings: survivors,
     });

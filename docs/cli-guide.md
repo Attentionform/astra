@@ -59,7 +59,7 @@ Usage: astra [--json] [--verbose] [--version] [--help] <command> [args]
 Commands (exit 0 ok · 1 operational failure · 2 usage):
   inspect  <docx> [--fidelity compact|standard|full] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]
   validate <docx> [--max-errors <n>] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]
-  sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--force]
+  sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--keep-revisions] [--keep-comments] [--force]
   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]]
   export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force]
@@ -282,8 +282,12 @@ astra sanitize internal_draft.docx public_version.docx
 # Client-Safe: strips metadata AND redacts body PII (emails, phone numbers)
 astra sanitize internal_draft.docx client_ready.docx --client-safe
 
-# Metadata-only: preserves substantive text and tracked revisions while scrubbing file properties
+# Metadata-only: scrubs file properties and keeps the body text. It is the same as bare `sanitize`,
+# so it also accepts tracked changes and removes comments (see the table below)
 astra sanitize internal_draft.docx legal_submittal.docx --metadata-only
+
+# Scrub the metadata but keep the review history (tracked changes and comments), authors emptied
+astra sanitize internal_draft.docx for_counsel.docx --keep-revisions --keep-comments
 ```
 
 **Cross-surface note (CLI vs MCP):** CLI `sanitize` is a one-shot raw scrub operating directly on document archive parts. In contrast, MCP `sanitize_document` followed by `save_document` runs through the full document save pipeline, so the resulting file bytes can differ. Both remove the same categories of information; neither replaces a human review of the final file.
@@ -296,8 +300,15 @@ astra sanitize internal_draft.docx legal_submittal.docx --metadata-only
 | Bare `sanitize` | Scrubbed | Scrubbed | Scrubbed | Accepted | **Preserved** |
 | `--client-safe` | Scrubbed | Scrubbed | Scrubbed | Accepted | **Redacted** |
 | `--metadata-only` | Scrubbed | Scrubbed | Scrubbed | Accepted | **Preserved** |
+| `--keep-revisions` | Scrubbed | Scrubbed | Scrubbed | **Kept** | **Preserved** |
+| `--keep-comments` | Scrubbed | Scrubbed | **Kept** | Accepted | **Preserved** |
+| `--keep-revisions --keep-comments` | Scrubbed | Scrubbed | **Kept** | **Kept** | **Preserved** |
 
-`--metadata-only` is the same as bare `sanitize`: comments are scrubbed and tracked changes are accepted, so deleted text is removed and the body text that remains is kept. It does not preserve review history. If a tracked change cannot be accepted safely, the command fails with `E_VALIDATION` and writes no file. To keep tracked changes, pass only the individual flags you want (for example `--strip-comments` alone leaves tracked changes in place); bare, `--metadata-only`, `--client-safe` and `--redact-pii` all accept them.
+`--metadata-only` is the same as bare `sanitize`: comments are scrubbed and tracked changes are accepted, so deleted text is removed and the body text that remains is kept. It does not preserve review history. If a tracked change cannot be accepted safely, the command fails with `E_VALIDATION` and writes no file. To keep tracked changes or comments, add `--keep-revisions` or `--keep-comments` (or both). They turn off one step of the preset and change nothing else, so the properties, the authors and the edit-session tags are still scrubbed. They combine with `--metadata-only`, `--client-safe` and `--redact-pii`; with `--client-safe` or `--redact-pii` the personal data inside deleted and inserted text and inside comments is redacted too. Bare, `--metadata-only`, `--client-safe` and `--redact-pii` accept tracked changes and remove comments unless a keep flag is given.
+
+**Kept review history is still readable.** A kept tracked deletion still holds the deleted text, so a file made with `--keep-revisions` shows what was removed. The dates of kept revisions and comments stay in the file; only the authors are emptied. The command prints a warning that says so whenever it keeps something. With `--keep-comments` alone, a comment that is anchored on text that accepting a tracked deletion removes is removed with that text, as it is in Word; comments on text that stays are kept.
+
+**CLI and MCP have opposite defaults.** The CLI presets accept tracked changes and remove comments unless you keep them. The MCP tool `sanitize_document` keeps both unless you pass `acceptAllRevisions` or `stripComments`.
 
 **Additional Options:**
 | Flag | Description |
@@ -306,6 +317,10 @@ astra sanitize internal_draft.docx legal_submittal.docx --metadata-only
 | `--replacement-author <name>` | Replaces revision author tags with a generic moniker (e.g. `"Reviewer"`). When comments are kept, the account ids of the commenters in `word/people.xml` are redacted too. |
 | `--accept-all-revisions` | Force-accepts all tracked insertions and deletions. If revision markup remains that cannot be resolved safely, the command fails with `E_VALIDATION` (exit code 1), names the part and the kinds, and writes no output file. Bare `sanitize`, `--client-safe` and `--metadata-only` accept revisions as well and fail the same way. |
 | `--strip-comments` | Strips all comments and every comment part (comments, extended, IDs, extensible and people), with their relationships and content types. |
+| `--keep-revisions` | Keeps tracked changes instead of accepting them. With the bare command, `--client-safe`, `--metadata-only` or `--redact-pii` the rest of the preset still applies. With `--accept-all-revisions` it is a usage error (exit code 2) and no file is written. |
+| `--keep-comments` | Keeps comments instead of removing them. The author names are emptied and the commenters' account ids in `word/people.xml` are redacted. With `--strip-comments` it is a usage error (exit code 2) and no file is written. |
+
+The result line names `metadataOnly` only when `--metadata-only` was given. With `--json` the result carries `keptRevisions` and `keptComments` (true when the run left tracked changes or comments in the file, whether or not the file had any) and, only for a run that used the flag, `metadataOnly: true`. A run with `--metadata-only` that accepted tracked changes or removed comments also prints one note on stderr that names `--keep-revisions` and `--keep-comments`.
 
 ---
 

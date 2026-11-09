@@ -67,9 +67,16 @@ describe('docs/cli-guide.md describes what --metadata-only does to review histor
     expect(only.zip!.readAsText('word/document.xml')).toBe(bare.zip!.readAsText('word/document.xml'));
   });
 
-  it('a flag-only run that does not accept revisions leaves them in place (the documented way to keep them)', async () => {
-    const result = await sanitize('--strip-comments');
-    expect(result.status).toBe(0);
-    expect(result.zip!.readAsText('word/document.xml')).toMatch(/<w:del[ >]/);
+  it('--keep-revisions is the documented way to keep tracked changes; a flag-only run still leaves them, as before', async () => {
+    const kept = await sanitize('--keep-revisions');
+    expect(kept.status).toBe(0);
+    expect(kept.zip!.readAsText('word/document.xml')).toMatch(/<w:del[ >]/);
+    // Existing behaviour, unchanged: a run that names only another flag does not use the preset, so it accepts nothing.
+    const flagOnly = await sanitize('--strip-comments');
+    expect(flagOnly.status).toBe(0);
+    expect(flagOnly.zip!.readAsText('word/document.xml')).toMatch(/<w:del[ >]/);
+    // The guide names the flag made for this and does not send the reader to a side effect of another flag.
+    expect(GUIDE).toMatch(/--keep-revisions/);
+    expect(GUIDE).not.toMatch(/--strip-comments`? (alone )?(is|as) the (documented )?way to keep/i);
   });
 });
