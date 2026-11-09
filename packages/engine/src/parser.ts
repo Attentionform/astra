@@ -6,7 +6,7 @@ import path from 'path';
 import AdmZip from './adm-zip-safe';
 import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from './ooxml/dom-parser';
-import { DocumentAST, Node as AstNode, calculateNodeChecksum } from './ast';
+import { DocumentAST, Node as AstNode, calculateNodeChecksum, calculateNodeChecksumSync } from './ast';
 import { canonicalizeDocumentDom, canonicalizePartXml, generateValidParaId } from './ooxml/schema-order';
 import { normalizeDocumentDom, normalizePartXml, previewDocumentDom } from './ooxml/normalize';
 import { createWordElement, stampRevision } from './ooxml/ns';
@@ -1669,7 +1669,7 @@ export class DocxParser {
       // getNode/readNode but are NOT root AST nodes (the table owns them).
       if (this.cellScopedIds.has(id)) continue;
       const xmlStr = this.serializer.serializeToString(element);
-      const checksum = await calculateNodeChecksum(xmlStr);
+      const checksum = calculateNodeChecksumSync(xmlStr);
       
       // Extract text content cleanly
       const textNodes = element.getElementsByTagName('w:t');

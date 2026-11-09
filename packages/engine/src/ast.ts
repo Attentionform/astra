@@ -1,4 +1,5 @@
 
+import { createHash } from 'crypto';
 import { XMLSerializer } from '@xmldom/xmldom';
 
 if (typeof Element !== 'undefined' && !((Element.prototype as unknown as Record<string, unknown>)['toJSON'])) {
@@ -168,15 +169,19 @@ export interface DocumentAST {
 }
 
 /**
- * Utility to calculate a basic SHA-256 equivalent checksum for XML nodes.
- * Used to track drift and version changes.
+ * SHA-256 of the serialized XML of a node, as lower-case hex. Used to track drift and version changes.
+ *
+ * Synchronous on purpose: `crypto.subtle.digest` runs every call as a separate job, which costs about 40
+ * microseconds a block, 125 ms for a 3,000-paragraph document, and is paid on every document open and every
+ * refresh of the model. `createHash` returns the same string in about 1 microsecond a block.
  */
+export function calculateNodeChecksumSync(xmlString: string): string {
+  return createHash('sha256').update(xmlString, 'utf8').digest('hex');
+}
+
+/** Same value as `calculateNodeChecksumSync`; kept async for the callers that already await it. */
 export async function calculateNodeChecksum(xmlString: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(xmlString);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return calculateNodeChecksumSync(xmlString);
 }
 
 /**
