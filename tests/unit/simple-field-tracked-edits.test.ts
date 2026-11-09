@@ -244,6 +244,8 @@ describe('what stays as it was', () => {
     const result = await run(doc, { action: 'replace', target: doc.id, text: 'by Ann Kim today', trackChanges: true });
     expect(result.success).toBe(false);
     expect(JSON.stringify(result.errors)).toMatch(/cuts through field/);
+    expect(JSON.stringify(result.errors)).toMatch(/change all of the text of the field in the same edit, or edit the text outside the field/);
+    expect(JSON.stringify(result.errors)).not.toMatch(/replace the paragraph explicitly/);
     expect(xmlOf(doc.parser)).toBe(before);
     expect(doc.ast.nextChangeId).toBe(ids);
   });
@@ -304,6 +306,42 @@ describe('what stays as it was', () => {
     expect(result.success).toBe(false);
     expect(xmlOf(doc.parser)).toBe(before);
     expect(xmlOf(doc.parser)).toContain(FIELD);
+  });
+});
+
+describe('a field of several words', () => {
+  const date = '<w:fldSimple w:instr=" DATE "><w:r><w:t>November 9, 2026</w:t></w:r></w:fldSimple>';
+  const body = `<w:p>${r('Printed on ')}${date}${r(' by the office.')}</w:p>${SECOND}`;
+
+  it('a replace that changes every word of the field converts it', async () => {
+    const doc = await open(body);
+    const result = await run(doc, { action: 'replace', target: doc.id, text: 'Printed on soon by the office.', trackChanges: true });
+    expect(result.success, JSON.stringify(result.errors)).toBe(true);
+    expect(xmlOf(doc.parser)).not.toContain('<w:fldSimple');
+    expect(await errorIds(doc.parser)).toEqual([]);
+    const rejected = await afterResolve(doc.parser, 'rejectAll');
+    expect(textOf(rejected.xml)).toBe('Printed on November 9, 2026 by the office.');
+  });
+
+  it('a replace that keeps a word or a space of the field splits the change, is refused with a remedy that works, and following it succeeds', async () => {
+    const doc = await open(body);
+    const before = xmlOf(doc.parser);
+    const refused = await run(doc, { action: 'replace', target: doc.id, text: 'Printed on January 1 by the office.', trackChanges: true });
+    expect(refused.success).toBe(false);
+    expect(JSON.stringify(refused.errors)).toMatch(/change all of the text of the field in the same edit/);
+    expect(xmlOf(doc.parser)).toBe(before);
+    // The remedy: put the whole new text where the whole field text was, as one change.
+    const done = await run(doc, { action: 'replace', target: doc.id, text: 'Printed on January-1 by the office.', trackChanges: true });
+    expect(done.success, JSON.stringify(done.errors)).toBe(true);
+    expect(await errorIds(doc.parser)).toEqual([]);
+  });
+
+  it('a tracked delete of the whole field text converts it', async () => {
+    const doc = await open(body);
+    const result = await run(doc, { action: 'trackedChange', operation: 'delete', target: doc.id, text: 'November 9, 2026' });
+    expect(result.success, JSON.stringify(result.errors)).toBe(true);
+    expect(xmlOf(doc.parser)).not.toContain('<w:fldSimple');
+    expect(await errorIds(doc.parser)).toEqual([]);
   });
 });
 

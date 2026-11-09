@@ -51,6 +51,8 @@ const GENERIC_REMEDY = 'Remedy: edit around the affected structure or replace th
 // Replacing the whole paragraph is refused for these two as well, so the generic remedy would send the caller in a circle.
 const INLINE_OBJECT_REMEDY = 'Remedy: edit the text outside the content control or equation, delete the whole paragraph with trackChanges false, or make the change in Word.';
 const SIMPLE_FIELD_REMEDY = 'Remedy: edit the text outside the field, or make the change in Word.';
+// A changed span that covers only part of a field. Replacing the paragraph again would give the same span, so the remedy is to take in all of the field text.
+const FIELD_CUT_REMEDY = 'Remedy: change all of the text of the field in the same edit, or edit the text outside the field.';
 const RUBY_REMEDY = 'Remedy: edit the text outside the ruby text, delete the whole paragraph with trackChanges false, or make the change in Word.';
 
 /** Refuses an edit before anything changes. `remedy` is the full sentence; `null` means the reason already says what to do. */
@@ -324,7 +326,7 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       const wholeField = chunk.type === 'delete' && item.kind === 'field' && chunk.at <= item.start && end >= item.end;
       if (!wholeField) {
         if (item.kind === 'math' || item.kind === 'sdt') unsupported(item.kind === 'math' ? 'paragraph contains math in the changed span' : 'the changed span cuts through sdt', INLINE_OBJECT_REMEDY);
-        unsupported(`the changed span cuts through ${item.kind}`);
+        unsupported(`the changed span cuts through ${item.kind}`, FIELD_CUT_REMEDY);
       }
       const simple = options.tracked ? item.elements.find(el => name(el) === 'fldSimple') : undefined;
       if (simple) {
