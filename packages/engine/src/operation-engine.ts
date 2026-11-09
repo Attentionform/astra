@@ -1469,6 +1469,9 @@ export class OperationEngine {
             xml: (node.xml as Element).toString(),
           }]));
           const resolution = executeTrackedChange(tracked, this.ast, this.parser);
+          // Nothing was resolved, so the document is as it was and the model needs no refresh. Re-reading a large
+          // document costs most of the time of a call, and an accept or reject with nothing pending is common.
+          if (resolution && 'resolved' in resolution && resolution.resolved === 0 && !this.owedRevisionRefresh) return resolution;
           // The model is refreshed when something needs it (see owedRevisionRefresh), not after each operation.
           this.owedRevisionRefresh = before;
           return resolution;
