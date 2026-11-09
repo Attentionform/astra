@@ -104,7 +104,7 @@ describe('one-pass scan of revision elements', () => {
       for (const entry of zip.getEntries()) {
         if (!/^word\/[^/]+\.xml$/.test(entry.entryName)) continue;
         let document: Document;
-        try { document = new DOMParser({ onError: () => undefined }).parseFromString(entry.getData().toString('utf8'), 'text/xml') as unknown as Document; } catch { continue; }
+        try { document = new DOMParser({ errorHandler: { warning: () => undefined, error: () => undefined, fatalError: () => undefined } }).parseFromString(entry.getData().toString('utf8'), 'text/xml') as unknown as Document; } catch { continue; }
         if (!document.documentElement) continue;
         expect(countRevisionElements(document), `${file} ${entry.entryName}`).toBe(oldCount([document]));
         expect(maxRevisionId(document), `${file} ${entry.entryName}`).toBe(oldMaxRevisionId(document));

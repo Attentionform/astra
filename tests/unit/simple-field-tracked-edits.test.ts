@@ -29,7 +29,7 @@ const xmlOf = (parser: DocxParser) => new AdmZip(parser.rezip({ skipValidation: 
 const paragraph = (xml: string, index = 0) => xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g)![index];
 const textOf = (xml: string, index = 0) => (paragraph(xml, index).match(/<w:t(?:\s[^>]*)?>[^<]*/g) ?? []).map(t => t.replace(/<[^>]*>/g, '')).join('');
 const count = (xml: string, needle: string) => xml.split(needle).length - 1;
-const errorIds = async (parser: DocxParser) => ((await validateDocxBuffer(parser.rezip({ skipValidation: true }))).errors ?? []).map((e: { id: string }) => e.id);
+const errorIds = async (parser: DocxParser) => ((await validateDocxBuffer(parser.rezip({ skipValidation: true }))).errors ?? []).map(e => e.id ?? '');
 const revisionIds = (xml: string) => Array.from(xml.matchAll(/<w:(?:ins|del) [^>]*w:id="(\d+)"/g), m => Number(m[1]));
 
 type Operation = Record<string, unknown>;

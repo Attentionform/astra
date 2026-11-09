@@ -23,7 +23,7 @@ async function open(body: string) {
 }
 const xmlOf = (parser: DocxParser) => new AdmZip(parser.rezip({ skipValidation: true })).readAsText('word/document.xml');
 const plainText = (xml: string) => (xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) ?? []).map(p => (p.match(/<w:t(?:\s[^>]*)?>[^<]*/g) ?? []).map(t => t.replace(/<[^>]*>/g, '')).join(''));
-const errorIds = async (parser: DocxParser) => ((await validateDocxBuffer(parser.rezip({ skipValidation: true }))).errors ?? []).map((e: { id: string }) => e.id);
+const errorIds = async (parser: DocxParser) => ((await validateDocxBuffer(parser.rezip({ skipValidation: true }))).errors ?? []).map(e => e.id ?? '');
 async function afterResolve(parser: DocxParser, operation: 'acceptAll' | 'rejectAll') {
   const saved = new DocxParser(parser.rezip({ skipValidation: true }));
   const ast = await saved.getAST();

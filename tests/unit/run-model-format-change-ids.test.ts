@@ -22,7 +22,7 @@ async function open(body: string) {
 const documentXml = (parser: DocxParser) => new AdmZip(parser.rezip({ skipValidation: true })).readAsText('word/document.xml');
 const revisionIds = (xml: string) => [...xml.matchAll(/<w:(?:ins|del|rPrChange|pPrChange|moveFrom|moveTo)\s[^>]*?w:id="(\d+)"/g)].map(m => m[1]);
 const formatChanges = (xml: string) => [...xml.matchAll(/<w:rPrChange\s[^>]*?w:id="(\d+)"/g)].map(m => m[1]);
-const validatorErrors = async (parser: DocxParser) => ((await validateDocxBuffer(parser.rezip({ skipValidation: true }))).errors ?? []).map((e: { id: string }) => e.id);
+const validatorErrors = async (parser: DocxParser) => ((await validateDocxBuffer(parser.rezip({ skipValidation: true }))).errors ?? []).map(e => e.id ?? '');
 
 describe('a run with a tracked formatting change keeps unique revision ids when an edit splits it', () => {
   for (const tracked of [true, false]) {
