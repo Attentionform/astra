@@ -89,7 +89,7 @@ ASTra restricts the server to the folders you name, so an AI client cannot read 
 
 ### 2.1 Behavior Shared by the CLI and the MCP Server
 
-- **CLI `sanitize` vs MCP `sanitize_document`:** CLI `sanitize` is a one-shot raw scrub directly on archive package parts. In contrast, MCP `sanitize_document` followed by `save_document` executes through the full document save pipeline. The resulting file bytes can therefore differ between the CLI and MCP, but both remove the same categories of information.
+- **CLI `sanitize` vs MCP `sanitize_document`:** CLI `sanitize` is a one-shot raw scrub directly on archive package parts. In contrast, MCP `sanitize_document` followed by `save_document` executes through the full document save pipeline. The resulting file bytes can therefore differ between the CLI and MCP. The defaults also differ: the CLI presets (bare `sanitize`, `--client-safe`, `--metadata-only` and `--redact-pii`) accept all tracked changes and remove all comments, while `sanitize_document` keeps tracked changes and comments, with the text of every tracked deletion, unless `acceptAllRevisions` or `stripComments` is passed.
 - **Invalid input is refused up front:** Both `sanitize_document` and PDF `export_document` refuse invalid or schema-corrupted input upfront with `E_VALIDATION`. Documents that fail schema validation are never scrubbed or exported.
 - **A save never adds a validation error:** Saving is refused with `E_VALIDATION`, and the original file on disk is left untouched, when the result has a schema (ISO/IEC 29500) validation error that the file did not already have. A file that already had validator errors can be opened and saved as long as the save adds none. Strict mode (`strict` / `--strict-validation` / `ASTRA_STRICT_VALIDATION=1` on the MCP server, `--strict` on the CLI) refuses every save while the result still has validator errors.
 - **Spacing and indent units:** `spacingBefore`, `spacingAfter`, `indentLeft`, `indentRight`, `indentFirstLine` and `indentHanging` are in twips (20 per point, so `240` is 12 pt). A string in points such as `"12pt"` is accepted and converted; any other unit is refused. `lineSpacing` is a separate unit, in 240ths of a line (`240` = single, `360` = 1.5).
@@ -353,7 +353,18 @@ Executes an atomic array of typed operations (1–500 ops) with schema validatio
 
 The resolver reports revision kinds it cannot safely apply. In particular, accepting `cellDel`, rejecting `cellIns` or `cellMerge`, rejecting `numberingChange`, and incomplete moves can remain unresolved. Use Word for a final visual check and for revisions reported as unresolved. `sanitize_document` can remove deleted cells when accepting all revisions. With `acceptAllRevisions`, `sanitize_document` is fail-closed: when any revision markup remains after accepting (unresolvable kinds, an unpaired move, or revisions the resolver does not know), it refuses with `E_VALIDATION`, names the part and the kinds, and returns no file, because a partly cleaned file could still contain deleted text and reviewer names and dates. Accept or reject those revisions in Word and sanitize again.
 
-Tracked deletion of a complete simple field (`w:fldSimple`) is refused to preserve the original field structure. Edit surrounding text or use Word for that change. Whole complex fields can be deleted as tracked changes when their full span is selected.
+**Edits that ASTra refuses.** An edit is refused with `E_VALIDATION`, and the document is left unchanged, in these cases. The message names the reason and a remedy that works.
+
+- **Inline content controls and equations.** An edit, tracked or not, whose changed text touches an inline content control (`w:sdt`) or an inline equation (`m:oMath`) is refused. In the text an agent reads, an equation appears as `\(latex\)`. Edit the text outside the control or equation, which works with and without `trackChanges`, delete the whole paragraph with `trackChanges: false`, or make the change in Word. A tracked delete of such a paragraph is refused.
+- **Simple fields.** A tracked `delete`, or a tracked `replace` whose changed text covers a complete simple field (`w:fldSimple`), is refused to preserve the original field structure. Edit the text outside the field, or use Word for that change. Untracked edits, and tracked edits outside the field, work. Whole complex fields can be deleted as tracked changes when their full span is selected.
+- **Fields that span paragraphs.** The paragraph that holds the start or the end of a field that spans paragraphs, such as a table of contents, cannot be edited with `replace` or a tracked `delete`. Paragraphs between the start and the end can be edited. Edit text outside the field, or update the field in Word.
+- **Partial moves.** A paragraph that holds part of a tracked move (text moved within or out of the paragraph) cannot be edited. Accept or reject the move with `trackedChange` first. If that leaves the move unresolved (see below), resolve it in Word.
+
+**Revisions that stay unresolved.** `revisionResolution.unresolved` lists what an accept or reject could not resolve, with the reason.
+
+- Accepting a deleted paragraph whose bookmark starts or ends in another paragraph leaves it unresolved. Rejecting it restores it. A bookmark that lies wholly inside the removed paragraph goes with it.
+- Rejecting `customXml` range markers around deleted or moved content is reported as unresolved. Accepting them works.
+- A move whose markers are incomplete or ambiguous stays unresolved in both directions.
 
 **Success Response:**
 ```json
@@ -669,7 +680,7 @@ Calculates document telemetry including word count, paragraph count, and an esti
 ---
 
 #### `sanitize_document`
-Removes personally identifiable metadata, editing session traces, revision histories, RSID markers, and comments from the document in-memory. With `acceptAllRevisions` it refuses, with `E_VALIDATION`, a document whose revision markup it cannot fully resolve (see **Review operations**). Accepting a deleted paragraph also deletes the comment threads anchored only inside it, and the comment parts go when no comment is left; a thread that is also anchored outside the deleted text makes it refuse (use `stripComments`).
+Removes personally identifiable metadata, editing session traces, RSID markers and authorship from the document in-memory. Tracked changes and comments are kept, with the text of every tracked deletion, unless you pass `acceptAllRevisions` (accept all tracked changes, which removes the deleted text) or `stripComments`. The CLI presets turn both on; this tool does not. With `acceptAllRevisions` it refuses, with `E_VALIDATION`, a document whose revision markup it cannot fully resolve (see **Review operations**). Accepting a deleted paragraph also deletes the comment threads anchored only inside it, and the comment parts go when no comment is left; a thread that is also anchored outside the deleted text makes it refuse (use `stripComments`).
 
 **Input Parameters:**
 | Parameter | Type | Required | Description |

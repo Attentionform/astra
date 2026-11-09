@@ -410,7 +410,7 @@ Token-cheap document census returning word, paragraph, table, image, and page co
 ---
 
 ### `sanitize_document`
-Scrub metadata, revision IDs, authors, comments, and PII from a document session.
+Scrub metadata, revision IDs, authors, and PII from a document session. Tracked changes and comments are kept, with the text of every tracked deletion, unless you pass `acceptAllRevisions` or `stripComments`. The CLI presets (bare `sanitize`, `--client-safe`, `--metadata-only`, `--redact-pii`) turn both on; this tool does not.
 
 **Parameters:**
 | Parameter | Type | Required | Description |

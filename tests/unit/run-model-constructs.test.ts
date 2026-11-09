@@ -122,6 +122,97 @@ describe('deliberate refusals with a precise reason (rulings R-1 and R-2)', () =
   });
 });
 
+describe('a refusal names a remedy that works (limits 1 and 2)', () => {
+  const SDT = `<w:sdt><w:sdtPr><w:alias w:val="c"/></w:sdtPr><w:sdtContent>${run('INSIDE-SDT')}</w:sdtContent></w:sdt>`;
+  const MATH = '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:r><m:t>x+y=z</m:t></m:r></m:oMath>';
+  const FLD = '<w:fldSimple w:instr=" DATE "><w:r><w:t>2026</w:t></w:r></w:fldSimple>';
+  const GENERIC = /replace the paragraph explicitly/;
+
+  for (const [label, inner] of [['an inline content control', SDT], ['an inline equation', MATH]] as const) {
+    describe(label, () => {
+      const body = `<w:p>${run('before ')}${inner}${run(' after')}</w:p>${SECOND}`;
+      for (const tracked of [true, false]) {
+        it(`${tracked ? 'tracked' : 'untracked'} replace of the whole text is refused with the remedy that works`, async () => {
+          const doc = await fromBody(body);
+          const before = bodyXml(doc.parser);
+          const result = await doc.engine.executeBatch({ operations: [{ action: 'replace', target: doc.id, text: 'new text', trackChanges: tracked }] } as never);
+          expect(result.success).toBe(false);
+          const message = JSON.stringify(result.errors);
+          expect(message).toMatch(/edit the text outside the content control or equation, delete the whole paragraph with trackChanges false, or make the change in Word/);
+          expect(message).not.toMatch(GENERIC);
+          expect(bodyXml(doc.parser)).toBe(before);
+        });
+      }
+      it('a tracked delete is refused and changes nothing', async () => {
+        const doc = await fromBody(body);
+        const before = bodyXml(doc.parser);
+        const result = await doc.engine.executeBatch({ operations: [{ action: 'delete', target: doc.id, trackChanges: true }] } as never);
+        expect(result.success).toBe(false);
+        expect(JSON.stringify(result.errors)).toMatch(/trackChanges false/);
+        expect(bodyXml(doc.parser)).toBe(before);
+      });
+      it('the named routes work: delete without tracking, and edit the text outside', async () => {
+        const plain = await fromBody(body);
+        const removed = await plain.engine.executeBatch({ operations: [{ action: 'delete', target: plain.id }] } as never);
+        expect(removed.success, JSON.stringify(removed.errors)).toBe(true);
+        expect(bodyXml(plain.parser)).not.toContain('before');
+        for (const tracked of [false, true]) {
+          const doc = await fromBody(body);
+          const edited = await doc.engine.executeBatch({ operations: [{ action: 'replace', target: doc.id, text: doc.text.replace('before', 'BEFORE'), trackChanges: tracked }] } as never);
+          expect(edited.success, JSON.stringify(edited.errors)).toBe(true);
+          expect(bodyXml(doc.parser)).toContain(inner.includes('w:sdt') ? 'INSIDE-SDT' : 'x+y=z');
+          expect((await validateDocxBuffer(doc.parser.rezip(doc.ast))).ok).toBe(true);
+        }
+      });
+    });
+  }
+
+  describe('a simple field', () => {
+    const body = `<w:p>${run('before ')}${FLD}${run(' after')}</w:p>${SECOND}`;
+    for (const operation of [{ action: 'delete', trackChanges: true }, { action: 'replace', text: 'before X after', trackChanges: true }] as const) {
+      it(`tracked ${operation.action} covering the field is refused with the remedy that works`, async () => {
+        const doc = await fromBody(body);
+        const before = bodyXml(doc.parser);
+        const result = await doc.engine.executeBatch({ operations: [{ ...operation, target: doc.id }] } as never);
+        expect(result.success).toBe(false);
+        const message = JSON.stringify(result.errors);
+        expect(message).toMatch(/edit the text outside the field, or make the change in Word/);
+        expect(message).not.toMatch(GENERIC);
+        expect(bodyXml(doc.parser)).toBe(before);
+      });
+    }
+    it('the named route works: edit the text outside the field, tracked and untracked', async () => {
+      for (const tracked of [false, true]) {
+        const doc = await fromBody(body);
+        const edited = await doc.engine.executeBatch({ operations: [{ action: 'replace', target: doc.id, text: doc.text.replace('before', 'BEFORE'), trackChanges: tracked }] } as never);
+        expect(edited.success, JSON.stringify(edited.errors)).toBe(true);
+        expect(bodyXml(doc.parser)).toContain('2026');
+        expect((await validateDocxBuffer(doc.parser.rezip(doc.ast))).ok).toBe(true);
+      }
+    });
+  });
+
+  it('a field spanning paragraphs and a partial move already say what to do, so they carry no second remedy', async () => {
+    const fieldStart = '<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>' + run('Entry one') + '</w:p>' + SECOND;
+    const doc = await fromBody(fieldStart);
+    const spanned = await doc.engine.executeBatch({ operations: [{ action: 'replace', target: doc.id, text: 'Entry uno' }] } as never);
+    expect(JSON.stringify(spanned.errors)).not.toMatch(GENERIC);
+    const stamp = 'w:author="A" w:date="2026-01-01T00:00:00Z"';
+    const move = await fromBody(`<w:p><w:moveFrom w:id="1" ${stamp}><w:r><w:t>moved</w:t></w:r></w:moveFrom>${run(' stays')}</w:p>${SECOND}`);
+    const partial = await move.engine.executeBatch({ operations: [{ action: 'replace', target: move.id, text: 'moved stays!' }] } as never);
+    expect(JSON.stringify(partial.errors)).toMatch(/partial move/);
+    expect(JSON.stringify(partial.errors)).not.toMatch(GENERIC);
+  });
+
+  it('other refusals keep the general remedy', async () => {
+    const nested = '<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r>' + run('x') + '</w:p>' + SECOND;
+    const doc = await fromBody(nested);
+    const result = await doc.engine.executeBatch({ operations: [{ action: 'replace', target: doc.id, text: 'y' }] } as never);
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.errors)).toMatch(GENERIC);
+  });
+});
+
 describe('refusal allowlist over the repository fixtures (FX-06)', () => {
   it('every refused paragraph is refused for a deliberate reason', async () => {
     const { readdirSync, readFileSync, statSync } = await import('node:fs');

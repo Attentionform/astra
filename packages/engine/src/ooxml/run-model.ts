@@ -25,8 +25,14 @@ const SAFE_ATOMS = new Set([
 const FIELD_SPAN = 'this paragraph holds the start or end of a field that spans paragraphs, such as a table of contents; edit text outside the field, or update the field in Word';
 const PARTIAL_MOVE = 'this paragraph holds part of a tracked move (a partial move); accept or reject the move with trackedChange first, then edit';
 
-function unsupported(reason: string): never {
-  throw Object.assign(new Error(`E_VALIDATION: Cannot edit this paragraph safely: ${reason}. Remedy: edit around the affected structure or replace the paragraph explicitly.`), {code: 'E_VALIDATION'});
+const GENERIC_REMEDY = 'Remedy: edit around the affected structure or replace the paragraph explicitly.';
+// Replacing the whole paragraph is refused for these two as well, so the generic remedy would send the caller in a circle.
+const INLINE_OBJECT_REMEDY = 'Remedy: edit the text outside the content control or equation, delete the whole paragraph with trackChanges false, or make the change in Word.';
+const SIMPLE_FIELD_REMEDY = 'Remedy: edit the text outside the field, or make the change in Word.';
+
+/** Refuses an edit before anything changes. `remedy` is the full sentence; `null` means the reason already says what to do. */
+function unsupported(reason: string, remedy: string | null = GENERIC_REMEDY): never {
+  throw Object.assign(new Error(`E_VALIDATION: Cannot edit this paragraph safely: ${reason}.${remedy ? ` ${remedy}` : ''}`), {code: 'E_VALIDATION'});
 }
 
 /** Build a text coordinate map without mutating the document. */
@@ -54,7 +60,7 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
           if (end) { field.end = text.length; opaque.push(field); field = null; }
           continue;
         }
-        if (parts.some(el => name(el) === 'fldChar' || name(el) === 'instrText')) unsupported(FIELD_SPAN);
+        if (parts.some(el => name(el) === 'fldChar' || name(el) === 'instrText')) unsupported(FIELD_SPAN, null);
         if (parts.some(el => name(el) !== 't' && !safeAtoms.has(name(el)))) unsupported('a run contains an unsupported field marker');
         const content = parts.filter(el => name(el) === 't').map(el => el.textContent ?? '').join('');
         // A text box or drawing keeps its text in w:t elements below the run. The stored paragraph text
@@ -93,7 +99,7 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
           text += hidden;
         }
       } else if (tag === 'moveFrom' || tag === 'moveTo' || tag.startsWith('moveFromRange') || tag.startsWith('moveToRange')) {
-        unsupported(PARTIAL_MOVE);
+        unsupported(PARTIAL_MOVE, null);
       } else if (tag === 'pPr' || tag === 'proofErr' || tag.startsWith('bookmark') || tag.startsWith('commentRange')) {
         continue;
       } else {
@@ -102,7 +108,7 @@ export function buildRunModel(paragraph: Element, expectedText: string): RunMode
     }
   }
   visit(paragraph);
-  if (field) unsupported(FIELD_SPAN);
+  if (field) unsupported(FIELD_SPAN, null);
   if (text !== expectedText) unsupported('the paragraph text and text map differ');
   return {paragraph, segments, opaque, text};
 }
@@ -222,9 +228,12 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
           : 'the changed span reaches text inside a deleted revision; accept or reject that revision first');
       }
       const wholeField = chunk.type === 'delete' && item.kind === 'field' && chunk.at <= item.start && end >= item.end;
-      if (!wholeField) unsupported(item.kind === 'math' ? 'paragraph contains math in the changed span' : `the changed span cuts through ${item.kind}`);
+      if (!wholeField) {
+        if (item.kind === 'math' || item.kind === 'sdt') unsupported(item.kind === 'math' ? 'paragraph contains math in the changed span' : 'the changed span cuts through sdt', INLINE_OBJECT_REMEDY);
+        unsupported(`the changed span cuts through ${item.kind}`);
+      }
       if (options.tracked && item.elements.some(el => name(el) === 'fldSimple'))
-        unsupported('tracked deletion of a simple field cannot safely preserve its field structure');
+        unsupported('tracked deletion of a simple field cannot safely preserve its field structure', SIMPLE_FIELD_REMEDY);
     }
   }
   if (!positions.some(chunk => chunk.type !== 'equal' && (chunk.text.length || (chunk.type === 'delete' && options.includeEmptyFields && model.opaque.some(item => item.kind === 'field' && item.start === item.end))))) return [];

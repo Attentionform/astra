@@ -239,9 +239,12 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions.'
   ),
   sanitize_document: withSharedDocs(
-    'Scrub an open session document: removes revision ids, authorship, embedded EXIF, hidden text PII, ' +
-      'tracked revisions, comments, and (on request) macro/active parts through the same engine scrub ' +
-      'path CLI sanitize calls. Body text is kept. Options mirror the engine scrub keys 1:1 ' +
+    'Scrub an open session document. By default it removes revision ids, authorship, embedded EXIF and hidden text PII. ' +
+      'Tracked changes and comments are kept, with the text of every tracked deletion, unless you ask: ' +
+      'acceptAllRevisions:true accepts all tracked changes (deleted text is removed) and stripComments:true removes comments. ' +
+      'The CLI presets (bare sanitize, --client-safe, --metadata-only, --redact-pii) turn both on; this tool does not. ' +
+      'Macro/active parts are removed on request. It uses the same engine scrub path as CLI sanitize. Body text is kept. ' +
+      'Options mirror the engine scrub keys 1:1 ' +
       '(zeroRetention, purgeRSIDs, purgeAuthors, purgeExif, purgePII, acceptAllRevisions, stripComments, ' +
       'replacementAuthor, allowMacros, stripMacros); omitted options take engine defaults. ' +
       'With acceptAllRevisions it returns E_VALIDATION and no file when revision markup remains that cannot be resolved. ' +
