@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-10
+
+The four npm packages move to 0.3.0. Native validator platform packages remain at 0.2.1; the native validator is unchanged.
+
 ### Added
 
 - MCP review tools can list revisions and comments, inspect full revision or comment-thread text, search comments, resolve or delete comment threads, and accept or reject selected revisions. Tracked edits return their allocated revision IDs.
@@ -180,7 +184,8 @@ First public release.
 - PDF export and page images need LibreOffice and Poppler installed on your machine.
 - Every output file is validated with the Open XML SDK before it is saved, so files are valid, uncorrupted and open in Microsoft Word.
 
-[Unreleased]: https://github.com/Attentionform/astra/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Attentionform/astra/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Attentionform/astra/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Attentionform/astra/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Attentionform/astra/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Attentionform/astra/releases/tag/v0.1.0
