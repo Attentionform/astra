@@ -1,4 +1,4 @@
-import { REVISION_TAGS } from './revision-ids';
+import { REVISION_TAGS, countRevisionElements } from './revision-ids';
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const REVISION_NAMES = new Set<string>(REVISION_TAGS);
@@ -228,9 +228,7 @@ const PROPERTY_KEEP: Record<string, readonly string[]> = {
 /** Count revision elements, including unsupported kinds, without changing a document. */
 export function countRevisions(documents: readonly Document[]): number {
   let count = 0;
-  for (const doc of documents) {
-    for (const tag of REVISION_TAGS) count += doc.getElementsByTagNameNS(W_NS, tag).length;
-  }
+  for (const doc of documents) count += countRevisionElements(doc);
   return count;
 }
 
