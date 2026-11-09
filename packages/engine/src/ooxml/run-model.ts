@@ -226,6 +226,57 @@ function stamp(element: Element, options: RunEditOptions, id: number): void {
   stampRevision(element, id, options.author, options.date);
 }
 
+/**
+ * A simple field (`w:fldSimple`) can be converted to a complex field (begin, instruction, separate, result, end) when its
+ * result is plain runs. Only then can a tracked deletion be written for it: `w:fldSimple` may not sit inside `w:del`, and a
+ * `w:del` inside it would delete the cached result only and leave the field behind.
+ */
+function simpleFieldCanBeConverted(field: Element): boolean {
+  if (!field.getAttributeNS(WORD_NS, 'instr') && !field.getAttribute('w:instr')) return false;
+  return kids(field).every(child => name(child) === 'r' &&
+    kids(child).every(el => name(el) === 'rPr' || name(el) === 't' || SAFE_ATOMS.has(name(el))));
+}
+
+/**
+ * Replaces a simple field with the same field written as a complex field and returns the new runs in order. The result
+ * runs move over unchanged, so the text, its formatting and the text coordinates stay the same. The marker runs copy the
+ * formatting of the first result run (without a tracked formatting change, which belongs to that run only). `w:fldLock`
+ * and `w:dirty` move to the begin marker, where a complex field keeps them.
+ */
+function expandSimpleField(field: Element): Element[] {
+  const doc = field.ownerDocument!;
+  const parent = field.parentNode!;
+  const results = kids(field);
+  const properties = results.map(run => kids(run).find(el => name(el) === 'rPr')).find(Boolean);
+  const markerRun = (fill: (run: Element) => void): Element => {
+    const run = createWordElement(doc, 'w:r');
+    if (properties) run.appendChild(propertiesForNewText(properties));
+    fill(run);
+    return run;
+  };
+  const fieldChar = (type: 'begin' | 'separate' | 'end'): Element => markerRun(run => {
+    const mark = createWordElement(doc, 'w:fldChar');
+    mark.setAttributeNS(WORD_NS, 'w:fldCharType', type);
+    if (type === 'begin') {
+      for (const attribute of ['fldLock', 'dirty']) {
+        const value = field.getAttributeNS(WORD_NS, attribute) ?? field.getAttribute(`w:${attribute}`);
+        if (value) mark.setAttributeNS(WORD_NS, `w:${attribute}`, value);
+      }
+    }
+    run.appendChild(mark);
+  });
+  const instruction = markerRun(run => {
+    const text = createWordElement(doc, 'w:instrText');
+    text.setAttribute('xml:space', 'preserve');
+    text.appendChild(doc.createTextNode(field.getAttributeNS(WORD_NS, 'instr') || field.getAttribute('w:instr') || ''));
+    run.appendChild(text);
+  });
+  const expanded = [fieldChar('begin'), instruction, fieldChar('separate'), ...results, fieldChar('end')];
+  for (const run of expanded) parent.insertBefore(run, field);
+  parent.removeChild(field);
+  return expanded;
+}
+
 /** Apply a prepared edit after verifying its old-text coordinates. */
 export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEditOptions): number[] {
   const expected = chunks.filter(chunk => chunk.type !== 'insert').map(chunk => chunk.text).join('');
@@ -249,6 +300,9 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
       if (at > 0 && at < model.text.length && /[\uD800-\uDBFF]/.test(model.text[at - 1]) && /[\uDC00-\uDFFF]/.test(model.text[at])) unsupported('an edit would split a Unicode surrogate pair');
     }
   }
+  // Simple fields that a tracked deletion covers whole. They are converted after every check has passed, so a refusal
+  // leaves the paragraph as it was.
+  const toConvert: Opaque[] = [];
   for (const chunk of positions) {
     if (chunk.type === 'equal') continue;
     const end = chunk.at + (chunk.type === 'delete' ? chunk.text.length : 0);
@@ -272,11 +326,16 @@ export function applyChunks(model: RunModel, chunks: DiffChunk[], options: RunEd
         if (item.kind === 'math' || item.kind === 'sdt') unsupported(item.kind === 'math' ? 'paragraph contains math in the changed span' : 'the changed span cuts through sdt', INLINE_OBJECT_REMEDY);
         unsupported(`the changed span cuts through ${item.kind}`);
       }
-      if (options.tracked && item.elements.some(el => name(el) === 'fldSimple'))
-        unsupported('tracked deletion of a simple field cannot safely preserve its field structure', SIMPLE_FIELD_REMEDY);
+      const simple = options.tracked ? item.elements.find(el => name(el) === 'fldSimple') : undefined;
+      if (simple) {
+        if (!simpleFieldCanBeConverted(simple))
+          unsupported('a tracked deletion of a simple field needs the field result to be plain runs, and this one holds a link, a tracked change or another wrapper', SIMPLE_FIELD_REMEDY);
+        if (!toConvert.includes(item)) toConvert.push(item);
+      }
     }
   }
   if (!positions.some(chunk => chunk.type !== 'equal' && (chunk.text.length || (chunk.type === 'delete' && options.includeEmptyFields && model.opaque.some(item => item.kind === 'field' && item.start === item.end))))) return [];
+  for (const item of toConvert) item.elements = expandSimpleField(item.elements.find(el => name(el) === 'fldSimple')!);
   // A paragraph whose visible text is entirely in one plain text run can be
   // edited in place. This keeps its surrounding anchors and existing run
   // structure without fragmenting a replacement into separate word runs.

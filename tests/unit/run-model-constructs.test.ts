@@ -170,8 +170,20 @@ describe('a refusal names a remedy that works (limits 1 and 2)', () => {
   describe('a simple field', () => {
     const body = `<w:p>${run('before ')}${FLD}${run(' after')}</w:p>${SECOND}`;
     for (const operation of [{ action: 'delete', trackChanges: true }, { action: 'replace', text: 'before X after', trackChanges: true }] as const) {
-      it(`tracked ${operation.action} covering the field is refused with the remedy that works`, async () => {
+      it(`tracked ${operation.action} covering the field converts it and the file validates`, async () => {
         const doc = await fromBody(body);
+        const result = await doc.engine.executeBatch({ operations: [{ ...operation, target: doc.id }] } as never);
+        expect(result.success, JSON.stringify(result.errors)).toBe(true);
+        expect(bodyXml(doc.parser)).not.toContain('<w:fldSimple');
+        expect(bodyXml(doc.parser)).toContain('<w:delInstrText');
+        expect((await validateDocxBuffer(doc.parser.rezip(doc.ast))).ok).toBe(true);
+      });
+    }
+    // A field result that is not plain runs cannot be converted, so the edit is refused with the remedy that works.
+    const FLD_WITH_REVISION = '<w:fldSimple w:instr=" DATE "><w:ins w:id="5" w:author="A" w:date="2026-01-01T00:00:00Z"><w:r><w:t>2026</w:t></w:r></w:ins></w:fldSimple>';
+    for (const operation of [{ action: 'delete', trackChanges: true }, { action: 'replace', text: 'before X after', trackChanges: true }] as const) {
+      it(`tracked ${operation.action} covering a field whose result holds a tracked change is refused with the remedy that works`, async () => {
+        const doc = await fromBody(`<w:p>${run('before ')}${FLD_WITH_REVISION}${run(' after')}</w:p>${SECOND}`);
         const before = bodyXml(doc.parser);
         const result = await doc.engine.executeBatch({ operations: [{ ...operation, target: doc.id }] } as never);
         expect(result.success).toBe(false);

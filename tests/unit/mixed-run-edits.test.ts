@@ -144,8 +144,18 @@ describe('mixed formatting edits', () => {
     expect(parser.getDocumentDom().getElementsByTagName('w:instrText').length).toBe(1);
   });
 
-  it('refuses tracked simple-field deletion without changing the document or consuming an ID', async () => {
+  it('tracks the deletion of a simple field by converting it to a complex field, and the file validates', async () => {
     const {parser, ast, engine, id} = await fromParagraph('<w:p><w:r><w:t xml:space="preserve">Page </w:t></w:r><w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p>');
+    const out = await engine.executeBatch({operations:[{action:'trackedChange',operation:'delete',target:id,text:'1'}]} as never);
+    expect(out.success, JSON.stringify(out.errors)).toBe(true);
+    const dom = parser.getDocumentDom();
+    expect(dom.getElementsByTagName('w:fldSimple').length).toBe(0);
+    expect(dom.getElementsByTagName('w:delInstrText').length).toBe(1);
+    expect((await validateDocxBuffer(parser.rezip(ast))).ok).toBe(true);
+  });
+
+  it('refuses tracked deletion of a simple field whose result is not plain runs, without changing the document or consuming an ID', async () => {
+    const {parser, ast, engine, id} = await fromParagraph('<w:p><w:r><w:t xml:space="preserve">Page </w:t></w:r><w:fldSimple w:instr=" PAGE "><w:ins w:id="5" w:author="A" w:date="2026-01-01T00:00:00Z"><w:r><w:t>1</w:t></w:r></w:ins></w:fldSimple></w:p>');
     const before = parser.getDocumentDom().toString();
     const nextId = ast.nextChangeId;
     const out = await engine.executeBatch({operations:[{action:'trackedChange',operation:'delete',target:id,text:'1'}]} as never);
