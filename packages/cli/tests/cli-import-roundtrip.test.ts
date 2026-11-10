@@ -152,7 +152,7 @@ describe('import manuscript', () => {
   it('fails closed with a line number on out-of-scope input and writes nothing', async () => {
     const dir = tmpDir('import-bad-block');
     const md = path.join(dir, 'bad.md');
-    fs.writeFileSync(md, '# Ok\n\n> quoted aside\n');
+    fs.writeFileSync(md, '# Ok\n\n> # heading inside a quote\n');
     const out = path.join(dir, 'bad.docx');
     const r = await runCli(['import', md, '-o', out]);
     expect(r.status).toBe(1);
