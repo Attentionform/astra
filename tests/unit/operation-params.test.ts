@@ -159,4 +159,51 @@ describe('flat keys reach the sub-operations that used to read only params', () 
     await executeTable({ action: 'table', target: tableId, op: 'addColumn', afterIndex: 1, width: 3333 } as any, ast);
     expect(xml()).toContain('w:w="3333"');
   });
+
+  it('setCellTextColor accepts textColor as an alias of color', async () => {
+    const { ast, tableId, xml } = await freshTable();
+    await executeTable(
+      { action: 'table', target: tableId, op: 'setCellTextColor', rowIndex: 1, colIndex: 1, textColor: '#00ff00' } as any,
+      ast,
+    );
+    expect(xml()).toContain('<w:color w:val="00FF00"/>');
+  });
+
+  it('setCellTextColor passes the strict validator with textColor, flat and in params', () => {
+    const flat = { action: 'table', target: 't_001', op: 'setCellTextColor', rowIndex: 1, colIndex: 1, textColor: 'FFFFFF' };
+    const nested = { action: 'table', target: 't_001', params: { op: 'setCellTextColor', row: 1, col: 1, textColor: 'FFFFFF' } };
+    expect(() => validateOperationStrict(flat)).not.toThrow();
+    expect(() => validateOperationStrict(nested)).not.toThrow();
+  });
+});
+
+describe('the advertised table parameters match what the operations read', () => {
+  const table = OperationSchema.options.find((o) => (o.shape.action as { value: string }).value === 'table')!;
+  const shape = table.shape as Record<string, any>;
+  // Keys that choose the operation or its target, or that every operation can carry.
+  const NOT_PER_OPERATION = new Set(['action', 'target', 'tableId', 'operation', 'op', 'params', 'trackChanges', 'expectedVersion', 'rowIndex', 'colIndex', 'row', 'col', 'columnIndex']);
+
+  it('every table parameter in the schema is read by at least one operation', () => {
+    const read = new Set(Object.values(TABLE_SUBOP_KEYS).flat());
+    const orphans = Object.keys(shape).filter((k) => !NOT_PER_OPERATION.has(k) && !read.has(k));
+    expect(orphans, `schema lists parameters no operation reads: ${orphans.join(', ')}`).toEqual([]);
+  });
+
+  it('every key an operation reads is in the schema', () => {
+    // Three spellings the executor reads only from inside params; the flat schema does not list them.
+    const nestedOnly = new Set(['setBorder.size', 'setBorder.val', 'setColumnWidth.w']);
+    const missing = Object.entries(TABLE_SUBOP_KEYS)
+      .flatMap(([sub, keys]) => keys.filter((k) => !(k in shape)).map((k) => `${sub}.${k}`))
+      .filter((k) => !nestedOnly.has(k));
+    expect(missing).toEqual([]);
+  });
+
+  it('the description of operation names the parameters of each one, from the same table', () => {
+    const text: string = shape.operation.unwrap().description;
+    for (const [sub, keys] of Object.entries(TABLE_SUBOP_KEYS)) {
+      expect(text).toContain(sub);
+      for (const key of keys.filter((k) => !['rowIndex', 'colIndex', 'columnIndex'].includes(k))) expect(text).toContain(key);
+    }
+    expect(text).toContain('setCellTextColor(color,textColor,row,col)');
+  });
 });

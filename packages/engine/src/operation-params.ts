@@ -42,9 +42,24 @@ export const TABLE_SUBOP_KEYS: Readonly<Record<string, readonly string[]>> = {
   setCellAlignment: ['align', 'alignment', ...ROW, ...COL],
   setTableAlignment: ['align', 'alignment'],
   setCellPadding: ['padding', ...ROW, ...COL],
-  setCellTextColor: ['color', ...ROW, ...COL],
+  setCellTextColor: ['color', 'textColor', ...ROW, ...COL],
   setKeepTogether: [],
 };
+
+/**
+ * One line telling a caller which parameters each table sub-operation reads, built from
+ * TABLE_SUBOP_KEYS so the advertised text cannot drift from what the executor accepts. The
+ * schema lists every table parameter in one flat set; without this line a caller has to guess
+ * which of them belong to which operation. Row and column aliases are folded into `row`/`col`.
+ */
+export function describeTableSubOpKeys(): string {
+  const aliases = new Set(['rowIndex', 'colIndex', 'columnIndex']);
+  const parts = Object.entries(TABLE_SUBOP_KEYS).map(([sub, keys]) => {
+    const shown = keys.filter((k) => !aliases.has(k));
+    return shown.length > 0 ? `${sub}(${shown.join(',')})` : sub;
+  });
+  return `Parameters each operation reads (row and col count from 1): ${parts.join('; ')}.`;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

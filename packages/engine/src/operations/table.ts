@@ -1966,7 +1966,9 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
       // runs of each targeted cell's OWN paragraphs (direct w:p children —
       // never into a nested table). Targeting mirrors setCellAlignment:
       // cell (row+col), row, column, or whole table when both omitted.
-      const colorInput = raw.color ?? op.color;
+      // `textColor` is the name setShading and setCellShading use for the same thing, so it is
+      // accepted here as an alias of `color` (an agent that learnt one name tries the other).
+      const colorInput = raw.color ?? op.color ?? raw.textColor ?? op.textColor;
       if (colorInput === undefined || colorInput === null || String(colorInput).trim() === '') {
         throw new Error(
           `E_VALIDATION: setCellTextColor requires color (got no color). ` +

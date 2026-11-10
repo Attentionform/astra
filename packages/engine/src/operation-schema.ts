@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toError } from './errors';
-import { unknownParamsError } from './operation-params';
+import { describeTableSubOpKeys, unknownParamsError } from './operation-params';
 import { SUPPORTED_CHART_2D_AND_3D_TYPES } from './operations/chart';
 
 /**
@@ -368,8 +368,8 @@ const tableOp = z.object({
   action: z.literal('table'),
   target: z.string().min(1).max(256).optional(),
   tableId: z.string().min(1).max(256).optional(),
-  operation: tableSubOp.optional(),
-  op: tableSubOp.optional(),
+  operation: tableSubOp.describe(describeTableSubOpKeys()).optional(),
+  op: tableSubOp.describe('Alias of operation.').optional(),
   trackChanges: z.boolean().optional(),
   author: revisionAuthor,
   date: revisionDate,
@@ -399,7 +399,6 @@ const tableOp = z.object({
   border: z.string().max(32).optional(),
   color: z.string().max(16).optional(),
   sz: fontSizeOrSzSchema.optional(),
-  fontSize: fontSizeOrSzSchema.optional(),
   vAlign: z.string().max(16).optional(),
   align: tableAlignmentSchema.optional(),
   alignment: tableAlignmentSchema.optional(),

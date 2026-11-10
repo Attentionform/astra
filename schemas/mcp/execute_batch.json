@@ -653,6 +653,7 @@
                 "maxLength": 256
               },
               "operation": {
+                "description": "Parameters each operation reads (row and col count from 1): updateCell(row,col,text,author,date); setCaption(captionText,captionPosition); addRow(afterIndex,cells); deleteRow(index,row); addColumn(afterIndex,width); deleteColumn(index,col); mergeCells(fromRow,fromCol,toRow,toCol); splitCell(row,col); setBorder(border,color,sz,size,val); setShading(fill,headerFill,zebra,textColor); setColumnWidths(widths,columnWidths); setColumnWidth(width,w,col); setHeaderRepeat(row); setCantSplit; setVerticalAlign(vAlign,alignment,row,col); setCellShading(row,col,fill,textColor); setRowHeight(height,rule,row); setCellAlignment(align,alignment,row,col); setTableAlignment(align,alignment); setCellPadding(padding,row,col); setCellTextColor(color,textColor,row,col); setKeepTogether.",
                 "allOf": [
                   {
                     "$ref": "#/definitions/__schema31"
@@ -660,6 +661,7 @@
                 ]
               },
               "op": {
+                "description": "Alias of operation.",
                 "allOf": [
                   {
                     "$ref": "#/definitions/__schema31"
@@ -788,13 +790,6 @@
                 "maxLength": 16
               },
               "sz": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/__schema20"
-                  }
-                ]
-              },
-              "fontSize": {
                 "allOf": [
                   {
                     "$ref": "#/definitions/__schema20"
