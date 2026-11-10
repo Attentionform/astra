@@ -29,9 +29,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The same six systems that validator-platform.yml builds a native validator for.
           - rid: linux-x64
             npm: linux-x64
             runner: ubuntu-latest
+          - rid: linux-arm64
+            npm: linux-arm64
+            runner: ubuntu-24.04-arm
+          # GitHub retires its Intel Mac image in fall 2027; until then osx-x64 is built and run on it.
+          - rid: osx-x64
+            npm: darwin-x64
+            runner: macos-15-intel
           - rid: osx-arm64
             npm: darwin-arm64
             runner: macos-latest

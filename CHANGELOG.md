@@ -18,7 +18,7 @@ All ten npm packages move to 0.4.0, including the six native validator platform 
 - **`get_stats` and `astra stats` report `callouts`.** `astra stats` also prints and returns `tables` and `images`, so the command line and the MCP tool agree.
 - **`save_document` returns `valid` and `errorCount`**, the same shape as `validate_document`. A refused save lists the first 10 errors with their `xPath` and points to `validate_document` for the rest.
 - **`setCellTextColor` accepts `textColor`** as an alias of `color`, like `setShading` and `setCellShading`. The `operation` field of the table action now lists the parameters of every table operation.
-- **The platform smoke runs in CI.** Every CI run installs the packed packages on Linux, macOS (arm64) and Windows (x64 and arm64) and runs the CLI and the MCP server through the shims npm writes, through `npx`, and through an MCP handshake over stdio. The release workflow calls it before it publishes.
+- **The platform smoke runs in CI.** Every CI run installs the packed packages on the six systems that have a native validator (Linux x64 and arm64, macOS x64 and arm64, Windows x64 and arm64) and runs the CLI and the MCP server through the shims npm writes, through `npx`, and through an MCP handshake over stdio. The release workflow calls it before it publishes.
 
 ### Changed
 
