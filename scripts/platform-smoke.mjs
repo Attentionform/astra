@@ -42,8 +42,16 @@ function fail(message) {
   process.exit(1);
 }
 
-/** Quotes an argument for cmd.exe, which is what runs a .cmd shim. */
-const q = (a) => (isWin ? `"${String(a).replace(/"/g, '\\"')}"` : String(a));
+/**
+ * Quotes an argument for cmd.exe, which is what runs a .cmd shim. The C runtime reads a backslash
+ * that comes before a double quote as an escape, so backslashes before a quote, and any at the very
+ * end (they sit before the closing quote), are doubled, so a folder given with a trailing backslash reaches the program unchanged.
+ */
+const q = (a) => {
+  if (!isWin) return String(a);
+  const escaped = String(a).replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1');
+  return `"${escaped}"`;
+};
 
 /** The environment with the global bin folder first on PATH (the variable is `Path` on Windows). */
 function envWithBin(extra = {}) {
