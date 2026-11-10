@@ -403,10 +403,11 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     it('DocxParser fails closed when overall wire-to-uncompressed ratio > 100:1', () => {
       const validDocx = createBlankDocxBuffer('blank');
 
-      // Patch entries so individual ratios are ~83:1 (< 100:1 ceiling), but total uncompressed is 250,000 bytes.
-      // With wire size ~2KB, overall ratio is ~125:1 (> 100:1 ceiling).
+      // Patch entries so individual ratios are ~99:1 (< 100:1 ceiling) while the overall ratio is
+      // above it: ten entries of 69,000 bytes against a wire size of about 5KB is ~136:1. The wire size
+      // moves when the template grows, so the entry size leaves room for a wire size up to ~6.9KB.
       const crafted = patchCentralDirectory(validDocx, () => {
-        return { uncompressedSize: 50000, compressedSize: 600 };
+        return { uncompressedSize: 69000, compressedSize: 700 };
       });
 
       expect(() => new DocxParser(crafted)).toThrowError(
