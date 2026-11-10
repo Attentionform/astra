@@ -228,4 +228,10 @@ if (isWin) {
 }
 
 log('all steps passed');
-fs.rmSync(work, { recursive: true, force: true });
+// The validator program can still be shutting down when the MCP servers stop, and Windows will not
+// delete a running .exe. The checks are done, so a folder that will not go is only reported.
+try {
+  fs.rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+} catch (err) {
+  console.warn(`[smoke] note: could not remove ${work} (${err instanceof Error ? err.message : err}); the runner cleans it up`);
+}
