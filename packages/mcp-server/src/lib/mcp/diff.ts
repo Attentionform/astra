@@ -11,6 +11,7 @@ import {
   getRepoDir,
   parseTableOrdinalFromXPath,
   refreshAstInPlace,
+  tableGridPlainText,
 } from '@attentionform/astra-engine';
 import type { DocHandle } from '../session-store';
 import { COMMIT_AUTHOR_DEFAULT, COMMIT_MESSAGE_MAX } from './errors';
@@ -231,7 +232,7 @@ export interface DiscardedUnsavedSummary {
 
 /** Node ids + live texts in document order (single AST walk). */
 export function collectAstIdTexts(ast: {
-  sections: Array<{ nodes: Array<{ id: string; metadata: { text?: unknown } }> }>;
+  sections: Array<{ nodes: Array<{ id: string; type?: string; xml?: unknown; metadata: { text?: unknown } }> }>;
 }): { order: string[]; texts: Map<string, string> } {
   const order: string[] = [];
   const texts = new Map<string, string>();
@@ -240,7 +241,10 @@ export function collectAstIdTexts(ast: {
       for (const n of sec.nodes ?? []) {
         if (typeof n.id !== 'string' || !n.id) continue;
         order.push(n.id);
-        texts.set(n.id, String(n.metadata?.text ?? ''));
+        // A table reads as rows and cells ("A | B" per row, one row per line); its flat text
+        // would run every cell together ("VendorCostSLAAlpha1099.9").
+        const grid = n.type === 'table' ? tableGridPlainText(n.xml) : undefined;
+        texts.set(n.id, grid ?? String(n.metadata?.text ?? ''));
       }
     }
   } catch {

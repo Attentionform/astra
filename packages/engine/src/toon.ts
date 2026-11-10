@@ -393,20 +393,23 @@ function directKids(parent: Element, tag: string): Element[] {
   return out;
 }
 
-/** Concatenated w:t text of one table cell, scoped to direct w:p kids so a
- * nested w:tbl inside the cell never pollutes the outer text (best-effort). */
+/** Text of one table cell, scoped to direct w:p kids so a nested w:tbl inside the cell never
+ * pollutes the outer text (best-effort). Paragraphs of one cell are separated by a space, so a
+ * callout's title and body read as two words and not one ("Important" + "body text"). */
 function cellTextOf(tc: Element): string {
-  let text = '';
+  const parts: string[] = [];
   try {
     const paras = directKids(tc, 'w:p');
     for (const p of paras) {
+      let text = '';
       const ts = p.getElementsByTagName('w:t');
       for (let i = 0; i < ts.length; i++) text += (ts[i] as Element).textContent || '';
+      if (text.trim().length > 0) parts.push(text);
     }
   } catch {
     return '';
   }
-  return text;
+  return parts.join(' ');
 }
 
 /** One addressable grid cell: 1-based row/col, span width, merge-cover marker. */
@@ -574,6 +577,33 @@ export function renderTableGrid(grid: ToonGrid): string {
   }
   const rows = [...byRow.keys()].sort((a, b) => a - b);
   return rows.map((r) => (byRow.get(r) ?? []).map(renderGridCell).join(' | ')).join(' ; ');
+}
+
+/**
+ * Plain text of a table for a reader who compares before and after (the values `save_document`
+ * reports as changed): cells of a row joined with " | ", rows joined with a newline. No cell
+ * addresses, so the text reads like the table does. Returns undefined when the element holds no
+ * table grid.
+ */
+export function tableGridPlainText(tbl: unknown): string | undefined {
+  try {
+    const el = tbl as Element | undefined;
+    if (!el || typeof el.getElementsByTagName !== 'function') return undefined;
+    const grid = extractTableGrid(el);
+    if (grid.cells.length === 0) return undefined;
+    const byRow = new Map<number, string[]>();
+    for (const c of grid.cells) {
+      const list = byRow.get(c.row);
+      if (list) list.push(c.text);
+      else byRow.set(c.row, [c.text]);
+    }
+    return [...byRow.keys()]
+      .sort((a, b) => a - b)
+      .map((r) => (byRow.get(r) ?? []).join(' | '))
+      .join('\n');
+  } catch {
+    return undefined;
+  }
 }
 
 /**
