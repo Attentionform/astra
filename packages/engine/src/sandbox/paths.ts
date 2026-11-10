@@ -19,22 +19,38 @@ import fsp from 'fs/promises';
 import path from 'path';
 
 /**
+ * Removes the separators at the end of a normalized path, but keeps a root such as `/` or `C:\`
+ * whole. `path.normalize` keeps a trailing separator, and comparing with `dir + sep` then looks
+ * for two of them.
+ */
+function withoutTrailingSeparator(p: typeof path.posix, normalized: string): string {
+  const root = p.parse(normalized).root;
+  let out = normalized;
+  while (out.length > root.length && out.endsWith(p.sep)) out = out.slice(0, -1);
+  return out;
+}
+
+/**
  * Lexical containment: true when `candidate` equals `dir` or lives under it.
- * Win32-aware (case-insensitive); POSIX case-sensitive. No filesystem I/O.
+ * Win32-aware (case-insensitive, accepts `/` and `\\`); POSIX case-sensitive. No filesystem I/O.
+ * A folder given with a trailing separator, or a root such as `/` or `C:\`, counts the same as
+ * the folder without it. The `platform` argument picks the path rules, so every system can be
+ * tested on any machine.
  */
 export function isPathInsideDir(
   candidate: string,
   dir: string,
   platform: string = process.platform
 ): boolean {
-  const normC = path.normalize(candidate);
-  const normD = path.normalize(dir);
+  const p = platform === 'win32' ? path.win32 : path.posix;
+  let c = withoutTrailingSeparator(p, p.normalize(candidate));
+  let d = withoutTrailingSeparator(p, p.normalize(dir));
   if (platform === 'win32') {
-    const lc = normC.toLowerCase();
-    const ld = normD.toLowerCase();
-    return lc === ld || lc.startsWith(ld + path.sep.toLowerCase());
+    c = c.toLowerCase();
+    d = d.toLowerCase();
   }
-  return normC === normD || normC.startsWith(normD + path.sep);
+  if (c === d) return true;
+  return c.startsWith(d.endsWith(p.sep) ? d : d + p.sep);
 }
 
 /**

@@ -110,13 +110,17 @@ describe('Q0a jail equivalence (old-vs-new identical verdicts)', () => {
     [dir + '2/x.docx', dir],
     [dir + '-suffix', dir],
     [dir + '/sub2/../sub/ok.docx', dir],
-    // trailing-slash dir form
-    [path.join(dir, 'a'), dir + path.sep],
+    // A trailing-slash dir form is no longer a special case: the old check looked for two
+    // separators and refused it. It is covered in tests/unit/path-inside-dir.test.ts.
   ];
 
   for (const platform of [process.platform, 'win32']) {
     it(`lexical verdicts identical (platform=${platform})`, () => {
       for (const [candidate, d] of lexicalCorpus) {
+        // Under Windows rules a backslash is a separator. The old check ran the host's rules even
+        // when asked for win32, so on a POSIX host it kept treating it as a name character.
+        // The Windows cases are covered in tests/unit/path-inside-dir.test.ts.
+        if (platform === 'win32' && candidate.includes('\\')) continue;
         expect(
           isPathInsideDir(candidate, d, platform),
           `candidate=${JSON.stringify(candidate)} dir=${JSON.stringify(d)}`
