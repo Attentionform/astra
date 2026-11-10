@@ -558,15 +558,11 @@ export function compileMarkdownDetailed(
     const walkAlert = (list: readonly InlineToken[]): void => {
       for (const tok of list) {
         const t = tok as InlineToken;
-        if (t.type === 'strong' || t.type === 'em' || t.type === 'codespan') {
-          fail(line, 'rich text inside alerts is out of scope', 'move bold, italic, or code into a body paragraph');
-        }
         if (t.type === 'link') {
           const raw = (t as { raw?: unknown }).raw;
           if (typeof raw === 'string' && raw.startsWith('<')) {
             fail(line, 'raw HTML is out of scope in an alert', 'use plain Markdown blocks instead of HTML tags');
           }
-          fail(line, 'links inside alerts are out of scope', 'move the link into a body paragraph');
         }
         if (t.type === 'image') {
           fail(line, 'images are out of scope in an alert', 'put images on their own block line instead');
@@ -586,18 +582,20 @@ export function compileMarkdownDetailed(
 
   /**
    * Compiles a `> [!TYPE]` alert blockquote to a real `callout` insert.
-   * Every other quote shape fails closed as a general blockquote. Bodies
-   * stay plain text (mirrors the table-cell policy: bold, italic, code,
-   * links, images, and note markers fail instead of dropping formatting),
-   * while citation keys still resolve to `[n]` text. An optional bold-only
-   * first line becomes the callout title. Footnote markers fail: the callout
-   * node id is minted at execution time, so there is no compile-time anchor
-   * for a note (same reason as table cells). Theme: Markdown carries no
+   * Every other quote shape fails closed as a general blockquote. Bold,
+   * italic, strikethrough, inline code and links in the title and body are
+   * kept: the callout op carries a compile-time `id` plus the span segments
+   * in `params`, and `applyInlineSpans` rebuilds the runs after the batch.
+   * Images, raw HTML, inline math and note markers still fail instead of
+   * dropping content, and citation keys resolve to `[n]` text. An optional
+   * bold-only first line becomes the callout title. Footnote markers fail:
+   * a note anchors on a paragraph and the callout body is a table cell
+   * (same reason as table cells). Theme: Markdown carries no
    * explicit theme syntax, so every alert tag is generic — the active guide
    * default wins when one is set, else the legacy per-tag map.
    */
   const handleAlertBlockquote = (token: BlockToken, line: number): void => {
-    const inner = (token.tokens ?? []) as Token[];
+    const inner = ((token.tokens ?? []) as Token[]).filter((child) => child.type !== 'space');
     if (inner.length === 0) {
       fail(line, 'blockquotes are out of scope', 'use a plain paragraph');
     }
@@ -622,6 +620,7 @@ export function compileMarkdownDetailed(
     }
     const restLines = rest.split('\n');
     let title: string | undefined;
+    let titleSegments: SpanSegment[] | undefined;
     let bodySrc = rest;
     if (restLines.length > 0 && ALERT_TITLE_PATTERN.test(restLines[0].trim())) {
       const innerTitle = (ALERT_TITLE_PATTERN.exec(restLines[0].trim())?.[1] ?? '').trim();
@@ -644,6 +643,22 @@ export function compileMarkdownDetailed(
       CITATION_REF_PATTERN.lastIndex = 0;
       title = innerTitle;
       bodySrc = restLines.slice(1).join('\n');
+      let titleTokens: Token[];
+      try {
+        titleTokens = lexMarkdown(restLines[0].trim(), { dollarMath: options?.dollarMath });
+      } catch (err: unknown) {
+        const detail = err instanceof Error ? err.message : String(err);
+        throw toError('E_VALIDATION', `line ${line}: alert title rejected (${detail})`, 'keep the alert title to one line of inline text');
+      }
+      const titleBlocks = titleTokens.filter((t) => t.type !== 'space');
+      if (titleBlocks.length !== 1 || titleBlocks[0].type !== 'paragraph') {
+        fail(line, `alert [!${alertType}] title must be one line of inline text`, 'keep the title to one bold line');
+      }
+      const titleInlineTokens = (titleBlocks[0] as BlockToken).tokens as InlineToken[] | undefined;
+      failOnSpanTokensInAlert(titleInlineTokens, line);
+      const parsedTitle = parseInlineTokens(titleInlineTokens, line, 'an alert title', citationDefs, citationOrder, citationNum, usedCitations);
+      title = parsedTitle.plainText.length > 0 ? parsedTitle.plainText : innerTitle;
+      titleSegments = parsedTitle.segments;
     }
     for (const bodyLine of bodySrc.split('\n')) {
       if (CONTAINER_FENCE_PATTERN.test(bodyLine)) {
@@ -664,6 +679,7 @@ export function compileMarkdownDetailed(
       throw toError('E_VALIDATION', `line ${line}: alert body rejected (${detail})`, 'keep alert bodies plain text');
     }
     const cleanParas: string[] = [];
+    const bodySegments: SpanSegment[] = [];
     for (const bodyToken of bodyTokens) {
       if (bodyToken.type === 'space') continue;
       if (bodyToken.type !== 'paragraph') {
@@ -679,7 +695,14 @@ export function compileMarkdownDetailed(
       FOOTNOTE_REF_PATTERN.lastIndex = 0;
       failOnImageOrHtml(paraText, paraLine, 'an alert');
       failOnSpanTokensInAlert(para.tokens, paraLine);
-      cleanParas.push(plainJoin(replaceCitationsInPlainCell(paraText, paraLine)));
+      const parsedPara = parseInlineTokens(para.tokens as InlineToken[] | undefined, paraLine, 'an alert', citationDefs, citationOrder, citationNum, usedCitations);
+      if (parsedPara.footnoteRefs.length > 0) {
+        fail(paraLine, 'footnote markers inside alerts are out of scope', 'move the note reference into a body paragraph');
+      }
+      for (const key of parsedPara.citationKeys) usedCitations.add(key);
+      if (cleanParas.length > 0) bodySegments.push({ text: ' ', bold: false, italic: false, code: false });
+      bodySegments.push(...parsedPara.segments);
+      cleanParas.push(parsedPara.plainText);
     }
     const text = plainJoin(cleanParas.join(' '));
     if (text.length === 0) {
@@ -699,12 +722,17 @@ export function compileMarkdownDetailed(
     const guideTheme = typeof guideThemeRaw === 'string' && guideThemeRaw.length > 0 ? guideThemeRaw : undefined;
     const op: Record<string, unknown> = {
       action: 'callout',
+      id: nextId(),
       anchor: anchorId,
       position: 'after',
       text,
       theme: tagTheme ?? guideTheme ?? ALERT_TYPE_TO_THEME[alertType] ?? 'indigo',
     };
     if (title !== undefined) op['title'] = title;
+    const spanParams: Record<string, unknown> = {};
+    if (titleSegments !== undefined && segmentsNeedSplit(titleSegments)) spanParams['mdTitleSpans'] = titleSegments;
+    if (segmentsNeedSplit(bodySegments)) spanParams['mdBodySpans'] = bodySegments;
+    if (Object.keys(spanParams).length > 0) op['params'] = spanParams;
     ops.push(op as Operation);
     // Callout node ids mint at execution time, so no compile-time id exists
     // to chain onto: reset to the live end anchor for the next insert.

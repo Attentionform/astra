@@ -294,15 +294,27 @@ function applyInlineSpans(
     relationships: Record<string, { type: string; target: string; targetMode: string }>;
     sections: Array<{ nodes: Array<{ id: string; xml?: Element; version: number }> }>;
   };
+  type SpanTarget = { id: string; spans: SpanSegment[]; part: 'paragraph' | 'calloutTitle' | 'calloutBody' };
+  const targets: SpanTarget[] = [];
   for (const op of operations) {
     const rec = op as unknown as Record<string, unknown>;
-    if (rec['action'] !== 'insert' || rec['type'] !== 'paragraph') continue;
     const params = rec['params'] as Record<string, unknown> | undefined;
-    const rawSpans = params?.['mdSpans'] as SpanSegment[] | undefined;
-    if (!Array.isArray(rawSpans) || !segmentsNeedSplit(rawSpans as SpanSegment[])) continue;
-    const spans = rawSpans as SpanSegment[];
     const id = String(rec['id'] ?? '');
     if (!id) continue;
+    if (rec['action'] === 'callout') {
+      const titleSpans = params?.['mdTitleSpans'] as SpanSegment[] | undefined;
+      const bodySpans = params?.['mdBodySpans'] as SpanSegment[] | undefined;
+      if (Array.isArray(titleSpans) && segmentsNeedSplit(titleSpans)) targets.push({ id, spans: titleSpans, part: 'calloutTitle' });
+      if (Array.isArray(bodySpans) && segmentsNeedSplit(bodySpans)) targets.push({ id, spans: bodySpans, part: 'calloutBody' });
+      continue;
+    }
+    if (rec['action'] !== 'insert' || rec['type'] !== 'paragraph') continue;
+    const rawSpans = params?.['mdSpans'] as SpanSegment[] | undefined;
+    if (!Array.isArray(rawSpans) || !segmentsNeedSplit(rawSpans as SpanSegment[])) continue;
+    targets.push({ id, spans: rawSpans as SpanSegment[], part: 'paragraph' });
+  }
+  for (const target of targets) {
+    const { id, spans, part } = target;
     let node: { id: string; xml?: Element; version: number } | undefined;
     for (const section of liveAst.sections) {
       const found = section.nodes.find((n) => n.id === id);
@@ -316,7 +328,20 @@ function applyInlineSpans(
         `E_VALIDATION: line 1: span target paragraph '${id}' is missing after compose. Remedy: retry the compose without manual edits in between.`
       );
     }
-    const para = node.xml as Element;
+    let para = node.xml as Element;
+    // A callout is a one-cell table: its title paragraph comes first (only when a title exists) and the body paragraph is last.
+    // The callout's own run formatting (title bold + theme colour, body colour) is read back from the run being replaced.
+    let baseRPr: Element | undefined;
+    if (part !== 'paragraph') {
+      const cellParas = Array.from(para.getElementsByTagName('w:p'));
+      const hasTitle = cellParas.length > 1;
+      const picked = part === 'calloutTitle' ? (hasTitle ? cellParas[0] : undefined) : cellParas[cellParas.length - 1];
+      if (!picked) continue;
+      para = picked;
+      const firstRun = Array.from(para.childNodes).find((k) => k.nodeType === 1 && (k as Element).tagName === 'w:r') as Element | undefined;
+      const rPrEl = firstRun ? Array.from(firstRun.childNodes).find((k) => k.nodeType === 1 && (k as Element).tagName === 'w:rPr') : undefined;
+      baseRPr = rPrEl ? (rPrEl as Element) : undefined;
+    }
     const doc = para.ownerDocument;
     if (!doc) continue;
     const keptFootRefs: Element[] = [];
@@ -348,10 +373,12 @@ function applyInlineSpans(
     }
     const buildRun = (seg: SpanSegment): Element => {
       const run = createWordElement(doc, 'w:r');
-      const needsRPr = seg.bold || seg.italic || seg.strike || seg.code || seg.linkUrl !== undefined;
+      const needsRPr = seg.bold || seg.italic || seg.strike || seg.code || seg.linkUrl !== undefined || baseRPr !== undefined;
       if (needsRPr) {
         const rPr = createWordElement(doc, 'w:rPr');
-        if (seg.bold) rPr.appendChild(createWordElement(doc, 'w:b'));
+        const baseBold = baseRPr !== undefined && baseRPr.getElementsByTagName('w:b').length > 0;
+        const baseColor = baseRPr?.getElementsByTagName('w:color')[0]?.getAttribute('w:val') ?? undefined;
+        if (seg.bold || baseBold) rPr.appendChild(createWordElement(doc, 'w:b'));
         if (seg.italic) rPr.appendChild(createWordElement(doc, 'w:i'));
         if (seg.strike) rPr.appendChild(createWordElement(doc, 'w:strike'));
         if (seg.code) {
@@ -359,6 +386,11 @@ function applyInlineSpans(
           rFonts.setAttribute('w:ascii', COMPOSE_CODE_FONT);
           rFonts.setAttribute('w:hAnsi', COMPOSE_CODE_FONT);
           rPr.appendChild(rFonts);
+        }
+        if (seg.linkUrl === undefined && baseColor) {
+          const color = createWordElement(doc, 'w:color');
+          color.setAttribute('w:val', baseColor);
+          rPr.appendChild(color);
         }
         if (seg.linkUrl !== undefined) {
           const color = createWordElement(doc, 'w:color');
@@ -457,6 +489,28 @@ function applyInlineSpans(
 }
 
 /**
+ * Strict schema check for compiled Markdown operations. The span segments a
+ * callout carries in params (`mdTitleSpans`, `mdBodySpans`) are compose
+ * internal (rebuilt into runs after the batch), not part of the public
+ * callout op, so the check sees each op without them.
+ */
+export function validateComposedOperations(operations: Operation[]): void {
+  validateOperationsStrict(
+    operations.map((op) => {
+      const rec = op as unknown as Record<string, unknown>;
+      const params = rec['params'] as Record<string, unknown> | undefined;
+      if (rec['action'] !== 'callout' || !params) return op;
+      const { mdTitleSpans: _t, mdBodySpans: _b, ...publicParams } = params;
+      void _t;
+      void _b;
+      const { params: _p, ...rest } = rec;
+      void _p;
+      return (Object.keys(publicParams).length > 0 ? { ...rest, params: publicParams } : rest) as unknown as Operation;
+    })
+  );
+}
+
+/**
  * Compiles Markdown and applies it to an open document through
  * `executeBatch`, chunked at the engine op cap. Appends only, except that a
  * pristine blank template (see the seed-skip heuristic above) has its two
@@ -482,7 +536,7 @@ export async function composeDocument(
     ...(options?.styleGuide !== undefined ? { styleGuide: options.styleGuide } : {}),
     ...(options?.dollarMath ? { dollarMath: true } : {}),
   });
-  validateOperationsStrict(operations);
+  validateComposedOperations(operations);
 
   const chunkSize =
     options?.chunkSize !== undefined ? Math.floor(options.chunkSize) : ENGINE_MAX_OPS;

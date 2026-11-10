@@ -984,7 +984,7 @@ describe('compose alert blockquotes', () => {
     ];
     for (const [tag, theme] of cases) {
       expect(compileMarkdown(`> [!${tag}]\n> Body text\n`)).toEqual([
-        { action: 'callout', anchor: 'end', position: 'after', text: 'Body text', theme },
+        { action: 'callout', id: 'md_0001', anchor: 'end', position: 'after', text: 'Body text', theme },
       ]);
     }
   });
@@ -1007,8 +1007,9 @@ describe('compose alert blockquotes', () => {
     expectLineError(() => compileMarkdown('> [!BOGUS]\n> x\n'), 1, 'blockquotes');
     expectLineError(() => compileMarkdown('> [!NOTE]\n'), 1, 'needs body text');
     expectLineError(() => compileMarkdown('> [!NOTE]\n> - item\n'), 1, 'list blocks');
-    expectLineError(() => compileMarkdown('> [!NOTE]\n> use **bold** here\n'), 2, 'rich text inside alerts');
-    expectLineError(() => compileMarkdown('> [!NOTE]\n> see [t](https://example.com)\n'), 2, 'links inside alerts');
+    expectLineError(() => compileMarkdown('> [!NOTE]\n> see ![alt](x.png)\n'), 2, 'images are out of scope');
+    expectLineError(() => compileMarkdown('> [!NOTE]\n> a <b>x</b> b\n'), 2, 'raw HTML');
+    expectLineError(() => compileMarkdown('> [!NOTE]\n> solve \\(x+1\\) now\n'), 2, 'inline math inside alerts');
     expectLineError(() => compileMarkdown('> [!NOTE]\n> note[^a]\n\n[^a]: body\n'), 2, 'footnote markers inside alerts');
   });
 

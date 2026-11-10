@@ -11,7 +11,7 @@ import {
   resolveStyleGuide,
   revisionsRemedy,
   summarizeStyleGuide,
-  validateOperationsStrict,
+  validateComposedOperations,
   type EngineErrorCode,
   type ResolvedStyleGuide,
   type StyleGuideConfig,
@@ -132,7 +132,7 @@ export const COMPOSE_DOCUMENT_DESCRIPTION =
   '(header row shaded and repeated), --- dividers, fenced or indented code blocks (monospace, line breaks kept), ' +
   '[^label] footnotes with definitions, inline spans (**bold**, *italic*, `code`, [text](url)) applied as runs with real hyperlink targets, ' +
   'and standalone block images/charts (![alt](path)) resolved from allowedDir. Out-of-scope input fails closed with E_VALIDATION plus a 1-based line number and writes nothing: ' +
-  'raw HTML (except [!NOTE]-style alert callouts, which compile to callout containers), custom styles, general blockquotes, deeper headings, nested lists or tables, task items. ' +
+  'raw HTML (except [!NOTE]-style alert callouts, which compile to callout containers and keep bold, italic, code and links), custom styles, general blockquotes, deeper headings, nested lists or tables, task items. ' +
   'Block image/chart refs need allowedDir pointing at the folder holding the files (refs stay jailed inside it; without allowedDir they fail closed); ' +
   'remote URL refs fail closed; inline data-URL block images bypass allowedDir by design (bytes decode in memory through the same image gates). ' +
   'Sources compiling past 500 operations apply as sequential 500-operation chunks; each chunk is atomic, but a later-chunk ' +
@@ -399,7 +399,7 @@ export async function handleComposeDocument(
     );
   }
   try {
-    validateOperationsStrict(operations);
+    validateComposedOperations(operations);
   } catch (err: unknown) {
     return composeErrorFrom(
       err,

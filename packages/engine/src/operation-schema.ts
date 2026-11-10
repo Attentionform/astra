@@ -644,6 +644,7 @@ const calloutOp = z.object({
   action: z.literal('callout'),
   text: z.string().min(1).max(100_000),
   anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT).optional(),
+  id: z.string().min(1).max(256).optional(),
   title: z.string().max(1_000).optional(),
   theme: z.string().max(32).optional(),
   position: operationInsertPosition,

@@ -1100,13 +1100,13 @@ export class OperationEngine {
   /**
    * R-4 helper: true when the op mints a live node id from the client id.
    * Only these routes use `op.id` verbatim as the node id; other actions
-   * either ignore `id` (footnote/callout/field generate their own) or are
+   * either ignore `id` (footnote/field generate their own) or are
    * rejected at the schema gate, so live collision applies here only.
    */
   private static mintsNodeId(op: BaseOperation): boolean {
     const fields = op as unknown as Record<string, unknown>;
     const action = typeof fields['action'] === 'string' ? String(fields['action']) : '';
-    if (action === 'insert') return true;
+    if (action === 'insert' || action === 'callout') return true;
     if (action === 'equation') {
       const sub: unknown = fields['operation'] ?? (fields['params'] as Record<string, unknown> | undefined)?.['operation'];
       return sub === 'insert';

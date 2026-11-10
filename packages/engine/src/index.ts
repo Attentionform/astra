@@ -103,7 +103,7 @@ export * from './operations/equation';
 export * from './operations/metadata';
 
 // Compose path (Markdown -> ops -> document) and package normalizer
-export { compileMarkdown, composeDocument } from './compose/markdown';
+export { compileMarkdown, composeDocument, validateComposedOperations } from './compose/markdown';
 export type { CompileOptions, ComposeOptions } from './compose/markdown';
 export { normalizePackage, previewNormalizations } from './ooxml/normalize';
 export type { NormalizePackageResult } from './ooxml/normalize';

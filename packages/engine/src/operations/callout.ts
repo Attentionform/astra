@@ -42,6 +42,8 @@ const THEMES: Record<string, CalloutTheme> = {
 export interface CalloutOperation extends BaseOperation {
   action: 'callout';
   anchor?: string;
+  /** Client-chosen node id. Omit to get a generated `callout_*` id. */
+  id?: string;
   title?: string;
   text: string;
   theme?: 'indigo' | 'emerald' | 'amber' | 'slate' | 'rose' | string;
@@ -108,7 +110,10 @@ export async function executeCallout(op: CalloutOperation, ast: DocumentAST, par
   const ownerDoc = targetSection.nodes[0]?.xml?.ownerDocument || ownerDocumentOf(ast.sections);
   if (!ownerDoc) throw new Error('Cannot resolve XML DOM document');
 
-  const calloutId = isCalloutReproducible()
+  const clientId = pick('id', op.id);
+  const calloutId = typeof clientId === 'string' && clientId.length > 0
+    ? clientId
+    : isCalloutReproducible()
     ? (() => {
         const base = `callout_${calloutHash8(`${resolvedAnchor ?? ''}:${resolvedPosition}:${themeKey}:${resolvedTitle ?? ''}:${resolvedText}`)}`;
         const live = new Set<string>();
