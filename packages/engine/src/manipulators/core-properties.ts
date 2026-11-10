@@ -590,6 +590,32 @@ export function writeCorePropertiesPart(adapter: CorePropsZipAdapter, xml: strin
   }
 }
 
+/**
+ * Registers the core properties part that is already in the package: its Content_Types override and the package
+ * relationship that points at it. A restore that brings back an older [Content_Types].xml or _rels/.rels while the
+ * live docProps/core.xml stays (the part is not versioned) would otherwise leave a part with no content type.
+ * Returns without a change when the part is absent or both entries exist. Best-effort, like the write path.
+ */
+export function registerExistingCorePropertiesPart(adapter: CorePropsZipAdapter): void {
+  let present = false;
+  try {
+    present = adapter.readTextOrNull(CORE_PROPERTIES_PART) !== null;
+  } catch {
+    return;
+  }
+  if (!present) return;
+  try {
+    ensureContentTypeOverride(adapter);
+  } catch {
+    /* best-effort */
+  }
+  try {
+    ensurePackageRel(adapter);
+  } catch {
+    /* best-effort */
+  }
+}
+
 function patchToMetadata(patch: CorePropertiesPatch): Partial<DocumentMetadata> {
   const out: Partial<DocumentMetadata> = {};
   if (patch.title !== undefined) out.title = patch.title;

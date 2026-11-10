@@ -14,7 +14,7 @@ import { ommlToLatex } from './ooxml/omml';
 import { validateDocxBuffer, ValidationResult } from './ooxml/validator-gate';
 import { NumberingManipulator, NUMBERING_REL_TYPE } from './manipulators/numbering';
 import { RelationshipsManipulator } from './manipulators/relationships';
-import { CorePropertiesManipulator, parseCorePropertiesXml } from './manipulators/core-properties';
+import { CorePropertiesManipulator, parseCorePropertiesXml, registerExistingCorePropertiesPart } from './manipulators/core-properties';
 import { StylePalette, extractStylePalette } from './ooxml/styles';
 import { clampZipEntryTimes, checkZipBombCeilings, resolveDeterministicZipDate, clampCorePropertiesDates, resolveReproducibleMode } from './zip-hardening';
 import { deterministicRevisionIso, resolveDefaultAuthor } from './ooxml/track-changes-emitter';
@@ -912,6 +912,10 @@ export class DocxParser {
     } else {
       this.stylesDom = null;
     }
+
+    // The core properties part is not versioned with the other parts, so a restored [Content_Types].xml or
+    // _rels/.rels can lack the entries for the part that is still here.
+    registerExistingCorePropertiesPart(this.getZipAdapter());
 
     this.invalidateMediaCache();
     this.assignStableIds();
