@@ -19,6 +19,7 @@ import {
 } from '@attentionform/astra-engine';
 import {
   canonicalizeForMcp,
+  describeAllowedFolders,
   getMcpAllowedRoots,
   type DocHandle,
   type McpSessionStore,
@@ -300,7 +301,7 @@ export function assertPathAllowed(allowedDir: string, roots: string[]): string {
   if (segments.includes('..')) {
     throw Object.assign(new Error('allowedDir contains forbidden ".." traversal'), {
       code: 'E_SANDBOX',
-      remedy: 'Use a folder inside the workspace documents directory or the system temp dir.',
+      remedy: `Use a folder ${describeAllowedFolders()}.`,
     });
   }
   const resolved = path.resolve(trimmed);
@@ -326,7 +327,7 @@ export function assertPathAllowed(allowedDir: string, roots: string[]): string {
       new Error(`allowedDir is outside the allowed directories (${roots.join(', ')})`),
       {
         code: 'E_SANDBOX',
-        remedy: 'Point allowedDir at a folder under documents/ or the system temp dir, or set ASTRA_EXTRA_DOC_ROOTS.',
+        remedy: `Point allowedDir at a folder ${describeAllowedFolders()}.`,
       }
     );
   }
@@ -371,7 +372,7 @@ export async function handleComposeDocument(
     } catch (err: unknown) {
       return composeErrorFrom(
         err,
-        'Point allowedDir at a folder under documents/ or the system temp dir, or set ASTRA_EXTRA_DOC_ROOTS.'
+        `Point allowedDir at a folder ${describeAllowedFolders()}.`
       );
     }
   }

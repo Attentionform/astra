@@ -44,6 +44,7 @@ import { introducedError, resolveBaseline, strictValidationDefault } from '../ba
 import {
   canonicalizeForMcp,
   collectTrackedExtrasForGit,
+  describeAllowedFolders,
   getMcpAllowedRoots,
   type DocHandle,
   type McpSessionStore,
@@ -516,7 +517,7 @@ export async function handleNormalizeDocument(
  */
 export function readImportMarkdownFile(rawPath: unknown, roots: string[] = getMcpAllowedRoots()): string {
   if (typeof rawPath !== 'string' || !rawPath.trim()) {
-    throw toError('E_SANDBOX', 'import path must be a non-empty string', 'Pass a .md path inside documents/ or the system temp dir.');
+    throw toError('E_SANDBOX', 'import path must be a non-empty string', `Pass a .md path ${describeAllowedFolders()}.`);
   }
   if (rawPath.includes('\0') || /%00/i.test(rawPath)) {
     throw toError('E_SANDBOX', 'import path contains a null byte', 'Remove null bytes from the path and retry.');
@@ -609,7 +610,7 @@ export function readImportMarkdownFile(rawPath: unknown, roots: string[] = getMc
       return normC === normR || normC.startsWith(normR + path.sep);
     });
     if (!stillInside) {
-      throw toError('E_SANDBOX', 'import path points outside the allowed directory', 'Keep Markdown files inside documents/ or the system temp dir.');
+      throw toError('E_SANDBOX', 'import path points outside the allowed directory', `Keep Markdown files ${describeAllowedFolders()}.`);
     }
     return buf.toString('utf8');
   } finally {

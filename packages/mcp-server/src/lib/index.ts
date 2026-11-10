@@ -13,6 +13,7 @@ export {
   collectTrackedExtrasForGit,
   ensureGitRepo,
   getMcpAllowedRoots,
+  describeAllowedFolders,
   canonicalizeForMcp,
   validateDocPath,
   validateSaveTarget,

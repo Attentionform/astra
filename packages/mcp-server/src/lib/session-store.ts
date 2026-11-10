@@ -515,6 +515,19 @@ export function getMcpAllowedRoots(): string[] {
   return [...new Set(roots)];
 }
 
+/**
+ * Plain-words description of where files may go right now, for error remedies. When the user
+ * named folders (--allowed-dir, ASTRA_EXTRA_DOC_ROOTS) those folders are the whole boundary, so
+ * the text names them; otherwise it names the defaults and how to widen them.
+ */
+export function describeAllowedFolders(): string {
+  const named = getExistingExtraRoots();
+  if (named.length > 0) {
+    return `inside the folder${named.length > 1 ? 's' : ''} this server allows: ${[...new Set(named)].join(', ')}`;
+  }
+  return 'inside ./documents or the system temp folder, or start the server with --allowed-dir <folder> to allow another folder';
+}
+
 // The symlink walk of every write stops at the folders the user allowed.
 setTrustedWriteRootsProvider(getMcpAllowedRoots);
 
@@ -571,7 +584,7 @@ function assertNoDotSegments(canonical: string, root: string): void {
     if (seg.startsWith('.')) {
       throw Object.assign(new Error(`Document path traverses a hidden directory "${seg}"`), {
         code: 'E_SANDBOX',
-        remedy: 'Use a non-hidden path inside documents/ or the system temp dir.',
+        remedy: `Use a path with no hidden (dot-prefixed) folder, ${describeAllowedFolders()}.`,
       });
     }
   }
@@ -621,7 +634,7 @@ export function validateDocPath(rawPath: unknown): string {
   if (segments.includes('..')) {
     throw Object.assign(new Error('Document path contains forbidden ".." traversal'), {
       code: 'E_SANDBOX',
-      remedy: 'Use a path inside the workspace documents directory.',
+      remedy: `Use a path ${describeAllowedFolders()}.`,
     });
   }
   const resolved = path.resolve(trimmed);
@@ -629,7 +642,7 @@ export function validateDocPath(rawPath: unknown): string {
   if (resolvedSegments.includes('..')) {
     throw Object.assign(new Error('Document path resolves outside its directory'), {
       code: 'E_SANDBOX',
-      remedy: 'Use a path inside the workspace documents directory.',
+      remedy: `Use a path ${describeAllowedFolders()}.`,
     });
   }
   // Symlink escape closure: canonicalize (target if it exists, else nearest
