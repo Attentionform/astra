@@ -337,6 +337,7 @@ export function commandHelpText(cmd: string): string | undefined {
       `Usage: ${CLI_NAME} stats <docx> [--allow-macros] [--strip-macros]`,
       '',
       'Print word/paragraph counts plus estimated pages: `STATS <file>: words=N paragraphs=M pages~P (est, 500 wpp)`.',
+      'Also prints `tables=N callouts=N images=N`; a callout (a one-cell filled table, such as a `> [!NOTE]` alert) counts in callouts, not in tables.',
       '  --allow-macros  preserve macro/active-content parts byte-identical (default refuses E_VALIDATION naming the parts)',
       '  --strip-macros  remove macro/active-content parts and continue (never with --allow-macros)',
       'Recipe: words count body paragraph text (non-whitespace tokens) plus table cell text (cells joined with spaces).',

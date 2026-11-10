@@ -8,6 +8,7 @@
 
 import type { DocumentAST } from '../ast';
 import { extractTableGrid, type ToonGrid } from '../toon';
+import { isCalloutTable } from '../stats';
 import { hasListNumbering, isOrderedListItem } from '../export/markdown';
 
 export interface VisualPageMap {
@@ -172,19 +173,6 @@ const WIREFRAME_TABLE_ROWS = 3;
 
 function flatText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
-}
-
-/** A one-cell table with a fill is the callout (note box) shape, not a data table. */
-function isCalloutTable(node: unknown, grid: ToonGrid | null): boolean {
-  if (!grid || grid.rows !== 1 || grid.cols !== 1) return false;
-  try {
-    const xml = (node as { xml?: Element }).xml;
-    const shd = xml?.getElementsByTagName('w:shd')[0];
-    const fill = shd?.getAttribute('w:fill') ?? '';
-    return /^[0-9A-Fa-f]{6}$/.test(fill);
-  } catch {
-    return false;
-  }
 }
 
 /** Header row plus the first rows of a table, each cut to the wireframe width. */
@@ -472,7 +460,7 @@ export function generateVisualWireframe(
     } else if ((node as { type?: unknown }).type === 'table') {
       lines.push(emptyLine);
       const grid = tableGridOf(node);
-      if (isCalloutTable(node, grid)) {
+      if (isCalloutTable(node as { xml?: unknown }, grid ? { rows: grid.rows, cols: grid.cols } : null)) {
         const note = flatText(grid?.cells[0]?.text ?? '');
         const body = note.length > 48 ? note.slice(0, 45) + '...' : note;
         lines.push(`| [CALLOUT] ${body}`.slice(0, W - 2).padEnd(W - 1) + '|');

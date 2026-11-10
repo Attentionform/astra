@@ -91,6 +91,19 @@ describe('get_stats handler', () => {
     }
   });
 
+  it('reports an alert callout in callouts and leaves tables for data tables', async () => {
+    const { store, sessionId } = await openBlankSession();
+    const composed = await handleComposeDocument(store, {
+      sessionId,
+      markdown: '# T\n\n| a | b | c |\n| - | - | - |\n| 1 | 2 | 3 |\n\n> [!WARNING]\n> **Careful**\n> read this\n',
+    });
+    expect(composed.ok).toBe(true);
+    const res = await handleGetStats(store, { sessionId });
+    if (!res.ok) throw new Error(`stats failed: ${JSON.stringify(res)}`);
+    expect(res.tables).toBe(1);
+    expect(res.callouts).toBe(1);
+  });
+
   it('costs a fraction of an inspect baseline on the same document', async () => {
     const { store, sessionId } = await openBlankSession();
     const lines: string[] = ['# Census Proof', ''];

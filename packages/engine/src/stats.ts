@@ -94,6 +94,31 @@ function nestedTableCount(node: { xml?: unknown }): number {
   }
 }
 
+/**
+ * A one-cell table with a fill is the callout (note box) shape, not a data table. The file carries no marker, so
+ * the shape is the signal: the callout op and the Markdown alert write exactly this, and a shaded one-cell table
+ * reads as a callout to the eye as well. `dims` is the grid size when the caller already has it (merged cells
+ * counted); without it the rows and cells are counted in the table's own XML.
+ */
+export function isCalloutTable(node: { xml?: unknown }, dims?: { rows: number; cols: number } | null): boolean {
+  try {
+    const xml = (node as { xml?: Element }).xml;
+    if (!xml || typeof xml.getElementsByTagName !== 'function') return false;
+    if (dims) {
+      if (dims.rows !== 1 || dims.cols !== 1) return false;
+    } else {
+      const rows = Array.from(xml.childNodes).filter((n) => (n as Element).nodeType === 1 && (n as Element).tagName === 'w:tr') as Element[];
+      if (rows.length !== 1) return false;
+      const cells = Array.from(rows[0].childNodes).filter((n) => (n as Element).nodeType === 1 && (n as Element).tagName === 'w:tc');
+      if (cells.length !== 1) return false;
+    }
+    const fill = xml.getElementsByTagName('w:shd')[0]?.getAttribute('w:fill') ?? '';
+    return /^[0-9A-Fa-f]{6}$/.test(fill);
+  } catch {
+    return false;
+  }
+}
+
 /** Count of explicit page breaks on a node (type 'pageBreak', text '[Page Break]', or <w:br w:type="page"/>). */
 export function countExplicitPageBreaks(node: { type?: string; metadata?: { text?: string }; xml?: unknown }): number {
   if (node.type === 'pageBreak') return 1;
@@ -119,13 +144,17 @@ export interface DocStats {
   words: number;
   paragraphs: number;
   pages: number;
+  /** Data tables. A callout (one filled cell) is counted in `callouts`, not here. */
   tables: number;
+  /** Callouts: one-cell filled tables, such as a `> [!NOTE]` alert or a callout op. */
+  callouts: number;
   images: number;
 }
 
 /** Stable word/paragraph/table/image/page stats over the AST node texts.
- *  tables counts AST-registered table nodes and the w:tbl elements nested
- *  inside their cells (+1 each); a table that only lives in a textbox/shape
+ *  tables counts AST-registered table nodes that are not callouts and the w:tbl
+ *  elements nested inside any table's cells (+1 each); callouts counts the one-cell
+ *  filled tables (see isCalloutTable); a table that only lives in a textbox/shape
  *  in a plain body paragraph has no AST node and is not counted, so this can
  *  trail a raw document.xml w:tbl census.
  *  pages is an estimated editorial budget: max(1, ceil(words/450 + tables*0.45 + images*0.50 + pageBreaks)). */
@@ -133,12 +162,17 @@ export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: st
   let words = 0;
   let paragraphs = 0;
   let tables = 0;
+  let callouts = 0;
   let images = 0;
   let pageBreaks = 0;
   for (const sec of ast.sections) {
     for (const node of sec.nodes) {
       if (node.type === 'paragraph') paragraphs += 1;
-      if (node.type === 'table') tables += 1 + nestedTableCount(node);
+      if (node.type === 'table') {
+        if (isCalloutTable(node)) callouts += 1;
+        else tables += 1;
+        tables += nestedTableCount(node);
+      }
       if (node.type === 'image') images += 1;
       pageBreaks += countExplicitPageBreaks(node);
       let text = node.metadata?.text ?? '';
@@ -155,9 +189,9 @@ export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: st
   }
   // Layout-weighted editorial page budget:
   // - Prose: standard dense estimate ~450 words/page.
-  // - Tables: +0.45 page budget per table.
+  // - Tables and callouts: +0.45 page budget each.
   // - Images: +0.50 page budget per embedded image figure.
   // - Page breaks: +1 page budget per explicit page break.
-  const pageBudget = (words / 450) + (tables * 0.45) + (images * 0.50) + pageBreaks;
-  return { words, paragraphs, pages: Math.max(1, Math.ceil(pageBudget)), tables, images };
+  const pageBudget = (words / 450) + ((tables + callouts) * 0.45) + (images * 0.50) + pageBreaks;
+  return { words, paragraphs, pages: Math.max(1, Math.ceil(pageBudget)), tables, callouts, images };
 }

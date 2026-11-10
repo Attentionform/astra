@@ -202,6 +202,7 @@ export async function handleGetStats(
       words: number;
       paragraphs: number;
       tables: number;
+      callouts: number;
       images: number;
       pages: number;
     }
@@ -223,6 +224,7 @@ export async function handleGetStats(
         words: stats.words,
         paragraphs: stats.paragraphs,
         tables: stats.tables,
+        callouts: stats.callouts,
         images: stats.images,
         pages: stats.pages,
       };

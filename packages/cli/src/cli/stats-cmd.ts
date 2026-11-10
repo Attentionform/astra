@@ -31,8 +31,9 @@ export async function cmdStats(out: GlobalOpts, args: string[]): Promise<number>
     const ast = await parser.getAST();
     const stats = computeDocStats(ast);
     print(out, `STATS ${file}: words=${stats.words} paragraphs=${stats.paragraphs} pages~${stats.pages} (est, 500 wpp)`);
+    print(out, `tables=${stats.tables} callouts=${stats.callouts} images=${stats.images} (a callout is a one-cell filled table and is not counted in tables)`);
     print(out, `recipe: body paragraphs + table cells; excludes headers/footers/footnotes/comments; pages~P rough estimate = max(1, ceil(words/500))`);
-    printJson(out, { ok: true, file, words: stats.words, paragraphs: stats.paragraphs, pages: stats.pages });
+    printJson(out, { ok: true, file, words: stats.words, paragraphs: stats.paragraphs, pages: stats.pages, tables: stats.tables, callouts: stats.callouts, images: stats.images });
     return EXIT_OK;
   } catch (err: unknown) {
     return failHuman(out, err, { file, fallbackCode: 'E_VALIDATION' });
