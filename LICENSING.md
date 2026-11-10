@@ -7,7 +7,7 @@ This page describes version 0.4.0 and later. Every version released before 0.4.0
 ## In one minute
 
 - You can read, run, modify and redistribute the source code.
-- **Free production use** if you are: a person who works alone (a freelancer, consultant or sole proprietor, in any legal form, at any revenue), a school or university (or doing academic research), a non-profit using it for its mission, a public body doing governmental work, a small organization (up to 10 people and under USD 250,000 revenue) for its own work, or the maker of a product or service with under USD 250,000 revenue that has ASTra inside it.
+- **Free production use** if you are: a person who works alone (a freelancer, consultant or sole proprietor, in any legal form, at any revenue) for their own work and their client deliverables, a school or university (or doing academic research), a non-profit using it for its mission, a public body doing governmental work, a small organization (up to 10 people and under USD 250,000 revenue) for its own work, or the maker of a product or service with under USD 250,000 revenue that has ASTra inside it.
 - **Internal use** means your own people, systems and agents using any part of ASTra (the MCP server, the CLI, the engine as a library, the validator) for your own operations, including scripts, CI/CD, batch jobs and internal pipelines. Above the small-organization limits it needs a commercial license, priced by the number of people.
 - **Embedding or SaaS** means ASTra is part of a product or service of yours that has substantial features of its own. It is free until that product's revenue reaches USD 250,000, whatever the size of your company. After that it needs an Embedded license, priced by the product's revenue.
 - **Everyone else needs a commercial license**: see the [pricing page](https://attentionform.com/pricing), or write to astra@attentionform.com.
@@ -19,7 +19,7 @@ ASTra is **source-available**. It is not "open source" in the sense of the Open 
 
 ## Which question applies to you
 
-1. **Do you work alone?** Free. This covers freelancers, consultants, sole proprietors and one-person companies, at any revenue.
+1. **Do you work alone?** Free, at any revenue, for your own work and your client deliverables. This covers freelancers, consultants, sole proprietors and one-person companies. It does not cover a product or service of yours that has ASTra inside it and that you offer to others (question 2 applies, with its USD 250,000 revenue limit, even if you work alone), and it never covers a competing offering (see below).
 2. **Is ASTra part of a product or service that you ship or host for others, and that has substantial features of its own?** Free until that product's revenue reaches USD 250,000. After that, an Embedded license, priced by the product's revenue.
 3. **Otherwise, do your own people use ASTra for your own work?** Free up to 10 people and under USD 250,000 revenue. Above either limit, an internal license, priced by the number of people.
 
@@ -29,7 +29,7 @@ Schools, non-profits and public bodies are free for their own mission. Hosting A
 
 | You are | Free? | Notes |
 | --- | --- | --- |
-| A freelancer or consultant who works alone, personally or through your own one-person company | Yes | At any revenue. Preparing documents for clients, one job at a time, is covered. Running ASTra as a continuing service or pipeline for a client's own operations is the client's use, so the client needs its own license (or must qualify itself). |
+| A freelancer or consultant who works alone, personally or through your own one-person company | Yes | At any revenue. Preparing documents for clients, one job at a time, is covered. A product or service of your own with ASTra inside, offered to others, is judged by the product's revenue (USD 250,000), not by this row. Running ASTra as a continuing service or pipeline for a client's own operations is the client's use, so the client needs its own license (or must qualify itself). |
 | A sole proprietor with no employees | Yes | A sole proprietorship is the person who owns it, so its use is Individual Use at any income. Personal projects, your own reports and documentation, planning, and deliverables for clients are all free. |
 | A hobbyist or student | Yes | |
 | A school, college or university, its students and staff | Yes | Teaching, learning and non-commercial academic research. |
@@ -58,6 +58,10 @@ Running your own tests and CI to build and check your code is free for everyone,
 ## Common questions
 
 **I am a freelancer. Can I use ASTra for client work?** Yes. Using it to produce documents for clients is covered. You pay nothing, and you do not need to tell anyone.
+
+**I work alone and I am building a product with ASTra inside. Is it free at any revenue?** No. Working alone makes your own use free at any revenue, but a product or service of yours that has ASTra inside it and that you offer to others is judged by that product's revenue. It is free while the product's revenue is under USD 250,000, and after that it needs an Embedded license, whether you work alone or not. Your own use of ASTra for your own work stays free at any revenue.
+
+**I work alone. Can I host ASTra or sell access to it?** No. A competing offering (a product or service whose value is mainly ASTra itself, such as hosting it for others, an API or MCP endpoint, or a thin editor on top of it) always needs a commercial license, for one person as for a large company.
 
 **I work through my own company with no employees. Is that still free?** Yes. If you are the only person who works in the business, it is Individual Use at any revenue. If you hire an employee or take on a partner or a regular contractor, you are no longer working alone, and the small-organization limits apply to you.
 
@@ -154,6 +158,8 @@ Other Attentionform products have their own licenses, unless a license says that
 | 47 | Company of 6 people with USD 400,000 revenue runs internal reports through ASTra | Needs an internal license (revenue is above USD 250,000) |
 | 48 | A developer imports the ASTra engine into the company's CI pipeline that builds reports for the company's own operations | Internal use. The company's size decides. One license covers the whole suite, on any number of machines |
 | 49 | The same pipeline produces documents for the company's customers as part of a paid service | Not internal use. An embedded product, free under USD 250,000 revenue, or a competing offering if the service's value is mainly ASTra |
+| 50 | Person who works alone sells an app with its own features, built on ASTra, with USD 600,000 product revenue | The app needs an Embedded license (above USD 250,000 product revenue). The person's own use of ASTra for their own work stays free |
+| 51 | Person who works alone hosts ASTra and sells access to its operations through an API | Competing offering; needs a license, even for one person |
 
 ## Open-source projects
 

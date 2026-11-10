@@ -57,6 +57,9 @@ describe('licence consistency', () => {
     expect(grant).toContain('"Small Organization Use"');
     expect(grant).toContain('no more than 10 people working for it');
     expect(grant).toContain('"Small Product Use"');
+    // a person who works alone is free for their own work, but a product of their own is judged by its revenue
+    expect(grant).toContain('Individual Use does not include making the Licensed Work part of a product or service of Your own that You offer to others, whether or not You work alone');
+    expect(grant).toContain('Individual Use never includes a Competing Offering');
     expect(grant.match(/USD 250,000/g)?.length).toBeGreaterThanOrEqual(2);
     expect(grant).not.toMatch(/USD 1,000,000|Small Business Use/);
     expect(grant).toContain("an employee who uses the Licensed Work for the employer's work is making the employer's use");
