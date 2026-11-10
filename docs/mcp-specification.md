@@ -390,8 +390,12 @@ Compiles a Markdown document into valid OOXML structures and applies them to the
 | `sessionId` | `string` | Yes | Active session identifier. |
 | `markdown` | `string` | Yes | Markdown content string (up to 500,000 characters). |
 | `allowedDir` | `string` | No | Directory for resolving relative image and chart files. |
-| `template` | `string` | No | Target template to replace initial placeholders (`"report"`, `"memo"`, `"blank"`). |
+| `template` | `string` | No | Target template to replace initial placeholders (`"report"`, `"memo"`, `"blank"`). Accepted on the first compose of a session only. |
 | `styleGuide` | `string` | No | Bundled guide name or guide `.md` path; attaches to the session. Omitted: the built-in Default Corporate look (navy table header, bold white header text, striped rows). `"legacy"`: the older grey header, for this call only. |
+| `anchor` | `string` | No | Where the composed blocks go: a node id, `"start"` or `"end"`. Omitted: after the last node. |
+| `position` | `string` | No | `"before"` or `"after"` (default) the `anchor`. Needs `anchor`. |
+
+A document can be built in several compose calls. The first compose of a session mints ids `md_0001…`; a later compose mints `md2_0001…`, then `md3_0001…`, so ids never collide, and `persistentIds` covers only the nodes of that call. A later compose appends at the end, or goes at `anchor` with `position`, so an agent can add a section in the middle without another tool. The blocks keep their order: only the first is placed against the anchor. A compose is atomic as a whole: if any part fails, the document stays as it was. Citation numbers and the References list restart in each compose call. A chart cannot be the first block of a compose that goes `before` a node.
 
 An italic-only line directly under the opening `#` title becomes the `Subtitle` style. A `[!NOTE]`-style line outside a blockquote stays plain text and is reported in `warnings`. A `> [!NOTE]` alert becomes a callout and keeps bold, italic, code and links. Any other `> quote` becomes paragraphs in the `Quote` style (blank `>` lines start a new paragraph, `> >` nests up to three levels, flat lists and fenced code stay inside); a table, heading or image inside a quote fails with a line number.
 

@@ -12,6 +12,7 @@ import {
   revisionsRemedy,
   summarizeStyleGuide,
   validateComposedOperations,
+  nextComposeIdPrefix,
   type EngineErrorCode,
   type ResolvedStyleGuide,
   type StyleGuideConfig,
@@ -118,13 +119,19 @@ export const ComposeDocumentSchema = z
     styleGuide: z.string().max(1024).optional(),
     // Read $...$ as inline math (off by default: prices and shell text can look like math).
     dollarMath: z.boolean().optional(),
+    // Placement of a later compose: a node id, start or end. Absent = append after the last node.
+    anchor: z.string().min(1).max(256).optional(),
+    // Side of anchor the first block goes on (default after). Needs anchor.
+    position: z.enum(['before', 'after']).optional(),
   })
   .strict();
 
 export type ComposeDocumentInput = z.infer<typeof ComposeDocumentSchema>;
 
 export const COMPOSE_DOCUMENT_DESCRIPTION =
-  'Compose a Markdown string into the open session document (appends after existing content, except an unchanged built-in template created in this session has its sample content replaced). ' +
+  'Compose a Markdown string into the open session document (appends after existing content, or at anchor with position before|after; an unchanged built-in template created in this session has its sample content replaced). ' +
+  'A document can be built in several compose calls: the first call of a session mints ids md_0001..., later calls mint md2_0001..., md3_0001..., so ids never collide; ' +
+  'pass anchor (a node id, start or end) and position to add a section in the middle without another tool. ' +
   'Runs the engine compose path, then applies the resulting operations through the same execute_batch path ' +
   '(strict schema gate, per-chunk quotas, structural checks, per-chunk atomic rollback, then inline-span run splitting), so every gate a batch meets applies here unchanged. ' +
   'Supported input: #/##/### headings (real Heading1..3 styles), blank-line paragraphs (single newlines join with a space), ' +
@@ -136,10 +143,9 @@ export const COMPOSE_DOCUMENT_DESCRIPTION =
   'raw HTML (except [!NOTE]-style alert callouts, which compile to callout containers and keep bold, italic, code and links), custom styles, deeper headings, nested lists or tables, task items. ' +
   'Block image/chart refs need allowedDir pointing at the folder holding the files (refs stay jailed inside it; without allowedDir they fail closed); ' +
   'remote URL refs fail closed; inline data-URL block images bypass allowedDir by design (bytes decode in memory through the same image gates). ' +
-  'Sources compiling past 500 operations apply as sequential 500-operation chunks; each chunk is atomic, but a later-chunk ' +
-  'failure leaves earlier chunks applied (same exposure as any multi-batch caller). ' +
-  'Compiled node ids are deterministic per source, so a second compose into the same session is rejected by the duplicate-id gate ' +
-  '(compose once per session with the full source). Optional template (report|memo|blank) requires the open document to still hold ' +
+  'Sources compiling past 500 operations apply as sequential 500-operation chunks; the compose is atomic as a whole: when any chunk fails, ' +
+  'every chunk before it is rewound and the document stays as it was. Citation numbers and the References list restart in each compose call. ' +
+  'Optional template (report|memo|blank) is accepted on the first compose only and requires the open document to still hold ' +
   'that template seed, otherwise composition fails before any write ' +
   '(for a fresh templated document call new_document first, then compose_document with template), and placement is append after existing content except for an unchanged built-in template created in this session. Reopened documents and external templates keep existing content. ' +
   'Returns {ok:true,opCount,appliedCount,revision,createdNodeIds,results,validation:{valid,errorCount,errors}} where createdNodeIds ' +
@@ -464,12 +470,19 @@ export async function handleComposeDocument(
         }
       }
       const sessionGuide = legacyLook ? 'legacy' : handle.styleGuide;
-      if (sessionGuide !== undefined) {
-        // The pre-compile above used the default guide. Another guide can add or drop
-        // ops (the zebra stripes), so rebuild what result attribution and the audit count.
+      // A later compose of the session mints md2_..., md3_... ids so they never collide with an earlier one.
+      const idPrefix = nextComposeIdPrefix(handle.ast);
+      if (sessionGuide !== undefined || idPrefix !== 'md' || parsed.data.anchor !== undefined) {
+        // The pre-compile above used the default guide, the first-compose id prefix and the end anchor.
+        // Another guide can add or drop ops (the zebra stripes), and the ids and the first anchor
+        // differ, so rebuild what result attribution and the audit count.
         operations = compileMarkdown(parsed.data.markdown, {
           ...(canonicalAllowedDir !== undefined ? { allowedDir: canonicalAllowedDir } : {}),
-          styleGuide: sessionGuide,
+          ...(sessionGuide !== undefined ? { styleGuide: sessionGuide } : {}),
+          ...(parsed.data.dollarMath ? { dollarMath: true } : {}),
+          idPrefix,
+          ...(parsed.data.anchor !== undefined ? { anchor: parsed.data.anchor } : {}),
+          ...(parsed.data.position !== undefined ? { position: parsed.data.position } : {}),
         });
         ({ shadows: opShadows, actions: opActions, targets: opTargets } = shadowsOf(operations));
       }
@@ -483,6 +496,9 @@ export async function handleComposeDocument(
         ...(template !== undefined ? { template } : {}),
         ...(sessionGuide !== undefined ? { styleGuide: sessionGuide } : {}),
         ...(parsed.data.dollarMath ? { dollarMath: true } : {}),
+        idPrefix,
+        ...(parsed.data.anchor !== undefined ? { anchor: parsed.data.anchor } : {}),
+        ...(parsed.data.position !== undefined ? { position: parsed.data.position } : {}),
       });
 
       if (!aggregate.success) {

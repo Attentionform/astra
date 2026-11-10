@@ -247,21 +247,22 @@ describe('compose_document handler', () => {
     expect(after.revision).toBe(1);
   });
 
-  it('rejects a second compose into the same session via the duplicate-id gate', async () => {
+  it('accepts a second compose into the same session and gives its nodes their own ids', async () => {
     const { store, sessionId } = await openBlankSession();
     const first = await handleComposeDocument(store, { sessionId, markdown: '# First\n\nBody one.\n' });
     expect(first.ok).toBe(true);
-    const before = await LEAN6_HANDLERS.inspect_document(store, { sessionId });
-    expect(before.ok).toBe(true);
+    if (!first.ok) throw new Error('first compose failed');
     const second = await handleComposeDocument(store, { sessionId, markdown: '# Second\n\nBody two.\n' });
-    expect(second.ok).toBe(false);
-    if (second.ok) throw new Error('second compose unexpectedly succeeded');
-    expect(second.code).toBe('E_VALIDATION');
+    expect(second.ok).toBe(true);
+    if (!second.ok) throw new Error(`second compose failed: ${JSON.stringify(second)}`);
+    expect(second.createdNodeIds.every((id) => id.startsWith('md2_'))).toBe(true);
+    expect(second.createdNodeIds.some((id) => first.createdNodeIds.includes(id))).toBe(false);
     const after = await LEAN6_HANDLERS.inspect_document(store, { sessionId });
     expect(after.ok).toBe(true);
-    if (!after.ok || !before.ok) throw new Error('inspect failed');
-    expect(after.toonText).toBe(before.toonText);
-    expect(after.revision).toBe(before.revision);
+    if (!after.ok) throw new Error('inspect failed');
+    expect(after.toonText).toContain('Body one.');
+    expect(after.toonText).toContain('Body two.');
+    expect(after.revision).toBe(3);
   });
 
   it('applies sources past the per-chunk cap as sequential chunks', async () => {

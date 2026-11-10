@@ -179,6 +179,7 @@ import {
 } from '../operation-engine';
 import { type Operation, validateOperationsStrict } from '../operation-schema';
 import { ensureQuoteStyle, QUOTE_STYLE_ID } from '../ooxml/quote-style';
+import { anchorAliasOf } from '../anchor-alias';
 import type { DocxParser } from '../parser';
 import { createWordElement } from '../ooxml/ns';
 import { latexToOmml } from '../ooxml/omml';
@@ -223,6 +224,31 @@ export interface ComposeOptions {
   styleGuide?: StyleGuideConfig | 'legacy';
   /** Treat `$...$` as inline math (default off: prices and shell text can look like math). */
   dollarMath?: boolean;
+  /**
+   * Where the composed blocks go: a live node id, `start` or `end`. Absent = after the last node. The blocks keep
+   * their order; the first one is placed against `anchor` and the rest follow it.
+   */
+  anchor?: string;
+  /** Side of `anchor` the first block goes on. Default `after`. */
+  position?: 'before' | 'after';
+  /** Prefix of the minted node ids. Absent = the next free one for this document (see nextComposeIdPrefix). */
+  idPrefix?: string;
+}
+
+/**
+ * The id prefix the next compose of a document uses: `md` (ids `md_0001`...) when no earlier compose left such
+ * ids, else the first of `md2`, `md3`... that no live node id uses. Ids of an earlier compose stay valid, and a
+ * document can be built in several compose calls.
+ */
+export function nextComposeIdPrefix(ast: { sections: Array<{ nodes: Array<{ id: string }> }> }): string {
+  const live = new Set<string>();
+  for (const section of ast.sections ?? []) for (const node of section.nodes ?? []) live.add(node.id);
+  const used = (prefix: string): boolean => {
+    for (const id of live) if (id.startsWith(`${prefix}_`)) return true;
+    return false;
+  };
+  if (!used('md')) return 'md';
+  for (let n = 2; ; n++) if (!used(`md${n}`)) return `md${n}`;
 }
 
 export const pristineBlankSeedIds = pristineTemplateSeedIds;
@@ -529,11 +555,34 @@ export async function composeDocument(
       'E_VALIDATION: line 1: composeDocument needs an open document parser. Remedy: open a document first, then compose into it.'
     );
   }
+  const liveAst = await parser.getAST();
+  const idPrefix = options?.idPrefix ?? nextComposeIdPrefix(liveAst);
   if (options?.template !== undefined) {
+    if (idPrefix !== 'md') {
+      throw new Error(
+        'E_VALIDATION: line 1: template is accepted only on the first compose of a document. Remedy: omit template on this compose; the document already holds composed content.'
+      );
+    }
     assertTemplateSeed(parser, String(options.template));
+  }
+  if (options?.position !== undefined && options.anchor === undefined) {
+    throw new Error(
+      'E_VALIDATION: line 1: position needs an anchor. Remedy: pass anchor (a node id, start or end) together with position, or omit position to append at the end.'
+    );
+  }
+  if (options?.anchor !== undefined && anchorAliasOf(options.anchor) === null) {
+    const known = liveAst.sections.some((section) => section.nodes.some((node) => node.id === options.anchor));
+    if (!known) {
+      throw new Error(
+        `E_VALIDATION: line 1: anchor '${options.anchor}' is not a node of this document. Remedy: pass a node id from inspect_document, or start or end.`
+      );
+    }
   }
   const styleGuide = resolveComposeStyleGuide(options?.styleGuide);
   const { operations, warnings: compileWarnings } = compileMarkdownDetailed(markdown, {
+    idPrefix,
+    ...(options?.anchor !== undefined ? { anchor: options.anchor } : {}),
+    ...(options?.position !== undefined ? { position: options.position } : {}),
     allowedDir: options?.allowedDir,
     ...(options?.styleGuide !== undefined ? { styleGuide: options.styleGuide } : {}),
     ...(options?.dollarMath ? { dollarMath: true } : {}),
@@ -552,7 +601,7 @@ export async function composeDocument(
     );
   }
 
-  const ast = await parser.getAST();
+  const ast = liveAst;
   // Seed-skip capture runs after compile+validate (so input errors still
   // throw with zero writes) but before any batch mutates the document.
   const blankSeedIds = pristineBlankSeedIds(parser, options?.template);
@@ -610,7 +659,17 @@ export async function composeDocument(
     }
     base += chunk.length;
   }
-  if (!aggregate.success) return aggregate;
+  if (!aggregate.success) {
+    // A failed compose changes nothing: a chunk that failed rolled itself back, so bring back the chunks before it too.
+    if (aggregate.appliedCount > 0 && preBatchSnapshot !== null) {
+      try {
+        parser.restorePackageSnapshot(preBatchSnapshot);
+        aggregate.appliedCount = 0;
+        aggregate.rollbackTriggered = true;
+      } catch { /* restore best effort */ }
+    }
+    return aggregate;
+  }
   if (blankSeedIds !== null) {
     // Pristine blank template: remove the two seed placeholders now that the
     // composed chunks hold the new content. Deletion runs last so the first

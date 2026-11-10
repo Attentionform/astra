@@ -256,11 +256,13 @@ Compiles a Markdown string into OOXML structures and applies them cleanly to the
 | `sessionId` | `string` | Yes | Active session identifier. |
 | `markdown` | `string` | Yes | Markdown source text to compile and apply. |
 | `allowedDir` | `string` | No | Jail directory for resolving relative images and charts. |
-| `template` | `string` | No | Replace seed content for `"report"`, `"memo"`, or `"blank"`. |
+| `template` | `string` | No | Replace seed content for `"report"`, `"memo"`, or `"blank"`. First compose of a session only. |
 | `styleGuide` | `string` | No | Bundled guide name or guide `.md` path to skin composition. |
 | `dollarMath` | `boolean` | No | Treat `$...$` syntax as inline math (default: `false`). |
+| `anchor` | `string` | No | Where the blocks go: a node id, `"start"` or `"end"` (default: after the last node). |
+| `position` | `string` | No | `"before"` or `"after"` (default) the `anchor`. |
 
-**Returns:** `{ ok: true, sessionId, appliedCount, revision, createdNodeIds, persistentIds? }`. `createdNodeIds` (`md_0001…`) work for the whole session; `persistentIds` maps each created paragraph to the id the saved file carries, for addressing it after the file is reopened (tables are renumbered by position, so they are not listed).
+**Returns:** `{ ok: true, sessionId, appliedCount, revision, createdNodeIds, persistentIds? }`. `createdNodeIds` (`md_0001…` for the first compose of a session, `md2_0001…` for the next, and so on) work for the whole session; `persistentIds` maps each created paragraph to the id the saved file carries, for addressing it after the file is reopened (tables are renumbered by position, so they are not listed).
 
 ---
 

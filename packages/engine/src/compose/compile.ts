@@ -66,6 +66,18 @@ export interface CompileOptions {
   styleGuide?: StyleGuideConfig | 'legacy';
   /** Treat `$...$` as inline math (default off: prices and shell text can look like math). */
   dollarMath?: boolean;
+  /**
+   * Prefix of the node ids the compile mints (`md` gives `md_0001`, `md2` gives `md2_0001`). The first compose
+   * of a session keeps `md`; a later compose in the same session needs its own prefix so the ids never collide.
+   */
+  idPrefix?: string;
+  /**
+   * Where the composed blocks start: a live node id, `start` or `end`. Absent = after the last node (`end`).
+   * The blocks stay in order: only the first one is placed against `anchor`, the rest follow it.
+   */
+  anchor?: string;
+  /** Side of `anchor` the first block goes on. Default `after`. */
+  position?: 'before' | 'after';
 }
 
 /**
@@ -356,13 +368,19 @@ export function compileMarkdownDetailed(
   let seq = 0;
   let lastInsertId: string | null = null;
 
+  const idPrefix = options?.idPrefix ?? 'md';
   const nextId = (): string => {
     seq += 1;
-    return `md_${String(seq).padStart(4, '0')}`;
+    return `${idPrefix}_${String(seq).padStart(4, '0')}`;
   };
 
+  // Only the first block is placed against the caller's anchor; every later block follows the one before it.
+  const startAnchor: { anchor: string; position: 'before' | 'after' } = {
+    anchor: options?.anchor ?? 'end',
+    position: options?.position ?? 'after',
+  };
   const insertAnchor = (): { anchor: string; position: 'before' | 'after' } => {
-    if (lastInsertId === null) return { anchor: 'end', position: 'after' };
+    if (lastInsertId === null) return { ...startAnchor };
     return { anchor: lastInsertId, position: 'after' };
   };
 
@@ -507,12 +525,12 @@ export function compileMarkdownDetailed(
         inlineKind === 'jpeg' ? 'image/jpeg' : inlineKind === 'svg' ? 'image/svg+xml' : inlineKind === 'tiff' ? 'image/tiff' : `image/${inlineKind}`;
       const inlineFitted = fitImageEmus(decodeImagePixels(inlineBuf, inlineKind));
       const inlineId = nextId();
-      const inlineAnchor = lastInsertId === null ? 'end' : lastInsertId;
+      const inlineAnchor = insertAnchor();
       ops.push({
         action: 'insert',
         type: 'image',
-        anchor: inlineAnchor,
-        position: 'after',
+        anchor: inlineAnchor.anchor,
+        position: inlineAnchor.position,
         id: inlineId,
         fileData: `data:${inlineMime};base64,${inlineBuf.toString('base64')}`,
         ...(inlineFitted ? { width: inlineFitted.width, height: inlineFitted.height } : {}),
@@ -530,14 +548,17 @@ export function compileMarkdownDetailed(
     const isChart = target.toLowerCase().endsWith(CHART_JSON_SUFFIX);
     const absPath = resolveAssetPath(allowedDir as string, target, line, isChart ? 'chart' : 'image');
     const id = nextId();
-    const anchorId = lastInsertId === null ? 'end' : lastInsertId;
+    const chartAnchor = insertAnchor();
     if (isChart) {
+      if (chartAnchor.position === 'before') {
+        fail(line, 'a chart cannot be the first block when the compose goes before a node', 'start the Markdown with a paragraph, or place the compose after the node');
+      }
       const asset = readChartAsset(absPath, line, allowedDir as string);
       const title = asset.title ?? (alt.trim().length > 0 ? alt.trim() : 'Chart');
       ops.push({
         action: 'chart',
         operation: 'insert',
-        anchor: anchorId,
+        anchor: chartAnchor.anchor,
         id,
         chartType: asset.chartType,
         title,
@@ -548,7 +569,7 @@ export function compileMarkdownDetailed(
       return { id, kind: 'chart' };
     }
     const asset = readImageAsset(absPath, line, allowedDir as string);
-    const anchor = lastInsertId === null ? { anchor: 'end', position: 'after' as const } : { anchor: lastInsertId, position: 'after' as const };
+    const anchor = insertAnchor();
     ops.push({
       action: 'insert',
       type: 'image',
@@ -717,7 +738,7 @@ export function compileMarkdownDetailed(
     if (text.length === 0) {
       fail(line, `alert [!${alertType}] needs body text`, 'write the alert text on > lines after the marker');
     }
-    const anchorId = lastInsertId === null ? 'end' : lastInsertId;
+    const calloutAnchor = insertAnchor();
     // Theme precedence for composed alerts (per-tag themes live in the
     // guide file — Markdown source stays generic, every [!TAG] is plain
     // GitHub-flavored Markdown): a configured per-tag theme wins, else the
@@ -729,11 +750,12 @@ export function compileMarkdownDetailed(
     const tagTheme = typeof tagThemeRaw === 'string' && tagThemeRaw.length > 0 ? tagThemeRaw : undefined;
     const guideThemeRaw = styleGuide?.callouts?.defaultTheme;
     const guideTheme = typeof guideThemeRaw === 'string' && guideThemeRaw.length > 0 ? guideThemeRaw : undefined;
+    const calloutId = nextId();
     const op: Record<string, unknown> = {
       action: 'callout',
-      id: nextId(),
-      anchor: anchorId,
-      position: 'after',
+      id: calloutId,
+      anchor: calloutAnchor.anchor,
+      position: calloutAnchor.position,
       text,
       theme: tagTheme ?? guideTheme ?? ALERT_TYPE_TO_THEME[alertType] ?? 'indigo',
     };
@@ -743,9 +765,8 @@ export function compileMarkdownDetailed(
     if (segmentsNeedSplit(bodySegments)) spanParams['mdBodySpans'] = bodySegments;
     if (Object.keys(spanParams).length > 0) op['params'] = spanParams;
     ops.push(op as Operation);
-    // Callout node ids mint at execution time, so no compile-time id exists
-    // to chain onto: reset to the live end anchor for the next insert.
-    lastInsertId = null;
+    // The callout carries a compile-time id, so the next block chains onto it like onto any other block.
+    lastInsertId = calloutId;
   };
 
   // True right after a level-1 heading that opens the document, so an italic-only line under it can become the Subtitle.
