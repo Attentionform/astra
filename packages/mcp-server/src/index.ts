@@ -440,6 +440,12 @@ export async function main(argv: string[] = process.argv): Promise<number> {
 // Under vitest (or any import) process.argv[1] is the test runner, so helpers
 // stay import-safe for smoke tests. Stdout is the MCP wire: log via stderr.
 function isDirectEntry(): boolean {
+  // The built file is CommonJS: when node runs it as the main script, require.main is this module.
+  try {
+    if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) return true;
+  } catch {
+    /* not CommonJS: use the path checks */
+  }
   const entry = process.argv?.[1] ?? '';
   return (
     entry.endsWith('/index.js') ||

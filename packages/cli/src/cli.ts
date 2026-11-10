@@ -53,6 +53,14 @@ export * from './cli/history-cmd';
 export * from './cli/run';
 
 function isDirectEntry(): boolean {
+  // The built file is CommonJS. When node runs it as the main script, require.main is this module,
+  // whatever the path is. The npm shim on Windows starts it as `node <install folder>\dist\cli.js`,
+  // a path that the checks below cannot match, and the CLI then exited 0 without a word.
+  try {
+    if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) return true;
+  } catch {
+    /* not CommonJS: use the path checks */
+  }
   const entry = process.argv?.[1] ?? '';
   return (
     entry.endsWith('packages/cli/src/cli.ts') ||
