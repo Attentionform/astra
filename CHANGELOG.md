@@ -6,9 +6,41 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-10
+
+All ten npm packages move to 0.4.0, including the six native validator platform packages. The native validator source is unchanged; the platform packages are rebuilt so that they carry the licence terms for new versions.
+
+### Added
+
+- **A plain Markdown quote composes as a quote.** `> text` used to fail with "blockquotes are out of scope". It now becomes paragraphs in a real `Quote` paragraph style (left rule, italic, indented half an inch), so every quote can be restyled in one step in Word. A blank `>` line starts a new paragraph of the same quote, `> >` nests down to level 3 (a deeper level is written at level 3 with a warning that names the line), and flat lists and fenced code stay inside the quote. A table, heading, rule or image inside a quote fails with a line number and a reason. A `[!TAG]` marker that is not a known alert type fails with the list of valid tags. Every built-in template carries the `Quote` style, compose adds it to an opened document that lacks one (an existing `Quote` style is kept), and the Markdown export writes quote paragraphs back as `>` with their nesting.
+- **A document can be built in several `compose_document` calls.** The first call of a session keeps the `md_0001` ids; a later call mints `md2_0001`, `md3_0001` and so on, so the ids never collide. A later call appends at the end by default and takes `anchor` (a node id, `start` or `end`) and `position` (`before` or `after`) to put the new blocks in the middle. `template` is accepted on the first call only. A failed compose now changes nothing as a whole; before, the chunks that ran before the failing one stayed applied. Citation numbers and the References list restart in each call.
+- **`@start` and `@end` anchors are documented and need no `position`.** `start` and `end` already worked, but the schema and the tool descriptions did not say so, `@end` failed with "Anchor node not found", and `position` was still required. With `start` the position is `before` and with `end` it is `after`; an explicit `position` still wins.
+- **`get_stats` and `astra stats` report `callouts`.** `astra stats` also prints and returns `tables` and `images`, so the command line and the MCP tool agree.
+- **`save_document` returns `valid` and `errorCount`**, the same shape as `validate_document`. A refused save lists the first 10 errors with their `xPath` and points to `validate_document` for the rest.
+- **`setCellTextColor` accepts `textColor`** as an alias of `color`, like `setShading` and `setCellShading`. The `operation` field of the table action now lists the parameters of every table operation.
+- **The platform smoke runs in CI.** Every CI run installs the packed packages on Linux, macOS (arm64) and Windows (x64 and arm64) and runs the CLI and the MCP server through the shims npm writes, through `npx`, and through an MCP handshake over stdio. The release workflow calls it before it publishes.
+
 ### Changed
 
 - **Licence terms for new versions.** The free-use rules in `LICENSE` change from the next release on. The old small-business test (under USD 1,000,000 revenue and fewer than 10 people, also used for building ASTra into a product) is split into three. A person who works alone is free at any revenue, in any legal form. An organization's own internal use is free up to 10 people and under USD 250,000 revenue; above either limit it needs an internal licence. A product or service with ASTra inside it is free while that product's revenue is under USD 250,000, whatever the size of the company; above that it needs an Embedded licence. Internal use is defined to cover every part of ASTra (the MCP server, the CLI, the engine as a library and the validator), including scripts, CI/CD jobs and internal pipelines. An employee's use for an employer's work is the employer's use. Plans and prices are no longer listed in this repository; they are on attentionform.com/pricing. Every version released before this change keeps the terms it was released with. See `LICENSING.md`.
+
+- **`tables` in `get_stats` and `astra stats` no longer counts callouts.** A callout is a one-cell table with a fill, so a document with one 3x3 table and one `> [!NOTE]` alert reported `tables: 2`. It now reports `tables: 1` and `callouts: 1`. The page estimate still weighs a callout like a table, so the number of pages does not change.
+- **Alert callouts keep bold, italic, inline code and links.** A `> [!NOTE]` alert used to fail when its title or body held any of them. The title keeps its bold and the theme colour, and the body keeps its formatting. Images, raw HTML, inline math and footnote markers in an alert still fail with a line number. An alert of several paragraphs separated by a blank quote line no longer fails on the blank line. The `callout` operation accepts a client `id`.
+- **The document title and creator come from the content.** A document from `new_document`, `compose_document`, `astra create` or `astra import` kept `dc:title` "Blank Document" (or "Report") and `dc:creator` "ASTra". When the title is still the name of a built-in template it is now written from the cover page title, else the first Title paragraph, else the first Heading 1. When an author is configured (`--author`, `ASTRA_AUTHOR` or the session author), the creator and `lastModifiedBy` follow it while the creator is still the tool default. A title the caller or the file already had is not touched.
+- **`coverPage` on a fresh template removes the template's placeholder content.** After `new_document` and a `coverPage` batch, the file kept "Blank Document", "Start typing your content here..." or the sample report. On a document that is still an untouched built-in template the placeholders are removed once the cover is in place, and the result lists them as `removedSeedNodes`. A document that was edited first, or opened from a file, keeps all its content.
+- **A dark header or cell fill gets readable text.** `setShading` with a dark `headerFill` left black text on it (contrast 1.18:1 for `0F172A`) and only warned. With no `textColor` set, the text is now white or black, whichever contrasts more, and the result carries a table note. A cell whose own text already reads well, a light fill and an explicit `textColor` are left as they are.
+- **Saved and inspected tables keep their separators.** `save_document` showed a table as `VendorCostSLAAlpha1099.9` and `inspect_document` showed a callout as `Important Informationbody text`. A changed table now reads as rows with ` | ` between cells and a newline between rows, and the paragraphs of one cell are separated by a space.
+- **Error messages name the real fix.** `inspect_document` with `limit` above 200 says to use `offset` and `nextOffset`. The sandbox remedies and the `new_document` description name the allowed folders (`--allowed-dir`, `ASTRA_EXTRA_DOC_ROOTS`) and say that `./documents` and the system temp folder apply only when none are named.
+- **The tool list is shorter.** The workflow line and the unit rules were repeated in most of the 19 tool descriptions. The workflow line stays in `open_document`, `execute_batch`, `save_document` and `compose_document`, the unit rules stay in `execute_batch`, and the tool list goes from 85,664 to 78,179 characters.
+
+### Fixed
+
+- **`astra` and `astra-mcp-server` print and run on Windows.** The CLI started only when its path ended in `packages/cli/src/cli.ts`, contained `packages/cli/dist/` or was a file called `astra`. The npm shim on Windows starts `node <install folder>\dist\cli.js`, which matched none of these, so the command loaded the file and exited 0 without a word. Both built files now start when node runs them under any path or name.
+- **A Windows drive letter is no longer read as a URI scheme.** The checks that refuse remote references matched the `C:` of `C:\Users\...`, so an absolute path to a picture, a chart file or a style guide was refused before the folder rule could look at it. `https:`, `data:`, `file:` and the drive-relative forms `C:` and `C:name` are still refused.
+- **`--allowed-dir` accepts a folder that ends in a separator, and a filesystem root.** The folder rule compared against the folder plus a second separator, so a folder written with a trailing separator, and a root such as `/` or `C:\`, matched nothing and every file was refused with `E_SANDBOX`.
+- **A cover page writes run properties in schema order.** `w:sz` came before `w:color`, so every `coverPage` batch listed three "Reordered w:rPr" lines in the normalized result.
+- **The block list keeps the document order after an edit in the middle.** A block that an operation put in the middle of the document, with an id minted after the others, came last when a session rebuilt its AST from the live parser. The list is now put in the order of the document body.
+- **`revert_document` accepts a version made before the document had core properties.** The restored package kept the live `docProps/core.xml` but not its content type and relationship, and the revert was refused as an invalid restore candidate. The part is now registered again after a restore.
 
 ## [0.3.0] - 2026-11-10
 
@@ -188,7 +220,8 @@ First public release.
 - PDF export and page images need LibreOffice and Poppler installed on your machine.
 - Every output file is validated with the Open XML SDK before it is saved, so files are valid, uncorrupted and open in Microsoft Word.
 
-[Unreleased]: https://github.com/Attentionform/astra/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Attentionform/astra/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Attentionform/astra/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Attentionform/astra/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Attentionform/astra/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Attentionform/astra/compare/v0.1.0...v0.2.0
