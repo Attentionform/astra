@@ -125,10 +125,11 @@ describe('platform smoke workflow', () => {
     }
   });
 
-  it('can be started by hand, on pull requests to main, and by the release workflow', () => {
+  it('runs from CI, from the release workflow, and by hand', () => {
     expect(wf).toMatch(/workflow_dispatch:/);
     expect(wf).toMatch(/workflow_call:/);
-    expect(wf).toMatch(/pull_request:\n\s+branches: \[ main \]/);
+    expect(wf).not.toMatch(/\bpull_request:|\bpush:/); // ci.yml starts it, so it does not run twice
+    expect(read('.github/workflows/ci.yml')).toMatch(/uses: \.\/\.github\/workflows\/platform-smoke\.yml/);
     expect(read('.github/workflows/release.yml')).toMatch(/uses: \.\/\.github\/workflows\/platform-smoke\.yml/);
   });
 

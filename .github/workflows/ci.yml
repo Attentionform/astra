@@ -58,3 +58,11 @@ jobs:
 
     - name: Validate OOXML documents
       run: npm run validate:docs
+
+  # The packed CLI and MCP server, installed globally and run through the shims npm writes, on Linux,
+  # macOS and Windows (x64 and arm64). See platform-smoke.yml.
+  platform-smoke:
+    name: Platform smoke
+    permissions:
+      contents: read
+    uses: ./.github/workflows/platform-smoke.yml

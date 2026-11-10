@@ -6,12 +6,11 @@ name: Platform Smoke
 # Windows: a folder named with a trailing separator, a folder whose name has a space, an absolute
 # image path with a drive letter, and the 8.3 short form of a folder. See scripts/platform-smoke.mjs.
 #
-# It runs on pull requests to main, by hand, and from release.yml before anything is published.
-# It never publishes and never sees a token.
+# It runs as a job of ci.yml (so on every push and pull request to main, and whenever CI is started by
+# hand), by hand on its own once it exists on the default branch, and from release.yml before anything
+# is published. It never publishes and never sees a token.
 
 on:
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
   workflow_call:
 
