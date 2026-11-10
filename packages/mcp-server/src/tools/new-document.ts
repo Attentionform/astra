@@ -41,8 +41,8 @@ export const NewDocumentSchema = z
 export type NewDocumentInput = z.infer<typeof NewDocumentSchema>;
 
 export const NEW_DOCUMENT_DESCRIPTION =
-  'Create a new .docx from a template (report|memo|blank, default blank) at outPath inside an allowed directory ' +
-  '(--allowed-dir / documents / system temp). Validates the fresh package before writing ' +
+  'Create a new .docx from a template (report|memo|blank, default blank) at outPath inside an allowed folder ' +
+  '(the folders named with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS; only when none are named, ./documents and the system temp folder). Validates the fresh package before writing ' +
   '(E_VALIDATION when invalid, never writes corruption); refuses to overwrite without {force:true} (E_CONFLICT). ' +
   'Success returns {ok:true,path,sessionId,revision,template,bytes} with the file opened into a session ' +
   '(use sessionId for inspect/execute_batch/save). Example {"outPath":"documents/new-report.docx","template":"report"}. ' +
