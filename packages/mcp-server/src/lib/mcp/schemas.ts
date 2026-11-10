@@ -50,7 +50,12 @@ export const InspectDocumentSchema = z
     // defaults (offset 0, limit 50, window 5) are applied manually in
     // handleInspectDocument AFTER the explicit-presence check below.
     offset: z.number().int().min(0).optional(),
-    limit: z.number().int().min(1).max(200).optional(),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(200, 'limit is at most 200 per call; use offset and nextOffset to read more')
+      .optional(),
     aroundNode: z.string().min(1).max(256).optional(),
     window: z.number().int().min(1).max(20).optional(),
     maxTokens: z.number().int().min(200).max(8000).optional(),
@@ -58,7 +63,12 @@ export const InspectDocumentSchema = z
     // FX-13: review records (include) page on their own window, so they never move the node window.
     // reviewLimit above 50 is clamped to 50 by the handler, as limit was before.
     reviewOffset: z.number().int().min(0).optional(),
-    reviewLimit: z.number().int().min(1).max(200).optional(),
+    reviewLimit: z
+      .number()
+      .int()
+      .min(1)
+      .max(200, 'reviewLimit is at most 200 per call; use reviewOffset to read more')
+      .optional(),
     commentId: z.number().int().nonnegative().optional(),
     revisionId: z.number().int().nonnegative().optional(),
   })
