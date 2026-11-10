@@ -1,0 +1,92 @@
+name: Platform Smoke
+
+# Runs the packages the way a user does, on each operating system: packs them, installs them into a
+# clean global prefix, and uses the command shims npm writes for that system (astra.cmd on Windows):
+# the CLI, `npx`, and the MCP server over stdio. It also covers the paths that have failed on
+# Windows: a folder named with a trailing separator, a folder whose name has a space, an absolute
+# image path with a drive letter, and the 8.3 short form of a folder. See scripts/platform-smoke.mjs.
+#
+# It runs on pull requests to main, by hand, and from release.yml before anything is published.
+# It never publishes and never sees a token.
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            npm: linux-x64
+            runner: ubuntu-latest
+          - rid: osx-arm64
+            npm: darwin-arm64
+            runner: macos-latest
+          - rid: win-x64
+            npm: win32-x64
+            runner: windows-latest
+          - rid: win-arm64
+            npm: win32-arm64
+            runner: windows-11-arm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      # build:native builds for the machine Node runs on, so check this is the platform the job is for.
+      - name: Check this machine is the platform the job is for
+        run: |
+          actual="$(node -p 'process.platform + "-" + process.arch')"
+          echo "node runs on $actual"
+          test "$actual" = "${{ matrix.npm }}"
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+          cache: true
+          cache-dependency-path: packages/ooxml-validator/native/packages.lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the packages
+        run: npm run build:packages
+
+      - name: Restore dependencies with locked file
+        run: dotnet restore packages/ooxml-validator/native/ooxml-validator.csproj --locked-mode
+
+      - name: Compile the native validator
+        run: npm run build:native --workspace=@attentionform/ooxml-validator
+        env:
+          RestoreLockedMode: 'true'
+
+      - name: Sign macOS binary (ad-hoc)
+        if: startsWith(matrix.rid, 'osx-')
+        run: codesign --force --sign - packages/ooxml-validator/native/out/${{ matrix.rid }}/ooxml-validator
+
+      - name: Pack this platform's validator package
+        run: npx tsx scripts/build-validator-packages.ts --only ${{ matrix.rid }} --out-dir platform-out
+
+      - name: Install the packages globally and use them
+        run: node scripts/platform-smoke.mjs --platform-out platform-out

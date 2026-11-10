@@ -178,15 +178,26 @@ jobs:
     with:
       pack: true
 
+  # Runs the packed packages on Linux, macOS and Windows, through the shims npm writes for each.
+  # Nothing is published unless this passes (a release of the validator platforms alone skips it).
+  smoke:
+    name: Platform smoke
+    needs: plan
+    if: needs.plan.outputs.needs_tests == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/platform-smoke.yml
+
   publish:
     name: ${{ inputs.dry_run && 'Dry run' || 'Publish' }}
-    needs: [plan, test, platforms]
+    needs: [plan, test, smoke, platforms]
     # Runs when a platform failed (the publish step decides whether the wrapper can still go out), not
-    # when the plan or the tests failed or the run was cancelled.
+    # when the plan, the tests or the platform smoke failed or the run was cancelled.
     if: >-
       ${{ !cancelled()
       && needs.plan.result == 'success'
       && (needs.test.result == 'success' || needs.test.result == 'skipped')
+      && (needs.smoke.result == 'success' || needs.smoke.result == 'skipped')
       && (needs.platforms.result == 'success' || needs.platforms.result == 'failure' || needs.platforms.result == 'skipped') }}
     runs-on: ubuntu-latest
     # A real publish waits here for approval; a dry run does not.

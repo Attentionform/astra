@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const root = path.resolve(__dirname, '..', '..');
 const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
-const workflows = ['ci.yml', 'release.yml', 'validator-platform.yml'].map((f) => `.github/workflows/${f}`);
+const workflows = ['ci.yml', 'release.yml', 'validator-platform.yml', 'platform-smoke.yml'].map((f) => `.github/workflows/${f}`);
 
 /** "10.0.403" -> [10, 0, 403] */
 function sdkParts(v: string): number[] {
@@ -99,9 +99,10 @@ describe('validator native build configuration', () => {
     expect(release.slice(publishStart)).toMatch(/secrets\.NPM_TOKEN/);
   });
 
-  it('lets the publish job run when a platform job failed, but not when the plan or the tests failed', () => {
+  it('lets the publish job run when a platform job failed, but not when the plan, the tests or the platform smoke failed', () => {
     const wf = read('.github/workflows/release.yml');
-    expect(wf).toMatch(/needs: \[plan, test, platforms\]/);
+    expect(wf).toMatch(/needs: \[plan, test, smoke, platforms\]/);
+    expect(wf).toMatch(/needs\.smoke\.result == 'success' \|\| needs\.smoke\.result == 'skipped'/);
     expect(wf).toMatch(/!cancelled\(\)/);
     expect(wf).toMatch(/needs\.plan\.result == 'success'/);
     expect(wf).toMatch(/needs\.test\.result == 'success' \|\| needs\.test\.result == 'skipped'/);
@@ -112,5 +113,26 @@ describe('validator native build configuration', () => {
     const wf = read('.github/workflows/release.yml');
     const floor = JSON.parse(read('package.json')).engines.node.replace('>=', '');
     expect(wf).toContain(`node-version: ['${floor}', 'latest']`);
+  });
+});
+
+describe('platform smoke workflow', () => {
+  const wf = read('.github/workflows/platform-smoke.yml');
+
+  it('runs on Linux, macOS, Windows and Windows on ARM', () => {
+    for (const runner of ['ubuntu-latest', 'macos-latest', 'windows-latest', 'windows-11-arm']) {
+      expect(wf).toContain(`runner: ${runner}`);
+    }
+  });
+
+  it('can be started by hand, on pull requests to main, and by the release workflow', () => {
+    expect(wf).toMatch(/workflow_dispatch:/);
+    expect(wf).toMatch(/workflow_call:/);
+    expect(wf).toMatch(/pull_request:\n\s+branches: \[ main \]/);
+    expect(read('.github/workflows/release.yml')).toMatch(/uses: \.\/\.github\/workflows\/platform-smoke\.yml/);
+  });
+
+  it('never publishes and never sees a token', () => {
+    expect(wf).not.toMatch(/secrets\.|id-token|npm publish|NODE_AUTH_TOKEN/);
   });
 });
