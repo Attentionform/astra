@@ -119,16 +119,17 @@
  *
  * Fail-closed with `E_VALIDATION` + line number: remote image URLs, raw HTML
  * (block or inline, including autolinks), custom-style syntax (`:::` fences,
- * `{#id}`/`{.class}` heading attributes), general blockquotes, deeper
+ * `{#id}`/`{.class}` heading attributes), tables, headings or images inside a quote, deeper
  * headings, nested tables (only expressible via HTML, caught by that rule),
  * and any other unlisted block shape. Inputs larger than
  * `COMPOSE_MARKDOWN_MAX_BYTES` UTF-8 bytes fail closed with `E_LIMIT`
  * before the lexer runs (split the manuscript and retry). Alert blockquotes (`> [!NOTE]` and the
- * matching TIP, IMPORTANT, WARNING, CAUTION tags) are the one accepted quote
- * shape: they compile to real `callout` containers with plain-text bodies
- * (an optional bold-only first line becomes the callout title; bold, italic,
- * code, links, images, and note markers inside the body fail closed, like
- * table cells, so no formatting is silently dropped). Alert tags carry no
+ * matching TIP, IMPORTANT, WARNING, CAUTION tags) compile to real `callout`
+ * containers (an optional bold-only first line becomes the callout title;
+ * bold, italic, code and links in the title and body are kept, while images,
+ * raw HTML, inline math and note markers fail closed so no content is
+ * silently dropped). Any other `>` quote compiles to paragraphs in the
+ * `Quote` style (see `compileQuote` in compile.ts). Alert tags carry no
  * explicit theme syntax, so a guided compose skins them with the guide
  * `callouts.defaultTheme`; guideless composes keep the legacy per-tag map.
  *
@@ -177,6 +178,7 @@ import {
   OperationEngine,
 } from '../operation-engine';
 import { type Operation, validateOperationsStrict } from '../operation-schema';
+import { ensureQuoteStyle, QUOTE_STYLE_ID } from '../ooxml/quote-style';
 import type { DocxParser } from '../parser';
 import { createWordElement } from '../ooxml/ns';
 import { latexToOmml } from '../ooxml/omml';
@@ -537,6 +539,10 @@ export async function composeDocument(
     ...(options?.dollarMath ? { dollarMath: true } : {}),
   });
   validateComposedOperations(operations);
+  // A quote is written in the Quote paragraph style; an opened document that lacks the style gets it first.
+  if (operations.some((op) => op.action === 'namedStyle' && (op as { styleName?: string }).styleName === QUOTE_STYLE_ID)) {
+    ensureQuoteStyle(parser.getStylesDom());
+  }
 
   const chunkSize =
     options?.chunkSize !== undefined ? Math.floor(options.chunkSize) : ENGINE_MAX_OPS;

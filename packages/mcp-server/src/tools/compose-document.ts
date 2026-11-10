@@ -131,8 +131,9 @@ export const COMPOSE_DOCUMENT_DESCRIPTION =
   'flat bullet (-, *, +) and ordered (1., 1)) lists with real numbering, GitHub-style tables with a header separator row ' +
   '(header row shaded and repeated), --- dividers, fenced or indented code blocks (monospace, line breaks kept), ' +
   '[^label] footnotes with definitions, inline spans (**bold**, *italic*, `code`, [text](url)) applied as runs with real hyperlink targets, ' +
+  'plain `> quote` blocks (written in the Quote paragraph style: blank > lines start a new paragraph, > > nests up to 3 levels, flat lists and fenced code are kept inside, a table, heading or image inside a quote fails), ' +
   'and standalone block images/charts (![alt](path)) resolved from allowedDir. Out-of-scope input fails closed with E_VALIDATION plus a 1-based line number and writes nothing: ' +
-  'raw HTML (except [!NOTE]-style alert callouts, which compile to callout containers and keep bold, italic, code and links), custom styles, general blockquotes, deeper headings, nested lists or tables, task items. ' +
+  'raw HTML (except [!NOTE]-style alert callouts, which compile to callout containers and keep bold, italic, code and links), custom styles, deeper headings, nested lists or tables, task items. ' +
   'Block image/chart refs need allowedDir pointing at the folder holding the files (refs stay jailed inside it; without allowedDir they fail closed); ' +
   'remote URL refs fail closed; inline data-URL block images bypass allowedDir by design (bytes decode in memory through the same image gates). ' +
   'Sources compiling past 500 operations apply as sequential 500-operation chunks; each chunk is atomic, but a later-chunk ' +

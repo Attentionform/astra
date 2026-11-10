@@ -393,7 +393,7 @@ Compiles a Markdown document into valid OOXML structures and applies them to the
 | `template` | `string` | No | Target template to replace initial placeholders (`"report"`, `"memo"`, `"blank"`). |
 | `styleGuide` | `string` | No | Bundled guide name or guide `.md` path; attaches to the session. Omitted: the built-in Default Corporate look (navy table header, bold white header text, striped rows). `"legacy"`: the older grey header, for this call only. |
 
-An italic-only line directly under the opening `#` title becomes the `Subtitle` style. A `[!NOTE]`-style line outside a blockquote stays plain text and is reported in `warnings`.
+An italic-only line directly under the opening `#` title becomes the `Subtitle` style. A `[!NOTE]`-style line outside a blockquote stays plain text and is reported in `warnings`. A `> [!NOTE]` alert becomes a callout and keeps bold, italic, code and links. Any other `> quote` becomes paragraphs in the `Quote` style (blank `>` lines start a new paragraph, `> >` nests up to three levels, flat lists and fenced code stay inside); a table, heading or image inside a quote fails with a line number.
 
 **Supported Markdown Matrix:**
 | Markdown Element | Generated OOXML Construct |
@@ -406,6 +406,7 @@ An italic-only line directly under the opening `#` title becomes the `Subtitle` 
 | `\| col \| col \|` | Native OOXML tables with borders and styled header rows |
 | ` ```code ` | Monospace shaded code blocks |
 | `> [!NOTE]` / `> [!IMPORTANT]` | Formatted executive callout boxes with left border accents |
+| `> quote` | Paragraphs in the `Quote` style (left rule, italic, indented); `> >` nests up to three levels |
 | `[^1]` / `[^1]: Note text` | Native Word footnotes (`word/footnotes.xml`) |
 | `![alt](image.png)` | Inline DrawingML pictures (`a:blip`) |
 | `![title](chart.json)` | Native Word charts (column, bar, line, pie) |

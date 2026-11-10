@@ -253,7 +253,7 @@ describe('compose rejects out-of-scope input', () => {
     ['autolink list item', '- item <https://example.com>\n', 1, 'raw HTML'],
     ['autolink table cell', '| a |\n|---|\n| <https://example.com> |\n', 1, 'raw HTML'],
     ['autolink footnote body', 'Note[^a].\n\n[^a]: See <https://example.com>\n', 3, 'image or HTML'],
-    ['blockquote', '> quoted\n', 1, 'blockquotes'],
+    ['blockquote table', '> | a | b |\n> | - | - |\n> | 1 | 2 |\n', 1, 'tables inside a quote'],
     ['container fence', '::: note\ntext\n:::\n', 1, 'container fences'],
     ['heading attribute', '# Title {#custom}\n', 1, 'custom heading attributes'],
     ['table cell note', '| a |\n|---|\n| x[^1] |\n\n[^1]: body\n', 3, 'inside tables'],
@@ -1002,9 +1002,8 @@ describe('compose alert blockquotes', () => {
     expect(strict.errors).toEqual([]);
   });
 
-  it('still fails general blockquotes and malformed alerts with line numbers', () => {
-    expectLineError(() => compileMarkdown('> quoted\n'), 1, 'blockquotes');
-    expectLineError(() => compileMarkdown('> [!BOGUS]\n> x\n'), 1, 'blockquotes');
+  it('still fails malformed alerts and refused quote content with line numbers', () => {
+    expectLineError(() => compileMarkdown('> [!BOGUS]\n> x\n'), 1, 'unknown alert type');
     expectLineError(() => compileMarkdown('> [!NOTE]\n'), 1, 'needs body text');
     expectLineError(() => compileMarkdown('> [!NOTE]\n> - item\n'), 1, 'list blocks');
     expectLineError(() => compileMarkdown('> [!NOTE]\n> see ![alt](x.png)\n'), 2, 'images are out of scope');

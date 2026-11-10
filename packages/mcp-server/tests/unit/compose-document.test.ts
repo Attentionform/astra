@@ -212,11 +212,11 @@ describe('compose_document handler', () => {
     expect(after.revision).toBe(before.revision);
   });
 
-  it('rejects deeper headings, blockquotes and undefined footnotes with line numbers', async () => {
+  it('rejects deeper headings, tables in a quote and undefined footnotes with line numbers', async () => {
     const { store, sessionId } = await openBlankSession();
     for (const [markdown, line] of [
       ['# Ok\n\n#### Too deep\n', 'line 3'],
-      ['> quoted\n', 'line 1'],
+      ['> | a | b |\n> | - | - |\n> | 1 | 2 |\n', 'line 1'],
       ['Text with a dangling note[^missing].\n', 'line 1'],
     ] as Array<[string, string]>) {
       const res = await handleComposeDocument(store, { sessionId, markdown });

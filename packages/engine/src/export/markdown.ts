@@ -1100,9 +1100,13 @@ export function convertAstToMarkdown(
               const textLines = text ? text.split('\n') : [];
               lines.push(`> [!${alertTag}]\n${textLines.map(l => `> ${l}`).join('\n')}\n`);
             } else {
-              // Quote
+              // Quote. A nested level is a direct left indent beyond the style's own (one step of 720 twips per level).
               const textLines = text ? text.split('\n') : [];
-              lines.push(`${textLines.map(l => `> ${l}`).join('\n')}\n`);
+              const ind = node.xml?.getElementsByTagName?.('w:pPr')?.[0]?.getElementsByTagName?.('w:ind')?.[0] ?? null;
+              const left = ind ? parseInt(ind.getAttribute('w:left') || '0', 10) : 0;
+              const depth = style === 'quote' && Number.isFinite(left) && left > 0 ? Math.min(3, Math.max(1, Math.round(left / 720))) : 1;
+              const marker = '>'.repeat(1).concat(' >'.repeat(depth - 1));
+              lines.push(`${textLines.map(l => `${marker} ${l}`).join('\n')}\n`);
             }
           } else {
             const isCodeNamedStyle = style === 'code' || style === 'monospace' || style === 'inlinecode';

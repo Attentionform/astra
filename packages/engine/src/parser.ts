@@ -81,6 +81,7 @@ import {
 import { getNodeFromAST } from './parser/ast-utils';
 import { detectPersistedCallout } from './parser/callout';
 import { hasLiveNumberingForSync } from './parser/numbering';
+import { QUOTE_STYLE_BODY } from './ooxml/quote-style';
 
 export { readDocxFileBuffer, getMimeType };
 export { SECT_PR_CHILD_ORDER, upsertSectPrChild, linesPerPageFromSectPr } from './parser/sect-pr';
@@ -4045,6 +4046,7 @@ export class DocxParser {
       <w:spacing w:before="120" w:after="120" w:line="240" w:lineRule="auto"/>
     </w:pPr>
   </w:style>
+  ${QUOTE_STYLE_BODY}
   <w:style w:type="character" w:styleId="Code">
     <w:name w:val="Code"/>
     <w:rPr>

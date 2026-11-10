@@ -40,6 +40,7 @@ import {
   isEndnoteLabel,
 } from './constants';
 import type { CitationDef, InlineToken, SpanSegment } from './text-spans';
+import { QUOTE_INDENT_TWIPS } from '../ooxml/quote-style';
 import { failOnImageOrHtml, parseInlineTokens, plainJoin, segmentsNeedSplit, validateLinkUrl } from './text-spans';
 
 interface FootnoteDef {
@@ -127,6 +128,14 @@ function buildLineIndex(src: string, tokens: readonly Token[]): Map<Token, numbe
 }
 
 /** Line of a sub-excerpt inside a block that starts at `blockLine`. */
+
+const QUOTE_INDENT = QUOTE_INDENT_TWIPS;
+/** Hanging indent of a list item inside a quote, in twips. */
+const QUOTE_LIST_INDENT = 360;
+/** Deepest quote level that gets its own indent; a deeper quote is written at this level with a warning. */
+const QUOTE_MAX_LEVEL = 3;
+/** Left indent a code block already carries (see insert.ts), added to the quote indent so the box lines up. */
+const CODE_BLOCK_BASE_INDENT = 80;
 
 function subLine(blockRaw: string, blockLine: number, excerpt: string): number {
   const found = blockRaw.indexOf(excerpt);
@@ -742,7 +751,205 @@ export function compileMarkdownDetailed(
   // True right after a level-1 heading that opens the document, so an italic-only line under it can become the Subtitle.
   let underTitle = false;
 
-  let lastBlockKind: 'none' | 'paragraph' | 'heading' | 'list' | 'table' | 'code' | 'image' | 'chart' | 'divider' | 'callout' | 'equation' = 'none';
+  let lastBlockKind: 'none' | 'paragraph' | 'heading' | 'list' | 'table' | 'code' | 'image' | 'chart' | 'divider' | 'callout' | 'equation' | 'quote' = 'none';
+
+  /** Compiles one Markdown list. Inside a quote (quoteLevel 1-3) each item also takes the Quote style and that level's indent. */
+  const compileList = (token: BlockToken, line: number, quoteLevel = 0): void => {
+    const listType = token.ordered === true ? 'numbered' : 'bullet';
+    const items = token.items ?? [];
+    if (items.length === 0) {
+      fail(line, 'empty list block', 'add at least one list item');
+    }
+    const itemIds: string[] = [];
+    const itemBaseLine = line;
+    for (const item of items) {
+      const itemLine = subLine(token.raw, itemBaseLine, item.raw);
+      if (item.task === true) {
+        fail(itemLine, 'task-list items are out of scope', 'use a plain bullet or numbered item');
+      }
+      for (const child of item.tokens ?? []) {
+        if (child.type === 'list') {
+          const nestedRaw = (child as { raw?: unknown }).raw;
+          const nestedLine =
+            typeof nestedRaw === 'string' && nestedRaw
+              ? subLine(token.raw, itemBaseLine, nestedRaw)
+              : itemLine;
+          fail(nestedLine, 'nested lists are out of scope', 'flatten nested items into the top-level list');
+        }
+        if (child.type !== 'text' && child.type !== 'paragraph' && child.type !== 'space') {
+          fail(itemLine, `list items carry ${child.type} blocks, out of scope`, 'keep list items plain text');
+        }
+      }
+      if (item.text.split('\n').some((entry) => FOOTNOTE_DEF_PATTERN.test(entry))) {
+        fail(itemLine, 'footnote definition must stand alone as its own block', 'move the definition out of the list');
+      }
+      if (item.text.split('\n').some((entry) => CITATION_DEF_PATTERN.test(entry))) {
+        fail(itemLine, 'citation definition must stand alone as its own block', 'move the definition out of the list');
+      }
+      failOnImageOrHtml(item.text, itemLine, 'a list item');
+      const firstChild = (item.tokens ?? [])[0] as (Token & { tokens?: InlineToken[] }) | undefined;
+      const inlineTokens = ((firstChild as { tokens?: InlineToken[] })?.tokens ?? []) as InlineToken[];
+      if (inlineTokens.length === 1 && inlineTokens[0].type === 'image') {
+        fail(itemLine, 'images are out of scope in a list item', 'put images on their own block line instead of inside a list');
+      }
+      for (const it of inlineTokens) {
+        if (it.type === 'image') {
+          fail(itemLine, 'images are out of scope in a list item', 'put images on their own block line instead of inside a list');
+        }
+      }
+      const inline = parseInlineTokens(inlineTokens, itemLine, 'a list item', citationDefs, citationOrder, citationNum, usedCitations);
+      for (const key of inline.citationKeys) usedCitations.add(key);
+      for (const label of inline.footnoteRefs) {
+        if (!defs.has(label)) {
+          fail(itemLine, `undefined footnote reference [^${label}]`, 'add a matching [^label]: body definition');
+        }
+      }
+      const id = pushInsertParagraph(inline.plainText, inline.segments);
+      trackRefs(id, inline.footnoteEntries ?? inline.footnoteRefs, itemLine);
+      itemIds.push(id);
+    }
+    ops.push({ action: 'list', operation: 'create', target: itemIds, listType } as Operation);
+    if (lastBlockKind === 'table' && itemIds.length > 0) {
+      ops.push({ action: 'style', target: itemIds[0], spacingBefore: 240 } as Operation);
+    }
+    if (quoteLevel > 0) {
+      for (const itemId of itemIds) {
+        ops.push({ action: 'namedStyle', operation: 'apply', styleName: 'Quote', target: itemId } as Operation);
+        ops.push({ action: 'style', target: itemId, indentLeft: quoteLevel * QUOTE_INDENT + QUOTE_LIST_INDENT, indentHanging: QUOTE_LIST_INDENT } as Operation);
+      }
+    }
+
+  };
+
+  /** Compiles one fenced code block. Inside a quote the block moves right by that level's indent. */
+  const compileCode = (token: BlockToken, line: number, quoteLevel = 0): void => {
+    const lang = (token.lang ?? '').trim();
+    if (CHART_FENCE_LANGUAGES.has(lang.toLowerCase())) {
+      fail(line, `fenced code tagged '${lang}' requests a chart`, 'describe the chart with a chart path reference instead');
+    }
+    const id = nextId();
+    const anchor = insertAnchor();
+    // Code blocks style at insert time (params.codeBlock): the insert
+    // path applies the Code character style (Consolas/indigo/10pt) with
+    // block shading, border, and indent, and records the fence language
+    // in a bookmark so export rebuilds the fence with its tag.
+    ops.push({
+      action: 'insert',
+      type: 'paragraph',
+      anchor: anchor.anchor,
+      position: anchor.position,
+      text: token.text ?? '',
+      id,
+      params: { codeBlock: true, ...(lang ? { codeLanguage: lang } : {}) },
+    } as Operation);
+    lastInsertId = id;
+    if (lastBlockKind === 'table') {
+      ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
+    }
+    if (quoteLevel > 0) {
+      ops.push({ action: 'style', target: id, indentLeft: quoteLevel * QUOTE_INDENT + CODE_BLOCK_BASE_INDENT } as Operation);
+    }
+
+  };
+
+  /**
+   * Compiles a plain `>` quote to `Quote`-style paragraphs. Blank `>` lines
+   * start a new paragraph of the same block, `> >` nests (each level indents
+   * one step further, down to level 3; a deeper level is written at level 3
+   * with a warning), and flat lists and fenced code inside the quote keep its
+   * indent. Tables, headings, rules, images and raw HTML inside a quote fail
+   * with a line number, because Word has no quote indent for them.
+   */
+  const compileQuote = (token: BlockToken, line: number, level: number): void => {
+    const effective = Math.min(level, QUOTE_MAX_LEVEL);
+    if (level > QUOTE_MAX_LEVEL) {
+      warnings.push(`line ${line}: quote nesting deeper than ${QUOTE_MAX_LEVEL} levels was written at level ${QUOTE_MAX_LEVEL}.`);
+    }
+    const children = ((token.tokens ?? []) as Token[]).filter((child) => child.type !== 'space');
+    if (children.length === 0) {
+      fail(line, 'blockquote is empty', 'write the quote text after the > marker');
+    }
+    // A child's raw text has this quote's "> " markers removed, so find its line in the stripped source.
+    const strippedRaw = token.raw
+      .split('\n')
+      .map((entry) => entry.replace(/^ {0,3}>[ ]?/, ''))
+      .join('\n');
+    for (const child of children) {
+      const childRaw = (child as { raw?: string }).raw ?? '';
+      const childLine = subLine(strippedRaw, line, childRaw.split('\n')[0] ?? '');
+      switch (child.type) {
+        case 'paragraph': {
+          const para = child as BlockToken;
+          const paraText = para.text ?? '';
+          const paraLines = childRaw.replace(/\n+$/, '').split('\n');
+          if (paraLines.some((entry) => FOOTNOTE_DEF_PATTERN.test(entry) || CITATION_DEF_PATTERN.test(entry))) {
+            fail(childLine, 'note and citation definitions must stand alone as their own block', 'move the definition out of the quote');
+          }
+          if (CONTAINER_FENCE_PATTERN.test(paraLines[0] ?? '')) {
+            fail(childLine, 'container fences (:::) are out of scope as custom styles', 'use plain Markdown blocks');
+          }
+          const paraTokens = (para.tokens ?? []) as InlineToken[];
+          for (const it of paraTokens) {
+            if (it.type === 'image') {
+              fail(childLine, 'images are out of scope in a quote', 'put images on their own block line after the quote');
+            }
+          }
+          failOnImageOrHtml(paraText, childLine, 'a quote');
+          const inline = parseInlineTokens(para.tokens, childLine, 'a quote', citationDefs, citationOrder, citationNum, usedCitations);
+          for (const key of inline.citationKeys) usedCitations.add(key);
+          for (const label of inline.footnoteRefs) {
+            if (!defs.has(label)) {
+              fail(childLine, `undefined footnote reference [^${label}]`, 'add a matching [^label]: body definition');
+            }
+          }
+          const id = pushInsertParagraph(inline.plainText, inline.segments);
+          trackRefs(id, inline.footnoteEntries ?? inline.footnoteRefs, childLine);
+          ops.push({ action: 'namedStyle', operation: 'apply', styleName: 'Quote', target: id } as Operation);
+          if (effective > 1) {
+            ops.push({ action: 'style', target: id, indentLeft: effective * QUOTE_INDENT } as Operation);
+          }
+          if (lastBlockKind === 'table') {
+            ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
+          }
+          lastBlockKind = 'quote';
+          underTitle = false;
+          break;
+        }
+        case 'blockquote':
+          compileQuote(child as BlockToken, childLine, level + 1);
+          break;
+        case 'list':
+          compileList(child as BlockToken, childLine, effective);
+          lastBlockKind = 'list';
+          break;
+        case 'code':
+          compileCode(child as BlockToken, childLine, effective);
+          lastBlockKind = 'code';
+          break;
+        case 'table':
+          fail(childLine, 'tables inside a quote are out of scope', 'Word cannot indent a table as a quote: put the table after the quote');
+          break;
+        case 'heading':
+          fail(childLine, 'headings inside a quote are out of scope', 'put the heading before the quote');
+          break;
+        default:
+          fail(childLine, `${child.type} blocks inside a quote are out of scope`, 'keep quotes to paragraphs, flat lists and code blocks');
+      }
+    }
+  };
+
+  /** True when a quote opens with a `[!NOTE]`-style marker, so it is an alert callout and not a plain quote. */
+  const quoteOpensWithAlertMarker = (token: BlockToken, line: number): boolean => {
+    const first = ((token.tokens ?? []) as Token[]).find((child) => child.type !== 'space') as BlockToken | undefined;
+    if (!first || first.type !== 'paragraph') return false;
+    const head = (first.text ?? '').split('\n')[0]?.trim() ?? '';
+    if (ALERT_MARKER_PATTERN.test(head)) return true;
+    const unknown = /^\[!([A-Za-z][A-Za-z0-9_-]*)\]/.exec(head);
+    if (unknown) {
+      fail(line, `unknown alert type [!${unknown[1]}]`, 'use NOTE, TIP, IMPORTANT, WARNING or CAUTION, or drop the [!...] marker for a plain quote');
+    }
+    return false;
+  };
 
   for (const rawToken of tokens) {
     const token = rawToken as BlockToken;
@@ -865,63 +1072,7 @@ export function compileMarkdownDetailed(
       }
 
       case 'list': {
-        const listType = token.ordered === true ? 'numbered' : 'bullet';
-        const items = token.items ?? [];
-        if (items.length === 0) {
-          fail(line, 'empty list block', 'add at least one list item');
-        }
-        const itemIds: string[] = [];
-        const itemBaseLine = line;
-        for (const item of items) {
-          const itemLine = subLine(token.raw, itemBaseLine, item.raw);
-          if (item.task === true) {
-            fail(itemLine, 'task-list items are out of scope', 'use a plain bullet or numbered item');
-          }
-          for (const child of item.tokens ?? []) {
-            if (child.type === 'list') {
-              const nestedRaw = (child as { raw?: unknown }).raw;
-              const nestedLine =
-                typeof nestedRaw === 'string' && nestedRaw
-                  ? subLine(token.raw, itemBaseLine, nestedRaw)
-                  : itemLine;
-              fail(nestedLine, 'nested lists are out of scope', 'flatten nested items into the top-level list');
-            }
-            if (child.type !== 'text' && child.type !== 'paragraph' && child.type !== 'space') {
-              fail(itemLine, `list items carry ${child.type} blocks, out of scope`, 'keep list items plain text');
-            }
-          }
-          if (item.text.split('\n').some((entry) => FOOTNOTE_DEF_PATTERN.test(entry))) {
-            fail(itemLine, 'footnote definition must stand alone as its own block', 'move the definition out of the list');
-          }
-          if (item.text.split('\n').some((entry) => CITATION_DEF_PATTERN.test(entry))) {
-            fail(itemLine, 'citation definition must stand alone as its own block', 'move the definition out of the list');
-          }
-          failOnImageOrHtml(item.text, itemLine, 'a list item');
-          const firstChild = (item.tokens ?? [])[0] as (Token & { tokens?: InlineToken[] }) | undefined;
-          const inlineTokens = ((firstChild as { tokens?: InlineToken[] })?.tokens ?? []) as InlineToken[];
-          if (inlineTokens.length === 1 && inlineTokens[0].type === 'image') {
-            fail(itemLine, 'images are out of scope in a list item', 'put images on their own block line instead of inside a list');
-          }
-          for (const it of inlineTokens) {
-            if (it.type === 'image') {
-              fail(itemLine, 'images are out of scope in a list item', 'put images on their own block line instead of inside a list');
-            }
-          }
-          const inline = parseInlineTokens(inlineTokens, itemLine, 'a list item', citationDefs, citationOrder, citationNum, usedCitations);
-          for (const key of inline.citationKeys) usedCitations.add(key);
-          for (const label of inline.footnoteRefs) {
-            if (!defs.has(label)) {
-              fail(itemLine, `undefined footnote reference [^${label}]`, 'add a matching [^label]: body definition');
-            }
-          }
-          const id = pushInsertParagraph(inline.plainText, inline.segments);
-          trackRefs(id, inline.footnoteEntries ?? inline.footnoteRefs, itemLine);
-          itemIds.push(id);
-        }
-        ops.push({ action: 'list', operation: 'create', target: itemIds, listType } as Operation);
-        if (lastBlockKind === 'table' && itemIds.length > 0) {
-          ops.push({ action: 'style', target: itemIds[0], spacingBefore: 240 } as Operation);
-        }
+        compileList(token, line);
         lastBlockKind = 'list';
         break;
       }
@@ -1044,29 +1195,7 @@ export function compileMarkdownDetailed(
       }
 
       case 'code': {
-        const lang = (token.lang ?? '').trim();
-        if (CHART_FENCE_LANGUAGES.has(lang.toLowerCase())) {
-          fail(line, `fenced code tagged '${lang}' requests a chart`, 'describe the chart with a chart path reference instead');
-        }
-        const id = nextId();
-        const anchor = insertAnchor();
-        // Code blocks style at insert time (params.codeBlock): the insert
-        // path applies the Code character style (Consolas/indigo/10pt) with
-        // block shading, border, and indent, and records the fence language
-        // in a bookmark so export rebuilds the fence with its tag.
-        ops.push({
-          action: 'insert',
-          type: 'paragraph',
-          anchor: anchor.anchor,
-          position: anchor.position,
-          text: token.text ?? '',
-          id,
-          params: { codeBlock: true, ...(lang ? { codeLanguage: lang } : {}) },
-        } as Operation);
-        lastInsertId = id;
-        if (lastBlockKind === 'table') {
-          ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
-        }
+        compileCode(token, line);
         lastBlockKind = 'code';
         break;
       }
@@ -1088,8 +1217,12 @@ export function compileMarkdownDetailed(
         break;
 
       case 'blockquote':
-        handleAlertBlockquote(token, line);
-        lastBlockKind = 'callout';
+        if (quoteOpensWithAlertMarker(token, line)) {
+          handleAlertBlockquote(token, line);
+          lastBlockKind = 'callout';
+        } else {
+          compileQuote(token, line, 1);
+        }
         break;
 
       case 'image': {

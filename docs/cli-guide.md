@@ -663,7 +663,7 @@ Rendered today: `tables.headerFill/headerText/headerBold/keepTogether`, `tables.
 | Compose `> [!NOTE]`/`[!TIP]`/`[!IMPORTANT]`/`[!WARNING]`/`[!CAUTION]` | n/a (alert tags carry no theme syntax; every tag is generic) | `callouts.tagThemes[tag] ?? defaultTheme` | legacy per-tag map (NOTE indigo, TIP emerald, IMPORTANT slate, WARNING amber, CAUTION rose) |
 | Code blocks / charts | explicit colors win | guide background/border; palette fills uncolored series in order | legacy grays / default palette |
 
-Plain `> quote` blockquotes stay out of scope (fail closed); only `> [!TAG]` alerts compose.
+A `> [!TAG]` alert composes to a callout and keeps bold, italic, code and links in its title and body. Any other `> quote` composes to paragraphs in the `Quote` style (left rule, italic, indented): a blank `>` line starts a new paragraph, `> >` nests up to three levels (a deeper level is written at level 3 with a warning), and flat lists and fenced code stay inside the quote. A table, heading or image inside a quote fails with a line number, because Word has no quote indent for them.
 
 ### Diagnostics contract (`styleWarnings` vs stderr)
 
