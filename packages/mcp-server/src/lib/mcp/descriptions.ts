@@ -18,8 +18,17 @@ export const MCP_WORKFLOW =
 
 export const MCP_ENVELOPE_NOTE = '';
 
-function withSharedDocs(body: string): string {
-  return `${body} ${MCP_ECMA_ESSENTIALS} ${MCP_WORKFLOW} ${MCP_ENVELOPE_NOTE}`;
+/**
+ * The shared blocks are repeated in only the tools an agent starts from: the workflow line in open_document,
+ * execute_batch and save_document (compose_document carries its own), the unit rules in execute_batch alone.
+ * Every other tool leaves them out, so the catalogue does not pay for the same sentences in each description.
+ */
+function withSharedDocs(body: string, shared: { workflow?: boolean; ecma?: boolean } = {}): string {
+  const parts = [body.trimEnd()];
+  if (shared.ecma) parts.push(MCP_ECMA_ESSENTIALS);
+  if (shared.workflow) parts.push(MCP_WORKFLOW);
+  if (MCP_ENVELOPE_NOTE) parts.push(MCP_ENVELOPE_NOTE);
+  return parts.join(' ');
 }
 
 export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
@@ -38,7 +47,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'Macro/active content refuses by default (E_VALIDATION naming the parts): pass {"allowMacros":true} to preserve or {"stripMacros":true} to strip (never both). ' +
       'Session ids are server-minted (sess_<uuid>, DEPRECATED to supply sessionId: client-supplied values are ' +
       'rejected with E_VALIDATION; deterministic ids are test-only via --allow-client-session-ids). ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected.'
+      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected.',
+    { workflow: true }
   ),
   inspect_document: withSharedDocs(
     'Inspect a session: standard TOON outline (fidelity compact|standard|full, default standard) plus style palette passthrough ' +
@@ -115,7 +125,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'Images: width and height are integers in EMU (914400 per inch, 12700 per point, 9525 per pixel at 96 dpi); give one and the other follows the image aspect ratio, give neither and the image keeps its own size fitted to the page. ' +
       'Tables created by insert type:"table" or by Markdown repeat their header row across pages by default. ' +
       'Equations: {action:"equation",operation:"insert"|"replace",latex,mode:"auto"|"latex"|"plain"}; LaTeX that contains a backslash, ^ or _ becomes a real Word equation, and mode:"plain" keeps the text exactly as written. ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected.'
+      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected.',
+    { workflow: true, ecma: true }
   ),
   save_document: withSharedDocs(
     'Validate then persist the session docx; the default policy permits pre-existing validation errors when no new normalized error signatures are detected. ' +
@@ -137,7 +148,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'advisory styleWarnings [{nodeId,rule,message}] (table contrast, chart duplicate colors, split-table orphans), never blocking. ' +
       'Example {"sessionId":"sess_abc"} -> {"ok":true,"path":"documents/report.docx"}. ' +
       'Always save after execute_batch; close afterwards. ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected.'
+      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected.',
+    { workflow: true }
   ),
   close_document: withSharedDocs(
     'Evict a session and release its lock/memory. ' +
@@ -158,8 +170,7 @@ export const GIT_HISTORY_DESCRIPTIONS: Record<GitHistoryToolName, string> = {
       'opCount is always present (0 for pre-tracking commits and heals-only saves: it folds operations, not normalizer rewrites); ' +
       'affectedNodeIds is always present ([] when untracked); resultingHeadOid always equals oid (append-only; refs never move). ' +
       'Example {"sessionId":"sess_abc","limit":10} -> history slice. ' +
-      'Use the oids with revert_document (or preview_revert first) to restore an earlier saved state. ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected.'
+      'Use the oids with revert_document (or preview_revert first) to restore an earlier saved state. '
   ),
   preview_revert: withSharedDocs(
     'Read-only WOULD-restore preview for revert_document (never mutates: no revision bump, no disk write, no redo-stack change). ' +
@@ -226,8 +237,7 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'where errors carry description + xPath (first 10, same shape as the save-blocked envelope). ' +
       'The verdict is on the document as a save would write it (children put in schema order first); when that save would repair something the result also carries pendingNormalizations (a list of repairs, absent when none), so a valid verdict is not mistaken for "valid exactly as it stands". ' +
       'Use before save_document when the package may be non-conforming; save_document re-gates before writing. ' +
-      'Example {"sessionId":"sess_abc"} -> {"ok":true,"validation":{"valid":true,"errorCount":0,"errors":[]}}. ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions.'
+      'Example {"sessionId":"sess_abc"} -> {"ok":true,"validation":{"valid":true,"errorCount":0,"errors":[]}}. '
   ),
   get_stats: withSharedDocs(
     'Token-cheap document census for a session: words, paragraphs, tables, callouts, images, and an estimated ' +
@@ -237,8 +247,7 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'Returns {ok:true,sessionId,revision,dirty,words,paragraphs,tables,callouts,images,pages}. ' +
       'A callout (a "> [!NOTE]" alert or a callout op: a one-cell table with a fill) is counted in callouts and not in tables. ' +
       'Use instead of inspect_document when only counts are needed (a full TOON dump costs thousands of tokens ' +
-      'for the same question). Example {"sessionId":"sess_abc"} -> {"ok":true,"words":42,"paragraphs":5}. ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions.'
+      'for the same question). Example {"sessionId":"sess_abc"} -> {"ok":true,"words":42,"paragraphs":5}. '
   ),
   sanitize_document: withSharedDocs(
     'Scrub an open session document. By default it removes revision ids, authorship, embedded EXIF and hidden text PII. ' +
@@ -255,8 +264,7 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'Returns {ok:true,sessionId,revision,dirty,removedRSIDs,purgedAuthors,strippedExifBytes,purgedPII,bodyPII,piiCoverage,' +
       'acceptedRevisions,strippedComments,strippedMacros,macroParts,filesTouched,droppedRogue,...} plus the ' +
       'standard redoCleared signal when a redo chain is dropped. ' +
-      'Example {"sessionId":"sess_abc","stripMacros":true} -> scrubbed session at a new revision (save after). ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions.'
+      'Example {"sessionId":"sess_abc","stripMacros":true} -> scrubbed session at a new revision (save after). '
   ),
   normalize_document: withSharedDocs(
     'Canonical repair for an open session document: runs the same allowlist normalizer CLI normalize calls ' +
@@ -270,8 +278,7 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'Returns {ok:true,sessionId,revision,dirty,normalized,remaining,rolledBack,validation:{valid:true,...}} where normalized ' +
       'lists every rewrite once and remaining counts the validator errors left (-1 when the validator did not run), ' +
       'plus the standard redoCleared signal when a redo chain is dropped. ' +
-      'Example {"sessionId":"sess_abc"} -> {"ok":true,"normalized":[...]}. Save after to persist. ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions.'
+      'Example {"sessionId":"sess_abc"} -> {"ok":true,"normalized":[...]}. Save after to persist. '
   ),
   import_document: withSharedDocs(
     'Ingest an on-disk Markdown file into the OPEN session (the file-ingress half compose_document lacks: ' +
@@ -285,7 +292,6 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'oversize files E_LIMIT. Optional allowedDir (image refs), template (report|memo|blank seed check), ' +
       'and styleGuide (same attach semantics as compose_document). ' +
       'Optional dollarMath (default false) treats $...$ as inline math; off by default because prices and shell text can look like math. ' +
-      'Example {"sessionId":"sess_abc","path":"documents/notes.md"} -> compose envelope. ' +
-      'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions.'
+      'Example {"sessionId":"sess_abc","path":"documents/notes.md"} -> compose envelope. '
   ),
 };
