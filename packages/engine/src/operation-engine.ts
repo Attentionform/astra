@@ -28,6 +28,7 @@ import { FootnoteOperation, EndnoteOperation, executeFootnote, executeEndnote } 
 import { WatermarkOperation, executeWatermark } from './operations/watermark';
 import { PageBorderOperation, executePageBorder } from './operations/pageBorder';
 import { CoverPageOperation, executeCoverPage } from './operations/coverPage';
+import { anchorAliasOf } from './anchor-alias';
 import { HyperlinkOperation, executeHyperlink } from './operations/hyperlink';
 import { MetadataOperation, executeMetadata } from './operations/metadata';
 import type { StyleGuideConfig } from './style-guide/types';
@@ -324,8 +325,9 @@ function collectBatchTouchedIds(ops: BaseOperation[], ast: DocumentAST): string[
   const touch = (raw: unknown): void => {
     if (typeof raw !== 'string' || raw.length === 0) return;
     let resolved = raw;
-    if (raw === 'start') resolved = order[0] ?? raw;
-    else if (raw === 'end') resolved = order[order.length - 1] ?? raw;
+    const alias = anchorAliasOf(raw);
+    if (alias === 'start') resolved = order[0] ?? raw;
+    else if (alias === 'end') resolved = order[order.length - 1] ?? raw;
     else {
       // A cell address (t_001:r2c3) touches its table.
       const cell = parseCellAddress(raw);
@@ -1212,8 +1214,8 @@ export class OperationEngine {
    * untouched. An empty document (zero live nodes) fails closed with
    * E_VALIDATION + remedy.
    */
-  private static isAnchorAlias(value: unknown): value is 'start' | 'end' {
-    return value === 'start' || value === 'end';
+  private static isAnchorAlias(value: unknown): boolean {
+    return anchorAliasOf(value) !== null;
   }
 
   private resolveAnchorAlias(op: BaseOperation): void {
@@ -1230,6 +1232,11 @@ export class OperationEngine {
       }
     }
     if (aliasSeen === null) return;
+    // `position` is optional with an alias: start means before the first block, end after the last.
+    for (const h of holders) {
+      const alias = anchorAliasOf(h['anchor']);
+      if (alias !== null && h['position'] === undefined) h['position'] = alias === 'start' ? 'before' : 'after';
+    }
     let first: string | undefined;
     let last: string | undefined;
     for (const section of this.ast.sections ?? []) {
@@ -1246,8 +1253,9 @@ export class OperationEngine {
       );
     }
     for (const h of holders) {
-      if (h['anchor'] === 'start') h['anchor'] = first;
-      else if (h['anchor'] === 'end') h['anchor'] = last;
+      const alias = anchorAliasOf(h['anchor']);
+      if (alias === 'start') h['anchor'] = first;
+      else if (alias === 'end') h['anchor'] = last;
     }
   }
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { toError } from './errors';
+import { anchorAliasOf } from './anchor-alias';
 import { describeTableSubOpKeys, unknownParamsError } from './operation-params';
 import { SUPPORTED_CHART_2D_AND_3D_TYPES } from './operations/chart';
 
@@ -23,6 +24,10 @@ const expectedVersion = z.number().int().nonnegative().optional();
 const nestedParams = z.record(z.string(), z.unknown()).optional();
 const sectionNumber = z.number().int().positive('sections count from 1 (1 is the first section)').describe('Section number, counting from 1 (1 is the first section).');
 const position = z.enum(['before', 'after']);
+const ANCHOR_REF_DESCRIPTION =
+  "A node id from inspect_document, or 'start' / 'end' for the first / last block of the document (no inspect needed; '@start' and '@end' work too). With 'start', position defaults to 'before'; with 'end', to 'after'.";
+const ANCHOR_REF_SHORT = "A node id, or 'start' / 'end' for the first / last block.";
+
 const operationInsertPosition = z.enum(['before', 'after']).optional();
 
 /**
@@ -190,7 +195,7 @@ const insertOp = z.object({
   // engine appends in call order without ever reading them) need no dummy
   // anchor. Body inserts still require both — enforced by the strict
   // validators below, not by this shape.
-  anchor: z.string().min(1).max(256).optional(),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_DESCRIPTION).optional(),
   position: operationInsertPosition,
   text: z.string().max(500_000).optional(),
   xml: z.string().max(500_000).optional(),
@@ -317,7 +322,7 @@ const clearFormatOp = z.object({
 const moveOp = z.object({
   action: z.literal('move'),
   target: nodeIdOrList,
-  anchor: z.string().min(1).max(256),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT),
   position,
   expectedVersion,
   params: nestedParams,
@@ -464,7 +469,7 @@ const namedStyleOp = z.object({
 const fieldOp = z.object({
   action: z.literal('field'),
   operation: z.enum(['insertTOC', 'insertPageNumber', 'insertWordCount', 'updateFields']),
-  anchor: z.string().min(1).max(256).optional(),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT).optional(),
   position: operationInsertPosition,
   title: z.string().max(1_000).optional(),
   levels: z.number().int().min(1).max(9).optional(),
@@ -481,7 +486,7 @@ const equationOp = z.object({
   action: z.literal('equation'),
   operation: z.enum(['insert', 'replace']),
   latex: z.string().min(1).max(50_000),
-  anchor: z.string().min(1).max(256).optional(),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT).optional(),
   position: operationInsertPosition,
   target: z.string().min(1).max(256).optional(),
   id: z.string().min(1).max(256).optional(),
@@ -612,7 +617,7 @@ const chartOp = z.object({
   categories: z.array(z.string().max(500)).max(1_000).optional(),
   series: z.array(chartSeries).max(100).optional(),
   style: chartStyle.optional(),
-  anchor: z.string().min(1).max(256).optional(),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT).optional(),
   id: z.string().min(1).max(256).optional(),
   widthEmu: z.number().positive().max(100_000_000).optional(),
   heightEmu: z.number().positive().max(100_000_000).optional(),
@@ -623,7 +628,7 @@ const chartOp = z.object({
 const imageOp = z.object({
   action: z.literal('image'),
   operation: z.enum(['insert', 'resize', 'reposition', 'setWrap', 'setCaption', 'delete', 'setAltText']),
-  anchor: z.string().min(1).max(256).optional(),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT).optional(),
   target: z.string().min(1).max(256).optional(),
   fileData: z.string().max(20_000_000).optional(),
   filePath: z.string().min(1).max(1024).optional(),
@@ -638,7 +643,7 @@ const imageOp = z.object({
 const calloutOp = z.object({
   action: z.literal('callout'),
   text: z.string().min(1).max(100_000),
-  anchor: z.string().min(1).max(256).optional(),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT).optional(),
   title: z.string().max(1_000).optional(),
   theme: z.string().max(32).optional(),
   position: operationInsertPosition,
@@ -649,7 +654,7 @@ const calloutOp = z.object({
 const footnoteOp = z.object({
   action: z.literal('footnote'),
   operation: z.enum(['insert']).optional(),
-  anchor: z.string().min(1).max(256),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT),
   text: z.string().min(1).max(50_000),
   id: z.string().min(1).max(256).optional(),
   offset: z.number().int().nonnegative().optional(),
@@ -659,7 +664,7 @@ const footnoteOp = z.object({
 const endnoteOp = z.object({
   action: z.literal('endnote'),
   operation: z.enum(['insert']).optional(),
-  anchor: z.string().min(1).max(256),
+  anchor: z.string().min(1).max(256).describe(ANCHOR_REF_SHORT),
   text: z.string().min(1).max(50_000),
   id: z.string().min(1).max(256).optional(),
   offset: z.number().int().nonnegative().optional(),
@@ -896,11 +901,12 @@ function insertBodyAnchorDetail(op: unknown): string | null {
   if (effectiveTarget === 'header' || effectiveTarget === 'footer') return null;
   const missing: string[] = [];
   if (typeof rec['anchor'] !== 'string' || (rec['anchor'] as string).length < 1) {
-    missing.push('anchor: anchor is required for body inserts [invalid_type]');
+    missing.push("anchor: anchor is required for body inserts: a node id from inspect_document, or 'start' / 'end' for the first / last block [invalid_type]");
   }
+  // With 'start' or 'end' the position is implied (before the first block, after the last).
   const pos = rec['position'];
-  if (pos !== 'before' && pos !== 'after') {
-    missing.push('position: position is required for body inserts [invalid_type]');
+  if (pos !== 'before' && pos !== 'after' && anchorAliasOf(rec['anchor']) === null) {
+    missing.push("position: position is required for body inserts (or use anchor 'start' / 'end', which imply it) [invalid_type]");
   }
   return missing.length > 0 ? missing.join('; ') : null;
 }
