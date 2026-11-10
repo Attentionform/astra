@@ -1581,6 +1581,28 @@ export class DocxParser {
 
   // --- AST layer: stable id assignment ---
 
+  /** Orders AST blocks by where their element sits in the body; blocks inside one body child keep their order. */
+  private sortBlocksInDocumentOrder(nodes: AstNode[]): void {
+    const body = this.documentDom.getElementsByTagName('w:body')[0];
+    if (!body || nodes.length < 2) return;
+    const topIndex = new Map<unknown, number>();
+    let position = 0;
+    for (let child = body.firstChild; child; child = child.nextSibling) {
+      if (child.nodeType === 1) topIndex.set(child, position++);
+    }
+    const keyOf = (element: Element): number => {
+      let current: Node | null = element as unknown as Node;
+      while (current && current.parentNode !== (body as unknown as Node)) current = current.parentNode;
+      return current ? topIndex.get(current) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+    };
+    const keyed = nodes.map((node, index) => ({ node, index, key: keyOf(node.xml as Element) }));
+    if (keyed.every((entry, i) => i === 0 || keyed[i - 1].key <= entry.key)) return;
+    keyed.sort((a, b) => a.key - b.key || a.index - b.index);
+    keyed.forEach((entry, i) => {
+      nodes[i] = entry.node;
+    });
+  }
+
   public async getAST(): Promise<DocumentAST> {
     const ast: DocumentAST = {
       metadata: {},
@@ -2052,6 +2074,10 @@ export class DocxParser {
 
     // Reserve revision IDs across WordprocessingML parts, including headers and notes.
     ast.nextChangeId = firstFreeRevisionId(this.maxPackageRevisionId());
+
+    // The node map lists a block where it was registered, so a block an operation put in the middle of the
+    // document (its id is added after the others) would come last. Put the blocks in the order of the body.
+    this.sortBlocksInDocumentOrder(rootNodes);
 
     // One section per section the file defines; a file with no break has just sec_root.
     ast.sections.push(...splitIntoSections(rootNodes, fileSections));
