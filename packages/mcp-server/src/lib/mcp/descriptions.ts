@@ -125,8 +125,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'blank/omitted falls back to ASTra Agent). Over-long message/author fail at the handler with E_VALIDATION ' +
       'plus a shorten-and-retry remedy (never a bare MCP -32602: caps are enforced in the handler, not the wire schema). ' +
       'A successful save clears the session dirty flag (revision is re-synced to the file on disk). ' +
-      'A file that already had validator errors when it was opened is saved when the edit adds none: the envelope then carries validation:{ok:false,tolerated:true,preExistingErrors,introducedErrors:0,messages}. ' +
-      'An edit that adds an error is refused with E_VALIDATION naming both numbers. Pass {"strict":true} (or start the server with --strict-validation, or set ASTRA_STRICT_VALIDATION=1) to refuse every validator error as before. ' +
+      'A file that already had validator errors when it was opened is saved when the edit adds none: the envelope then carries validation:{ok:false,valid:false,errorCount,tolerated:true,preExistingErrors,introducedErrors:0,messages}; a clean save carries validation:{ok:true,valid:true,errorCount:0}. ' +
+      'An edit that adds an error is refused with E_VALIDATION naming both numbers, with errorCount and the first 10 errors as errors[{description,xPath}] (validate_document lists them all). Pass {"strict":true} (or start the server with --strict-validation, or set ASTRA_STRICT_VALIDATION=1) to refuse every validator error as before. ' +
       'Paragraphs that share a w14:paraId are renumbered by the save: the first keeps its id, each later copy gets a new one and is listed in normalized, and the state before is recorded in the history (revert_document returns it); strict refuses such a document instead. ' +
       'The success envelope also carries revisionsPending (every revision element left in the saved package; a move counts as each of its markers) plus a revisionsRemedy when >0. ' +
       'The success envelope also carries advisory changedValues [{nodeId,before,after}] (old saved text -> new live text, ' +

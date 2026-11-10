@@ -112,6 +112,42 @@ export function firstMessages(result: ValidationResult, limit = 5): string[] {
   return (result.errors ?? []).slice(0, limit).map((e) => descriptionOf(e).slice(0, 300));
 }
 
+/** Validation errors carried on an answer (bounded, first errors only). */
+export const AUDIT_VALIDATION_ERRORS_MAX = 10;
+
+export interface AuditValidation {
+  valid: boolean;
+  errorCount: number;
+  errors: Array<{ description: string; xPath?: string }>;
+}
+
+/** The first `max` errors as {description, xPath?}, each cut to a readable length. */
+export function summarizeValidationErrors(errors: unknown, max: number = AUDIT_VALIDATION_ERRORS_MAX): Array<{ description: string; xPath?: string }> {
+  const raw = Array.isArray(errors) ? errors.slice(0, max) : [];
+  return raw.map((e) => {
+    const err = e as { description?: unknown; message?: unknown; xPath?: unknown; path?: unknown };
+    const description = String(
+      (typeof err.description === 'string' && err.description) ||
+        (typeof err.message === 'string' && err.message) ||
+        'OOXML validation error'
+    ).slice(0, 500);
+    const xp = typeof err.xPath === 'string' ? err.xPath : typeof err.path === 'string' ? err.path : undefined;
+    return xp ? { description, xPath: xp } : { description };
+  });
+}
+
+/** The shape validate_document returns: valid, how many errors, and the first of them. */
+export function toAuditValidation(
+  validation: { ok: boolean; errors?: unknown },
+  max: number = AUDIT_VALIDATION_ERRORS_MAX
+): AuditValidation {
+  return {
+    valid: validation.ok,
+    errorCount: Array.isArray(validation.errors) ? validation.errors.length : 0,
+    errors: summarizeValidationErrors(validation.errors, max),
+  };
+}
+
 /** The error a save or normalize raises when the edit adds validator errors. */
 export function introducedError(
   toolName: string,
@@ -124,7 +160,12 @@ export function introducedError(
     new Error(
       `E_VALIDATION: ${toolName} blocked: this edit adds ${verdict.introduced.length} validator error(s) (the file already had ${verdict.preExisting}): ${desc.slice(0, 2000)}`,
     ),
-    { code: 'E_VALIDATION', remedy: remedyForValidationError(xp, desc) },
+    {
+      code: 'E_VALIDATION',
+      remedy: remedyForValidationError(xp, desc),
+      errorCount: verdict.introduced.length,
+      errors: summarizeValidationErrors(verdict.introduced),
+    },
   );
 }
 
@@ -137,9 +178,12 @@ export function validationField(result: ValidationResult, verdict: BaselineVerdi
       preExistingErrors: verdict.preExisting,
       introducedErrors: 0 as const,
       messages: firstMessages(result),
+      valid: false as const,
+      errorCount: Array.isArray(result.errors) ? result.errors.length : verdict.preExisting,
     };
   }
-  return { ok: true as const };
+  // `valid` and `errorCount` sit next to `ok` so a save reads like validate_document's answer.
+  return { ok: true as const, valid: true as const, errorCount: 0 as const };
 }
 
 /** Adds the note about existing errors to a commit message; the message is cut, the note never. */

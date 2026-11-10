@@ -17,6 +17,9 @@ export interface McpErrorShape {
   code: McpErrorCode;
   message: string;
   remedy: string;
+  /** Present when the failure is a validation refusal: how many errors there are, and the first of them. */
+  errorCount?: number;
+  errors?: Array<{ description: string; xPath?: string }>;
 }
 
 export function mcpError(code: McpErrorCode, message: string, remedy: string): McpErrorShape {
@@ -46,7 +49,13 @@ export function mcpErrorFrom(
     (err as { remedy?: unknown } | null)?.remedy && typeof (err as { remedy?: unknown }).remedy === 'string'
       ? rewritePhantomMcpToolNames(String((err as { remedy?: unknown }).remedy))
       : rewritePhantomMcpToolNames(fallbackRemedy);
-  return { ok: false, code: resolved, message, remedy };
+  const shape: McpErrorShape = { ok: false, code: resolved, message, remedy };
+  const carried = err as { errorCount?: unknown; errors?: unknown } | null;
+  if (carried && Array.isArray(carried.errors) && carried.errors.length > 0 && typeof carried.errorCount === 'number') {
+    shape.errorCount = carried.errorCount;
+    shape.errors = carried.errors as McpErrorShape['errors'];
+  }
+  return shape;
 }
 
 /**

@@ -40,7 +40,7 @@ import {
   type BaselineVerdict,
   type ValidationResult,
 } from '@attentionform/astra-engine';
-import { introducedError, resolveBaseline, strictValidationDefault } from '../baseline-gate';
+import { introducedError, resolveBaseline, strictValidationDefault, toAuditValidation, type AuditValidation } from '../baseline-gate';
 import {
   canonicalizeForMcp,
   collectTrackedExtrasForGit,
@@ -63,40 +63,8 @@ import {
   ValidateDocumentSchema,
 } from '../schemas';
 
-/** Validation errors carried on success envelopes (bounded, first errors only). */
-const AUDIT_VALIDATION_ERRORS_MAX = 10;
-
 /** Import file cap (bytes): single source is the compose Markdown cap. */
 const IMPORT_FILE_MAX_BYTES = COMPOSE_MARKDOWN_MAX;
-
-export interface AuditValidation {
-  valid: boolean;
-  errorCount: number;
-  errors: Array<{ description: string; xPath?: string }>;
-}
-
-function toAuditValidation(
-  validation: { ok: boolean; errors?: unknown },
-  max: number = AUDIT_VALIDATION_ERRORS_MAX
-): AuditValidation {
-  const rawErrors = Array.isArray(validation.errors) ? validation.errors.slice(0, max) : [];
-  const errors = rawErrors.map((e) => {
-    const err = e as { description?: unknown; message?: unknown; xPath?: unknown; path?: unknown };
-    const description = String(
-      (typeof err.description === 'string' && err.description) ||
-        (typeof err.message === 'string' && err.message) ||
-        'OOXML validation error'
-    ).slice(0, 500);
-    const xp =
-      typeof err.xPath === 'string' ? err.xPath : typeof err.path === 'string' ? err.path : undefined;
-    return xp ? { description, xPath: xp } : { description };
-  });
-  return {
-    valid: validation.ok,
-    errorCount: Array.isArray(validation.errors) ? validation.errors.length : 0,
-    errors,
-  };
-}
 
 /**
  * Refresh the session AST in place after the package bytes changed under it

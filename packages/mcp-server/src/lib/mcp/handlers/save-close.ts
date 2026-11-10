@@ -36,6 +36,7 @@ import {
   introducedError,
   resolveBaseline,
   strictValidationDefault,
+  summarizeValidationErrors,
   validationField,
   withToleratedNote,
 } from '../baseline-gate';
@@ -79,8 +80,8 @@ export async function executeSaveDocument(
   commitMessage: string;
   /** Result of the validator gate: clean, or tolerated with the number of errors the file already had. */
   validation:
-    | { ok: true }
-    | { ok: false; tolerated: true; preExistingErrors: number; introducedErrors: 0; messages: string[] };
+    | { ok: true; valid: true; errorCount: 0 }
+    | { ok: false; valid: false; errorCount: number; tolerated: true; preExistingErrors: number; introducedErrors: 0; messages: string[] };
   /** R-1: pending tracked revisions (w:ins + w:del) in the saved package. */
   revisionsPending: number;
   /** R-1: accept remedy, present only when revisionsPending > 0. */
@@ -203,7 +204,11 @@ export async function executeSaveDocument(
         code: 'E_VALIDATION',
         // Phase C-1c: xpath-specific remedy (docPr/@id, tbl children,
         // relationships each name their own fix).
-        remedy: remedyForValidationError(xp, desc),
+        remedy:
+          remedyForValidationError(xp, desc) +
+          (count ? ' validate_document lists every error with its location.' : ''),
+        errorCount: validation.errors.length,
+        errors: summarizeValidationErrors(validation.errors),
       });
     }
     if (dupPreState) {
@@ -429,8 +434,8 @@ export async function handleSaveDocument(
   commitMessage: string;
   /** Result of the validator gate: clean, or tolerated with the number of errors the file already had. */
   validation:
-    | { ok: true }
-    | { ok: false; tolerated: true; preExistingErrors: number; introducedErrors: 0; messages: string[] };
+    | { ok: true; valid: true; errorCount: 0 }
+    | { ok: false; valid: false; errorCount: number; tolerated: true; preExistingErrors: number; introducedErrors: 0; messages: string[] };
   /** R-1: pending tracked revisions (w:ins + w:del) in the saved package. */
   revisionsPending: number;
   /** R-1: accept remedy, present only when revisionsPending > 0. */

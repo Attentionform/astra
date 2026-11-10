@@ -136,6 +136,47 @@ describe('save_document against the errors the file already had', () => {
     await LEAN6_HANDLERS.execute_batch(store, insertText(sessionId, 'hello'));
     const saved = await LEAN6_HANDLERS.save_document(store, { sessionId });
     expect(saved.ok).toBe(true);
-    if (saved.ok) expect(saved.validation).toEqual({ ok: true });
+    if (saved.ok) expect(saved.validation).toEqual({ ok: true, valid: true, errorCount: 0 });
+  });
+});
+
+describe('save_document result shapes read like validate_document', () => {
+  it('a tolerated save carries valid:false and the error count next to ok:false', async () => {
+    const { store, opened, sessionId } = await open(writeDocx('shape-tolerated', 2));
+    const before = (opened.validation as { preExistingErrors: number }).preExistingErrors;
+    await LEAN6_HANDLERS.execute_batch(store, insertText(sessionId, 'hello'));
+    const saved = await LEAN6_HANDLERS.save_document(store, { sessionId });
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    expect(saved.validation).toMatchObject({ ok: false, valid: false, tolerated: true });
+    expect((saved.validation as { errorCount: number }).errorCount).toBe(before);
+  });
+
+  it('a refused save lists up to 10 errors, not only the first, and points to validate_document', async () => {
+    const { store, sessionId } = await open(writeDocx('shape-refused', 12));
+    await LEAN6_HANDLERS.execute_batch(store, insertText(sessionId, 'hello'));
+    const saved = await LEAN6_HANDLERS.save_document(store, { sessionId, strict: true });
+    expect(saved.ok).toBe(false);
+    if (saved.ok) return;
+    const errors = (saved as unknown as { errors?: Array<{ description: string }> }).errors;
+    expect(errors).toBeDefined();
+    expect(errors!.length).toBe(10);
+    expect(errors![0].description.length).toBeGreaterThan(0);
+    expect((saved as unknown as { errorCount: number }).errorCount).toBeGreaterThanOrEqual(12);
+    expect(saved.remedy).toContain('validate_document');
+  });
+
+  it('an edit that adds errors is refused with the errors it added', async () => {
+    const { store, sessionId } = await open(writeDocx('shape-introduced', 1));
+    await store.withSession(sessionId, async (handle) => {
+      const zip = handle.parser.getZipAdapter();
+      const settings = zip.readText('word/settings.xml');
+      zip.writeText('word/settings.xml', settings.replace('</w:settings>', '<w:zoom w:percent="bogus"/></w:settings>'));
+    });
+    const saved = await LEAN6_HANDLERS.save_document(store, { sessionId });
+    expect(saved.ok).toBe(false);
+    if (saved.ok) return;
+    const errors = (saved as unknown as { errors?: unknown[] }).errors;
+    expect(Array.isArray(errors) && errors.length > 0).toBe(true);
   });
 });
