@@ -437,6 +437,15 @@ export async function handleExecuteBatch(
       const afterOrder = collectAstIdTexts(handle.ast).order;
       const createdNodeIds = afterOrder.filter((id) => !beforeIds.has(id));
       const results = attributeCreatedIds(opActions, opShadows, createdNodeIds);
+      // A cover page on a fresh template replaces the template's placeholder content. Say which
+      // nodes went (anything that existed before, is gone now, and no delete in the batch named).
+      const coverIndex = opActions.indexOf('coverPage');
+      if (coverIndex >= 0) {
+        const afterSet = new Set(afterOrder);
+        const named = new Set(opTargets);
+        const removed = [...beforeIds].filter((id) => !afterSet.has(id) && !named.has(id));
+        if (removed.length > 0) results[coverIndex].removedSeedNodes = removed;
+      }
       store.accumulatePendingAudit(handle, res.appliedCount, [...opTargets, ...createdNodeIds]);
       // R-1: carry the engine pending-revisions count through (same remedy
       // wording as the engine; never auto-accepts, never flips defaults).

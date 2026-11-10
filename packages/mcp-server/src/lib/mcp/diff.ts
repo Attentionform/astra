@@ -217,6 +217,8 @@ export interface BatchOpCreatedIds {
   index: number;
   action: string;
   createdNodeIds: string[];
+  /** coverPage on a fresh template: the placeholder nodes it replaced, so the caller sees what went. */
+  removedSeedNodes?: string[];
 }
 
 /** Echo of unsaved edits discarded by a revert (counts + ids only, never text). */
