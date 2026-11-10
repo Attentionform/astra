@@ -5,6 +5,7 @@ import {
   compileMarkdown,
   composeDocument,
   getEngineErrorCode,
+  hasUriScheme,
   isFileGuideRef,
   refreshAstInPlace,
   resolveStyleGuide,
@@ -40,7 +41,7 @@ const COMPOSE_VALIDATION_ERRORS_MAX = 3;
 
 /** True for refs carrying a URI scheme (`https://…`, `data:…`) — never a local guide. */
 function hasGuideScheme(ref: string): boolean {
-  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(ref.trim());
+  return hasUriScheme(ref.trim());
 }
 
 function guideSandboxError(message: string, remedy: string): Error & { code: string; remedy: string } {

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { SUPPORTED_CHART_2D_AND_3D_TYPES } from '../operations/chart';
-import { canonicalizeForAsset, isPathInsideDir } from '../sandbox/paths';
+import { canonicalizeForAsset, hasUriScheme, isPathInsideDir } from '../sandbox/paths';
 import { containsSvgActiveContent, containsXxeAdjacent } from '../ooxml/xxe-guard';
 import {
   ALLOWED_IMAGE_EXTS,
@@ -44,7 +44,7 @@ export function resolveAssetPath(allowedDir: string, refPath: string, line: numb
   if (trimmed.includes('\0') || /%00/i.test(trimmed) || trimmed.includes('\n') || trimmed.includes('\r')) {
     fail(line, `${what} reference path is not usable`, 'use a plain relative file path inside the allowed directory');
   }
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+  if (hasUriScheme(trimmed)) {
     fail(line, `${what} reference points outside the allowed directory`, 'keep referenced files inside the allowed directory and use a relative path');
   }
   const candidate = path.isAbsolute(trimmed) ? path.resolve(trimmed) : path.resolve(allowedDir, trimmed);

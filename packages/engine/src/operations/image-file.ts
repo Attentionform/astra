@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { toError } from '../errors';
-import { canonicalizeForAsset, isPathInsideDir } from '../sandbox/paths';
+import { canonicalizeForAsset, hasUriScheme, isPathInsideDir } from '../sandbox/paths';
 
 /**
  * Decoded-byte cap for batch `filePath` image reads. Matches the inline
@@ -75,7 +75,7 @@ export function resolveImageFilePath(allowedDir: string, filePath: string): stri
       'use a plain relative file path inside the allowed directory'
     );
   }
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+  if (hasUriScheme(trimmed)) {
     throw toError(
       'E_SANDBOX',
       'image filePath points outside the allowed directory',

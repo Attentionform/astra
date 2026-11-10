@@ -4,6 +4,7 @@ import type { Operation } from '../operation-schema';
 import { toError } from '../errors';
 import type { StyleGuideCalloutTag, StyleGuideConfig } from '../style-guide/types';
 import { createDefaultStyleGuide } from '../style-guide/defaults';
+import { hasUriScheme } from '../sandbox/paths';
 import { containsSvgActiveContent, containsXxeAdjacent } from '../ooxml/xxe-guard';
 import {
   decodeImagePixels,
@@ -511,7 +512,7 @@ export function compileMarkdownDetailed(
       lastInsertId = inlineId;
       return { id: inlineId, kind: 'image' };
     }
-    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(target)) {
+    if (hasUriScheme(target)) {
       fail(line, 'image reference points outside the allowed directory', 'keep referenced files inside the allowed directory and use a relative path');
     }
     if (allowedDir === undefined) {

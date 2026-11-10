@@ -19,6 +19,17 @@ import fsp from 'fs/promises';
 import path from 'path';
 
 /**
+ * True when a reference starts with a URI scheme such as `https:`, `data:` or `file:`.
+ * A Windows drive letter followed by a slash (`C:\\x`, `C:/x`) is a path, not a scheme. A bare
+ * `C:` or `C:name` (a path relative to the working folder of a drive) still counts as a scheme,
+ * so it is refused like any other reference that does not name a file inside the jail.
+ */
+export function hasUriScheme(ref: string): boolean {
+  if (/^[a-zA-Z]:[\\/]/.test(ref)) return false;
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(ref);
+}
+
+/**
  * Removes the separators at the end of a normalized path, but keeps a root such as `/` or `C:\`
  * whole. `path.normalize` keeps a trailing separator, and comparing with `dir + sep` then looks
  * for two of them.

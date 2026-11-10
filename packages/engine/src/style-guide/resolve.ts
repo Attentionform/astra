@@ -22,7 +22,7 @@ import {
 } from './parser';
 import type { StyleGuideConfig } from './types';
 import { createDefaultStyleGuide } from './defaults';
-import { canonicalizeForAsset, isPathInsideDir } from '../sandbox/paths';
+import { canonicalizeForAsset, hasUriScheme, isPathInsideDir } from '../sandbox/paths';
 import { toError } from '../errors';
 
 export interface ResolveStyleGuideOptions {
@@ -42,7 +42,7 @@ export interface ResolvedStyleGuide {
 }
 
 function hasScheme(ref: string): boolean {
-  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(ref);
+  return hasUriScheme(ref);
 }
 
 function failValidation(message: string, remedy: string): never {
