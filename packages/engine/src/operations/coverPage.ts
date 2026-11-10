@@ -191,10 +191,11 @@ export function executeCoverPage(op: CoverPageOperation, ast: DocumentAST, parse
   const titleColor = createWordElement(doc, 'w:color');
   titleColor.setAttribute('w:val', accentColor);
 
+  // Children go in the order the schema requires: rFonts, b, color, sz.
   titleRPr.appendChild(titleFont);
   titleRPr.appendChild(titleBold);
-  titleRPr.appendChild(titleSz);
   titleRPr.appendChild(titleColor);
+  titleRPr.appendChild(titleSz);
   titleRun.appendChild(titleRPr);
   titleRun.appendChild(createTextElement(doc, titleText));
   titleP.appendChild(titleRun);
@@ -223,8 +224,8 @@ export function executeCoverPage(op: CoverPageOperation, ast: DocumentAST, parse
     subSz.setAttribute('w:val', '28'); // 14pt
     const subColor = createWordElement(doc, 'w:color');
     subColor.setAttribute('w:val', '64748B');
-    subRPr.appendChild(subSz);
     subRPr.appendChild(subColor);
+    subRPr.appendChild(subSz);
     subRun.appendChild(subRPr);
     subRun.appendChild(createTextElement(doc, subtitleText));
     subP.appendChild(subRun);
@@ -279,8 +280,8 @@ export function executeCoverPage(op: CoverPageOperation, ast: DocumentAST, parse
   metaSz.setAttribute('w:val', '22'); // 11pt
   const metaColor = createWordElement(doc, 'w:color');
   metaColor.setAttribute('w:val', '475569');
-  metaRPr.appendChild(metaSz);
   metaRPr.appendChild(metaColor);
+  metaRPr.appendChild(metaSz);
   metaRun.appendChild(metaRPr);
 
   const metaLines = [authorText, orgText, dateText].filter(Boolean).join(' • ');
