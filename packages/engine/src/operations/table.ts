@@ -190,6 +190,28 @@ function warnIfLowContrast(
 }
 
 /**
+ * Text colour for a fill that the cell's current text cannot be read on: white or black, whichever
+ * contrasts more. Returns undefined when the current text (an explicit colour on the cell, else the
+ * default black) already meets WCAG AA on the fill, so a readable cell is never repainted.
+ */
+function autoTextForFill(fill: string, current: string | null | undefined): string | undefined {
+  if (!/^[0-9A-Fa-f]{6}$/.test(fill)) return undefined;
+  if (contrastRatio((current ?? '000000').toUpperCase(), fill.toUpperCase()) >= TABLE_CONTRAST_MIN_RATIO) return undefined;
+  return contrastRatio('FFFFFF', fill.toUpperCase()) > contrastRatio('000000', fill.toUpperCase()) ? 'FFFFFF' : '000000';
+}
+
+/** Says which text colour was chosen for a fill, so the change is never hidden. One note per fill/text pair. */
+function noteAutoText(warnings: string[], seen: Set<string>, fill: string, text: string, where: string): void {
+  const key = `auto:${fill}:${text}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  warnings.push(
+    `Table note: text set to #${text} at ${where} because black text is not readable on fill #${fill} ` +
+      `(contrast ${contrastRatio(text, fill).toFixed(2)}:1). Pass textColor to choose another colour.`
+  );
+}
+
+/**
  * Paints an explicit text color onto every run of a cell's OWN paragraphs
  * (direct w:p children — never into a nested table). Cells without runs
  * are left alone (no empty-run synthesis); the caller still reports the
@@ -1055,6 +1077,15 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
           let effectiveText: string | undefined;
           if (rIdx === 0) {
             effectiveText = explicitTextColor ?? guideTextForFill(rowFill);
+            if (effectiveText === undefined) {
+              // No explicit colour and no guide colour: pick white or black by contrast, so a dark
+              // header fill does not leave unreadable black text.
+              const auto = autoTextForFill(rowFill, firstExplicitCellTextColor(tc));
+              if (auto) {
+                effectiveText = auto;
+                noteAutoText(warnings, warnedContrastPairs, rowFill, auto, `header cell (${rIdx + 1},${cIdx + 1}) of table '${tableNode.id}'`);
+              }
+            }
             if (effectiveText && tblEl.ownerDocument) {
               paintCellTextColor(tc, tblEl.ownerDocument, effectiveText);
             }
@@ -1635,7 +1666,14 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
       // Taste defaulting (explicit > guide > built-in): an explicit
       // textColor always wins; otherwise the guide header text applies when
       // the fresh fill is too dark for dark text (WCAG-gated, computed).
-      const effectiveText = explicitTextColor ?? guideTextForFill(normFill);
+      let effectiveText = explicitTextColor ?? guideTextForFill(normFill);
+      if (effectiveText === undefined) {
+        const auto = autoTextForFill(normFill, firstExplicitCellTextColor(tc));
+        if (auto) {
+          effectiveText = auto;
+          noteAutoText(warnings, warnedContrastPairs, normFill, auto, `cell (${shown(rowIndex)},${shown(colIndex)}) of table '${tableNode.id}'`);
+        }
+      }
       if (effectiveText && tblEl.ownerDocument) {
         paintCellTextColor(tc, tblEl.ownerDocument, effectiveText);
       }

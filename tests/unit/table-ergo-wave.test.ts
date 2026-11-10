@@ -489,11 +489,11 @@ describe('contrast guardrail', () => {
     expect(contrastRatio('FFFFFF', '000080')).toBeGreaterThan(4.5);
   });
 
-  it('navy fill + black text WARNS in the result, but still applies', async () => {
+  it('navy fill + an explicit black text WARNS in the result, but still applies', async () => {
     const { parser, ast, tableId } = await freshTable();
     const res: any = await executeTable({
       action: 'table', target: tableId,
-      params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill: '000080' },
+      params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill: '000080', textColor: '000000' },
     } as any, ast);
     expect(res.warnings.length).toBe(1);
     expect(res.warnings[0]).toMatch(/contrast.*000080.*4\.5/);
@@ -692,7 +692,7 @@ describe('warnings reach engine batch and MCP handler', () => {
       const res = await engine.executeBatch({
         operations: [{
           action: 'table', target: tableId,
-          params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill: '000080' },
+          params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill: '000080', textColor: '000000' },
         } as any],
         sequential: true,
       });
@@ -704,7 +704,7 @@ describe('warnings reach engine batch and MCP handler', () => {
       const engine2 = new OperationEngine(second.ast, second.parser);
       const single = await engine2.execute({
         action: 'table', target: second.tableId,
-        params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill: '000080' },
+        params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill: '000080', textColor: '000000' },
       } as any);
       expect(single.warnings.length).toBe(1);
       expect(single.warnings[0]).toMatch(/contrast/);
@@ -725,7 +725,7 @@ describe('warnings reach engine batch and MCP handler', () => {
         sessionId: handle.sessionId,
         operations: [{
           action: 'table', target: liveTableId,
-          params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill: '000080' },
+          params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill: '000080', textColor: '000000' },
         }],
         sequential: true,
       });

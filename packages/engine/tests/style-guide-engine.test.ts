@@ -93,7 +93,7 @@ describe('table taste defaulting', () => {
     expect(xmlOf(table)).toContain('w:val="FFFFFF"');
   });
 
-  it('leaves header text alone without a guide (legacy bytes)', async () => {
+  it('without a guide, a dark header fill still gets white text, chosen by contrast', async () => {
     const { parser, ast } = await freshDoc();
     const engine = new OperationEngine(ast, parser);
     await insertTable(engine, lastNodeId(ast));
@@ -103,6 +103,21 @@ describe('table taste defaulting', () => {
       target: table.id,
       operation: 'setShading',
       headerFill: '1E3A8A',
+      fill: 'F7F9FC',
+    } as never);
+    expect(xmlOf(table)).toContain('<w:color w:val="FFFFFF"/>');
+  });
+
+  it('without a guide, a light header fill keeps its text as it was (legacy bytes)', async () => {
+    const { parser, ast } = await freshDoc();
+    const engine = new OperationEngine(ast, parser);
+    await insertTable(engine, lastNodeId(ast));
+    const table = tableNodeOf(ast);
+    await engine.execute({
+      action: 'table',
+      target: table.id,
+      operation: 'setShading',
+      headerFill: 'D9D9D9',
       fill: 'F7F9FC',
     } as never);
     expect(xmlOf(table)).not.toContain('w:val="FFFFFF"');
