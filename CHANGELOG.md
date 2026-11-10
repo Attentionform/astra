@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+### Changed
+
+- **Licence terms for new versions.** The free-use rules in `LICENSE` change from the next release on. The old small-business test (under USD 1,000,000 revenue and fewer than 10 people, also used for building ASTra into a product) is split into three. A person who works alone is free at any revenue, in any legal form. An organization's own internal use is free up to 10 people and under USD 250,000 revenue; above either limit it needs an internal licence. A product or service with ASTra inside it is free while that product's revenue is under USD 250,000, whatever the size of the company; above that it needs an Embedded licence. Internal use is defined to cover every part of ASTra (the MCP server, the CLI, the engine as a library and the validator), including scripts, CI/CD jobs and internal pipelines. An employee's use for an employer's work is the employer's use. Plans and prices are no longer listed in this repository; they are on attentionform.com/pricing. Every version released before this change keeps the terms it was released with. See `LICENSING.md`.
+
 ## [0.3.0] - 2026-11-10
 
 All ten npm packages move to 0.3.0, including the six native validator platform packages. The native validator source is unchanged; the platform packages are rebuilt so that they carry the licence terms for new versions.

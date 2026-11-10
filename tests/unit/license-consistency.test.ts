@@ -50,6 +50,28 @@ describe('licence consistency', () => {
     expect(notice).not.toMatch(/licensed under the Apache License/i);
   });
 
+  it('the grant carries the 0.4.0 limits and defines the three free-use paths', () => {
+    const grant = rootLicense.slice(rootLicense.indexOf('Additional Use Grant:'), rootLicense.indexOf('Change Date:')).replace(/\s+/g, ' ');
+    expect(grant).toContain('"Individual Use" means use by a natural person who works alone');
+    expect(grant).toContain('"Internal Use" means use of any part of the Licensed Work');
+    expect(grant).toContain('"Small Organization Use"');
+    expect(grant).toContain('no more than 10 people working for it');
+    expect(grant).toContain('"Small Product Use"');
+    expect(grant.match(/USD 250,000/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(grant).not.toMatch(/USD 1,000,000|Small Business Use/);
+    expect(grant).toContain("an employee who uses the Licensed Work for the employer's work is making the employer's use");
+  });
+
+  it('LICENSE and LICENSING.md carry no prices and no plan names; they live on the pricing page', () => {
+    for (const f of ['LICENSE', 'LICENSING.md']) {
+      const text = read(f);
+      expect(text, f).not.toMatch(/USD\s?[0-9][0-9,]*\s*(per|a|\/)\s*(year|month)/i);
+      expect(text, f).not.toMatch(/\b(Team Plus|Business Plus|Scale)\b/);
+    }
+    expect(read('LICENSING.md')).toContain('https://attentionform.com/pricing');
+    expect(rootLicense).toContain('https://attentionform.com/pricing');
+  });
+
   it('the documents do not call ASTra open source', () => {
     for (const f of ['README.md', 'LICENSING.md', 'CONTRIBUTING.md', path.join('docs', 'contributing.md')]) {
       const prose = read(f).replace(/`[^`]*`/g, '');

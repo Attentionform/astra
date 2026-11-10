@@ -25,28 +25,33 @@ Licensed Work:        ASTra: the engine, command-line tool, MCP server and
 
 Additional Use Grant: You may make production use of the Licensed Work, free of
                       charge, if Your use is Individual Use, Educational and
-                      Research Use, Non-Profit Use, Public-Sector Use or Small
-                      Business Use, each as defined below. Any other production
-                      use requires a commercial license from the Licensor.
+                      Research Use, Non-Profit Use, Public-Sector Use, Small
+                      Organization Use or Small Product Use, each as defined
+                      below. Any other production use requires a commercial
+                      license from the Licensor.
 
-                      "Individual Use" means use by a natural person on his or
-                      her own account, including as a freelancer or consultant.
-                      It includes use through a business entity only if the
-                      entity has no employees and, together with its affiliates,
-                      is within both limits of Small Business Use, tested in the
-                      same way. Contractors engaged for a specific project are
-                      not employees. Individual Use does not include use for the
-                      internal operations of an employer or of a client. Running
-                      the Licensed Work as a continuing service or pipeline for
-                      the internal operations of another organization is that
-                      organization's use, on whatever systems it runs, unless it
-                      is part of a product or service of Your own described in
-                      the paragraph on products below. Using the Licensed Work
-                      to prepare documents or other deliverables for clients,
-                      one job at a time, is Individual Use. A sole
-                      proprietorship with no employees is the natural person
-                      who owns it, and its use is Individual Use. Individual
-                      Use never includes a Competing Offering.
+                      "Individual Use" means use by a natural person who works
+                      alone and on his or her own account, in any legal form,
+                      including as a freelancer, consultant or sole proprietor,
+                      or through a company in which that person is the only
+                      person who works. A person works alone if no employee, no
+                      partner who works in the business and no regular
+                      contractor works for the business; contractors engaged
+                      for a specific project are not counted. Individual Use is
+                      free at any revenue. Individual Use does not include use
+                      for the internal operations of an employer or of a
+                      client: an employee who uses the Licensed Work for the
+                      employer's work is making the employer's use, and the
+                      category of the employer decides whether that use is
+                      free. Running the Licensed Work as a continuing service
+                      or pipeline for the internal operations of another
+                      organization is that organization's use, on whatever
+                      systems it runs, unless it is part of a product or
+                      service of Your own described under Small Product Use.
+                      Using the Licensed Work to prepare documents or other
+                      deliverables for clients, one job at a time, is
+                      Individual Use. Individual Use never includes a Competing
+                      Offering.
 
                       "Educational and Research Use" means use by an accredited
                       school, college or university, or by its students and
@@ -82,63 +87,97 @@ Additional Use Grant: You may make production use of the Licensed Work, free of
                       state-owned or government-controlled enterprise, is a
                       "For-Profit Organization". Production use by or for a
                       For-Profit Organization requires a commercial license
-                      unless it is Small Business Use.
+                      unless it is Small Organization Use or Small Product Use.
 
-                      "Small Business Use" means use by a For-Profit
-                      Organization that, counting its affiliates together with
-                      it, had in its last completed fiscal year both (a) total
-                      gross revenue below USD 1,000,000 and (b) fewer than 10
-                      people working for it, or that has not yet completed a
-                      fiscal year and reasonably expects to meet both limits in
-                      its first one. The people working
-                      for it are its employees, its owners and partners who work
-                      in it, and the individuals who work for it on a regular
-                      basis as contractors, counted as individuals and not as
-                      companies. Revenue in another currency is converted into
-                      US dollars at the exchange rate on the last day of the
-                      fiscal year. An "affiliate" is any entity that controls,
-                      is controlled by, or is under common control with another
-                      entity. "Control" means owning more than 50% of the voting
-                      interests of an entity, or having the power, by contract
-                      or otherwise, to direct its management or policies.
-                      Customary minority-investor rights, such as a board seat
-                      or consent rights over a financing or a sale of the
-                      company, held with 50% or less of the voting interests,
-                      are not control, and companies that share only such an
-                      investor are not under common control.
-                      Entities that are controlled by the same person, or by
-                      persons acting together, are under common control. An
-                      arrangement whose main purpose is to bring an organization
-                      within a category above, or to keep it under the limits of
-                      Small Business Use, is disregarded.
+                      "Internal Use" means use of any part of the Licensed
+                      Work, including the MCP server, the command-line tool,
+                      the engine used as a library or imported into code, and
+                      the validator, by an organization's own people, systems
+                      and agents for its own operations. It includes scripts,
+                      automation, continuous integration and delivery jobs,
+                      batch jobs, internal pipelines, internal tools, AI agents
+                      that run for the organization, and writing code against
+                      the Licensed Work for those purposes. A license or grant
+                      for Internal Use covers every part of the Licensed Work
+                      together, on any number of computers, servers, agents and
+                      pipelines; use is not counted per machine, server or
+                      installation. Use for an organization's customers, or use
+                      that lets third parties reach the Licensed Work, is not
+                      Internal Use: it is Small Product Use or a Competing
+                      Offering.
 
-                      Small Business Use includes using the Licensed Work as a
+                      "Small Organization Use" means Internal Use by a
+                      For-Profit Organization that, counting its affiliates
+                      together with it, had both (a) total gross revenue below
+                      USD 250,000 in its last completed fiscal year and (b) no
+                      more than 10 people working for it at the end of that
+                      fiscal year, or that has not yet completed a fiscal year
+                      and reasonably expects to meet both limits in its first
+                      one. The people working for it are its employees, its
+                      owners and partners who work in it, and the individuals
+                      who work for it on a regular basis as contractors,
+                      counted as individuals and not as companies. Contractors
+                      engaged for a specific project, servers, bots and AI
+                      agents are not counted. Revenue in another currency is
+                      converted into US dollars at the exchange rate on the
+                      last day of the fiscal year. An "affiliate" is any entity
+                      that controls, is controlled by, or is under common
+                      control with another entity. "Control" means owning more
+                      than 50% of the voting interests of an entity, or having
+                      the power, by contract or otherwise, to direct its
+                      management or policies. Customary minority-investor
+                      rights, such as a board seat or consent rights over a
+                      financing or a sale of the company, held with 50% or less
+                      of the voting interests, are not control, and companies
+                      that share only such an investor are not under common
+                      control. Entities that are controlled by the same person,
+                      or by persons acting together, are under common control.
+                      An arrangement whose main purpose is to bring an
+                      organization within a category above, or to keep it under
+                      the limits of Small Organization Use or Small Product
+                      Use, is disregarded.
+
+                      "Small Product Use" means use of the Licensed Work as a
                       component of a product or service of Your own that has
                       substantial functionality beyond that of the Licensed
-                      Work. Individual Use includes this only if Your business,
-                      together with its affiliates, is within both limits of
-                      Small Business Use, tested in the same way. A business
-                      includes a sole proprietorship. A natural person's own
-                      work, such as preparing reports or documents for
-                      themselves or for clients, is not offering a product or
-                      service to others, and these limits do not apply to it.
-                      Your customers and users may use the Licensed Work only
-                      as part of that product or service. If the Licensed Work
-                      is not delivered as part of Your product, for example
-                      because users install it themselves, each user's use of
-                      it is governed by that user's own category. A product or
-                      service includes software that You make available free
-                      of charge.
+                      Work, if the revenue of that product or service in its
+                      last completed fiscal year was below USD 250,000, or if
+                      it has not yet completed a fiscal year and You reasonably
+                      expect that to be so in its first one. The revenue of a
+                      product or service is its gross revenue. Where it is sold
+                      or provided as part of a bundle, suite or plan, the
+                      revenue of every plan, module or edition that includes or
+                      relies on the Licensed Work counts, and the revenue of
+                      unrelated parts of a larger suite does not. A product or
+                      service that You make available free of charge has no
+                      revenue for this purpose, unless it is a free edition or
+                      plan of a product that You also sell, in which case the
+                      revenue of the paid editions counts. The size, the
+                      headcount and the other revenue of Your organization do
+                      not matter for Small Product Use. Your own Internal Use
+                      of the Licensed Work is a separate matter: it is free
+                      only under Individual Use or Small Organization Use, or
+                      under a commercial license. Using the Licensed Work only
+                      to develop and test the product is non-production use and
+                      needs no category. Your customers and users may use the
+                      Licensed Work only as part of that product or service. If
+                      the Licensed Work is not delivered as part of Your
+                      product, for example because users install it themselves,
+                      each user's use of it is governed by that user's own
+                      category. An arrangement whose main purpose is to keep
+                      the revenue of a product under the limit, such as moving
+                      revenue to another product, entity or period, is
+                      disregarded.
 
                       No category above includes a Competing Offering, which
                       always requires a commercial license. A "Competing
-                      Offering" is a product or service offered to third parties
-                      whose value consists mainly of the functionality of the
-                      Licensed Work. It includes hosting the Licensed Work as a
-                      service for others; making the operations, commands, API
-                      or tools of the Licensed Work available to third parties
-                      as a service in itself, directly or through a thin
-                      interface, for example through a public API or MCP
+                      Offering" is a product or service offered to third
+                      parties whose value consists mainly of the functionality
+                      of the Licensed Work. It includes hosting the Licensed
+                      Work as a service for others; making the operations,
+                      commands, API or tools of the Licensed Work available to
+                      third parties as a service in itself, directly or through
+                      a thin interface, for example through a public API or MCP
                       endpoint whose main purpose is access to the Licensed
                       Work; a desktop, web or other editor or application whose
                       value is mainly the document functionality of the
@@ -159,7 +198,7 @@ Additional Use Grant: You may make production use of the Licensed Work, free of
                       AI agent or an agent platform that uses the Licensed Work
                       as one of its tools: it is a product of Your own under
                       the paragraph above, and it needs a commercial license
-                      once the limits of Small Business Use are reached.
+                      once the limit of Small Product Use is reached.
 
                       You may copy, modify and redistribute the Licensed Work
                       free of charge, modified or not, provided that every copy
@@ -167,21 +206,22 @@ Additional Use Grant: You may make production use of the Licensed Work, free of
 
                       If You stop qualifying for a category above, You may
                       continue Your existing use for 90 days, and must then
-                      obtain a commercial license or stop. For Small Business
-                      Use, You stop qualifying on the first day after the
-                      fiscal year in which You passed a limit. This does not
-                      apply to an organization that stopped qualifying because
-                      of an arrangement that is disregarded above.
+                      obtain a commercial license or stop. For Small
+                      Organization Use and Small Product Use, You stop
+                      qualifying on the first day after the fiscal year in
+                      which You passed a limit. This does not apply to an
+                      organization that stopped qualifying because of an
+                      arrangement that is disregarded above.
 
                       "Production use" means any use of the Licensed Work other
                       than non-production use, including making it part of a
                       product or service that You provide to others.
                       Non-production use (including evaluation, development,
                       testing and demonstration) is permitted by this License
-                      without any category. Use is not non-production use merely
-                      because it is called a pilot, test or staging use:
-                      processing an organization's real documents as part of its
-                      regular operations is production use, however the
+                      without any category. Use is not non-production use
+                      merely because it is called a pilot, test or staging use:
+                      processing an organization's real documents as part of
+                      its regular operations is production use, however the
                       environment is named. Documents and other output that You
                       create with the Licensed Work belong to You, and this
                       License places no restriction on them.
@@ -193,6 +233,10 @@ Change License:       Apache License, Version 2.0
 
 For information about commercial licenses for the Licensed Work, contact:
 astra@attentionform.com
+
+Commercial licenses are available on the terms and at the prices published at
+https://attentionform.com/pricing on the date of purchase. The Licensor may
+agree other terms in writing.
 
 -----------------------------------------------------------------------------
 

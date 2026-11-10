@@ -195,4 +195,4 @@ npm test -w @attentionform/astra-engine
 
 ## License
 
-Business Source License 1.1 (`BUSL-1.1`): source-available, free for individuals, education, non-profits, public bodies and small businesses; other production use needs a commercial license. Each version converts to Apache-2.0 four years after release. See [LICENSE](LICENSE) and write to astra@attentionform.com for a commercial license.
+Business Source License 1.1 (`BUSL-1.1`): source-available, free for individuals, education, non-profits, public bodies, small organizations and small products (see LICENSING.md); other production use needs a commercial license. Plans and prices: https://attentionform.com/pricing. Each version converts to Apache-2.0 four years after release. See [LICENSE](LICENSE) and write to astra@attentionform.com for a commercial license.
