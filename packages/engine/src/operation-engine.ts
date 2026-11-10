@@ -212,6 +212,8 @@ export interface ExecutionResult {
   revisionsUnresolved?: number;
   /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
+  /** Compose: where the document title was taken from when it was still a template placeholder. */
+  titleSetFrom?: string;
   /**
    * True when this result comes from a dryRun batch. The attempt was fully
    * validated and applied in memory, then rewound — nothing was persisted.

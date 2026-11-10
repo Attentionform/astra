@@ -23,6 +23,7 @@ export * from './operation-hints';
 export * from './operation-engine';
 export * from './batch';
 export * from './toon';
+export * from './document-title';
 
 // OOXML Utilities & Validation Gate
 export * from './tmp';

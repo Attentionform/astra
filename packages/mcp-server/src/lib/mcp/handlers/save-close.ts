@@ -4,6 +4,7 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import {
   BASELINE_MAX_ERRORS,
+  applyDocumentIdentity,
   judgeAgainstBaseline,
   assertWriteTargetNoSymlink,
   chartXmlGetterForAst,
@@ -15,6 +16,7 @@ import {
   macroChoiceError,
   revisionsRemedy,
   writeFileNoFollow,
+  type DocumentIdentityResult,
   type StyleWarning,
 } from '@attentionform/astra-engine';
 import type { McpSessionStore } from '../../session-store';
@@ -82,6 +84,11 @@ export async function executeSaveDocument(
   validation:
     | { ok: true; valid: true; errorCount: 0 }
     | { ok: false; valid: false; errorCount: number; tolerated: true; preExistingErrors: number; introducedErrors: 0; messages: string[] };
+  /** The title written from the content because dc:title was a template placeholder, and where it came from. */
+  title?: string;
+  titleSetFrom?: string;
+  /** The configured author written as creator in place of the tool default. */
+  creatorSet?: string;
   /** R-1: pending tracked revisions (w:ins + w:del) in the saved package. */
   revisionsPending: number;
   /** R-1: accept remedy, present only when revisionsPending > 0. */
@@ -180,6 +187,15 @@ export async function executeSaveDocument(
       paraIdPolicy === 'renumber' && handle.parser.getDuplicateParaIds().length > 0
         ? { xml: handle.parser.readDocumentXml(), extras: collectTrackedExtrasForGit(handle.parser) }
         : null;
+    // A saved document never carries a template placeholder as its title ("Blank Document"): when
+    // dc:title still is one, it is written from the cover, the Title or the first Heading 1. The save
+    // result names what was done (titleSetFrom), so the change is never hidden.
+    let identity: DocumentIdentityResult = {};
+    try {
+      identity = applyDocumentIdentity(handle.ast, handle.parser);
+    } catch {
+      /* the properties are advisory; a failure here must not block the save */
+    }
     const validation = await handle.parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, duplicateParaIds: paraIdPolicy });
     // A file that already had validator errors may be saved when this edit adds none (not in strict
     // mode). Anything that cannot be compared is refused exactly as before.
@@ -393,6 +409,8 @@ export async function executeSaveDocument(
       ...(changedValuesReason ? { changedValuesReason } : {}),
       // Display-only: the core save-path hook healed during the rezip above.
       normalized: saveNormalized,
+      ...(identity.titleSetFrom ? { title: identity.title, titleSetFrom: identity.titleSetFrom } : {}),
+      ...(identity.creatorSet ? { creatorSet: identity.creatorSet } : {}),
       // Advisory style pass under the session guide (read-only, best-effort,
       // never blocks the save). Absent without a guide. The stored chart
       // reader mirrors validate/document-manager so persisted twin colors
@@ -436,6 +454,11 @@ export async function handleSaveDocument(
   validation:
     | { ok: true; valid: true; errorCount: 0 }
     | { ok: false; valid: false; errorCount: number; tolerated: true; preExistingErrors: number; introducedErrors: 0; messages: string[] };
+  /** The title written from the content because dc:title was a template placeholder, and where it came from. */
+  title?: string;
+  titleSetFrom?: string;
+  /** The configured author written as creator in place of the tool default. */
+  creatorSet?: string;
   /** R-1: pending tracked revisions (w:ins + w:del) in the saved package. */
   revisionsPending: number;
   /** R-1: accept remedy, present only when revisionsPending > 0. */

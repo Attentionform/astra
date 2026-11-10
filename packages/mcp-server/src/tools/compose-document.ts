@@ -157,6 +157,7 @@ export const COMPOSE_DOCUMENT_DESCRIPTION =
   'Workflow: open_document -> compose_document -> save_document. ' +
   'Example {"sessionId":"sess_abc","markdown":"# Plan\\n\\n- a\\n- b\\n"} (add "allowedDir":"<dir>" for image/chart refs, "template":"report|memo|blank" to verify the seed). ' +
   'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions. ' +
+  'When dc:title is still a template placeholder it is set from the first Title or Heading 1 (titleSetFrom says so); a title already set is kept. ' +
   'persistentIds maps each created paragraph id (md_0003) to the paragraph id the saved file carries, so a reopened session can be addressed with it (tables are renumbered t_001.. by position on reopen).';
 
 /** Created paragraph ids mapped to the w14:paraId a saved-and-reopened file reports for them. */
@@ -190,6 +191,8 @@ type ComposeDocumentOk = {
    * renumbered by position on reopen.
    */
   persistentIds?: Record<string, string>;
+  /** Set when dc:title was a template placeholder and is now written from the content: where it came from. */
+  titleSetFrom?: string;
   /** Per-op attribution (same rule as execute_batch: exact id claims, remainder best-effort). */
   results: BatchOpCreatedIds[];
   /** Read-only post-compose OOXML verdict (proof the composed package validates; save re-gates before writing). */
@@ -578,6 +581,7 @@ export async function handleComposeDocument(
         dirty: store.isDirty(handle),
         createdNodeIds,
         ...(Object.keys(persistentIds).length > 0 ? { persistentIds } : {}),
+        ...(aggregate.titleSetFrom ? { titleSetFrom: aggregate.titleSetFrom } : {}),
         results,
         validation: {
           valid: validation.ok,

@@ -2,7 +2,7 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { extrasRecord, hasHistorySidecar, recordBatchRevision, trackedExtras } from './history-support';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
-import { BASELINE_MAX_ERRORS, BatchOperationsSchema, operationIssueRemedy, DocxParser, commitStateIfDiffersFromHead, getDuplicateParaIdPolicy, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, BatchOperationsSchema, applyDocumentIdentity, operationIssueRemedy, DocxParser, commitStateIfDiffersFromHead, getDuplicateParaIdPolicy, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, formatNormalizedInline, mergeNormalized, previewNormalizedForDisplay, print, printJson, printStderr, readEngineNormalized, readParserNormalizations, stringifyJsonPayload } from './output';
 import { classifyFileReadError, cleanCliMessage, extractEngineRemedy, failWithCode, inferBatchCode, readErrRemedyProp, remedyForPostBatchValidation, rewriteMcpRemedies, withGatedEngineOutput, type KnownCliCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -1320,6 +1320,12 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     // replaces it, then merge both so every rewrite is reported once. This
     // line never heals, only reports.
     const gateNormalized = skipValidate ? [] : readParserNormalizations(parser);
+    // A saved document never carries a template placeholder as its title: write it from the content.
+    try {
+      applyDocumentIdentity(ast, parser);
+    } catch {
+      /* the properties are advisory; a failure here must not block the write */
+    }
     const finalBytes = parser.rezip({ reproducible: ctx.reproducible });
     const batchNormalized = mergeNormalized(readEngineNormalized(res), gateNormalized, readParserNormalizations(parser));
     if (dupPreState && batchNormalized.some((l) => l.startsWith('Renumbered duplicate'))) {
@@ -1719,6 +1725,11 @@ export async function runStreamSession(
           message: nameRefusal,
           remedy: `name the output "${path.basename(target)}" with a .docm extension, or add --strip-macros to remove the macro parts`,
         };
+      }
+      try {
+        applyDocumentIdentity(await parser.getAST(), parser);
+      } catch {
+        /* the properties are advisory; a failure here must not block the write */
       }
       const finalBytes = parser.rezip({ reproducible });
       await writeDocx(target, finalBytes);

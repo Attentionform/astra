@@ -190,6 +190,7 @@ import { compileMarkdownDetailed, resolveComposeStyleGuide } from './compile';
 import { sortChildrenBySchema, RPR_CHILD_ORDER } from '../ooxml/schema-order';
 import { COMPOSE_CODE_FONT, TEMPLATE_SEEDS } from './constants';
 import { pristineTemplateSeedIds } from './pristine-seed';
+import { applyDocumentIdentity } from '../document-title';
 import type { StyleGuideConfig } from '../style-guide/types';
 import { nlToSpace, segmentsNeedSplit } from './text-spans';
 import type { SpanSegment } from './text-spans';
@@ -628,5 +629,11 @@ export async function composeDocument(
     if (/^E_VALIDATION/.test(detail)) throw err;
     throw new Error(`E_VALIDATION: line 1: inline formatting failed (${detail}). Remedy: simplify bold, italic, code, or link spans and retry.`);
   }
+  // A composed document has real content now, so a title that is still a template placeholder
+  // ("Blank Document") is replaced with the first Title or Heading 1. Never touches a real title.
+  try {
+    const identity = applyDocumentIdentity(ast, parser);
+    if (identity.titleSetFrom) aggregate.titleSetFrom = identity.titleSetFrom;
+  } catch { /* the properties are advisory; a failure here must not fail the compose */ }
   return aggregate;
 }

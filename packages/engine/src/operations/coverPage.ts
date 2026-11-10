@@ -7,6 +7,7 @@ import { generateValidParaId } from '../ooxml/schema-order';
 import { toError } from '../errors';
 import { pristineSeedIdsOfAnyTemplate } from '../compose/pristine-seed';
 import { executeDelete } from './delete';
+import { applyDocumentIdentity } from '../document-title';
 
 function isCoverReproducible(explicit?: boolean, env?: NodeJS.ProcessEnv): boolean {
   try {
@@ -349,4 +350,9 @@ export function executeCoverPage(op: CoverPageOperation, ast: DocumentAST, parse
   if (seedIds !== null && seedIds.length > 0) {
     executeDelete({ action: 'delete', target: seedIds }, ast, parser);
   }
+
+  // The cover page title is the document's title while dc:title is still a template placeholder.
+  try {
+    applyDocumentIdentity(ast, parser);
+  } catch { /* the properties are advisory; a failure here must not fail the cover page */ }
 }
