@@ -9,6 +9,7 @@ module.exports = {
   // .kilo, which holds nested worktree checkouts.)
   ignorePatterns: [
     'scratch/',
+    'benchmarks/',
     '.astra/',
     'dist/',
     'release/',

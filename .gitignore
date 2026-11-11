@@ -54,3 +54,6 @@ test-insert-xml-report.ts
 pi-source/
 PI_ADOPTION_BLUEPRINT.md
 website-project/
+benchmarks/node_modules
+benchmarks/corpus/files/
+benchmarks/work/
