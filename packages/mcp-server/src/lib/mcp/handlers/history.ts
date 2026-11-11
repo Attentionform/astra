@@ -347,7 +347,7 @@ export async function handleRevertDocument(
       let writeAttempted = false;
       let commitPhase = false;
       try {
-        handle.parser.restorePackageSnapshot(merged);
+        handle.parser.restorePackageSnapshot(merged, { registerCoreProperties: !target.complete });
         await refreshHandleAstInPlace(handle);
         const buf = handle.parser.rezip();
         const candidate = await validateForBaseline(buf);

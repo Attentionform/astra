@@ -156,6 +156,39 @@ describe('revert restores every package part (0.4.2)', () => {
     expect(new AdmZip(file).getEntries().map((e) => e.entryName)).toEqual(originalOrder);
   });
 
+  it('a revert restores [Content_Types].xml, _rels/.rels and docProps/core.xml exactly as the target had them', async () => {
+    // The file is saved without a registered core properties part; the save path registers it, so the
+    // target commit holds the registered form. The revert must return exactly those bytes.
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'astra-revert-core-'));
+    tmpDirs.push(dir);
+    const file = path.join(dir, 'doc.docx');
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const ct = zip.readAsText('[Content_Types].xml').replace(/<Override[^>]*PartName="\/docProps\/core\.xml"[^>]*\/>/, '');
+    zip.updateFile('[Content_Types].xml', Buffer.from(ct, 'utf8'));
+    const rels = zip.readAsText('_rels/.rels').replace(/<Relationship[^>]*core-properties[^>]*\/>/, '');
+    zip.updateFile('_rels/.rels', Buffer.from(rels, 'utf8'));
+    if (!zip.getEntry('docProps/core.xml')) {
+      zip.addFile('docProps/core.xml', Buffer.from('<?xml version="1.0"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"/>'));
+    }
+    fs.writeFileSync(file, zip.toBuffer());
+    const store = createMcpSessionStore();
+    const opened = await LEAN6_HANDLERS.open_document(store, { path: file });
+    if (!opened.ok) throw new Error('open failed in test setup');
+    const sessionId = opened.sessionId;
+    const c0 = await save(store, sessionId, 'start');
+    const atTarget = parts(file);
+    expect(atTarget.has('docProps/core.xml')).toBe(true);
+    const node = await firstNodeId(store, sessionId);
+    await batch(store, sessionId, [{ action: 'replace', target: node, text: 'changed text' }]);
+    await save(store, sessionId, 'edit');
+    const res = await revertTo(store, sessionId, c0);
+    expect(res.snapshotComplete).toBe(true);
+    const after = parts(file);
+    for (const name of ['[Content_Types].xml', '_rels/.rels', 'docProps/core.xml']) {
+      expect(after.get(name)?.equals(atTarget.get(name)!), `part ${name} differs from the target`).toBe(true);
+    }
+  });
+
   it('preview_revert lists the comment parts and reports a complete snapshot', async () => {
     const store = createMcpSessionStore();
     const { sessionId } = await makeSession(store);

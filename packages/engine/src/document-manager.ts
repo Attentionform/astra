@@ -145,7 +145,7 @@ function asGitUndoPackage(mod: unknown): GitUndoPackage {
 /** Narrow parser snapshot capability without `as any` duck-typing. */
 interface PackageSnapshotCapable {
   capturePackageSnapshot?: () => Map<string, Buffer>;
-  restorePackageSnapshot?: (snap: Map<string, Buffer>) => void;
+  restorePackageSnapshot?: (snap: Map<string, Buffer>, options?: { registerCoreProperties?: boolean }) => void;
 }
 
 function asPackageSnapshotCapable(parser: unknown): PackageSnapshotCapable {
@@ -156,7 +156,9 @@ function asPackageSnapshotCapable(parser: unknown): PackageSnapshotCapable {
     out.capturePackageSnapshot = (rec['capturePackageSnapshot'] as () => Map<string, Buffer>).bind(parser);
   }
   if (typeof rec['restorePackageSnapshot'] === 'function') {
-    out.restorePackageSnapshot = (rec['restorePackageSnapshot'] as (snap: Map<string, Buffer>) => void).bind(parser);
+    out.restorePackageSnapshot = (
+      rec['restorePackageSnapshot'] as (snap: Map<string, Buffer>, options?: { registerCoreProperties?: boolean }) => void
+    ).bind(parser);
   }
   return out;
 }
@@ -754,6 +756,7 @@ export class DocumentManager {
       let reversedXml: string;
       let extra: Map<string, Buffer> = new Map();
       let usedPackage = false;
+      let legacyRestore = false;
       if (typeof undoPackageFn === 'function') {
         const res = await undoPackageFn(this.activeDocPath);
         reversedXml = res.xml;
@@ -761,7 +764,10 @@ export class DocumentManager {
         usedPackage = true;
         // A commit recorded before complete snapshots (no marker) only versioned the legacy set:
         // restoring from it must leave the parts it never recorded alone.
-        if (res.complete === false && typeof isLegacyTracked === 'function') isTracked = isLegacyTracked;
+        if (res.complete === false && typeof isLegacyTracked === 'function') {
+          isTracked = isLegacyTracked;
+          legacyRestore = true;
+        }
       } else {
         reversedXml = await undo(this.activeDocPath);
       }
@@ -788,7 +794,7 @@ export class DocumentManager {
         for (const [k, v] of extra) merged.set(k, v);
         merged.set('word/document.xml', Buffer.from(reversedXml, 'utf8'));
         const restoreFn = parserCaps.restorePackageSnapshot;
-        restoreFn(merged);
+        restoreFn(merged, { registerCoreProperties: legacyRestore });
       } else {
         this.parser.reloadDocumentXml(reversedXml);
       }

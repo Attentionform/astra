@@ -397,4 +397,28 @@ describe('restoring a package snapshot keeps untouched entries as they were stor
     expect(out.getEntry('docProps/core.xml')).toBeNull();
     expect(out.getEntry('word/people.xml')!.getData().toString()).toBe('<people/>');
   });
+
+  it('restores [Content_Types].xml, _rels/.rels and docProps/core.xml exactly, registering core properties only on request', () => {
+    const { buffer } = sourceDocx();
+    const parser = new DocxParser(buffer);
+    const snapshot = parser.capturePackageSnapshot();
+    // A target state whose core properties part is present but unregistered.
+    const ct = snapshot.get('[Content_Types].xml')!.toString('utf8').replace(/<Override[^>]*\/docProps\/core\.xml[^>]*\/>/, '');
+    const rels = snapshot.get('_rels/.rels')!.toString('utf8').replace(/<Relationship[^>]*core-properties[^>]*\/>/, '');
+    expect(ct).not.toContain('/docProps/core.xml');
+    expect(rels).not.toContain('core-properties');
+    snapshot.set('[Content_Types].xml', Buffer.from(ct, 'utf8'));
+    snapshot.set('_rels/.rels', Buffer.from(rels, 'utf8'));
+
+    parser.restorePackageSnapshot(new Map(snapshot));
+    const exact = new AdmZip(parser.rezip());
+    expect(exact.getEntry('[Content_Types].xml')!.getData().toString('utf8')).toBe(ct);
+    expect(exact.getEntry('_rels/.rels')!.getData().toString('utf8')).toBe(rels);
+    expect(exact.getEntry('docProps/core.xml')!.getData().equals(snapshot.get('docProps/core.xml')!)).toBe(true);
+
+    parser.restorePackageSnapshot(new Map(snapshot), { registerCoreProperties: true });
+    const repaired = new AdmZip(parser.rezip());
+    expect(repaired.getEntry('[Content_Types].xml')!.getData().toString('utf8')).toContain('/docProps/core.xml');
+    expect(repaired.getEntry('_rels/.rels')!.getData().toString('utf8')).toContain('core-properties');
+  });
 });

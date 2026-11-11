@@ -285,7 +285,7 @@ async function restoreAndCommit(opts: RestoreOptions): Promise<{ commitOid: stri
   }
   for (const [name, data] of target.extra) snapshot.set(name, data);
   snapshot.set('word/document.xml', Buffer.from(target.xml, 'utf8'));
-  parser.restorePackageSnapshot(snapshot);
+  parser.restorePackageSnapshot(snapshot, { registerCoreProperties: !target.complete });
   const buf = parser.rezip();
   // A recorded state may carry the errors it was written with (the validator is stricter than Word). It is
   // refused only when its result cannot be compared: cut short, an exception, or a duplicate paragraph id.

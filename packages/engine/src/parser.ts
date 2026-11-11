@@ -859,9 +859,10 @@ export class DocxParser {
   /**
    * Restores the package to a previously captured snapshot: every entry is
    * restored (entries added after the snapshot are removed), then documentDom
-   * and stylesDom are reloaded and stable IDs re-assigned.
+   * and stylesDom are reloaded and stable IDs re-assigned. The restored package is exactly the snapshot;
+   * only a restore that mixes a pre-0.4.2 commit with live parts passes `registerCoreProperties`.
    */
-  public restorePackageSnapshot(snapshot: Map<string, Buffer>): void {
+  public restorePackageSnapshot(snapshot: Map<string, Buffer>, options?: { registerCoreProperties?: boolean }): void {
     // Remove entries added since the snapshot
     for (const entry of [...this.zip.getEntries()]) {
       if (!snapshot.has(entry.entryName)) {
@@ -928,7 +929,7 @@ export class DocxParser {
 
     // A snapshot from before complete snapshots (0.4.1 and older) did not record docProps/core.xml, so a
     // restored [Content_Types].xml or _rels/.rels can lack the entries for the core part that is still here.
-    registerExistingCorePropertiesPart(this.getZipAdapter());
+    if (options?.registerCoreProperties) registerExistingCorePropertiesPart(this.getZipAdapter());
 
     this.invalidateMediaCache();
     this.assignStableIds();
