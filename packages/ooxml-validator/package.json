@@ -1,8 +1,8 @@
 {
   "name": "@attentionform/ooxml-validator",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "validatorBinary": {
-    "version": "0.4.0",
+    "version": "0.4.1",
     "range": ">=0.1.0 <0.5.0"
   },
   "description": "Cross-platform OOXML (ECMA-376 / ISO-29500) document schema validator powered by .NET OpenXML SDK",

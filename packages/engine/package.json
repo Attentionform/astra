@@ -1,6 +1,6 @@
 {
   "name": "@attentionform/astra-engine",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Headless, transactional MS Word (OOXML) document engine",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -49,7 +49,7 @@
     "adm-zip-gate": "node ../../scripts/check-adm-zip-imports.mjs"
   },
   "dependencies": {
-    "@attentionform/ooxml-validator": "^0.4.0",
+    "@attentionform/ooxml-validator": "^0.4.1",
     "@xmldom/xmldom": "0.8.15",
     "adm-zip": "0.6.1",
     "isomorphic-git": "^1.25.0",

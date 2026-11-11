@@ -42,8 +42,8 @@
     "adm-zip-gate": "node ../../scripts/check-adm-zip-imports.mjs"
   },
   "dependencies": {
-    "@attentionform/astra-engine": "^0.4.0",
-    "@attentionform/ooxml-validator": "^0.4.0",
+    "@attentionform/astra-engine": "^0.4.1",
+    "@attentionform/ooxml-validator": "^0.4.1",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@xmldom/xmldom": "0.8.15",
     "adm-zip": "0.6.1",
