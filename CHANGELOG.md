@@ -6,6 +6,19 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-11
+
+All ten npm packages move to 0.4.1. The engine, the command line, the MCP server tools and the native validator source are unchanged. This release adds the metadata that the official MCP Registry needs and a setup guide for AI assistants.
+
+### Added
+
+- **A setup guide for AI assistants.** The README has a new section, "Connect your AI assistant", with the JSON configuration, a table for Claude Code, Claude Desktop, Cursor, Windsurf and Cline, a way to check that the server answers (19 tools and a first prompt), and the usual reasons a client does not connect: a relative `--allowed-dir`, relative file paths (`E_SANDBOX`, `E_IO`), a Node version below 22.19, an assistant that was not restarted, and an older global copy that shadows `npx`.
+- **Official MCP Registry listing.** `@attentionform/astra-mcp-server` carries `mcpName` (`com.attentionform/astra-mcp-server`) and the repository has `packages/mcp-server/server.json`. The name is proved through a DNS record on attentionform.com.
+
+### Changed
+
+- **Generated tool schemas in `schemas/mcp` name 0.4.1** in `x-generated-from`. The CI schema freshness gate checks this on every push.
+
 ## [0.4.0] - 2026-11-10
 
 All ten npm packages move to 0.4.0, including the six native validator platform packages. The native validator source is unchanged; the platform packages are rebuilt so that they carry the licence terms for new versions.
