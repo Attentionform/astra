@@ -26,21 +26,26 @@ environment is the same every time. The workflow is `.github/workflows/benchmark
 
 ## What runs
 
-Two jobs, one after the other, never in parallel (parallel jobs would disturb each other's timings):
+Every job is its own GitHub-hosted VM, so jobs cannot load each other and run in parallel.
 
-| Job | Measures | Result label |
-|---|---|---|
-| `baseline` | the published package pinned in `benchmarks/package.json` | `<pinned version>-hosted-runner` |
-| `build` | a local build of `target_ref` (`packages/mcp-server/dist`) | `<package version>-build-<sha7>` |
+| Job | What it does |
+|---|---|
+| `measure` (one per variant and group) | `baseline` = the published package pinned in `benchmarks/package.json`; `build` = a local build of `target_ref`. Groups: `e1` (e1, e1_oracles, e1_control), `e4`, `e5` (e5, e5_orphans). All in parallel. |
+| `perf` | E6 (latency and memory by size) and E7 (batch scaling), alone on one VM. Baseline and build **alternate** (baseline, build, baseline, build) on that same VM, so the comparison is not distorted by differences between VMs. |
 
-Inside a job the experiments run one at a time, in the order given. A failed step is recorded in
-`sequence.log` and the next step still runs; a failure is a result, not something to hide.
-E1 uses 2 workers and the oracles 4 LibreOffice workers (the runner has 4 vCPUs). Worker counts change run time,
+Counts and pass/fail results (E1 locality, E4 atomicity, E5 history) do not depend on the machine, so they can run
+on separate runners at the same time. Timing results do, which is why E6/E7 get one VM to themselves and why
+baseline and build are measured on that same VM.
+
+Inside a job the steps run one at a time. A failed step is recorded in `sequence.log` and the next step still runs;
+a failure is a result, not something to hide. Result labels: `<pinned version>-hosted-runner` for the baseline,
+`<package version>-build-<sha7>` for the build, `perf-<label>-r<round>` for the perf rounds.
+E1 uses 2 workers and the oracles 4 LibreOffice workers (the runner has 4 vCPUs); worker counts change run time,
 not the E1/oracle results.
 
 ## Read the results
 
-Each job uploads one artifact: `results-baseline-<version>` and `results-build-<label>`.
+Each job uploads an artifact: `results-<variant>-<group>-<label>` for `measure`, `results-perf` for `perf`.
 
 ```bash
 gh run download <run-id> --dir /tmp/bench-results
@@ -51,7 +56,8 @@ commit), `sequence.log` (a timestamp for every step) and one `log-<step>.txt` pe
 
 ## Read the numbers correctly
 
-* Compare `baseline` with `build` from the **same run**. Both used the same kind of runner, one after the other.
+* Compare timings only inside `results-perf` (baseline and build ran alternately on the same VM). Counts and
+  pass/fail results from `measure` jobs can be compared across runners.
 * Do not compare hosted-runner timings with timings from another machine (for example the stored `results/0.4.1`).
   Counts and pass/fail results (E1 locality, E4 atomicity, E5 history) do not depend on the machine; timings
   (E6, E7) do. Shared runners are noisy: the protocol's median, p95 and n are reported, and a run with a very

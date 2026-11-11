@@ -5,9 +5,13 @@ name: Benchmarks
 # What it measures
 #   baseline: the PUBLISHED package pinned in benchmarks/package.json (skip with baseline = none)
 #   build:    a local build of ANY branch, tag or commit of this repository (target_ref)
-# Both run on the same kind of GitHub-hosted runner, one job after the other (never in parallel), so
-# latency numbers (E6/E7) are comparable with each other. Hosted-runner timings are NOT comparable with
-# timings measured on another machine.
+#
+# How the work is split (each job is its own GitHub-hosted VM, so jobs cannot load each other)
+#   measure: one job per (variant x experiment group), all in parallel. Counts and pass/fail results
+#            (E1 locality, E4 atomicity, E5 history) do not depend on the machine, so parallel runners are safe.
+#   perf:    ONE dedicated job for the timing experiments (E6/E7). Baseline and build run back to back on the
+#            SAME VM, alternating (baseline, build, baseline, build), so the comparison is not distorted by
+#            differences between VMs. Nothing else runs on that VM.
 #
 # How to run it (see benchmarks/CI.md)
 #   - Edit benchmarks/bench.config.json (target_ref, baseline, experiments), commit, push to a bench/** branch.
@@ -45,9 +49,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       target_ref: ${{ steps.cfg.outputs.target_ref }}
-      baseline: ${{ steps.cfg.outputs.baseline }}
-      experiments: ${{ steps.cfg.outputs.experiments }}
       baseline_version: ${{ steps.cfg.outputs.baseline_version }}
+      matrix: ${{ steps.cfg.outputs.matrix }}
+      has_measure: ${{ steps.cfg.outputs.has_measure }}
+      has_perf: ${{ steps.cfg.outputs.has_perf }}
+      with_baseline: ${{ steps.cfg.outputs.with_baseline }}
     steps:
       - uses: actions/checkout@v4
       - id: cfg
@@ -62,26 +68,53 @@ jobs:
           baseline=$(pick "$IN_BASELINE" baseline)
           experiments=$(pick "$IN_EXPERIMENTS" experiments)
           pinned=$(jq -r '.dependencies["@attentionform/astra-mcp-server"]' benchmarks/package.json)
+          exps=$(echo "$experiments" | jq -R 'split(" ") | map(select(length > 0))')
+          if [ "$baseline" = "published" ]; then variants='["baseline","build"]'; else variants='["build"]'; fi
+          matrix=$(jq -nc --argjson exps "$exps" --argjson variants "$variants" '
+            {e1: ["e1","e1_oracles","e1_control"], e4: ["e4"], e5: ["e5","e5_orphans"]} as $g
+            | {include: [ $variants[] as $v | ($g | to_entries[]) as $e
+                | ($e.value | map(select(. as $s | $exps | index($s)))) as $steps
+                | select(($steps | length) > 0)
+                | {variant: $v, group: $e.key, steps: ($steps | join(" "))} ]}')
+          has_measure=$(echo "$matrix" | jq '.include | length > 0')
+          has_perf=$(echo "$exps" | jq 'index("e6") != null')
           {
             echo "target_ref=$target"
-            echo "baseline=$baseline"
-            echo "experiments=$experiments"
             echo "baseline_version=$pinned"
+            echo "matrix=$matrix"
+            echo "has_measure=$has_measure"
+            echo "has_perf=$has_perf"
+            echo "with_baseline=$([ "$baseline" = "published" ] && echo true || echo false)"
           } >> "$GITHUB_OUTPUT"
-          echo "target_ref=$target baseline=$baseline ($pinned) experiments=$experiments" | tee -a "$GITHUB_STEP_SUMMARY"
+          {
+            echo "target_ref=$target baseline=$baseline ($pinned) experiments=$experiments"
+            echo "$matrix" | jq -r '.include[] | "- \(.variant) / \(.group): \(.steps)"'
+            echo "perf (E6/E7, same VM, alternating): $has_perf"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
-  baseline:
-    name: Baseline (published package)
+  measure:
+    name: ${{ matrix.variant }} / ${{ matrix.group }}
     needs: config
-    if: ${{ needs.config.outputs.baseline == 'published' }}
+    if: ${{ needs.config.outputs.has_measure == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.config.outputs.matrix) }}
     env:
-      BENCH_LABEL: ${{ needs.config.outputs.baseline_version }}-hosted-runner
-      EXPERIMENTS: ${{ needs.config.outputs.experiments }}
+      EXPERIMENTS: ${{ matrix.steps }}
       ORACLE_WORKERS: '4'
     steps:
+      # The harness always comes from this (bench) branch; the code under test comes from target_ref.
       - uses: actions/checkout@v4
+        with:
+          path: harness
+      - uses: actions/checkout@v4
+        if: ${{ matrix.variant == 'build' }}
+        with:
+          ref: ${{ needs.config.outputs.target_ref }}
+          path: target
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -90,37 +123,62 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libreoffice-writer poppler-utils python3-pip
           pip install --break-system-packages python-docx lxml Pillow
-      - name: Install the published package under test
-        working-directory: benchmarks
+      - name: Name the build
+        id: label
+        run: |
+          if [ "${{ matrix.variant }}" = "build" ]; then
+            cd target
+            version=$(jq -r .version packages/mcp-server/package.json)
+            sha=$(git rev-parse --short=7 HEAD)
+            echo "label=${version}-build-${sha}" >> "$GITHUB_OUTPUT"
+            echo "git_head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            echo "label=${{ needs.config.outputs.baseline_version }}-hosted-runner" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the packages of the target ref
+        if: ${{ matrix.variant == 'build' }}
+        working-directory: target
+        run: |
+          npm install -g npm@^11
+          npm ci
+          npm run build:packages
+      - name: Install the harness dependencies (the published package under test, for the baseline)
+        working-directory: harness/benchmarks
         run: npm ci
+      - name: Point the harness at the build or at the published package
+        run: |
+          echo "BENCH_LABEL=${{ steps.label.outputs.label }}" >> "$GITHUB_ENV"
+          if [ "${{ matrix.variant }}" = "build" ]; then
+            echo "ASTRA_SERVER_BIN=$GITHUB_WORKSPACE/target/packages/mcp-server/dist/index.js" >> "$GITHUB_ENV"
+            echo "GITHUB_SHA_UNDER_TEST=${{ steps.label.outputs.git_head }}" >> "$GITHUB_ENV"
+          fi
       - name: Generate the corpus
-        working-directory: benchmarks
+        working-directory: harness/benchmarks
         run: python3 corpus/generate.py
       - name: Record the environment
-        working-directory: benchmarks
+        working-directory: harness/benchmarks
         run: node run/env.mjs > /dev/null
-      - name: Run the experiments one at a time
-        working-directory: benchmarks
+      - name: Run the experiments of this group, one at a time
+        working-directory: harness/benchmarks
         run: bash ../.github/scripts/run-benchmarks.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-baseline-${{ needs.config.outputs.baseline_version }}
-          path: benchmarks/results/${{ env.BENCH_LABEL }}
+          name: results-${{ matrix.variant }}-${{ matrix.group }}-${{ steps.label.outputs.label }}
+          path: harness/benchmarks/results/${{ steps.label.outputs.label }}
           if-no-files-found: warn
 
-  build:
-    name: Local build of the target ref
-    needs: [config, baseline]
-    # Runs after the baseline job, whether it ran, was skipped or failed.
-    if: ${{ always() && needs.config.result == 'success' }}
+  perf:
+    name: perf (E6/E7, baseline and build alternating on one VM)
+    needs: config
+    if: ${{ needs.config.outputs.has_perf == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
     env:
-      EXPERIMENTS: ${{ needs.config.outputs.experiments }}
-      ORACLE_WORKERS: '4'
+      WITH_BASELINE: ${{ needs.config.outputs.with_baseline }}
+      BASELINE_VERSION: ${{ needs.config.outputs.baseline_version }}
+      PERF_ROUNDS: '2'
     steps:
-      # The harness always comes from this (bench) branch; the code under test comes from target_ref.
       - uses: actions/checkout@v4
         with:
           path: harness
@@ -132,20 +190,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install system tools (LibreOffice, Poppler)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer poppler-utils python3-pip
+          pip install --break-system-packages python-docx lxml Pillow
       - name: Name the build
         id: label
         working-directory: target
         run: |
           version=$(jq -r .version packages/mcp-server/package.json)
           sha=$(git rev-parse --short=7 HEAD)
-          echo "BENCH_LABEL=${version}-build-${sha}" >> "$GITHUB_ENV"
-          echo "label=${version}-build-${sha}" >> "$GITHUB_OUTPUT"
-          echo "git_head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Install system tools (LibreOffice, Poppler)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-writer poppler-utils python3-pip
-          pip install --break-system-packages python-docx lxml Pillow
+          echo "BUILD_LABEL=${version}-build-${sha}" >> "$GITHUB_ENV"
+          echo "GITHUB_SHA_UNDER_TEST=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Build the packages of the target ref
         working-directory: target
         run: |
@@ -155,22 +212,17 @@ jobs:
       - name: Install the harness dependencies
         working-directory: harness/benchmarks
         run: npm ci
-      - name: Point the harness at the local build
-        run: |
-          echo "ASTRA_SERVER_BIN=$GITHUB_WORKSPACE/target/packages/mcp-server/dist/index.js" >> "$GITHUB_ENV"
-          echo "GITHUB_SHA_UNDER_TEST=${{ steps.label.outputs.git_head }}" >> "$GITHUB_ENV"
       - name: Generate the corpus
         working-directory: harness/benchmarks
         run: python3 corpus/generate.py
-      - name: Record the environment
+      - name: Run E6/E7 alternating, alone on this VM
         working-directory: harness/benchmarks
-        run: node run/env.mjs > /dev/null
-      - name: Run the experiments one at a time
-        working-directory: harness/benchmarks
-        run: bash ../.github/scripts/run-benchmarks.sh
+        env:
+          TARGET_SERVER_BIN: ${{ github.workspace }}/target/packages/mcp-server/dist/index.js
+        run: bash ../.github/scripts/run-perf-ab.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-build-${{ steps.label.outputs.label }}
-          path: harness/benchmarks/results/${{ env.BENCH_LABEL }}
+          name: results-perf
+          path: harness/benchmarks/results/perf-*
           if-no-files-found: warn
