@@ -14,6 +14,7 @@ measure() { # label, server-bin ("" = published)
     if [ -n "$bin" ]; then export ASTRA_SERVER_BIN="$bin"; else unset ASTRA_SERVER_BIN; fi
     mkdir -p "results/${BENCH_LABEL}"
     node run/env.mjs > /dev/null
+    node run/smoke.mjs || exit 1
     node run/e6_performance.mjs > "results/${BENCH_LABEL}/log-e6_e7_performance.txt" 2>&1
   ) && stamp "END $label ok" || stamp "END $label FAILED"
 }

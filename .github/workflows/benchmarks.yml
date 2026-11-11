@@ -135,6 +135,13 @@ jobs:
           else
             echo "label=${{ needs.config.outputs.baseline_version }}-hosted-runner" >> "$GITHUB_OUTPUT"
           fi
+      - name: Setup .NET SDK (native validator build)
+        if: ${{ matrix.variant == 'build' }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+          cache: true
+          cache-dependency-path: target/packages/ooxml-validator/native/packages.lock.json
       - name: Build the packages of the target ref
         if: ${{ matrix.variant == 'build' }}
         working-directory: target
@@ -142,6 +149,7 @@ jobs:
           npm install -g npm@^11
           npm ci
           npm run build:packages
+          npm run build:native --workspace=@attentionform/ooxml-validator
       - name: Install the harness dependencies (the published package under test, for the baseline)
         working-directory: harness/benchmarks
         run: npm ci
@@ -158,6 +166,9 @@ jobs:
       - name: Record the environment
         working-directory: harness/benchmarks
         run: node run/env.mjs > /dev/null
+      - name: Smoke test (the server under test must open and save a document)
+        working-directory: harness/benchmarks
+        run: node run/smoke.mjs
       - name: Run the experiments of this group, one at a time
         working-directory: harness/benchmarks
         run: bash ../.github/scripts/run-benchmarks.sh
@@ -203,12 +214,19 @@ jobs:
           sha=$(git rev-parse --short=7 HEAD)
           echo "BUILD_LABEL=${version}-build-${sha}" >> "$GITHUB_ENV"
           echo "GITHUB_SHA_UNDER_TEST=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Setup .NET SDK (native validator build)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+          cache: true
+          cache-dependency-path: target/packages/ooxml-validator/native/packages.lock.json
       - name: Build the packages of the target ref
         working-directory: target
         run: |
           npm install -g npm@^11
           npm ci
           npm run build:packages
+          npm run build:native --workspace=@attentionform/ooxml-validator
       - name: Install the harness dependencies
         working-directory: harness/benchmarks
         run: npm ci
