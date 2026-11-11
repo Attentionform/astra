@@ -539,7 +539,7 @@ target oid: 3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b
 
 ### 4.14 Revert to Recorded State (`astra revert`)
 
-Restores tracked package state `--steps <n>` commits back and records the restoration as a new append-only commit.
+Restores the package state `--steps <n>` commits back and records the restoration as a new append-only commit. Every package part is restored, including comment metadata, document properties and custom XML; a part the target commit does not have is removed. Commits recorded by ASTra versions before 0.4.2 hold fewer parts: restoring from one prints a warning (and `snapshotComplete: false` with `--json`), and the parts it never recorded keep their current content.
 
 ```bash
 # Revert document state by 1 commit

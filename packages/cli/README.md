@@ -110,7 +110,7 @@ Renders one saved-file page to PNG/JPEG via headless LibreOffice (same renderer 
 Lists recorded sidecar commits newest first; read-only; `--init` (alias `--track`) records the current file as the baseline when no sidecar exists yet.
 
 ### 13. Revert to Recorded State (`astra revert`)
-Restores the tracked package state `--steps <n>` commits back and records the restore as a new commit (append-only); `preview-revert` previews the same change read-only.
+Restores the package state `--steps <n>` commits back (every package part, comment metadata and document properties included) and records the restore as a new commit (append-only). Commits recorded before 0.4.2 hold fewer parts, so restoring from one prints a warning; `preview-revert` previews the same change read-only.
 
 ### 14. Redo Reverted State (`astra redo`)
 Re-applies the state replaced by the most recent revert (one redo per revert head).

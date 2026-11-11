@@ -555,55 +555,55 @@ describe('killed-mid-init recovery, init refusals, and sidecar entry semantics',
   });
 });
 
-describe('revert preserves untracked package parts', () => {
-  it('docProps bytes edited after the last commit survive the revert byte-identically', async () => {
-    const { file } = writeBlank('astra-hist-untracked');
+describe('revert covers every package part (docProps included)', () => {
+  async function twoSavesWithTitles(prefix: string): Promise<{ file: string; commits: Awaited<ReturnType<typeof getHistory>> }> {
+    const { file } = writeBlank(prefix);
     const store = createMcpSessionStore();
     const opened = await LEAN6_HANDLERS.open_document(store, { path: file });
     expect(opened.ok).toBe(true);
     if (!opened.ok) throw new Error('open failed in test setup');
     const sessionId = opened.sessionId;
-    // Synthesize docProps/core.xml + its [Content_Types].xml override before
-    // any recorded commit: the override is tracked, core.xml never is.
-    const meta = await LEAN6_HANDLERS.execute_batch(store, {
-      sessionId,
-      operations: [{ action: 'metadata', operation: 'setProperties', title: 'Untracked probe' }],
-    });
-    expect(meta.ok).toBe(true);
-    await replaceAnchor(store, sessionId, 'Alpha state one');
-    const save1 = await LEAN6_HANDLERS.save_document(store, { sessionId, message: 'checkpoint one' });
-    expect(save1.ok).toBe(true);
-    await replaceAnchor(store, sessionId, 'Beta state two');
-    const save2 = await LEAN6_HANDLERS.save_document(store, { sessionId, message: 'checkpoint two' });
-    expect(save2.ok).toBe(true);
+    for (const [title, message] of [['Title one', 'checkpoint one'], ['Title two', 'checkpoint two']] as const) {
+      const meta = await LEAN6_HANDLERS.execute_batch(store, {
+        sessionId,
+        operations: [{ action: 'metadata', operation: 'setProperties', title }],
+      });
+      expect(meta.ok).toBe(true);
+      await replaceAnchor(store, sessionId, `${title} body`);
+      const saved = await LEAN6_HANDLERS.save_document(store, { sessionId, message });
+      expect(saved.ok).toBe(true);
+    }
+    return { file, commits: await getHistory(file) };
+  }
 
-    const commits = await getHistory(file);
+  it('revert restores the document properties recorded at the target commit, byte for byte', async () => {
+    const { file, commits } = await twoSavesWithTitles('astra-hist-docprops');
     const target = await checkoutCommit(file, commits[1].oid);
-
-    // Untracked-part divergence is not a conflict: docProps/ is outside the
-    // tracked set, so the revert proceeds and must keep these live bytes.
-    const zip = new AdmZip(fs.readFileSync(file));
-    const core = zip.getEntry('docProps/core.xml');
-    expect(core).not.toBeNull();
-    const originalBytes = core!.getData();
-    const modifiedBytes = Buffer.concat([
-      originalBytes,
-      Buffer.from('\n<!-- untracked-part-preservation-probe -->\n'),
-    ]);
-    expect(modifiedBytes.equals(originalBytes)).toBe(false);
-    zip.updateFile('docProps/core.xml', modifiedBytes);
-    fs.writeFileSync(file, zip.toBuffer());
+    const recordedCore = target.extra.get('docProps/core.xml');
+    expect(recordedCore).toBeDefined();
+    expect(target.complete).toBe(true);
 
     const r = await runCli(['revert', file, '--steps', '1']);
     expect(r.status).toBe(0);
 
     const rezipped = new AdmZip(fs.readFileSync(file));
-    const afterBytes = rezipped.getEntry('docProps/core.xml')?.getData();
-    expect(afterBytes).toBeDefined();
-    expect(afterBytes!.equals(modifiedBytes)).toBe(true);
-    const docPart = rezipped.getEntry('word/document.xml')?.getData();
-    expect(docPart).toBeDefined();
-    expect(docPart!.equals(Buffer.from(target.xml, 'utf8'))).toBe(true);
+    expect(rezipped.getEntry('docProps/core.xml')!.getData().equals(recordedCore!)).toBe(true);
+    expect(rezipped.getEntry('word/document.xml')!.getData().equals(Buffer.from(target.xml, 'utf8'))).toBe(true);
+  });
+
+  it('docProps bytes edited after the last commit are a conflict: revert refuses and writes nothing', async () => {
+    const { file } = await twoSavesWithTitles('astra-hist-docprops-edit');
+    const zip = new AdmZip(fs.readFileSync(file));
+    const core = zip.getEntry('docProps/core.xml')!.getData();
+    zip.updateFile('docProps/core.xml', Buffer.concat([core, Buffer.from('\n<!-- unrecorded edit -->\n')]));
+    fs.writeFileSync(file, zip.toBuffer());
+    const before = fs.readFileSync(file);
+
+    const r = await runCli(['revert', file, '--steps', '1']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('E_CONFLICT');
+    expect(r.stderr).toContain('docProps/core.xml');
+    expect(fs.readFileSync(file).equals(before)).toBe(true);
   });
 });
 
@@ -651,6 +651,8 @@ describe('usage and depth gating', () => {
     expect(revHelp.stdout).toContain('[Content_Types].xml');
     expect(revHelp.stdout).toContain('word/{media,charts,embeddings,theme}/');
     expect(revHelp.stdout).toContain('docProps/');
+    expect(revHelp.stdout).toContain('Every package part is recorded and restored');
+    expect(revHelp.stdout).toContain('before 0.4.2');
   });
 
   it('bad flags and steps exit 2; steps past the history depth exits 1 with nothing written', async () => {

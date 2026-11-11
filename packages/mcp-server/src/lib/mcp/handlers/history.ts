@@ -8,7 +8,8 @@ import {
   getEngineErrorCode,
   getHistory,
   getSidecarHistoryWarning,
-  isTrackedPackageFile,
+  INCOMPLETE_SNAPSHOT_WARNING,
+  trackedPredicateFor,
   writeFileNoFollow,
 } from '@attentionform/astra-engine';
 import type { McpSessionStore } from '../../session-store';
@@ -184,6 +185,10 @@ export async function handleRevertDocument(
       discardedUnsaved: DiscardedUnsavedSummary;
       commitOid: string;
       commitMessage: string;
+      /** True when the target commit recorded every package part, so the restore is exact. */
+      snapshotComplete: boolean;
+      /** Present when the target commit predates complete snapshots: the restore is not exact. */
+      restoreWarning?: string;
     }
   | (McpErrorShape & { dirtyReason?: string })
 > {
@@ -328,8 +333,11 @@ export async function handleRevertDocument(
         });
       }
       const merged = new Map<string, Buffer>(preRevertSnap);
+      // A commit with the snapshot marker recorded every part: all of them are replaced. An older
+      // commit recorded only the legacy set, so parts it never recorded are left as they are.
+      const isTrackedForTarget = trackedPredicateFor(target);
       for (const key of [...merged.keys()]) {
-        if (key !== 'word/document.xml' && isTrackedPackageFile(key)) merged.delete(key);
+        if (key !== 'word/document.xml' && isTrackedForTarget(key)) merged.delete(key);
       }
       for (const [k, v] of target.extra) merged.set(k, v);
       merged.set('word/document.xml', Buffer.from(target.xml, 'utf8'));
@@ -409,6 +417,8 @@ export async function handleRevertDocument(
           discardedUnsaved,
           commitOid,
           commitMessage,
+          snapshotComplete: target.complete,
+          ...(target.complete ? {} : { restoreWarning: INCOMPLETE_SNAPSHOT_WARNING }),
         };
       } catch (stageErr: unknown) {
         // S3c: engine codes pass through verbatim (E_QUOTA from history quotas
@@ -723,6 +733,10 @@ export async function handlePreviewRevert(
       changedValuesPositional: boolean;
       /** Present when the target range is not computable (empty changedValues). */
       changedValuesReason?: string;
+      /** True when the target commit recorded every package part, so a real revert is exact. */
+      snapshotComplete: boolean;
+      /** Present when the target commit predates complete snapshots: a real revert is not exact. */
+      restoreWarning?: string;
       dirty: boolean;
       dirtyHandling: string;
       currentHeadOid: string;
@@ -817,7 +831,8 @@ export async function handlePreviewRevert(
         const targetXmlBytes = Buffer.from(target.xml, 'utf8');
         if (!liveXml || Buffer.compare(liveXml, targetXmlBytes) !== 0) affectedFiles.push('word/document.xml');
         const names = new Set<string>();
-        for (const k of liveSnap.keys()) if (k !== 'word/document.xml' && isTrackedPackageFile(k)) names.add(k);
+        const isTrackedForTarget = trackedPredicateFor(target);
+        for (const k of liveSnap.keys()) if (k !== 'word/document.xml' && isTrackedForTarget(k)) names.add(k);
         for (const k of target.extra.keys()) names.add(k);
         for (const name of [...names].sort()) {
           if (affectedFiles.length >= AUDIT_FILES_MAX) break;
@@ -874,6 +889,8 @@ export async function handlePreviewRevert(
         changedValuesTruncated,
         changedValuesPositional,
         ...(changedValuesReason ? { changedValuesReason } : {}),
+        snapshotComplete: target.complete,
+        ...(target.complete ? {} : { restoreWarning: INCOMPLETE_SNAPSHOT_WARNING }),
         dirty,
         dirtyHandling: dirty
           ? `Session holds ${unsavedOps} revision(s) of unsaved edits: a bare real revert would fail closed with E_CONFLICT; a real revert with discardUnsaved:true WOULD discard them (echoed back bounded). Net-zero edits still count as dirty (revisions pending, not a content diff). This preview discarded nothing.`

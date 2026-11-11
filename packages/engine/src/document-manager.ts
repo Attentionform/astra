@@ -121,8 +121,9 @@ function hasValidationCode(err: unknown): boolean {
 
 /** Narrow optional git-module fns without `as any` (tolerates partial vitest mocks). */
 interface GitUndoPackage {
-  undoPackage?: (p: string) => Promise<{ xml: string; extra: Map<string, Buffer> }>;
+  undoPackage?: (p: string) => Promise<{ xml: string; extra: Map<string, Buffer>; complete?: boolean }>;
   isTrackedPackageFile?: (name: string) => boolean;
+  isLegacyTrackedPackageFile?: (name: string) => boolean;
 }
 
 function asGitUndoPackage(mod: unknown): GitUndoPackage {
@@ -134,6 +135,9 @@ function asGitUndoPackage(mod: unknown): GitUndoPackage {
   }
   if (typeof rec['isTrackedPackageFile'] === 'function') {
     out.isTrackedPackageFile = rec['isTrackedPackageFile'] as GitUndoPackage['isTrackedPackageFile'];
+  }
+  if (typeof rec['isLegacyTrackedPackageFile'] === 'function') {
+    out.isLegacyTrackedPackageFile = rec['isLegacyTrackedPackageFile'] as GitUndoPackage['isLegacyTrackedPackageFile'];
   }
   return out;
 }
@@ -731,7 +735,7 @@ export class DocumentManager {
       //    legacy undo() when the git module is partially mocked (property
       //    access on a vitest mock throws, so resolve defensively).
       let undoPackageFn:
-        | ((p: string) => Promise<{ xml: string; extra: Map<string, Buffer> }>)
+        | ((p: string) => Promise<{ xml: string; extra: Map<string, Buffer>; complete?: boolean }>)
         | undefined;
       try {
         undoPackageFn = asGitUndoPackage(gitMod).undoPackage;
@@ -739,10 +743,13 @@ export class DocumentManager {
         undoPackageFn = undefined;
       }
       let isTracked: ((name: string) => boolean) | undefined;
+      let isLegacyTracked: ((name: string) => boolean) | undefined;
       try {
         isTracked = asGitUndoPackage(gitMod).isTrackedPackageFile;
+        isLegacyTracked = asGitUndoPackage(gitMod).isLegacyTrackedPackageFile;
       } catch {
         isTracked = undefined;
+        isLegacyTracked = undefined;
       }
       let reversedXml: string;
       let extra: Map<string, Buffer> = new Map();
@@ -752,6 +759,9 @@ export class DocumentManager {
         reversedXml = res.xml;
         extra = res.extra ?? new Map();
         usedPackage = true;
+        // A commit recorded before complete snapshots (no marker) only versioned the legacy set:
+        // restoring from it must leave the parts it never recorded alone.
+        if (res.complete === false && typeof isLegacyTracked === 'function') isTracked = isLegacyTracked;
       } else {
         reversedXml = await undo(this.activeDocPath);
       }

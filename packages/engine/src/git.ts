@@ -62,11 +62,98 @@ export function getRepoDir(docPath: string): string {
 }
 
 /**
- * OP-14: package files beyond document.xml that must be versioned so
- * media/rels/styles/headers survive commit/undo. document.xml is always
- * handled separately; everything matching this predicate is tracked.
+ * Snapshot-format marker. A commit written by 0.4.2 or later carries this file in its git tree ONLY
+ * when the code proved that the commit records EVERY package part of the snapshot it was given
+ * (see isTrackedPackageFile) and holds no stale part. A commit without a valid marker was written by
+ * an older ASTra version, or could not be proven complete, so its completeness is unknown and a
+ * restore from it uses the legacy set (isLegacyTrackedPackageFile). The marker is a history file,
+ * never a package part.
+ */
+export const SNAPSHOT_FORMAT_MARKER = '.astra-snapshot-format';
+/** Content of the marker file; bump when the snapshot format changes again. */
+export const SNAPSHOT_FORMAT_VERSION = '2';
+
+/** True when marker file content names exactly the snapshot format this build understands. */
+export function isCompleteSnapshotMarker(content: Buffer | Uint8Array | string | undefined): boolean {
+  if (content === undefined) return false;
+  return Buffer.from(content as Buffer).toString('utf8').trim() === SNAPSHOT_FORMAT_VERSION;
+}
+
+/** Directory in the history repo that holds package parts whose own names git cannot hold. */
+const ESCAPED_DIR = '__astra_escaped__';
+/** Longest escaped file name git file systems allow (base64url of the entry name must fit). */
+const ESCAPED_NAME_MAX = 255;
+
+/**
+ * True when a package entry name cannot be stored as a file of the same name in the history repo: a
+ * segment that git treats as its own (".git", ".gitignore", ".gitattributes", ".gitmodules", ...),
+ * the snapshot marker, the root-level "document.xml" that the history repo reserves for
+ * word/document.xml, or a name inside the escape directory. Such parts are stored escaped.
+ */
+export function needsHistoryEscape(entryName: string): boolean {
+  const name = entryName.replace(/\\/g, '/');
+  if (name === SNAPSHOT_FORMAT_MARKER || name === 'document.xml') return true;
+  if (name === ESCAPED_DIR || name.startsWith(`${ESCAPED_DIR}/`)) return true;
+  return name.split('/').some((segment) => segment.toLowerCase().startsWith('.git'));
+}
+
+/** True when the name can never be recorded: empty, a directory entry, absolute, a drive, or climbing out. */
+function isUnrecordableName(entryName: string): boolean {
+  const name = entryName.replace(/\\/g, '/');
+  if (name === '' || name.endsWith('/') || name.startsWith('/') || /^[a-zA-Z]:/.test(name)) return true;
+  return name.split('/').some((segment) => segment === '' || segment === '.' || segment === '..');
+}
+
+/**
+ * Package parts beyond document.xml that history versions so every revert restores them. Since the
+ * snapshot-format marker (0.4.2) this is EVERY part except word/document.xml (committed separately)
+ * and entries that carry no content or can never be recorded (directory entries, empty, absolute or
+ * climbing names; the save path already drops those). Names git cannot hold are stored escaped, not
+ * skipped. A whitelist of known names missed the comment-metadata parts and let author names
+ * survive a revert.
  */
 export function isTrackedPackageFile(entryName: string): boolean {
+  const name = entryName.replace(/\\/g, '/');
+  if (name === 'word/document.xml') return false;
+  return !isUnrecordableName(name);
+}
+
+/** Path inside the history repo where a package entry is stored. */
+export function historyPathFor(entryName: string): string {
+  const name = entryName.replace(/\\/g, '/');
+  if (!needsHistoryEscape(name)) return name;
+  const encoded = Buffer.from(name, 'utf8').toString('base64url');
+  if (encoded.length > ESCAPED_NAME_MAX) {
+    throw Object.assign(
+      new Error(`E_VALIDATION: the package entry name is too long to record in history (${name.length} characters).`),
+      {
+        code: 'E_VALIDATION',
+        remedy: 'Rename or remove that package part (for example with sanitize_document), then save again.',
+      }
+    );
+  }
+  return `${ESCAPED_DIR}/${encoded}`;
+}
+
+/** Package entry name for a path stored in the history repo (inverse of historyPathFor). */
+export function entryNameFor(repoPath: string): string {
+  const rel = repoPath.replace(/\\/g, '/');
+  if (!rel.startsWith(`${ESCAPED_DIR}/`)) return rel;
+  return Buffer.from(rel.slice(ESCAPED_DIR.length + 1), 'base64url').toString('utf8');
+}
+
+/** True for a repo path that holds a package part (everything except document.xml and the marker). */
+function isRepoPartPath(repoPath: string): boolean {
+  const rel = repoPath.replace(/\\/g, '/');
+  return rel !== 'document.xml' && rel !== SNAPSHOT_FORMAT_MARKER && rel !== '' && !rel.startsWith('.git/');
+}
+
+/**
+ * The set that commits recorded before the snapshot-format marker (0.4.1 and older) versioned.
+ * Used only to restore from such a commit: parts outside this set were never recorded there, so a
+ * revert must neither delete nor restore them.
+ */
+export function isLegacyTrackedPackageFile(entryName: string): boolean {
   const name = entryName.replace(/\\/g, '/');
   if (name === 'word/document.xml') return false;
   if (name === 'word/styles.xml') return true;
@@ -115,6 +202,87 @@ async function writeAndAdd(
   assertWriteTargetNoSymlink(fullPath);
   await writeFileNoFollow(fullPath, content);
   await git.add({ fs, dir: repoDir, filepath: safeRel });
+}
+
+/** Names that must fail loudly (path traversal) instead of being skipped. */
+function isTraversalName(entryName: string): boolean {
+  const name = toRepoRelative(entryName);
+  return name.includes('..') || path.isAbsolute(name) || /^[a-zA-Z]:/.test(name);
+}
+
+/**
+ * Writes the package parts of one snapshot into the history repo and returns the repo paths written.
+ * Parts carrying no content (directory entries) are not recorded; names git cannot hold are stored
+ * escaped; traversal names still throw.
+ */
+async function writeSnapshotParts(
+  repoDir: string,
+  extraFiles?: Record<string, string | Buffer>
+): Promise<Set<string>> {
+  const written = new Set<string>();
+  if (!extraFiles) return written;
+  for (const [name, content] of Object.entries(extraFiles)) {
+    if (isTraversalName(name)) {
+      await writeAndAdd(repoDir, name, content as string | Buffer); // throws the Security Violation
+      continue;
+    }
+    if (!isTrackedPackageFile(name)) continue;
+    const repoPath = historyPathFor(name);
+    await writeAndAdd(repoDir, repoPath, content as string | Buffer);
+    written.add(repoPath);
+  }
+  return written;
+}
+
+/** Repo paths of every package part the index holds (document.xml and the marker excluded). */
+async function indexedPartPaths(repoDir: string): Promise<Set<string>> {
+  const tracked: string[] = await git.listFiles({ fs, dir: repoDir });
+  return new Set(tracked.map((t) => toRepoRelative(t)).filter(isRepoPartPath));
+}
+
+/**
+ * Decides whether the commit being built is a proven complete snapshot: the caller supplied the full
+ * package, and the index now holds exactly the parts that were written, no more and no fewer.
+ */
+async function snapshotIsProvenComplete(
+  repoDir: string,
+  extraFiles: Record<string, string | Buffer> | undefined,
+  written: Set<string>
+): Promise<boolean> {
+  if (!extraFiles) return false;
+  try {
+    const indexed = await indexedPartPaths(repoDir);
+    if (indexed.size !== written.size) return false;
+    for (const p of written) if (!indexed.has(p)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Marks the commit being built as a complete snapshot, or removes a marker carried over from an earlier
+ * commit. A marker must never describe a commit that was not proven complete.
+ */
+async function applySnapshotMarker(repoDir: string, complete: boolean): Promise<void> {
+  if (complete) {
+    await writeAndAdd(repoDir, SNAPSHOT_FORMAT_MARKER, `${SNAPSHOT_FORMAT_VERSION}\n`);
+    return;
+  }
+  try {
+    await fsp.unlink(path.join(repoDir, SNAPSHOT_FORMAT_MARKER));
+  } catch {
+    /* already gone */
+  }
+  try {
+    await git.remove({ fs, dir: repoDir, filepath: SNAPSHOT_FORMAT_MARKER });
+  } catch {
+    /* not tracked */
+  }
+  const stillIndexed = (await git.listFiles({ fs, dir: repoDir })).some((t) => toRepoRelative(t) === SNAPSHOT_FORMAT_MARKER);
+  if (stillIndexed) {
+    throw new Error('History commit refused: could not clear the snapshot marker of an earlier commit.');
+  }
 }
 
 /** POSIX-only 0700 chmod (no-op on Windows, best-effort on chmod-less filesystems). */
@@ -730,11 +898,8 @@ export async function initAstraRepo(
   await git.init({ fs, dir: repoDir });
 
   await writeAndAdd(repoDir, 'document.xml', initialXml);
-  if (extraFiles) {
-    for (const [name, content] of Object.entries(extraFiles)) {
-      await writeAndAdd(repoDir, name, content as string | Buffer);
-    }
-  }
+  const writtenParts = await writeSnapshotParts(repoDir, extraFiles);
+  await applySnapshotMarker(repoDir, await snapshotIsProvenComplete(repoDir, extraFiles, writtenParts));
 
   await git.commit({
     fs,
@@ -824,11 +989,7 @@ export async function commitChange(
   }
 
   await writeAndAdd(repoDir, 'document.xml', xmlContent);
-  if (extraFiles) {
-    for (const [name, content] of Object.entries(extraFiles)) {
-      await writeAndAdd(repoDir, name, content as string | Buffer);
-    }
-  }
+  const writtenParts = await writeSnapshotParts(repoDir, extraFiles);
   // OP-14: remove package files deleted from the live package so stale media
   // does not linger in git history. Explicit deletedFiles win; otherwise, when
   // the caller supplied a complete extraFiles snapshot, auto-detect tracked
@@ -837,22 +998,18 @@ export async function commitChange(
     const toDelete = new Set<string>();
     if (deletedFiles) {
       for (const name of deletedFiles) {
-        const rel = toRepoRelative(name);
-        if (rel === 'document.xml') continue;
-        toDelete.add(rel);
+        if (!isTrackedPackageFile(name) || isTraversalName(name)) continue;
+        toDelete.add(historyPathFor(name));
       }
     }
     if (extraFiles) {
-      const newTracked = new Set(
-        Object.keys(extraFiles).map(k => toRepoRelative(k))
-      );
+      const newTracked = writtenParts;
       // Auto-detect via git index (authoritative tracked set).
       try {
         const tracked: string[] = await git.listFiles({ fs, dir: repoDir });
         for (const t of tracked) {
           const rel = toRepoRelative(t);
-          if (rel === 'document.xml') continue;
-          if (isTrackedPackageFile(rel) && !newTracked.has(rel)) {
+          if (isRepoPartPath(rel) && !newTracked.has(rel)) {
             toDelete.add(rel);
           }
         }
@@ -863,8 +1020,7 @@ export async function commitChange(
       try {
         const onDisk = await collectRepoFiles(repoDir);
         for (const rel of onDisk.keys()) {
-          if (rel === 'document.xml') continue;
-          if (isTrackedPackageFile(rel) && !newTracked.has(rel)) {
+          if (isRepoPartPath(rel) && !newTracked.has(rel)) {
             toDelete.add(rel);
           }
         }
@@ -889,6 +1045,8 @@ export async function commitChange(
   } catch {
     /* deletion cleanup is best-effort; never fail the commit */
   }
+  // Written last, and only when the index provably holds the supplied snapshot and nothing else.
+  await applySnapshotMarker(repoDir, await snapshotIsProvenComplete(repoDir, extraFiles, writtenParts));
   const sha = await git.commit({
     fs,
     dir: repoDir,
@@ -986,13 +1144,36 @@ async function collectRepoFiles(repoDir: string): Promise<Map<string, Buffer>> {
 }
 
 /**
+ * A commit read back from history. `extra` holds the package parts the commit recorded (all of them
+ * when `complete`, only the legacy set otherwise). `complete` is true when the commit carries the
+ * snapshot-format marker: restoring from it replaces every package part. A commit without the marker
+ * was written by an older ASTra version; restore it with isLegacyTrackedPackageFile.
+ */
+export interface CommitPackage {
+  xml: string;
+  extra: Map<string, Buffer>;
+  complete: boolean;
+}
+
+/** Which parts a restore from this commit may delete and replace. */
+export function trackedPredicateFor(target: { complete: boolean }): (entryName: string) => boolean {
+  return target.complete ? isTrackedPackageFile : isLegacyTrackedPackageFile;
+}
+
+/** Plain-words notice that a restore from an unmarked commit is not exact. */
+export const INCOMPLETE_SNAPSHOT_WARNING =
+  'This commit was recorded by an older ASTra version and predates complete snapshots: parts it never ' +
+  'recorded (for example comment metadata, document properties, custom XML) keep their current content ' +
+  'in the file, so the restore is not exact.';
+
+/**
  * OP-14: undo that also restores media/rels/styles/headers. Performs the same
  * branch rewind + forced checkout as undo(), then reads every tracked working-
  * tree file back so callers can re-inject them into the live OOXML package.
  */
 export async function undoPackage(
   docPath: string
-): Promise<{ xml: string; extra: Map<string, Buffer> }> {
+): Promise<CommitPackage> {
   const repoDir = getRepoDir(docPath);
   // Same stray-`.git` refusal as the init/commit path: undo rewrites refs
   // and checks out the working tree, so a redirect must never be followed.
@@ -1032,10 +1213,10 @@ export async function undoPackage(
   // document.xml, .git internals, or stray working-tree files.
   const extra = new Map<string, Buffer>();
   for (const [rel, buf] of files) {
-    if (rel === 'document.xml') continue;
-    if (isTrackedPackageFile(rel)) extra.set(rel, buf);
+    if (!isRepoPartPath(rel)) continue;
+    extra.set(entryNameFor(rel), buf);
   }
-  return { xml: xmlBuf.toString('utf8'), extra };
+  return { xml: xmlBuf.toString('utf8'), extra, complete: isCompleteSnapshotMarker(files.get(SNAPSHOT_FORMAT_MARKER)) };
 }
 
 export async function undo(docPath: string): Promise<string> {
@@ -1053,7 +1234,7 @@ export async function undo(docPath: string): Promise<string> {
 export async function checkoutCommit(
   docPath: string,
   commitOid: string
-): Promise<{ xml: string; extra: Map<string, Buffer> }> {
+): Promise<CommitPackage> {
   if (typeof commitOid !== 'string' || commitOid.length === 0) {
     throw new Error(`Cannot checkout: commit ${commitOid} not found in history.`);
   }
@@ -1121,9 +1302,7 @@ export async function checkoutCommit(
   }
   const xml = Buffer.from(docBlob.blob).toString('utf8');
 
-  const trackedEntries = [...blobs.entries()].filter(
-    ([rel]) => rel !== 'document.xml' && isTrackedPackageFile(rel)
-  );
+  const trackedEntries = [...blobs.entries()].filter(([rel]) => isRepoPartPath(rel));
   const extraBlobs = await Promise.all(
     trackedEntries.map(async ([rel, blobOid]) => {
       let blobResult: { blob: Uint8Array };
@@ -1135,11 +1314,21 @@ export async function checkoutCommit(
           `Checkout failed: cannot read blob '${rel}' (${blobOid}) at commit ${commitOid}: ${cause}`
         );
       }
-      return [rel, Buffer.from(blobResult.blob)] as const;
+      return [entryNameFor(rel), Buffer.from(blobResult.blob)] as const;
     })
   );
   const extra = new Map<string, Buffer>(extraBlobs);
-  return { xml, extra };
+  let complete = false;
+  const markerOid = blobs.get(SNAPSHOT_FORMAT_MARKER);
+  if (markerOid) {
+    try {
+      const marker = await git.readBlob({ fs, dir: repoDir, oid: markerOid });
+      complete = isCompleteSnapshotMarker(marker.blob);
+    } catch {
+      complete = false;
+    }
+  }
+  return { xml, extra, complete };
 }
 
 /**

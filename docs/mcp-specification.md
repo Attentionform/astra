@@ -556,9 +556,16 @@ Performs a read-only dry-run check of reverting to a previous commit without mod
   "targetOid": "1c0b9a8f7e6d5c4b8f3b2a1c9e8d7c6b5a4f3e2d",
   "stepsBack": 1,
   "changedValuesPositional": false,
+  "snapshotComplete": true,
   "dirty": false
 }
 ```
+
+`snapshotComplete: true` means the target commit recorded every package part, so a real revert restores
+the whole package (comment metadata, document properties and custom XML included) and removes parts the
+target does not have. `snapshotComplete: false` means the commit was recorded by an ASTra version before
+0.4.2, or could not be proven complete: the response then carries `restoreWarning`, and a real revert
+restores only what that commit recorded and leaves every other part as it is in the current file.
 
 `changedValuesPositional: true` means either side held orphan ids (no shared id across the boundary,
 common under duplicate native ids), so before/after pairing is positional, not identity. A dirty
@@ -591,9 +598,12 @@ default revert (no author/reason/message) quotes the target commit message in th
   "path": "/path/to/documents/quarterly_review.docx",
   "revertedToCommit": "1c0b9a8f7e6d5c4b8f3b2a1c9e8d7c6b5a4f3e2d",
   "revision": 4,
-  "dirty": false
+  "dirty": false,
+  "snapshotComplete": true
 }
 ```
+
+`snapshotComplete` and `restoreWarning` mean the same as in `preview_revert`.
 
 **Selective middle-undo recipe (no cherry-pick: restore the older keeper, then re-apply the kept newer edits):**
 1. `preview_revert` the target to confirm what a restore would write.

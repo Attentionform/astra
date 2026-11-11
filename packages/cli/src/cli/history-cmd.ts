@@ -9,7 +9,8 @@ import {
   initAstraRepo,
   BASELINE_MAX_ERRORS,
   buildBaseline,
-  isTrackedPackageFile,
+  INCOMPLETE_SNAPSHOT_WARNING,
+  trackedPredicateFor,
   judgeAgainstBaseline,
   validateDocxBuffer,
 } from '@attentionform/astra-engine';
@@ -113,7 +114,7 @@ async function divergedFiles(file: string, parser: DocxParser, commitOid: string
   const recorded = await checkoutCommit(file, commitOid);
   const snapshot = parser.capturePackageSnapshot();
   const liveXml = snapshot.get('word/document.xml')?.toString('utf8') ?? '';
-  return packageDiff(liveXml, trackedExtras(snapshot), recorded.xml, recorded.extra);
+  return packageDiff(liveXml, trackedExtras(snapshot, trackedPredicateFor(recorded)), recorded.xml, recorded.extra);
 }
 
 function sidecarWarning(commits: SidecarCommits): string | null {
@@ -276,8 +277,11 @@ interface RestoreOptions {
 async function restoreAndCommit(opts: RestoreOptions): Promise<{ commitOid: string; commitMessage: string }> {
   const { cmd, file, parser, prevBytes, target, targetOid, commitMessage } = opts;
   const snapshot = parser.capturePackageSnapshot();
+  // A commit with the snapshot marker recorded every part: all of them are replaced. An older commit
+  // recorded only the legacy set, so parts it never recorded are left as they are.
+  const isTrackedForTarget = trackedPredicateFor(target);
   for (const key of [...snapshot.keys()]) {
-    if (key !== 'word/document.xml' && isTrackedPackageFile(key)) snapshot.delete(key);
+    if (key !== 'word/document.xml' && isTrackedForTarget(key)) snapshot.delete(key);
   }
   for (const [name, data] of target.extra) snapshot.set(name, data);
   snapshot.set('word/document.xml', Buffer.from(target.xml, 'utf8'));
@@ -477,7 +481,7 @@ export async function cmdPreviewRevert(out: GlobalOpts, args: string[]): Promise
     const target = await checkoutCommit(file, targetOid);
     const snapshot = parser.capturePackageSnapshot();
     const liveXml = snapshot.get('word/document.xml')?.toString('utf8') ?? '';
-    const affectedFiles = packageDiff(liveXml, trackedExtras(snapshot), target.xml, target.extra);
+    const affectedFiles = packageDiff(liveXml, trackedExtras(snapshot, trackedPredicateFor(target)), target.xml, target.extra);
     const changed = await divergedFiles(file, parser, commits[0].oid);
     const warning = sidecarWarning(commits);
     const head = commits[0].oid;
@@ -498,6 +502,7 @@ export async function cmdPreviewRevert(out: GlobalOpts, args: string[]): Promise
         : `  working file: clean at head ${shortOid(head)} — a real revert would proceed`,
     );
     if (warning) printStderr(`${CLI_NAME}: warning: ${warning}`);
+    if (!target.complete) printStderr(`${CLI_NAME}: warning: ${INCOMPLETE_SNAPSHOT_WARNING}`);
     printJson(out, {
       ok: true,
       command: 'preview-revert',
@@ -512,6 +517,8 @@ export async function cmdPreviewRevert(out: GlobalOpts, args: string[]): Promise
       diverged: changed.length > 0,
       divergedFiles: changed,
       warning,
+      snapshotComplete: target.complete,
+      ...(target.complete ? {} : { restoreWarning: INCOMPLETE_SNAPSHOT_WARNING }),
     });
     return EXIT_OK;
   } catch (err: unknown) {
@@ -547,6 +554,7 @@ export async function cmdRevert(out: GlobalOpts, args: string[]): Promise<number
       out,
       `REVERT OK ${file}: restored ${shortOid(targetOid)} "${subject}" (steps=${steps}); new commit ${shortOid(result.commitOid)}`,
     );
+    if (!target.complete) printStderr(`${CLI_NAME}: warning: ${INCOMPLETE_SNAPSHOT_WARNING}`);
     printJson(out, {
       ok: true,
       command: 'revert',
@@ -555,6 +563,8 @@ export async function cmdRevert(out: GlobalOpts, args: string[]): Promise<number
       revertedToCommit: targetOid,
       commitOid: result.commitOid,
       commitMessage: result.commitMessage,
+      snapshotComplete: target.complete,
+      ...(target.complete ? {} : { restoreWarning: INCOMPLETE_SNAPSHOT_WARNING }),
     });
     return EXIT_OK;
   } catch (err: unknown) {
@@ -603,6 +613,7 @@ export async function cmdRedo(out: GlobalOpts, args: string[]): Promise<number> 
       out,
       `REDO OK ${file}: re-applied the state replaced by revert ${shortOid(headOid)}; new commit ${shortOid(result.commitOid)}`,
     );
+    if (!target.complete) printStderr(`${CLI_NAME}: warning: ${INCOMPLETE_SNAPSHOT_WARNING}`);
     printJson(out, {
       ok: true,
       command: 'redo',
@@ -610,6 +621,8 @@ export async function cmdRedo(out: GlobalOpts, args: string[]): Promise<number> 
       restoredCommit: targetOid,
       commitOid: result.commitOid,
       commitMessage: result.commitMessage,
+      snapshotComplete: target.complete,
+      ...(target.complete ? {} : { restoreWarning: INCOMPLETE_SNAPSHOT_WARNING }),
     });
     return EXIT_OK;
   } catch (err: unknown) {

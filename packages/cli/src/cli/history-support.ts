@@ -48,11 +48,18 @@ export function hasHistorySidecar(file: string): boolean {
   return sidecarGitState(file) === 'repo';
 }
 
-/** Tracked package files (everything but document.xml) from a live snapshot. */
-export function trackedExtras(snapshot: Map<string, Buffer>): Map<string, Buffer> {
+/**
+ * Tracked package files (everything but document.xml) from a live snapshot. `isTracked` selects the
+ * rule: the default is the complete-snapshot rule; pass trackedPredicateFor(commit) to compare with a
+ * commit recorded by an older ASTra version.
+ */
+export function trackedExtras(
+  snapshot: Map<string, Buffer>,
+  isTracked: (name: string) => boolean = isTrackedPackageFile,
+): Map<string, Buffer> {
   const out = new Map<string, Buffer>();
   for (const [name, buf] of snapshot) {
-    if (name !== 'word/document.xml' && isTrackedPackageFile(name)) out.set(name, buf);
+    if (name !== 'word/document.xml' && isTracked(name)) out.set(name, buf);
   }
   return out;
 }

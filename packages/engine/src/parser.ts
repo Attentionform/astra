@@ -882,8 +882,17 @@ export class DocxParser {
         continue;
       }
       const buffer = Buffer.from(data);
-      if (this.zip.getEntry(entryName)) {
-        this.zip.updateFile(entryName, buffer);
+      const liveEntry = this.zip.getEntry(entryName);
+      if (liveEntry) {
+        // An entry whose bytes already match keeps its stored stream: updateFile would recompress
+        // it, and the new deflate stream can differ from the one the producer of the file wrote.
+        let unchanged = false;
+        try {
+          unchanged = !liveEntry.isDirectory && Buffer.from(liveEntry.getData()).equals(buffer);
+        } catch {
+          unchanged = false;
+        }
+        if (!unchanged) this.zip.updateFile(entryName, buffer);
       } else {
         this.zip.addFile(entryName, buffer);
       }
