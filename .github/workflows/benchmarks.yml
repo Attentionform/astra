@@ -32,7 +32,7 @@ on:
         options: ['', published, none]
         default: ''
       experiments:
-        description: 'Space-separated: e1 e1_oracles e1_control e4 e5 e5_orphans e6 (e6 also runs e7)'
+        description: 'Space-separated: r1 c2 c2_oracles c1 c1_oracles faults e3 e3_followup e1 e1_oracles e1_control e4 e5 e5_orphans e6 (e6 also runs e7)'
         type: string
         default: ''
 
@@ -71,7 +71,7 @@ jobs:
           exps=$(echo "$experiments" | jq -R 'split(" ") | map(select(length > 0))')
           if [ "$baseline" = "published" ]; then variants='["baseline","build"]'; else variants='["build"]'; fi
           matrix=$(jq -nc --argjson exps "$exps" --argjson variants "$variants" '
-            {e1: ["e1","e1_oracles","e1_control"], e4: ["e4"], e5: ["e5","e5_orphans"]} as $g
+            {e1: ["e1","e1_oracles","e1_control"], e2: ["r1"], create: ["c2","c2_oracles","c1","c1_oracles"], e3: ["faults","e3","e3_followup"], e4: ["e4"], e5: ["e5","e5_orphans"]} as $g
             | {include: [ $variants[] as $v | ($g | to_entries[]) as $e
                 | ($e.value | map(select(. as $s | $exps | index($s)))) as $steps
                 | select(($steps | length) > 0)

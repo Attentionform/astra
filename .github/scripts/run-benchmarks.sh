@@ -13,6 +13,14 @@ run() {
 }
 for step in ${EXPERIMENTS}; do
   case "$step" in
+    r1)         run r1_representation node run/r1_representation.mjs ;;
+    c2)         run c2_build node run/c2_build.mjs ;;
+    c2_oracles) run c2_oracles node run/oracle_pass.mjs c2 ;;
+    c1)         run c1_create node run/c1_create.mjs ;;
+    c1_oracles) run c1_oracles node run/oracle_pass.mjs c1 ;;
+    faults)     run faults python3 lib/faults.py corpus/files corpus/faults ;;
+    e3)         run e3_gate node run/e3_gate.mjs ;;
+    e3_followup) run e3_followup node run/e3_followup.mjs ;;
     e1)         run e1_edit_locality env E1_WORKERS=2 node run/e1_edit_locality.mjs ;;
     e1_oracles) run e1_oracles node run/oracle_pass.mjs e1 ;;
     e1_control) run e1_control node run/e1_control.mjs ;;

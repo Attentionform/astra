@@ -18,7 +18,7 @@ environment is the same every time. The workflow is `.github/workflows/benchmark
 1. Edit `benchmarks/bench.config.json`:
    * `target_ref`: branch, tag or commit to build and measure.
    * `baseline`: `published` also runs the package pinned in `benchmarks/package.json`; `none` skips it.
-   * `experiments`: space-separated steps from `e1 e1_oracles e1_control e4 e5 e5_orphans e6` (`e6` also runs E7).
+   * `experiments`: space-separated steps from `r1 c2 c2_oracles c1 c1_oracles faults e3 e3_followup e1 e1_oracles e1_control e4 e5 e5_orphans e6` (`e6` also runs E7).
 2. Commit and push the bench branch. The run starts by itself.
 3. Or dispatch by hand and override any field:
    `gh workflow run benchmarks.yml --ref bench/runner -f target_ref=<ref> -f experiments="e6"`
