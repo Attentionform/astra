@@ -57,6 +57,47 @@ It is powered by its own document engine, which turns a `.docx` into a compact t
   </tr>
 </table>
 
+## Connect your AI assistant
+
+You need [Node.js](https://nodejs.org) 22.19 or newer. ASTra runs on your machine and needs no account, API key or install step. Add this to your assistant's MCP configuration and change the folder to the one that holds your Word files:
+
+```json
+{
+  "mcpServers": {
+    "astra": {
+      "command": "npx",
+      "args": ["-y", "@attentionform/astra-mcp-server", "--allowed-dir", "/absolute/path/to/your/documents"]
+    }
+  }
+}
+```
+
+| Assistant | Where it goes |
+|-----------|---------------|
+| Claude Code | One command, run in your project folder: `claude mcp add astra -- npx -y @attentionform/astra-mcp-server --allowed-dir "$PWD"` |
+| Claude Desktop | `claude_desktop_config.json`: `~/Library/Application Support/Claude/` on macOS, `%APPDATA%\Claude\` on Windows. Use the block above, then restart the app. |
+| Cursor | `.cursor/mcp.json` in your project. Use the block above with `${workspaceFolder}` as the folder. |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json`. Use the block above. |
+| Cline | The MCP settings tab: command `npx`, args `-y`, `@attentionform/astra-mcp-server`, `--allowed-dir`, `${workspaceFolder}`. |
+| Any other MCP client | Command `npx`, args `-y @attentionform/astra-mcp-server --allowed-dir <folder>`, transport `stdio`. |
+
+The server can only read and write inside the folders you name with `--allowed-dir`. Details are in [Quickstart](#quickstart) and the [MCP Specification](docs/mcp-specification.md).
+
+**Check that it works.** Restart your assistant. It should list an `astra` server with 19 tools, starting with `open_document`, `inspect_document` and `execute_batch`. Then ask:
+
+> Create a new report document in my documents folder, add a heading and one paragraph, and save it.
+
+The assistant should open the file, edit it and report that the save was checked and is valid. A new `.astra` folder next to the file holds the git history of each save.
+
+**If it does not connect**
+
+- Use an **absolute** folder path in `--allowed-dir`. The server starts even when the folder is wrong, so a typo only shows up when a tool call fails.
+- Give the assistant **absolute file paths**, or paths inside that folder. A path outside it fails with `E_SANDBOX`. A relative path is resolved from the server's working directory, not yours, and fails with `E_IO` (file not found).
+- Check `node --version`. It must be 22.19 or newer.
+- **Restart the assistant** after you change its configuration. Most of them read it only at start.
+- If the server banner reports an old version, a globally installed copy can shadow `npx`. Run `npm uninstall -g @attentionform/astra-mcp-server`, or pin a version: `@attentionform/astra-mcp-server@0.4.0`.
+- Run it by hand to see its output: `npx -y @attentionform/astra-mcp-server --allowed-dir "$PWD"` prints a line starting `serving 19 tools` when it starts.
+
 ## See it work
 
 Two real edits. Each picture is rendered from the saved file.
@@ -108,28 +149,7 @@ Without them, those calls fail with `E_DEPENDENCY` and write nothing; everything
 
 ### Connect an AI assistant
 
-Add ASTra to your assistant's MCP configuration. For Claude Desktop that is `claude_desktop_config.json` (`~/Library/Application Support/Claude/` on macOS, `%APPDATA%\Claude\` on Windows):
-
-```json
-{
-  "mcpServers": {
-    "astra": {
-      "command": "npx",
-      "args": ["-y", "@attentionform/astra-mcp-server", "--allowed-dir", "/path/to/your/documents"]
-    }
-  }
-}
-```
-
-For Cursor, put the same block in `.cursor/mcp.json` and use `${workspaceFolder}` as the folder. For Claude Code:
-
-```bash
-claude mcp add astra -- npx -y @attentionform/astra-mcp-server --allowed-dir "$PWD"
-```
-
-Restart the client, then ask something like:
-
-> Open `proposal.docx`, tighten the executive summary to three sentences, add a risks table after section 2, and save it.
+Setup for Claude Code, Claude Desktop, Cursor, Windsurf, Cline and other MCP clients is in [Connect your AI assistant](#connect-your-ai-assistant) above.
 
 The folders named with `--allowed-dir` (or `ASTRA_EXTRA_DOC_ROOTS`) are the whole boundary: the server cannot read or write files outside them, and the system temp folder is not added. A symbolic link at or above a named folder is your choice and is followed. A link below a named folder that points outside it is refused.
 

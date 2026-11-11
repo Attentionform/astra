@@ -1,5 +1,6 @@
 {
   "name": "@attentionform/astra-mcp-server",
+  "mcpName": "io.github.Attentionform/astra-mcp-server",
   "version": "0.4.0",
   "description": "Official Model Context Protocol (MCP) server for ASTra document IDE",
   "main": "dist/index.js",

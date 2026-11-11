@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Attentionform/astra-mcp-server",
+  "title": "ASTra",
+  "description": "Lets AI agents read, edit and build Word (.docx) documents. Every save is checked against the Office schema and recorded as a git commit.",
+  "repository": {
+    "url": "https://github.com/Attentionform/astra",
+    "source": "github",
+    "subfolder": "packages/mcp-server"
+  },
+  "websiteUrl": "https://attentionform.com",
+  "version": "0.4.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@attentionform/astra-mcp-server",
+      "version": "0.4.1",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--allowed-dir",
+          "description": "Absolute path of the folder that holds your Word files. The server reads and writes only inside it.",
+          "isRequired": true,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}
