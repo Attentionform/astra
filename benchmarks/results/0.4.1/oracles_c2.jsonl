@@ -1,0 +1,15 @@
+{"file":"<benchmarks>/work/c2/styled-headings.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":5,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/paragraph-format.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":3,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/bullet-list.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":5,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/numbered-list.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":5,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/table-merged.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":2,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/table-styled.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":2,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/inline-image.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":3,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/callout.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":2,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/chart.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":3,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/equation.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":3,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/footnote.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":3,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/header-footer.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":2,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/page-setup-columns.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":3,"O4":true,"O4_pages":1,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/section-break.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":5,"O4":true,"O4_pages":2,"pass_O1_O5":true}
+{"file":"<benchmarks>/work/c2/hyperlink-comment.docx","O1":true,"O2":true,"O3":true,"O5":true,"O5_paragraphs":3,"O4":true,"O4_pages":1,"pass_O1_O5":true}

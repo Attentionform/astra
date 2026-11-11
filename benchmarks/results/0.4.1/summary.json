@@ -1,0 +1,54 @@
+{
+ "release": "0.4.1",
+ "r1": {
+  "n": 40,
+  "median_ratio_standard": 2.8888040120464797,
+  "ci": [
+   2.609467427607341,
+   4.303484361641006
+  ],
+  "p25": 2.513651308035514,
+  "p75": 5.099768771593297,
+  "min": 1.700703304144416,
+  "max": 25.912045340411794
+ },
+ "e1": {
+  "trials": 1092,
+  "batch_ok": 1092,
+  "save_ok": 1092,
+  "analysed": 1047,
+  "nontarget_zero": 1047,
+  "text_preserved": 1047,
+  "intended_ok": 1047
+ },
+ "oracles_e1": {
+  "n": 1132,
+  "pass": 1132
+ },
+ "oracles_c1": {
+  "n": 26,
+  "pass": 26
+ },
+ "oracles_c2": {
+  "n": 15,
+  "pass": 15
+ },
+ "c2": {
+  "recipes": 15,
+  "complete": 15
+ },
+ "c1": {
+  "trials": 26,
+  "saved": 26,
+  "blocks_expected": 6602,
+  "blocks_found": 6602
+ },
+ "e3": {
+  "faults": 158,
+  "caught": 125,
+  "repaired": 14,
+  "not_flagged": 19,
+  "controls": 58,
+  "false_alarms": 0
+ }
+}

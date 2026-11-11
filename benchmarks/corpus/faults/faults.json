@@ -1,0 +1,2207 @@
+{
+ "faults": [
+  {
+   "id": "A01",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: jc before pStyle",
+   "rule": "CT_PPr sequence order",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A01.docx"
+  },
+  {
+   "id": "A02",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: spacing before keepNext",
+   "rule": "CT_PPr sequence order",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A02.docx"
+  },
+  {
+   "id": "A03",
+   "category": "order",
+   "kind": "schema",
+   "title": "tblPr: tblW before tblStyle",
+   "rule": "CT_TblPr sequence order",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A03.docx"
+  },
+  {
+   "id": "A04",
+   "category": "order",
+   "kind": "schema",
+   "title": "tcPr: shd before tcW",
+   "rule": "CT_TcPr sequence order",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A04.docx"
+  },
+  {
+   "id": "A05",
+   "category": "order",
+   "kind": "schema",
+   "title": "sectPr: pgMar before pgSz",
+   "rule": "CT_SectPr sequence order",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A05.docx"
+  },
+  {
+   "id": "A06",
+   "category": "order",
+   "kind": "schema",
+   "title": "body: sectPr is first child",
+   "rule": "CT_Body: sectPr is last",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A06.docx"
+  },
+  {
+   "id": "A07",
+   "category": "order",
+   "kind": "schema",
+   "title": "p: pPr after a run",
+   "rule": "CT_P: pPr first",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A07.docx"
+  },
+  {
+   "id": "A08",
+   "category": "order",
+   "kind": "schema",
+   "title": "tbl: tblGrid before tblPr",
+   "rule": "CT_Tbl sequence order",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A08.docx"
+  },
+  {
+   "id": "A09",
+   "category": "order",
+   "kind": "schema",
+   "title": "tr: tc before trPr",
+   "rule": "CT_Row order",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A09.docx"
+  },
+  {
+   "id": "A10",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: ind before spacing",
+   "rule": "CT_PPr sequence order",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__A10.docx"
+  },
+  {
+   "id": "B01",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "jc val=middle",
+   "rule": "ST_Jc enumeration",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B01.docx"
+  },
+  {
+   "id": "B02",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "sz val=abc",
+   "rule": "ST_HpsMeasure numeric",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B02.docx"
+  },
+  {
+   "id": "B03",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "szCs val=twelve",
+   "rule": "ST_HpsMeasure numeric",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B03.docx"
+  },
+  {
+   "id": "B04",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "color val=GGGGGG",
+   "rule": "ST_HexColor pattern",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B04.docx"
+  },
+  {
+   "id": "B05",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "shd fill=notahex",
+   "rule": "ST_HexColor pattern",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B05.docx"
+  },
+  {
+   "id": "B06",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "u val=wavy2",
+   "rule": "ST_Underline enumeration",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B06.docx"
+  },
+  {
+   "id": "B07",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "spacing line=abc",
+   "rule": "ST_SignedTwipsMeasure numeric",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B07.docx"
+  },
+  {
+   "id": "B08",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "ind left=1e5x",
+   "rule": "ST_SignedTwipsMeasure numeric",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B08.docx"
+  },
+  {
+   "id": "B09",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "tblW type=fraction",
+   "rule": "ST_TblWidth enumeration",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B09.docx"
+  },
+  {
+   "id": "B10",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "highlight val=purple",
+   "rule": "ST_HighlightColor enumeration",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__B10.docx"
+  },
+  {
+   "id": "C01",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in p",
+   "rule": "CT_P content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C01.docx"
+  },
+  {
+   "id": "C02",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in rPr",
+   "rule": "CT_RPr content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C02.docx"
+  },
+  {
+   "id": "C03",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown attribute on p",
+   "rule": "CT_P attributes",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C03.docx"
+  },
+  {
+   "id": "C04",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in body",
+   "rule": "CT_Body content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C04.docx"
+  },
+  {
+   "id": "C05",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in tc",
+   "rule": "CT_Tc content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C05.docx"
+  },
+  {
+   "id": "C06",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "t xml:space=bad",
+   "rule": "xml:space enumeration",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C06.docx"
+  },
+  {
+   "id": "C07",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "foreign-namespace element in p",
+   "rule": "CT_P content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C07.docx"
+  },
+  {
+   "id": "C08",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of pPr",
+   "rule": "CT_PPr content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C08.docx"
+  },
+  {
+   "id": "C09",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of tbl",
+   "rule": "CT_Tbl content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C09.docx"
+  },
+  {
+   "id": "C10",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of r",
+   "rule": "CT_R content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__C10.docx"
+  },
+  {
+   "id": "D01",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tc without any paragraph",
+   "rule": "CT_Tc requires a block-level element",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D01.docx"
+  },
+  {
+   "id": "D02",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tbl without tblGrid",
+   "rule": "CT_Tbl requires tblGrid",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D02.docx"
+  },
+  {
+   "id": "D03",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tbl without rows",
+   "rule": "CT_Tbl requires at least one tr",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D03.docx"
+  },
+  {
+   "id": "D04",
+   "category": "missing",
+   "kind": "schema",
+   "title": "bookmarkStart without id",
+   "rule": "CT_BookmarkStart requires w:id",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D04.docx"
+  },
+  {
+   "id": "D05",
+   "category": "missing",
+   "kind": "schema",
+   "title": "bookmarkStart without name",
+   "rule": "CT_Bookmark requires w:name",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D05.docx"
+  },
+  {
+   "id": "D06",
+   "category": "missing",
+   "kind": "schema",
+   "title": "commentReference without id",
+   "rule": "CT_Markup requires w:id",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D06.docx"
+  },
+  {
+   "id": "D07",
+   "category": "missing",
+   "kind": "schema",
+   "title": "ins without author",
+   "rule": "CT_TrackChange requires w:author",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D07.docx"
+  },
+  {
+   "id": "D08",
+   "category": "missing",
+   "kind": "schema",
+   "title": "fldChar without type",
+   "rule": "CT_FldChar requires fldCharType",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D08.docx"
+  },
+  {
+   "id": "D09",
+   "category": "missing",
+   "kind": "schema",
+   "title": "del without id",
+   "rule": "CT_TrackChange requires w:id",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D09.docx"
+  },
+  {
+   "id": "D10",
+   "category": "missing",
+   "kind": "schema",
+   "title": "drawing without inline or anchor",
+   "rule": "CT_Drawing content model",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__D10.docx"
+  },
+  {
+   "id": "E01",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "docPr id=abc",
+   "rule": "ST_DrawingElementId unsignedInt",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E01.docx"
+  },
+  {
+   "id": "E02",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "duplicate docPr ids",
+   "rule": "unique drawing object ids",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E02.docx"
+  },
+  {
+   "id": "E03",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "duplicate bookmark ids",
+   "rule": "unique bookmark ids",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E03.docx"
+  },
+  {
+   "id": "E04",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "bookmarkEnd without start",
+   "rule": "bookmark pairing",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E04.docx"
+  },
+  {
+   "id": "E05",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "commentRangeStart refers to no comment",
+   "rule": "comment id exists in comments part",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E05.docx"
+  },
+  {
+   "id": "E06",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "numId refers to missing num",
+   "rule": "numbering reference",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E06.docx"
+  },
+  {
+   "id": "E07",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "pStyle refers to missing style",
+   "rule": "style reference",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E07.docx"
+  },
+  {
+   "id": "E08",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "footnoteReference to missing footnote",
+   "rule": "footnote id exists",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E08.docx"
+  },
+  {
+   "id": "E09",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "ins id not a number",
+   "rule": "ST_DecimalNumber",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E09.docx"
+  },
+  {
+   "id": "E10",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "bookmarkStart id not a number",
+   "rule": "ST_DecimalNumber",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__E10.docx"
+  },
+  {
+   "id": "F01",
+   "category": "package",
+   "kind": "package",
+   "title": "relationship target part deleted",
+   "rule": "OPC relationship target exists",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F01.docx"
+  },
+  {
+   "id": "F02",
+   "category": "package",
+   "kind": "package",
+   "title": "r:embed to missing relationship",
+   "rule": "relationship id exists",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F02.docx"
+  },
+  {
+   "id": "F03",
+   "category": "package",
+   "kind": "package",
+   "title": "styles override removed from content types",
+   "rule": "content type for every part",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F03.docx"
+  },
+  {
+   "id": "F04",
+   "category": "package",
+   "kind": "package",
+   "title": "styles part deleted, relationship kept",
+   "rule": "OPC relationship target exists",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F04.docx"
+  },
+  {
+   "id": "F05",
+   "category": "package",
+   "kind": "package",
+   "title": "duplicate relationship id",
+   "rule": "unique relationship ids",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F05.docx"
+  },
+  {
+   "id": "F06",
+   "category": "package",
+   "kind": "package",
+   "title": "hyperlink r:id missing from relationships",
+   "rule": "relationship id exists",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F06.docx"
+  },
+  {
+   "id": "F07",
+   "category": "package",
+   "kind": "package",
+   "title": "header part deleted, relationship kept",
+   "rule": "OPC relationship target exists",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F07.docx"
+  },
+  {
+   "id": "F08",
+   "category": "package",
+   "kind": "package",
+   "title": "relationship of unknown type with bad target",
+   "rule": "relationship integrity",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F08.docx"
+  },
+  {
+   "id": "F09",
+   "category": "package",
+   "kind": "wellformed",
+   "title": "document.xml truncated (unclosed tag)",
+   "rule": "XML well-formedness",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F09.docx"
+  },
+  {
+   "id": "F10",
+   "category": "package",
+   "kind": "package",
+   "title": "document part has a wrong content type",
+   "rule": "content type of main part",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__F10.docx"
+  },
+  {
+   "id": "A01",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: jc before pStyle",
+   "rule": "CT_PPr sequence order",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A01.docx"
+  },
+  {
+   "id": "A02",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: spacing before keepNext",
+   "rule": "CT_PPr sequence order",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A02.docx"
+  },
+  {
+   "id": "A03",
+   "category": "order",
+   "kind": "schema",
+   "title": "tblPr: tblW before tblStyle",
+   "rule": "CT_TblPr sequence order",
+   "base": "lo-mixed-010p",
+   "applied": false
+  },
+  {
+   "id": "A04",
+   "category": "order",
+   "kind": "schema",
+   "title": "tcPr: shd before tcW",
+   "rule": "CT_TcPr sequence order",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A04.docx"
+  },
+  {
+   "id": "A05",
+   "category": "order",
+   "kind": "schema",
+   "title": "sectPr: pgMar before pgSz",
+   "rule": "CT_SectPr sequence order",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A05.docx"
+  },
+  {
+   "id": "A06",
+   "category": "order",
+   "kind": "schema",
+   "title": "body: sectPr is first child",
+   "rule": "CT_Body: sectPr is last",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A06.docx"
+  },
+  {
+   "id": "A07",
+   "category": "order",
+   "kind": "schema",
+   "title": "p: pPr after a run",
+   "rule": "CT_P: pPr first",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A07.docx"
+  },
+  {
+   "id": "A08",
+   "category": "order",
+   "kind": "schema",
+   "title": "tbl: tblGrid before tblPr",
+   "rule": "CT_Tbl sequence order",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A08.docx"
+  },
+  {
+   "id": "A09",
+   "category": "order",
+   "kind": "schema",
+   "title": "tr: tc before trPr",
+   "rule": "CT_Row order",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A09.docx"
+  },
+  {
+   "id": "A10",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: ind before spacing",
+   "rule": "CT_PPr sequence order",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__A10.docx"
+  },
+  {
+   "id": "B01",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "jc val=middle",
+   "rule": "ST_Jc enumeration",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B01.docx"
+  },
+  {
+   "id": "B02",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "sz val=abc",
+   "rule": "ST_HpsMeasure numeric",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B02.docx"
+  },
+  {
+   "id": "B03",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "szCs val=twelve",
+   "rule": "ST_HpsMeasure numeric",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B03.docx"
+  },
+  {
+   "id": "B04",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "color val=GGGGGG",
+   "rule": "ST_HexColor pattern",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B04.docx"
+  },
+  {
+   "id": "B05",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "shd fill=notahex",
+   "rule": "ST_HexColor pattern",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B05.docx"
+  },
+  {
+   "id": "B06",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "u val=wavy2",
+   "rule": "ST_Underline enumeration",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B06.docx"
+  },
+  {
+   "id": "B07",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "spacing line=abc",
+   "rule": "ST_SignedTwipsMeasure numeric",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B07.docx"
+  },
+  {
+   "id": "B08",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "ind left=1e5x",
+   "rule": "ST_SignedTwipsMeasure numeric",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B08.docx"
+  },
+  {
+   "id": "B09",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "tblW type=fraction",
+   "rule": "ST_TblWidth enumeration",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B09.docx"
+  },
+  {
+   "id": "B10",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "highlight val=purple",
+   "rule": "ST_HighlightColor enumeration",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__B10.docx"
+  },
+  {
+   "id": "C01",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in p",
+   "rule": "CT_P content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C01.docx"
+  },
+  {
+   "id": "C02",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in rPr",
+   "rule": "CT_RPr content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C02.docx"
+  },
+  {
+   "id": "C03",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown attribute on p",
+   "rule": "CT_P attributes",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C03.docx"
+  },
+  {
+   "id": "C04",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in body",
+   "rule": "CT_Body content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C04.docx"
+  },
+  {
+   "id": "C05",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in tc",
+   "rule": "CT_Tc content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C05.docx"
+  },
+  {
+   "id": "C06",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "t xml:space=bad",
+   "rule": "xml:space enumeration",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C06.docx"
+  },
+  {
+   "id": "C07",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "foreign-namespace element in p",
+   "rule": "CT_P content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C07.docx"
+  },
+  {
+   "id": "C08",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of pPr",
+   "rule": "CT_PPr content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C08.docx"
+  },
+  {
+   "id": "C09",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of tbl",
+   "rule": "CT_Tbl content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C09.docx"
+  },
+  {
+   "id": "C10",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of r",
+   "rule": "CT_R content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__C10.docx"
+  },
+  {
+   "id": "D01",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tc without any paragraph",
+   "rule": "CT_Tc requires a block-level element",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D01.docx"
+  },
+  {
+   "id": "D02",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tbl without tblGrid",
+   "rule": "CT_Tbl requires tblGrid",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D02.docx"
+  },
+  {
+   "id": "D03",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tbl without rows",
+   "rule": "CT_Tbl requires at least one tr",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D03.docx"
+  },
+  {
+   "id": "D04",
+   "category": "missing",
+   "kind": "schema",
+   "title": "bookmarkStart without id",
+   "rule": "CT_BookmarkStart requires w:id",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D04.docx"
+  },
+  {
+   "id": "D05",
+   "category": "missing",
+   "kind": "schema",
+   "title": "bookmarkStart without name",
+   "rule": "CT_Bookmark requires w:name",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D05.docx"
+  },
+  {
+   "id": "D06",
+   "category": "missing",
+   "kind": "schema",
+   "title": "commentReference without id",
+   "rule": "CT_Markup requires w:id",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D06.docx"
+  },
+  {
+   "id": "D07",
+   "category": "missing",
+   "kind": "schema",
+   "title": "ins without author",
+   "rule": "CT_TrackChange requires w:author",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D07.docx"
+  },
+  {
+   "id": "D08",
+   "category": "missing",
+   "kind": "schema",
+   "title": "fldChar without type",
+   "rule": "CT_FldChar requires fldCharType",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D08.docx"
+  },
+  {
+   "id": "D09",
+   "category": "missing",
+   "kind": "schema",
+   "title": "del without id",
+   "rule": "CT_TrackChange requires w:id",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D09.docx"
+  },
+  {
+   "id": "D10",
+   "category": "missing",
+   "kind": "schema",
+   "title": "drawing without inline or anchor",
+   "rule": "CT_Drawing content model",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__D10.docx"
+  },
+  {
+   "id": "E01",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "docPr id=abc",
+   "rule": "ST_DrawingElementId unsignedInt",
+   "base": "lo-mixed-010p",
+   "applied": false
+  },
+  {
+   "id": "E02",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "duplicate docPr ids",
+   "rule": "unique drawing object ids",
+   "base": "lo-mixed-010p",
+   "applied": false
+  },
+  {
+   "id": "E03",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "duplicate bookmark ids",
+   "rule": "unique bookmark ids",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__E03.docx"
+  },
+  {
+   "id": "E04",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "bookmarkEnd without start",
+   "rule": "bookmark pairing",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__E04.docx"
+  },
+  {
+   "id": "E05",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "commentRangeStart refers to no comment",
+   "rule": "comment id exists in comments part",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__E05.docx"
+  },
+  {
+   "id": "E06",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "numId refers to missing num",
+   "rule": "numbering reference",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__E06.docx"
+  },
+  {
+   "id": "E07",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "pStyle refers to missing style",
+   "rule": "style reference",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__E07.docx"
+  },
+  {
+   "id": "E08",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "footnoteReference to missing footnote",
+   "rule": "footnote id exists",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__E08.docx"
+  },
+  {
+   "id": "E09",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "ins id not a number",
+   "rule": "ST_DecimalNumber",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__E09.docx"
+  },
+  {
+   "id": "E10",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "bookmarkStart id not a number",
+   "rule": "ST_DecimalNumber",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__E10.docx"
+  },
+  {
+   "id": "F01",
+   "category": "package",
+   "kind": "package",
+   "title": "relationship target part deleted",
+   "rule": "OPC relationship target exists",
+   "base": "lo-mixed-010p",
+   "applied": false
+  },
+  {
+   "id": "F02",
+   "category": "package",
+   "kind": "package",
+   "title": "r:embed to missing relationship",
+   "rule": "relationship id exists",
+   "base": "lo-mixed-010p",
+   "applied": false
+  },
+  {
+   "id": "F03",
+   "category": "package",
+   "kind": "package",
+   "title": "styles override removed from content types",
+   "rule": "content type for every part",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__F03.docx"
+  },
+  {
+   "id": "F04",
+   "category": "package",
+   "kind": "package",
+   "title": "styles part deleted, relationship kept",
+   "rule": "OPC relationship target exists",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__F04.docx"
+  },
+  {
+   "id": "F05",
+   "category": "package",
+   "kind": "package",
+   "title": "duplicate relationship id",
+   "rule": "unique relationship ids",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__F05.docx"
+  },
+  {
+   "id": "F06",
+   "category": "package",
+   "kind": "package",
+   "title": "hyperlink r:id missing from relationships",
+   "rule": "relationship id exists",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__F06.docx"
+  },
+  {
+   "id": "F07",
+   "category": "package",
+   "kind": "package",
+   "title": "header part deleted, relationship kept",
+   "rule": "OPC relationship target exists",
+   "base": "lo-mixed-010p",
+   "applied": false
+  },
+  {
+   "id": "F08",
+   "category": "package",
+   "kind": "package",
+   "title": "relationship of unknown type with bad target",
+   "rule": "relationship integrity",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__F08.docx"
+  },
+  {
+   "id": "F09",
+   "category": "package",
+   "kind": "wellformed",
+   "title": "document.xml truncated (unclosed tag)",
+   "rule": "XML well-formedness",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__F09.docx"
+  },
+  {
+   "id": "F10",
+   "category": "package",
+   "kind": "package",
+   "title": "document part has a wrong content type",
+   "rule": "content type of main part",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__F10.docx"
+  },
+  {
+   "id": "A01",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: jc before pStyle",
+   "rule": "CT_PPr sequence order",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__A01.docx"
+  },
+  {
+   "id": "A02",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: spacing before keepNext",
+   "rule": "CT_PPr sequence order",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__A02.docx"
+  },
+  {
+   "id": "A03",
+   "category": "order",
+   "kind": "schema",
+   "title": "tblPr: tblW before tblStyle",
+   "rule": "CT_TblPr sequence order",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "A04",
+   "category": "order",
+   "kind": "schema",
+   "title": "tcPr: shd before tcW",
+   "rule": "CT_TcPr sequence order",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "A05",
+   "category": "order",
+   "kind": "schema",
+   "title": "sectPr: pgMar before pgSz",
+   "rule": "CT_SectPr sequence order",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__A05.docx"
+  },
+  {
+   "id": "A06",
+   "category": "order",
+   "kind": "schema",
+   "title": "body: sectPr is first child",
+   "rule": "CT_Body: sectPr is last",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__A06.docx"
+  },
+  {
+   "id": "A07",
+   "category": "order",
+   "kind": "schema",
+   "title": "p: pPr after a run",
+   "rule": "CT_P: pPr first",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__A07.docx"
+  },
+  {
+   "id": "A08",
+   "category": "order",
+   "kind": "schema",
+   "title": "tbl: tblGrid before tblPr",
+   "rule": "CT_Tbl sequence order",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "A09",
+   "category": "order",
+   "kind": "schema",
+   "title": "tr: tc before trPr",
+   "rule": "CT_Row order",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "A10",
+   "category": "order",
+   "kind": "schema",
+   "title": "pPr: ind before spacing",
+   "rule": "CT_PPr sequence order",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__A10.docx"
+  },
+  {
+   "id": "B01",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "jc val=middle",
+   "rule": "ST_Jc enumeration",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__B01.docx"
+  },
+  {
+   "id": "B02",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "sz val=abc",
+   "rule": "ST_HpsMeasure numeric",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__B02.docx"
+  },
+  {
+   "id": "B03",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "szCs val=twelve",
+   "rule": "ST_HpsMeasure numeric",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__B03.docx"
+  },
+  {
+   "id": "B04",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "color val=GGGGGG",
+   "rule": "ST_HexColor pattern",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__B04.docx"
+  },
+  {
+   "id": "B05",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "shd fill=notahex",
+   "rule": "ST_HexColor pattern",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "B06",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "u val=wavy2",
+   "rule": "ST_Underline enumeration",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__B06.docx"
+  },
+  {
+   "id": "B07",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "spacing line=abc",
+   "rule": "ST_SignedTwipsMeasure numeric",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__B07.docx"
+  },
+  {
+   "id": "B08",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "ind left=1e5x",
+   "rule": "ST_SignedTwipsMeasure numeric",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__B08.docx"
+  },
+  {
+   "id": "B09",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "tblW type=fraction",
+   "rule": "ST_TblWidth enumeration",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "B10",
+   "category": "attribute",
+   "kind": "schema",
+   "title": "highlight val=purple",
+   "rule": "ST_HighlightColor enumeration",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__B10.docx"
+  },
+  {
+   "id": "C01",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in p",
+   "rule": "CT_P content model",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__C01.docx"
+  },
+  {
+   "id": "C02",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in rPr",
+   "rule": "CT_RPr content model",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__C02.docx"
+  },
+  {
+   "id": "C03",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown attribute on p",
+   "rule": "CT_P attributes",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__C03.docx"
+  },
+  {
+   "id": "C04",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in body",
+   "rule": "CT_Body content model",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__C04.docx"
+  },
+  {
+   "id": "C05",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown element in tc",
+   "rule": "CT_Tc content model",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "C06",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "t xml:space=bad",
+   "rule": "xml:space enumeration",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__C06.docx"
+  },
+  {
+   "id": "C07",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "foreign-namespace element in p",
+   "rule": "CT_P content model",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__C07.docx"
+  },
+  {
+   "id": "C08",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of pPr",
+   "rule": "CT_PPr content model",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__C08.docx"
+  },
+  {
+   "id": "C09",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of tbl",
+   "rule": "CT_Tbl content model",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "C10",
+   "category": "unknown",
+   "kind": "schema",
+   "title": "unknown child of r",
+   "rule": "CT_R content model",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__C10.docx"
+  },
+  {
+   "id": "D01",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tc without any paragraph",
+   "rule": "CT_Tc requires a block-level element",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "D02",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tbl without tblGrid",
+   "rule": "CT_Tbl requires tblGrid",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "D03",
+   "category": "missing",
+   "kind": "schema",
+   "title": "tbl without rows",
+   "rule": "CT_Tbl requires at least one tr",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "D04",
+   "category": "missing",
+   "kind": "schema",
+   "title": "bookmarkStart without id",
+   "rule": "CT_BookmarkStart requires w:id",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__D04.docx"
+  },
+  {
+   "id": "D05",
+   "category": "missing",
+   "kind": "schema",
+   "title": "bookmarkStart without name",
+   "rule": "CT_Bookmark requires w:name",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__D05.docx"
+  },
+  {
+   "id": "D06",
+   "category": "missing",
+   "kind": "schema",
+   "title": "commentReference without id",
+   "rule": "CT_Markup requires w:id",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__D06.docx"
+  },
+  {
+   "id": "D07",
+   "category": "missing",
+   "kind": "schema",
+   "title": "ins without author",
+   "rule": "CT_TrackChange requires w:author",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__D07.docx"
+  },
+  {
+   "id": "D08",
+   "category": "missing",
+   "kind": "schema",
+   "title": "fldChar without type",
+   "rule": "CT_FldChar requires fldCharType",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__D08.docx"
+  },
+  {
+   "id": "D09",
+   "category": "missing",
+   "kind": "schema",
+   "title": "del without id",
+   "rule": "CT_TrackChange requires w:id",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__D09.docx"
+  },
+  {
+   "id": "D10",
+   "category": "missing",
+   "kind": "schema",
+   "title": "drawing without inline or anchor",
+   "rule": "CT_Drawing content model",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__D10.docx"
+  },
+  {
+   "id": "E01",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "docPr id=abc",
+   "rule": "ST_DrawingElementId unsignedInt",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "E02",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "duplicate docPr ids",
+   "rule": "unique drawing object ids",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "E03",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "duplicate bookmark ids",
+   "rule": "unique bookmark ids",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__E03.docx"
+  },
+  {
+   "id": "E04",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "bookmarkEnd without start",
+   "rule": "bookmark pairing",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__E04.docx"
+  },
+  {
+   "id": "E05",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "commentRangeStart refers to no comment",
+   "rule": "comment id exists in comments part",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__E05.docx"
+  },
+  {
+   "id": "E06",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "numId refers to missing num",
+   "rule": "numbering reference",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__E06.docx"
+  },
+  {
+   "id": "E07",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "pStyle refers to missing style",
+   "rule": "style reference",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__E07.docx"
+  },
+  {
+   "id": "E08",
+   "category": "identifier",
+   "kind": "semantic",
+   "title": "footnoteReference to missing footnote",
+   "rule": "footnote id exists",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__E08.docx"
+  },
+  {
+   "id": "E09",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "ins id not a number",
+   "rule": "ST_DecimalNumber",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__E09.docx"
+  },
+  {
+   "id": "E10",
+   "category": "identifier",
+   "kind": "schema",
+   "title": "bookmarkStart id not a number",
+   "rule": "ST_DecimalNumber",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__E10.docx"
+  },
+  {
+   "id": "F01",
+   "category": "package",
+   "kind": "package",
+   "title": "relationship target part deleted",
+   "rule": "OPC relationship target exists",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "F02",
+   "category": "package",
+   "kind": "package",
+   "title": "r:embed to missing relationship",
+   "rule": "relationship id exists",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "F03",
+   "category": "package",
+   "kind": "package",
+   "title": "styles override removed from content types",
+   "rule": "content type for every part",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__F03.docx"
+  },
+  {
+   "id": "F04",
+   "category": "package",
+   "kind": "package",
+   "title": "styles part deleted, relationship kept",
+   "rule": "OPC relationship target exists",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__F04.docx"
+  },
+  {
+   "id": "F05",
+   "category": "package",
+   "kind": "package",
+   "title": "duplicate relationship id",
+   "rule": "unique relationship ids",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__F05.docx"
+  },
+  {
+   "id": "F06",
+   "category": "package",
+   "kind": "package",
+   "title": "hyperlink r:id missing from relationships",
+   "rule": "relationship id exists",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__F06.docx"
+  },
+  {
+   "id": "F07",
+   "category": "package",
+   "kind": "package",
+   "title": "header part deleted, relationship kept",
+   "rule": "OPC relationship target exists",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "F08",
+   "category": "package",
+   "kind": "package",
+   "title": "relationship of unknown type with bad target",
+   "rule": "relationship integrity",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__F08.docx"
+  },
+  {
+   "id": "F09",
+   "category": "package",
+   "kind": "wellformed",
+   "title": "document.xml truncated (unclosed tag)",
+   "rule": "XML well-formedness",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__F09.docx"
+  },
+  {
+   "id": "F10",
+   "category": "package",
+   "kind": "package",
+   "title": "document part has a wrong content type",
+   "rule": "content type of main part",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__F10.docx"
+  }
+ ],
+ "controls": [
+  {
+   "id": "V01",
+   "title": "reword the text of one run",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V01.docx"
+  },
+  {
+   "id": "V02",
+   "title": "add valid bold to a run",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V02.docx"
+  },
+  {
+   "id": "V03",
+   "title": "add valid italic to a run",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V03.docx"
+  },
+  {
+   "id": "V04",
+   "title": "add valid color to a run",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V04.docx"
+  },
+  {
+   "id": "V05",
+   "title": "add valid size to a run",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V05.docx"
+  },
+  {
+   "id": "V06",
+   "title": "add valid highlight",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V06.docx"
+  },
+  {
+   "id": "V07",
+   "title": "valid jc on paragraph",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V07.docx"
+  },
+  {
+   "id": "V08",
+   "title": "add a valid empty paragraph at the end of body before sectPr",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V08.docx"
+  },
+  {
+   "id": "V09",
+   "title": "add a valid hyperlink-free run",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V09.docx"
+  },
+  {
+   "id": "V10",
+   "title": "add a valid bookmark pair",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V10.docx"
+  },
+  {
+   "id": "V11",
+   "title": "valid spacing",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V11.docx"
+  },
+  {
+   "id": "V12",
+   "title": "valid underline single",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V12.docx"
+  },
+  {
+   "id": "V13",
+   "title": "valid strike",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V13.docx"
+  },
+  {
+   "id": "V14",
+   "title": "reword a table cell",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V14.docx"
+  },
+  {
+   "id": "V15",
+   "title": "duplicate a paragraph (same content)",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V15.docx"
+  },
+  {
+   "id": "V16",
+   "title": "delete one body paragraph",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V16.docx"
+  },
+  {
+   "id": "V17",
+   "title": "valid small caps",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V17.docx"
+  },
+  {
+   "id": "V18",
+   "title": "valid vertAlign superscript",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V18.docx"
+  },
+  {
+   "id": "V19",
+   "title": "valid tracked insertion with all required attributes",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V19.docx"
+  },
+  {
+   "id": "V20",
+   "title": "valid page margin tweak",
+   "base": "pd-mixed-010p",
+   "applied": true,
+   "file": "pd-mixed-010p__V20.docx"
+  },
+  {
+   "id": "V01",
+   "title": "reword the text of one run",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V01.docx"
+  },
+  {
+   "id": "V02",
+   "title": "add valid bold to a run",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V02.docx"
+  },
+  {
+   "id": "V03",
+   "title": "add valid italic to a run",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V03.docx"
+  },
+  {
+   "id": "V04",
+   "title": "add valid color to a run",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V04.docx"
+  },
+  {
+   "id": "V05",
+   "title": "add valid size to a run",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V05.docx"
+  },
+  {
+   "id": "V06",
+   "title": "add valid highlight",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V06.docx"
+  },
+  {
+   "id": "V07",
+   "title": "valid jc on paragraph",
+   "base": "lo-mixed-010p",
+   "applied": false
+  },
+  {
+   "id": "V08",
+   "title": "add a valid empty paragraph at the end of body before sectPr",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V08.docx"
+  },
+  {
+   "id": "V09",
+   "title": "add a valid hyperlink-free run",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V09.docx"
+  },
+  {
+   "id": "V10",
+   "title": "add a valid bookmark pair",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V10.docx"
+  },
+  {
+   "id": "V11",
+   "title": "valid spacing",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V11.docx"
+  },
+  {
+   "id": "V12",
+   "title": "valid underline single",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V12.docx"
+  },
+  {
+   "id": "V13",
+   "title": "valid strike",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V13.docx"
+  },
+  {
+   "id": "V14",
+   "title": "reword a table cell",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V14.docx"
+  },
+  {
+   "id": "V15",
+   "title": "duplicate a paragraph (same content)",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V15.docx"
+  },
+  {
+   "id": "V16",
+   "title": "delete one body paragraph",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V16.docx"
+  },
+  {
+   "id": "V17",
+   "title": "valid small caps",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V17.docx"
+  },
+  {
+   "id": "V18",
+   "title": "valid vertAlign superscript",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V18.docx"
+  },
+  {
+   "id": "V19",
+   "title": "valid tracked insertion with all required attributes",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V19.docx"
+  },
+  {
+   "id": "V20",
+   "title": "valid page margin tweak",
+   "base": "lo-mixed-010p",
+   "applied": true,
+   "file": "lo-mixed-010p__V20.docx"
+  },
+  {
+   "id": "V01",
+   "title": "reword the text of one run",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V01.docx"
+  },
+  {
+   "id": "V02",
+   "title": "add valid bold to a run",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V02.docx"
+  },
+  {
+   "id": "V03",
+   "title": "add valid italic to a run",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V03.docx"
+  },
+  {
+   "id": "V04",
+   "title": "add valid color to a run",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V04.docx"
+  },
+  {
+   "id": "V05",
+   "title": "add valid size to a run",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V05.docx"
+  },
+  {
+   "id": "V06",
+   "title": "add valid highlight",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V06.docx"
+  },
+  {
+   "id": "V07",
+   "title": "valid jc on paragraph",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V07.docx"
+  },
+  {
+   "id": "V08",
+   "title": "add a valid empty paragraph at the end of body before sectPr",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V08.docx"
+  },
+  {
+   "id": "V09",
+   "title": "add a valid hyperlink-free run",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V09.docx"
+  },
+  {
+   "id": "V10",
+   "title": "add a valid bookmark pair",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V10.docx"
+  },
+  {
+   "id": "V11",
+   "title": "valid spacing",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V11.docx"
+  },
+  {
+   "id": "V12",
+   "title": "valid underline single",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V12.docx"
+  },
+  {
+   "id": "V13",
+   "title": "valid strike",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V13.docx"
+  },
+  {
+   "id": "V14",
+   "title": "reword a table cell",
+   "base": "pd-comments-005p",
+   "applied": false
+  },
+  {
+   "id": "V15",
+   "title": "duplicate a paragraph (same content)",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V15.docx"
+  },
+  {
+   "id": "V16",
+   "title": "delete one body paragraph",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V16.docx"
+  },
+  {
+   "id": "V17",
+   "title": "valid small caps",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V17.docx"
+  },
+  {
+   "id": "V18",
+   "title": "valid vertAlign superscript",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V18.docx"
+  },
+  {
+   "id": "V19",
+   "title": "valid tracked insertion with all required attributes",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V19.docx"
+  },
+  {
+   "id": "V20",
+   "title": "valid page margin tweak",
+   "base": "pd-comments-005p",
+   "applied": true,
+   "file": "pd-comments-005p__V20.docx"
+  }
+ ],
+ "bases": [
+  "pd-mixed-010p",
+  "lo-mixed-010p",
+  "pd-comments-005p"
+ ]
+}

@@ -1,0 +1,176 @@
+name: Benchmarks
+
+# Reusable benchmark runner. Lives on a bench/** branch (this one is bench/runner); never touches main or a release.
+#
+# What it measures
+#   baseline: the PUBLISHED package pinned in benchmarks/package.json (skip with baseline = none)
+#   build:    a local build of ANY branch, tag or commit of this repository (target_ref)
+# Both run on the same kind of GitHub-hosted runner, one job after the other (never in parallel), so
+# latency numbers (E6/E7) are comparable with each other. Hosted-runner timings are NOT comparable with
+# timings measured on another machine.
+#
+# How to run it (see benchmarks/CI.md)
+#   - Edit benchmarks/bench.config.json (target_ref, baseline, experiments), commit, push to a bench/** branch.
+#   - Or dispatch by hand and override any field: gh workflow run benchmarks.yml --ref bench/runner -f target_ref=<ref>
+
+on:
+  push:
+    branches: ['bench/**']
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: 'Branch, tag or commit to build and measure (default: from bench.config.json)'
+        type: string
+        default: ''
+      baseline:
+        description: 'published = also run the pinned published package; none = skip it'
+        type: choice
+        options: ['', published, none]
+        default: ''
+      experiments:
+        description: 'Space-separated: e1 e1_oracles e1_control e4 e5 e5_orphans e6 (e6 also runs e7)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  config:
+    name: Read configuration
+    runs-on: ubuntu-latest
+    outputs:
+      target_ref: ${{ steps.cfg.outputs.target_ref }}
+      baseline: ${{ steps.cfg.outputs.baseline }}
+      experiments: ${{ steps.cfg.outputs.experiments }}
+      baseline_version: ${{ steps.cfg.outputs.baseline_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: cfg
+        env:
+          IN_TARGET: ${{ inputs.target_ref }}
+          IN_BASELINE: ${{ inputs.baseline }}
+          IN_EXPERIMENTS: ${{ inputs.experiments }}
+        run: |
+          cfg=benchmarks/bench.config.json
+          pick() { local v="$1" k="$2"; if [ -n "$v" ]; then echo "$v"; else jq -r ".$k" "$cfg"; fi; }
+          target=$(pick "$IN_TARGET" target_ref)
+          baseline=$(pick "$IN_BASELINE" baseline)
+          experiments=$(pick "$IN_EXPERIMENTS" experiments)
+          pinned=$(jq -r '.dependencies["@attentionform/astra-mcp-server"]' benchmarks/package.json)
+          {
+            echo "target_ref=$target"
+            echo "baseline=$baseline"
+            echo "experiments=$experiments"
+            echo "baseline_version=$pinned"
+          } >> "$GITHUB_OUTPUT"
+          echo "target_ref=$target baseline=$baseline ($pinned) experiments=$experiments" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  baseline:
+    name: Baseline (published package)
+    needs: config
+    if: ${{ needs.config.outputs.baseline == 'published' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      BENCH_LABEL: ${{ needs.config.outputs.baseline_version }}-hosted-runner
+      EXPERIMENTS: ${{ needs.config.outputs.experiments }}
+      ORACLE_WORKERS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install system tools (LibreOffice, Poppler)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer poppler-utils python3-pip
+          pip install --break-system-packages python-docx lxml Pillow
+      - name: Install the published package under test
+        working-directory: benchmarks
+        run: npm ci
+      - name: Generate the corpus
+        working-directory: benchmarks
+        run: python3 corpus/generate.py
+      - name: Record the environment
+        working-directory: benchmarks
+        run: node run/env.mjs > /dev/null
+      - name: Run the experiments one at a time
+        working-directory: benchmarks
+        run: bash ../.github/scripts/run-benchmarks.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-baseline-${{ needs.config.outputs.baseline_version }}
+          path: benchmarks/results/${{ env.BENCH_LABEL }}
+          if-no-files-found: warn
+
+  build:
+    name: Local build of the target ref
+    needs: [config, baseline]
+    # Runs after the baseline job, whether it ran, was skipped or failed.
+    if: ${{ always() && needs.config.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      EXPERIMENTS: ${{ needs.config.outputs.experiments }}
+      ORACLE_WORKERS: '4'
+    steps:
+      # The harness always comes from this (bench) branch; the code under test comes from target_ref.
+      - uses: actions/checkout@v4
+        with:
+          path: harness
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.config.outputs.target_ref }}
+          path: target
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Name the build
+        id: label
+        working-directory: target
+        run: |
+          version=$(jq -r .version packages/mcp-server/package.json)
+          sha=$(git rev-parse --short=7 HEAD)
+          echo "BENCH_LABEL=${version}-build-${sha}" >> "$GITHUB_ENV"
+          echo "label=${version}-build-${sha}" >> "$GITHUB_OUTPUT"
+          echo "git_head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Install system tools (LibreOffice, Poppler)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer poppler-utils python3-pip
+          pip install --break-system-packages python-docx lxml Pillow
+      - name: Build the packages of the target ref
+        working-directory: target
+        run: |
+          npm install -g npm@^11
+          npm ci
+          npm run build:packages
+      - name: Install the harness dependencies
+        working-directory: harness/benchmarks
+        run: npm ci
+      - name: Point the harness at the local build
+        run: |
+          echo "ASTRA_SERVER_BIN=$GITHUB_WORKSPACE/target/packages/mcp-server/dist/index.js" >> "$GITHUB_ENV"
+          echo "GITHUB_SHA_UNDER_TEST=${{ steps.label.outputs.git_head }}" >> "$GITHUB_ENV"
+      - name: Generate the corpus
+        working-directory: harness/benchmarks
+        run: python3 corpus/generate.py
+      - name: Record the environment
+        working-directory: harness/benchmarks
+        run: node run/env.mjs > /dev/null
+      - name: Run the experiments one at a time
+        working-directory: harness/benchmarks
+        run: bash ../.github/scripts/run-benchmarks.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-build-${{ steps.label.outputs.label }}
+          path: harness/benchmarks/results/${{ env.BENCH_LABEL }}
+          if-no-files-found: warn
