@@ -30,7 +30,7 @@ for (const base of SIZES) {
     const v = await s.call('validate_document', { sessionId: sid }); rec.validate_ms = v.ms;
     const sv = await s.call('save_document', { sessionId: sid, message: 'perf' }); rec.save_ms = sv.ms; rec.save_ok = !!sv.json?.ok;
     rec.validator_share_of_save = rec.validate_ms / rec.save_ms;
-    await s.call('close_document', { sessionId: sid, discard: true });
+    await s.call('close_document', { sessionId: sid });
     rec.rss_kb = rssKb(s.pid);
     out(rec);
   }
@@ -52,6 +52,6 @@ for (const k of [1, 10, 50, 100, 250, 500]) for (let run = 0; run < 10; run++) {
   const b = await s.call('execute_batch', { sessionId: sid, operations: ops });
   const sv = await s.call('save_document', { sessionId: sid, message: 'scale' });
   e7({ ops: k, run, available: rows.length, batch_ok: !!b.json?.ok, batch_ms: b.ms, save_ms: sv.ms, ms_per_op: b.ms / k });
-  await s.call('close_document', { sessionId: sid, discard: true }); fs.rmSync(file, { force: true });
+  await s.call('close_document', { sessionId: sid }); fs.rmSync(file, { force: true });
 }
 await s.close();

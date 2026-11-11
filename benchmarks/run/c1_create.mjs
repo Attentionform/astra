@@ -20,7 +20,7 @@ const trial = async (name, markdown, blocks, pages, seed, template = 'blank') =>
   const sid = n.json.sessionId;
   const c = await s.call('compose_document', { sessionId: sid, markdown, ...(template !== 'blank' ? { template } : {}) });
   rec.compose = { ok: !!c.json?.ok, ms: c.ms, code: c.json?.code, message: c.json?.ok ? undefined : (c.json?.message || c.text).slice(0, 300) };
-  if (!c.json?.ok) { await s.call('close_document', { sessionId: sid, discard: true }); return out(rec); }
+  if (!c.json?.ok) { await s.call('close_document', { sessionId: sid }); return out(rec); }
   const v = await s.call('validate_document', { sessionId: sid });
   rec.validate = { ok: !!v.json?.ok, valid: v.json?.validation?.valid, errorCount: v.json?.validation?.errorCount, ms: v.ms };
   const sv = await s.call('save_document', { sessionId: sid, message: `create ${name}` });
@@ -74,6 +74,6 @@ for (const [name, md] of Object.entries(OOS)) {
   const after = (await s.call('inspect_document', { sessionId: sid })).json?.rowCount;
   const rec = { name, kind: 'out-of-scope', accepted: !!c.json?.ok, code: c.json?.code, message: (c.json?.message || '').slice(0, 200), rows_before: before, rows_after: after, unchanged: before === after };
   out(rec); console.log('oos', name, rec.accepted ? 'ACCEPTED' : rec.code, 'unchanged', rec.unchanged);
-  await s.call('close_document', { sessionId: sid, discard: true });
+  await s.call('close_document', { sessionId: sid });
 }
 await s.close();

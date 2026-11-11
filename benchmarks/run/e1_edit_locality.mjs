@@ -40,7 +40,7 @@ async function saveTrial(s, file, ops, message) {
   if (ops) {
     const b = await s.call('execute_batch', { sessionId: sid, operations: ops });
     rec.batch = { ok: !!b.json?.ok, ms: b.ms, code: b.json?.code, message: b.json?.ok ? undefined : (b.json?.message || b.text).slice(0, 200) };
-    if (!b.json?.ok) { await s.call('close_document', { sessionId: sid, discard: true }); return rec; }
+    if (!b.json?.ok) { await s.call('close_document', { sessionId: sid }); return rec; }
   }
   const sv = await s.call('save_document', { sessionId: sid, message });
   rec.save = { ok: !!sv.json?.ok, ms: sv.ms, code: sv.json?.code, valid: sv.json?.validation?.valid, errorCount: sv.json?.validation?.errorCount, message: sv.json?.ok ? undefined : (sv.json?.message || sv.text).slice(0, 200) };

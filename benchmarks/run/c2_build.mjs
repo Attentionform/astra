@@ -77,7 +77,7 @@ for (const [name, rc] of Object.entries(RECIPES)) {
       rec.file = file;
     }
   }
-  await s.call('close_document', { sessionId: sid, discard: true });
+  await s.call('close_document', { sessionId: sid });
   out(rec);
   console.log(name.padEnd(20), 'batch', rec.batch.ok, rec.batch.code || '', 'save', rec.save?.ok, 'missing', JSON.stringify(rec.feature_missing || ''), rec.batch.message?.slice(0, 120) || '');
 }

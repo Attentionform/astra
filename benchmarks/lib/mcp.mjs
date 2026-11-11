@@ -19,10 +19,12 @@ export async function connect(allowedDir, extraArgs = []) {
     const t0 = process.hrtime.bigint();
     const res = await client.callTool({ name, arguments: args });
     const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    const inputRejected = !!res.isError && /Input validation error/.test(JSON.stringify(res.content || ''));
+    if (inputRejected && ['close_document', 'open_document', 'save_document', 'inspect_document'].includes(name)) throw new Error(`harness bug: ${name} rejected by input validation: ${JSON.stringify(res.content).slice(0, 300)}`);
     const text = (res.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
     let json;
     try { json = JSON.parse(text); } catch { json = undefined; }
-    return { ms, isError: !!res.isError, text, json, raw: res };
+    return { ms, isError: !!res.isError, inputRejected, text, json, raw: res };
   }
   return { client, call, pid: transport.pid, close: () => client.close() };
 }

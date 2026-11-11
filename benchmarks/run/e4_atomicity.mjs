@@ -42,13 +42,13 @@ for (let rep = 0; rep < REPS; rep++) {
     const before = await snap();
     const b = await s.call('execute_batch', { sessionId: sid, operations: ops });
     const after = await snap();
-    const rec = { name, rep, batch_size: k, fail_pos: pos, kind, batch_ok: !!b.json?.ok, code: b.json?.code, before, after,
+    const rec = { name, rep, batch_size: k, fail_pos: pos, kind, batch_ok: !!b.json?.ok, code: b.json?.code ?? (b.inputRejected ? 'TOOL_INPUT_SCHEMA' : undefined), input_rejected: !!b.inputRejected, before, after,
       atomic: !b.json?.ok && before.outline === after.outline && before.revision === after.revision && before.dirty === after.dirty && before.commits === after.commits };
     // session still usable: the same batch without the failing op must apply
     const good = ops.filter((_, i) => i !== failAt);
     const g = await s.call('execute_batch', { sessionId: sid, operations: good });
     rec.recovery_ok = !!g.json?.ok && g.json.appliedCount === good.length;
-    await s.call('close_document', { sessionId: sid, discard: true });
+    await s.call('close_document', { sessionId: sid });
     out(rec);
     fs.rmSync(file, { force: true });
   }

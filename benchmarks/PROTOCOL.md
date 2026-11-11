@@ -232,3 +232,24 @@ is reported as its own result instead of being hidden or blamed on the edit. No 
 **D2 (2026-11-11, before any experiment was run).** The first corpus draft produced about 1.65 times the
 target page count. The generator constants were changed and the corpus regenerated; sizes in the ladder are
 **measured** pages as recorded in `corpus/manifest.json`.
+
+**D3 (2026-11-11, before the full run; pilot runs were used to debug the harness only).**
+* R1: `full` fidelity requires a section scope by design, so it was replaced by `standard` with
+  `maxTextLength: 10000` (no text truncation) and a "text floor" (tokens of the bare document text) was added.
+  The first R1 run (with `full`) failed for that reason and was discarded; the second run is the one reported.
+* C1: `compose_document` documents its supported Markdown subset. C1 inputs stay inside that subset; inputs outside it
+  (deeper headings, nested lists, raw HTML, task items, and so on) are a separate check, C1b, whose expected result is
+  "refused with a line number and nothing written".
+* C2: the pilot run showed that merged table cells are written with `w:hMerge`. The recipe's structure check accepted
+  only `w:gridSpan` and `w:vMerge`; it now accepts `w:hMerge` as well. That was a harness error, not a product failure.
+  Whether Word renders `hMerge` merges like `gridSpan` merges is part of the manual Word check (section 9).
+* E1: the insert-edit text check in `docdiff.py` compared against the wrong index; fixed before the full run.
+* E3 fault classes are labelled `schema`, `package`, `wellformed` or `semantic`. Semantic faults (cross-references such as a
+  missing style or a duplicate id) are not XSD violations; they are reported separately and are not part of the H4 rate.
+* E3 phase B (raw XML inserts and bad typed parameters, 36 edits) was added to see what happens when an agent tries to
+  introduce invalid content through the edit path rather than through a damaged input file.
+
+**D4 (2026-11-11, after a first run of C1, E3, E4 and E5 exposed harness errors; the discarded raw files are kept in `results/<release>/discarded/` or under a `firstrun` name).**
+* The harness called `close_document` with an argument the tool does not accept. The call was rejected and the sessions were never closed, so the server reached its 10-session limit and refused later opens. E3 phase A and E4 were affected (opens refused with `E_QUOTA`, which would have counted as "detected" faults), so both were discarded and re-run after fixing the call. The harness now stops on any input-validation rejection of `open`, `save`, `inspect` or `close`.
+* C1: the fidelity reader treated each line of a fenced code block as a separate paragraph, but a code block is one paragraph with line breaks. The reader was fixed and C1 re-run; the first output is kept as `c1_create.firstrun-reader-bug.jsonl`. Two "out-of-scope" inputs (a table without a separator row, and a quote nested four deep) were accepted; the first is plain text by Markdown rules and the second is the documented behaviour (levels beyond 3 are written at level 3). They are reported as documented behaviour, not as refusals.
+* E5: `steps` counts back from the current head, and every revert appends a new commit (history is append-only), so "revert to every depth in one history" does not measure what was intended. E5 now reverts by commit id for every depth, and tests `steps` on a fresh history for depths 1, 2, 5 and 9. The first E5 output is discarded.

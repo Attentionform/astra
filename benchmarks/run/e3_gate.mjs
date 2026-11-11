@@ -24,16 +24,17 @@ async function probe(label, srcFile, meta) {
   if (!o.json?.ok) { out(rec); return; }
   const sid = o.json.sessionId;
   const v = await s.call('validate_document', { sessionId: sid });
-  rec.validate = { ok: !!v.json?.ok, valid: v.json?.validation?.valid, errorCount: v.json?.validation?.errorCount, first: (v.json?.validation?.errors || []).slice(0, 2).map((e) => (e.description || '').slice(0, 140)), code: v.json?.code };
+  rec.validate = { ok: !!v.json?.ok, valid: v.json?.validation?.valid, errorCount: v.json?.validation?.errorCount, first: (v.json?.validation?.errors || []).slice(0, 2).map((e) => (e.description || '').slice(0, 140)), code: v.json?.code,
+    pending_normalization: v.json?.pendingNormalization ?? v.json?.pendingNormalizations ?? null };
   // strict save after a trivial edit
   const b = await s.call('execute_batch', { sessionId: sid, operations: TRIVIAL });
   rec.edit = { ok: !!b.json?.ok, code: b.json?.code };
   if (b.json?.ok) {
     const sv = await s.call('save_document', { sessionId: sid, strict: true, message: 'strict' });
-    rec.strict = { ok: !!sv.json?.ok, code: sv.json?.code, message: sv.json?.ok ? undefined : (sv.json?.message || '').slice(0, 160) };
+    rec.strict = { ok: !!sv.json?.ok, code: sv.json?.code, normalized: sv.json?.normalized?.length ?? null, message: sv.json?.ok ? undefined : (sv.json?.message || '').slice(0, 160) };
     rec.strict.file_changed = sha(work) !== rec.sha_before;
   }
-  await s.call('close_document', { sessionId: sid, discard: true });
+  await s.call('close_document', { sessionId: sid });
   // default-mode save on a fresh copy
   const work2 = path.join(dir, `${label}__default.docx`);
   fs.copyFileSync(srcFile, work2);
@@ -42,10 +43,10 @@ async function probe(label, srcFile, meta) {
     const b2 = await s.call('execute_batch', { sessionId: o2.json.sessionId, operations: TRIVIAL });
     if (b2.json?.ok) {
       const sv2 = await s.call('save_document', { sessionId: o2.json.sessionId, message: 'default' });
-      rec.default = { ok: !!sv2.json?.ok, code: sv2.json?.code, valid: sv2.json?.validation?.valid, errorCount: sv2.json?.validation?.errorCount, message: sv2.json?.ok ? undefined : (sv2.json?.message || '').slice(0, 160) };
+      rec.default = { ok: !!sv2.json?.ok, code: sv2.json?.code, normalized: sv2.json?.normalized?.length ?? null, valid: sv2.json?.validation?.valid, errorCount: sv2.json?.validation?.errorCount, message: sv2.json?.ok ? undefined : (sv2.json?.message || '').slice(0, 160) };
       rec.default.file_changed = sha(work2) !== rec.sha_before;
     }
-    await s.call('close_document', { sessionId: o2.json.sessionId, discard: true });
+    await s.call('close_document', { sessionId: o2.json.sessionId });
   }
   out(rec);
 }
@@ -111,7 +112,7 @@ async function phaseB(name, buildOps, group) {
   const tid = (ol.json.toonText.match(/^(t_\d+) \|/m) || [])[1];
   rec.sha_before = sha(work);
   const b = await s.call('execute_batch', { sessionId: sid, operations: buildOps(id, tid) });
-  rec.batch = { ok: !!b.json?.ok, code: b.json?.code, message: b.json?.ok ? undefined : (b.json?.message || b.text).slice(0, 200) };
+  rec.batch = { ok: !!b.json?.ok, code: b.json?.code ?? (b.inputRejected ? 'TOOL_INPUT_SCHEMA' : undefined), message: b.json?.ok ? undefined : (b.json?.message || b.text).slice(0, 200) };
   if (b.json?.ok) {
     const sv = await s.call('save_document', { sessionId: sid, message: name });
     rec.save = { ok: !!sv.json?.ok, code: sv.json?.code, valid: sv.json?.validation?.valid, errorCount: sv.json?.validation?.errorCount, message: sv.json?.ok ? undefined : (sv.json?.message || '').slice(0, 200) };
@@ -119,7 +120,7 @@ async function phaseB(name, buildOps, group) {
   }
   rec.outcome = !b.json?.ok ? 'rejected-at-edit' : rec.save?.ok ? 'saved' : 'blocked-at-save';
   rec.file = work;
-  await s.call('close_document', { sessionId: sid, discard: true });
+  await s.call('close_document', { sessionId: sid });
   out(rec); console.log('B', group, name.padEnd(30), rec.outcome, rec.batch.code || rec.save?.code || '');
 }
 for (const [name, xml] of Object.entries(XML)) await phaseB(name, () => [{ action: 'insert', type: 'xml', anchor: 'end', position: 'after', xml }], 'raw-xml');

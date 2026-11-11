@@ -69,14 +69,20 @@ for b in blocks:
     elif k == "quote":
         want(k, lambda it, b=b: it[0] == "p" and norm(it[2]) == norm(b["text"]), lambda it: "quote" in it[1].lower(), b["text"])
     elif k == "code":
-        for line in b["lines"]:
-            want(k, lambda it, l=line: it[0] == "p" and norm(l) in norm(it[2]), None, line)
+        # a fenced code block is written as ONE paragraph with line breaks
+        want(k, lambda it, b=b: it[0] == "p" and all(norm(l) in norm(it[2]) for l in b["lines"]), None, b["lines"][0])
     elif k == "fn":
         res["expected"] += 1
         if norm(b["text"]) in fn_text:
             res["found_in_order"] += 1
         else:
             res["missing"].append(f"fn:{b['label']}")
+# presence anywhere (order-independent) for text-bearing blocks, as a second view
+all_text = norm(" ".join([i[2] for i in items if i[0] == "p"] + [c for i in items if i[0] == "t" for r in i[3]["rows"] for c in r]))
+res["found_anywhere"] = sum(1 for b in blocks if b["kind"] in ("h", "p", "quote") and norm(b["text"]) in all_text) + sum(
+    1 for b in blocks if b["kind"] in ("ul", "ol") for t in b["items"] if norm(t) in all_text) + sum(
+    1 for b in blocks if b["kind"] == "code" and all(norm(l) in all_text for l in b["lines"]))
+res["expected_text_blocks"] = sum(1 for b in blocks if b["kind"] in ("h", "p", "quote", "code")) + sum(len(b["items"]) for b in blocks if b["kind"] in ("ul", "ol"))
 res["unexpected_paragraphs"] = max(0, sum(1 for i in items if i[0] == "p" and norm(i[2])) - sum(
     1 if b["kind"] in ("h", "p", "quote") else len(b.get("items", b.get("lines", []))) if b["kind"] in ("ul", "ol", "code") else 0 for b in blocks)
     - sum(len(r) for b in blocks if b["kind"] == "table" for r in b["rows"]) * 0)
