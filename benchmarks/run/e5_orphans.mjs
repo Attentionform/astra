@@ -1,6 +1,7 @@
-// E5 follow-up: a file reverted past a comment keeps two unreferenced parts. Does it still pass the independent checks?
+// E5 follow-up: what a file reverted past a comment contains (do comment parts remain?), and does it still pass the independent checks?
 import fs from 'node:fs';
 import path from 'node:path';
+import AdmZip from 'adm-zip';
 import { validateFile } from '@attentionform/ooxml-validator';
 import { connect } from '../lib/mcp.mjs';
 import { freshDir, jsonl, CORPUS, fullOutline, oracles } from '../lib/exp.mjs';
@@ -20,7 +21,8 @@ for (const base of DOCS) {
   await s.call('save_document', { sessionId: sid, message: 'c1 comment' });
   await s.call('revert_document', { sessionId: sid, commitOid: c0.json.commitOid });
   const after = await validateFile(f);
-  out({ base, errors_before_comment: baseline.errors?.length ?? 0, errors_after_revert: after.errors?.length ?? 0, file: f });
+  const names = new AdmZip(f).getEntries().map((e) => e.entryName);
+  out({ base, errors_before_comment: baseline.errors?.length ?? 0, errors_after_revert: after.errors?.length ?? 0, has_people_after_revert: names.includes('word/people.xml'), has_comments_extended_after_revert: names.includes('word/commentsExtended.xml'), has_comments_after_revert: names.includes('word/comments.xml'), file: f });
   files.push(f);
   await s.call('close_document', { sessionId: sid });
 }
