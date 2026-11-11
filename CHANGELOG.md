@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-12
+
+All ten npm packages move to 0.4.2. This release fixes how history restores a document: a revert now puts back every package part exactly as it was saved. The MCP tool names and input schemas are unchanged; the generated schema files carry the new version only.
+
 ### Fixed
 
 - **A revert no longer leaves comment metadata behind.** History recorded only a fixed list of package parts, and the list did not include `word/commentsExtended.xml`, `word/commentsIds.xml`, `word/commentsExtensible.xml` or `word/people.xml`. After a revert past a comment, those parts stayed in the file. `word/people.xml` lists comment author names, so an author name could remain in the file after the comment was reverted away. Reverting to a commit with fewer authors also kept the later authors and left reply entries that pointed at comments that no longer existed. History now records every package part except `word/document.xml`, which is committed separately, and a revert restores all of them and removes parts the target commit does not have. This applies to the MCP tools (`revert_document`, `redo_document`, `preview_revert`) and to `astra revert`, `redo` and `preview-revert`.
@@ -249,7 +253,9 @@ First public release.
 - PDF export and page images need LibreOffice and Poppler installed on your machine.
 - Every output file is validated with the Open XML SDK before it is saved, so files are valid, uncorrupted and open in Microsoft Word.
 
-[Unreleased]: https://github.com/Attentionform/astra/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Attentionform/astra/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/Attentionform/astra/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/Attentionform/astra/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Attentionform/astra/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Attentionform/astra/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Attentionform/astra/compare/v0.2.0...v0.2.1
