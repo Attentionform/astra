@@ -444,6 +444,36 @@ describe('Phase D sanitization closure: accept-all-revisions + strip-comments', 
     expect(report.strippedComments).toBe(0);
   });
 
+  it('replaces a providerId="None" display name written with single quotes or holding an apostrophe', () => {
+    const wrap = (presence: string): Map<string, Buffer> =>
+      new Map<string, Buffer>([
+        [
+          'word/document.xml',
+          Buffer.from(
+            `<w:document xmlns:w="${W_NS}"><w:body><w:p><w:r><w:t>hi</w:t></w:r></w:p></w:body></w:document>`,
+            'utf8'
+          ),
+        ],
+        [
+          'word/people.xml',
+          Buffer.from(
+            `<w15:people xmlns:w15="${W15_NS}"><w15:person w15:author="x">${presence}</w15:person></w15:people>`,
+            'utf8'
+          ),
+        ],
+      ]);
+    for (const presence of [
+      `<w15:presenceInfo w15:userId='Mallory Q' w15:providerId='None'/>`,
+      `<w15:presenceInfo w15:providerId="None" w15:userId="Mallory O'Brien"/>`,
+      `<w15:presenceInfo w15:note="a>b" w15:providerId="None" w15:userId="Mallory Q"/>`,
+    ]) {
+      const { files: clean } = sanitizePackageEntries(wrap(presence), { stripComments: true });
+      const text = clean.get('word/people.xml')!.toString('utf8');
+      expect(text, presence).not.toContain('Mallory');
+      expect(text, presence).toContain('w15:userId="Anonymous"');
+    }
+  });
+
   it('stripComments removes orphan word/_rels/comments.xml.rels', () => {
     const files = new Map<string, Buffer>([
       [

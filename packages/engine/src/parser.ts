@@ -888,7 +888,11 @@ export class DocxParser {
         // it, and the new deflate stream can differ from the one the producer of the file wrote.
         let unchanged = false;
         try {
-          unchanged = !liveEntry.isDirectory && Buffer.from(liveEntry.getData()).equals(buffer);
+          // Sizes first: a differing size needs no inflate, and the guarded read enforces the part-size caps.
+          unchanged =
+            !liveEntry.isDirectory &&
+            liveEntry.header.size === buffer.length &&
+            readPartData(liveEntry, entryName).equals(buffer);
         } catch {
           unchanged = false;
         }
@@ -922,8 +926,8 @@ export class DocxParser {
       this.stylesDom = null;
     }
 
-    // The core properties part is not versioned with the other parts, so a restored [Content_Types].xml or
-    // _rels/.rels can lack the entries for the part that is still here.
+    // A snapshot from before complete snapshots (0.4.1 and older) did not record docProps/core.xml, so a
+    // restored [Content_Types].xml or _rels/.rels can lack the entries for the core part that is still here.
     registerExistingCorePropertiesPart(this.getZipAdapter());
 
     this.invalidateMediaCache();

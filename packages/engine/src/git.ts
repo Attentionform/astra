@@ -184,7 +184,7 @@ async function writeAndAdd(
 ): Promise<void> {
   const safeRel = toRepoRelative(relPath);
   // Block path traversal out of the repo dir.
-  if (safeRel.includes('..') || path.isAbsolute(safeRel) || /^[a-zA-Z]:/.test(safeRel)) {
+  if (isTraversalName(safeRel)) {
     throw new Error(`Security Violation: refusing to track package path '${relPath}'`);
   }
   const fullPath = path.join(repoDir, safeRel);
@@ -204,10 +204,13 @@ async function writeAndAdd(
   await git.add({ fs, dir: repoDir, filepath: safeRel });
 }
 
-/** Names that must fail loudly (path traversal) instead of being skipped. */
+/**
+ * Names that must fail loudly (path traversal) instead of being skipped: a ".." path segment, an
+ * absolute path or a drive. A name that merely contains two dots ("item..1.xml") is an ordinary name.
+ */
 function isTraversalName(entryName: string): boolean {
   const name = toRepoRelative(entryName);
-  return name.includes('..') || path.isAbsolute(name) || /^[a-zA-Z]:/.test(name);
+  return name.split('/').includes('..') || path.isAbsolute(name) || /^[a-zA-Z]:/.test(name);
 }
 
 /**
@@ -988,6 +991,10 @@ export async function commitChange(
     /* size probe is best-effort: unreadable sidecar never blocks a commit */
   }
 
+  // Refuse an unrecordable name before anything is written, so a failure never leaves a half-staged index.
+  if (extraFiles) {
+    for (const name of Object.keys(extraFiles)) if (!isTraversalName(name) && isTrackedPackageFile(name)) historyPathFor(name);
+  }
   await writeAndAdd(repoDir, 'document.xml', xmlContent);
   const writtenParts = await writeSnapshotParts(repoDir, extraFiles);
   // OP-14: remove package files deleted from the live package so stale media
@@ -1018,8 +1025,8 @@ export async function commitChange(
       }
       // Auto-detect via working-tree scan (catches stray on-disk files).
       try {
-        const onDisk = await collectRepoFiles(repoDir);
-        for (const rel of onDisk.keys()) {
+        const onDisk = await listRepoPaths(repoDir);
+        for (const rel of onDisk) {
           if (isRepoPartPath(rel) && !newTracked.has(rel)) {
             toDelete.add(rel);
           }
@@ -1029,7 +1036,7 @@ export async function commitChange(
       }
     }
     for (const rel of toDelete) {
-      if (rel.includes('..') || path.isAbsolute(rel) || /^[a-zA-Z]:/.test(rel)) continue;
+      if (isTraversalName(rel)) continue;
       const fullPath = path.join(repoDir, rel);
       try {
         await fsp.unlink(fullPath);
@@ -1115,6 +1122,27 @@ export async function getHistory(docPath: string) {
   return entries;
 }
 
+/** Relative paths of every file in the history working tree, without reading their contents. */
+async function listRepoPaths(repoDir: string): Promise<string[]> {
+  const out: string[] = [];
+  async function walk(dir: string, relBase: string): Promise<void> {
+    let entries: Dirent[] = [];
+    try {
+      entries = await fsp.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name === '.git') continue;
+      const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await walk(path.join(dir, entry.name), rel);
+      else if (entry.isFile()) out.push(rel);
+    }
+  }
+  await walk(repoDir, '');
+  return out;
+}
+
 async function collectRepoFiles(repoDir: string): Promise<Map<string, Buffer>> {
   const out = new Map<string, Buffer>();
   async function walk(dir: string, relBase: string): Promise<void> {
@@ -1164,7 +1192,8 @@ export function trackedPredicateFor(target: { complete: boolean }): (entryName: 
 export const INCOMPLETE_SNAPSHOT_WARNING =
   'This commit was recorded by an older ASTra version and predates complete snapshots: parts it never ' +
   'recorded (for example comment metadata, document properties, custom XML) keep their current content ' +
-  'in the file, so the restore is not exact.';
+  'in the file, so the restore is not exact: those parts can be left without the content-type or ' +
+  'relationship entries they had before. Restores to versions saved from now on are exact.';
 
 /**
  * OP-14: undo that also restores media/rels/styles/headers. Performs the same
@@ -1211,12 +1240,19 @@ export async function undoPackage(
   if (!xmlBuf) throw new Error('Undo failed: document.xml missing after checkout.');
   // OP-14: only tracked package files belong in extra — never leak
   // document.xml, .git internals, or stray working-tree files.
+  const complete = isCompleteSnapshotMarker(files.get(SNAPSHOT_FORMAT_MARKER));
+  // Only what the checked-out commit holds: a stray file left in the working tree is never a package part.
+  const inCommit = new Set<string>(
+    (await git.listFiles({ fs, dir: repoDir, ref: currentBranch })).map((t: string) => toRepoRelative(t))
+  );
   const extra = new Map<string, Buffer>();
   for (const [rel, buf] of files) {
-    if (!isRepoPartPath(rel)) continue;
-    extra.set(entryNameFor(rel), buf);
+    if (!isRepoPartPath(rel) || !inCommit.has(rel)) continue;
+    const name = entryNameFor(rel);
+    if (!complete && !isLegacyTrackedPackageFile(name)) continue;
+    extra.set(name, buf);
   }
-  return { xml: xmlBuf.toString('utf8'), extra, complete: isCompleteSnapshotMarker(files.get(SNAPSHOT_FORMAT_MARKER)) };
+  return { xml: xmlBuf.toString('utf8'), extra, complete };
 }
 
 export async function undo(docPath: string): Promise<string> {
@@ -1302,7 +1338,20 @@ export async function checkoutCommit(
   }
   const xml = Buffer.from(docBlob.blob).toString('utf8');
 
-  const trackedEntries = [...blobs.entries()].filter(([rel]) => isRepoPartPath(rel));
+  let complete = false;
+  const markerOid = blobs.get(SNAPSHOT_FORMAT_MARKER);
+  if (markerOid) {
+    try {
+      const marker = await git.readBlob({ fs, dir: repoDir, oid: markerOid });
+      complete = isCompleteSnapshotMarker(marker.blob);
+    } catch {
+      complete = false;
+    }
+  }
+  // An unmarked commit restores with the legacy rule, so only the parts that rule covers are returned.
+  const trackedEntries = [...blobs.entries()].filter(
+    ([rel]) => isRepoPartPath(rel) && (complete || isLegacyTrackedPackageFile(entryNameFor(rel)))
+  );
   const extraBlobs = await Promise.all(
     trackedEntries.map(async ([rel, blobOid]) => {
       let blobResult: { blob: Uint8Array };
@@ -1318,16 +1367,6 @@ export async function checkoutCommit(
     })
   );
   const extra = new Map<string, Buffer>(extraBlobs);
-  let complete = false;
-  const markerOid = blobs.get(SNAPSHOT_FORMAT_MARKER);
-  if (markerOid) {
-    try {
-      const marker = await git.readBlob({ fs, dir: repoDir, oid: markerOid });
-      complete = isCompleteSnapshotMarker(marker.blob);
-    } catch {
-      complete = false;
-    }
-  }
   return { xml, extra, complete };
 }
 

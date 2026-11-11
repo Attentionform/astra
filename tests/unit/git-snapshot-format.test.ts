@@ -191,6 +191,68 @@ describe('history commits carry the snapshot marker and store parts safely', () 
     });
   });
 
+  it('records a part whose name merely contains two dots', async () => {
+    await initAstraRepo(docPath, '<a/>');
+    await commitChange(docPath, '<b/>', 'dots', {
+      'customXml/item..1.xml': Buffer.from('dots'),
+      'docProps/custom..xml': Buffer.from('custom'),
+    });
+    const target = await checkoutCommit(docPath, await head());
+    expect(target.complete).toBe(true);
+    expect(target.extra.get('customXml/item..1.xml')!.toString()).toBe('dots');
+    expect(target.extra.get('docProps/custom..xml')!.toString()).toBe('custom');
+  });
+
+  it('a part that cannot be recorded fails before anything is written', async () => {
+    await initAstraRepo(docPath, '<a/>', { 'word/people.xml': Buffer.from('p') });
+    const before = (await getHistory(docPath)).length;
+    const longName = `.git${'x'.repeat(300)}.xml`;
+    await expect(
+      commitChange(docPath, '<changed/>', 'long', { 'word/people.xml': Buffer.from('p2'), [longName]: Buffer.from('x') })
+    ).rejects.toMatchObject({ code: 'E_VALIDATION' });
+    expect((await getHistory(docPath)).length).toBe(before);
+    expect(await fsp.readFile(path.join(repoDir, 'document.xml'), 'utf8')).toBe('<a/>');
+    expect((await fsp.readFile(path.join(repoDir, 'word/people.xml'), 'utf8'))).toBe('p');
+  });
+
+  describe('an unmarked commit that still holds parts outside the old rule', () => {
+    async function unmarkedHeadWithAllParts(): Promise<void> {
+      await initAstraRepo(docPath, '<a/>', {
+        'word/styles.xml': Buffer.from('styles'),
+        'docProps/core.xml': Buffer.from('core'),
+        'word/people.xml': Buffer.from('people'),
+      });
+      await git.remove({ fs, dir: repoDir, filepath: SNAPSHOT_FORMAT_MARKER });
+      await fsp.rm(path.join(repoDir, SNAPSHOT_FORMAT_MARKER), { force: true });
+      await git.commit({ fs, dir: repoDir, author: { name: 'x', email: 'x@example.com' }, message: 'unproven' });
+    }
+
+    it('checkoutCommit returns only the parts the old rule covers', async () => {
+      await unmarkedHeadWithAllParts();
+      const target = await checkoutCommit(docPath, await head());
+      expect(target.complete).toBe(false);
+      expect([...target.extra.keys()].sort()).toEqual(['word/styles.xml']);
+    });
+
+    it('undoPackage returns only the parts the old rule covers', async () => {
+      await unmarkedHeadWithAllParts();
+      await commitChange(docPath, '<b/>', 'next', { 'word/styles.xml': Buffer.from('styles2') });
+      const undone = await undoPackage(docPath);
+      expect(undone.complete).toBe(false);
+      expect([...undone.extra.keys()].sort()).toEqual(['word/styles.xml']);
+    });
+  });
+
+  it('undoPackage never returns a stray file left in the history working tree', async () => {
+    await initAstraRepo(docPath, '<a/>', { 'word/styles.xml': Buffer.from('s') });
+    await commitChange(docPath, '<b/>', 'second', { 'word/styles.xml': Buffer.from('s2') });
+    await fsp.writeFile(path.join(repoDir, 'stray.xml'), 'stray');
+    const undone = await undoPackage(docPath);
+    expect(undone.complete).toBe(true);
+    expect(undone.extra.has('stray.xml')).toBe(false);
+    expect([...undone.extra.keys()]).toEqual(['word/styles.xml']);
+  });
+
   it('a commit made without a package snapshot is not marked, and clears the marker of the commit before it', async () => {
     await initAstraRepo(docPath, '<a/>', { 'word/people.xml': Buffer.from('p') });
     expect(await treeAt(await head())).toContain(SNAPSHOT_FORMAT_MARKER);
