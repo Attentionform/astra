@@ -90,13 +90,18 @@ This experiment also checks the README sentence "roughly 5x fewer tokens than ra
 Eight edit types: replace paragraph text, restyle one word (`match`), insert paragraph after a node,
 delete a paragraph, replace a table cell, add a comment, tracked replace, change paragraph style.
 For each document and edit type, 4 target positions (first, middle, last, one seeded random).
-Procedure: open, apply the edit, save, then compare the saved package with the original:
+Procedure: three files are produced per trial. A = the original. N = A opened and saved with no edit.
+E = A opened, the edit applied, saved. Locality is measured as the difference between **N and E**, so the
+effect of the edit is separated from the normalization ASTra performs on a first save (see Deviations, D1).
+The difference between A and N is reported separately as "first-save normalization".
+Metrics on N versus E:
 
 * package parts changed (names) and bytes changed
 * paragraphs whose XML changed **other than the target** (expected 0)
 * text of all non-target paragraphs unchanged (expected 100%)
 * the edited paragraph shows the intended change (read back by an independent parser)
-* no-op baseline: open then save with no edit, to measure churn that is not caused by the edit
+* first-save normalization (A versus N): parts whose bytes change, parts whose XML content changes,
+  paragraphs whose XML changes with and without identifier attributes (`w14:paraId`, `w14:textId`, `rsid*`)
 
 Control (no product named): the same document is parsed and re-serialized with plain `lxml` and written back
 to a zip. This shows how much churn a generic parse-and-reserialize step causes on the same corpus.
@@ -172,7 +177,7 @@ These are written before measurement. They are expectations, not promises; a mis
 | ID | Expectation |
 |----|-------------|
 | H1 | Median `standard` outline is at least 3x smaller in tokens than `document.xml` (README says "roughly 5x" for one demo document; the corpus median may differ) |
-| H2 | 0 non-target paragraph changes in all E1 trials |
+| H2 | 0 non-target paragraph content changes between N and E in all E1 trials |
 | H3 | 100% of produced files pass O1 to O5 |
 | H4 | Gate detects at least 95% of injected faults, with 0 false alarms on clean and valid-mutation controls |
 | H5 | 100% atomic outcomes in E4 |
@@ -217,4 +222,13 @@ Raw per-trial data (`*.jsonl`) is published with the summaries. Nothing is dropp
 
 ## 12. Deviations
 
-(none yet)
+**D1 (2026-11-11, before any experiment was run).** A probe of three corpus documents showed that the first
+save of a document written by another program is not byte-neutral: `word/document.xml` gains `w14:paraId`
+identifiers on paragraphs, `docProps/core.xml` can gain a title, `word/styles.xml` is re-serialized, and
+pictures with `pic:cNvPr id="0"` get a valid id. The probe is published with E1's raw data. E1 was changed to
+the A/N/E design above so that locality is measured against a saved baseline, and first-save normalization
+is reported as its own result instead of being hidden or blamed on the edit. No thresholds were changed.
+
+**D2 (2026-11-11, before any experiment was run).** The first corpus draft produced about 1.65 times the
+target page count. The generator constants were changed and the corpus regenerated; sizes in the ladder are
+**measured** pages as recorded in `corpus/manifest.json`.

@@ -24,5 +24,5 @@ export async function connect(allowedDir, extraArgs = []) {
     try { json = JSON.parse(text); } catch { json = undefined; }
     return { ms, isError: !!res.isError, text, json, raw: res };
   }
-  return { client, call, close: () => client.close() };
+  return { client, call, pid: transport.pid, close: () => client.close() };
 }
