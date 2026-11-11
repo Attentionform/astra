@@ -46,7 +46,7 @@ It is powered by its own document engine, which turns a `.docx` into a compact t
 
 <table>
   <tr>
-    <td width="33%" valign="top"><b>An outline made for agents</b><br />One row per paragraph, table and image, each with a stable ID. Roughly 5x fewer tokens than raw XML on our demo report.</td>
+    <td width="33%" valign="top"><b>An outline made for agents</b><br />One row per paragraph, table and image, each with a stable ID. About 2.9x fewer tokens than raw XML at the median over our 40 test documents, and 6x or more on table-heavy ones.</td>
     <td width="33%" valign="top"><b>Typed, batched edits</b><br />27 operations aimed at node IDs and applied as one batch. If any step fails, none of it is applied.</td>
     <td width="33%" valign="top"><b>Built-in validation</b><br />Files are checked against the Office Open XML schema before saving. Existing validation errors may be tolerated under the default policy; strict mode refuses saves with errors.</td>
   </tr>
@@ -183,7 +183,7 @@ Add `--json` to any command for machine-readable output. The [CLI Guide](docs/cl
 
 | If you want to... | Use | Package |
 |---|---|---|
-| Let an AI assistant (Claude Desktop, Claude Code, Cursor, Windsurf, or any MCP client) read and edit Word files | The 19-tool MCP server | [`@attentionform/astra-mcp-server`](packages/mcp-server/README.md) |
+| Let an AI assistant (Claude Desktop, Claude Code, Cursor, Windsurf, or any MCP client) read, create and edit Word files | The 19-tool MCP server | [`@attentionform/astra-mcp-server`](packages/mcp-server/README.md) |
 | Inspect, edit, validate, convert or clean documents from a terminal, a script or CI | The command-line tool | [`@attentionform/astra`](packages/cli/README.md) |
 | Build document editing and validation into your own Node.js program | The engine library | [`@attentionform/astra-engine`](packages/engine/README.md) |
 | Check any `.docx` against the Office Open XML schema | The validator | [`@attentionform/ooxml-validator`](packages/ooxml-validator/README.md) |

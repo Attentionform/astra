@@ -6,6 +6,22 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+### Fixed
+
+- **A revert no longer leaves comment metadata behind.** History recorded only a fixed list of package parts, and the list did not include `word/commentsExtended.xml`, `word/commentsIds.xml`, `word/commentsExtensible.xml` or `word/people.xml`. After a revert past a comment, those parts stayed in the file. `word/people.xml` lists comment author names, so an author name could remain in the file after the comment was reverted away. Reverting to a commit with fewer authors also kept the later authors and left reply entries that pointed at comments that no longer existed. History now records every package part except `word/document.xml`, which is committed separately, and a revert restores all of them and removes parts the target commit does not have. This applies to the MCP tools (`revert_document`, `redo_document`, `preview_revert`) and to `astra revert`, `redo` and `preview-revert`.
+- **A revert does not recompress parts that did not change.** The restore step rewrote every zip entry, which changed the stored (compressed) bytes of unchanged parts, such as an embedded thumbnail, even though their content was identical.
+- **`sanitize_document` and `astra sanitize` also replace the display name in `word/people.xml`.** The author pass emptied `w15:author` but left the same name in `w15:userId` when the person has no account (`w15:providerId="None"`, which is what ASTra writes). So a document that kept its comments still carried the commenter's name in `people.xml` after a default sanitize. The pass now replaces that `userId` too (with `Anonymous` when the replacement author is empty, because the schema needs a non-empty value). An account id of a real provider is still handled by the PII pass, as before.
+
+### Changed
+
+- **Commits recorded by an older version are marked unknown.** A commit written by 0.4.2 or later carries a small marker file (`.astra-snapshot-format`) in its history, set only when the commit was proven to hold every package part of the snapshot it was given. Older commits have no marker. `preview_revert`, `revert_document` and the matching command-line commands now return `snapshotComplete` and, for an unmarked commit, a `restoreWarning`: the restore replaces only the parts that commit recorded and leaves every other part as it is in the current file, so the result is not an exact restore. Nothing is migrated. A new commit in an older history gets the marker; older commits stay as they were.
+- **A part whose name git cannot store is recorded under an escaped name** instead of being left out. Names that start with `.git`, the name of the marker file and a root-level `document.xml` are affected. Directory entries carry no content and are not recorded.
+- **`astra revert` treats a hand edit to any package part, `docProps` included, as a conflict.** Before, only the listed parts were compared with the last recorded commit. The comparison for a commit recorded by an older version still uses the older list.
+
+### Privacy note
+
+Files reverted with 0.4.1 can still contain `word/people.xml` with comment author names, and `commentsExtended.xml` with no comment behind it. In a test on a file made that way, the default `sanitize_document` of 0.4.2 removed the name from the file, and `stripComments` and `purgeAuthors` of 0.4.1 and 0.4.2 before this fix did not. `stripComments` alone keeps a `people.xml` that has no `comments.xml` beside it. This cleans the file you run it on. It does not change history stores in `.astra` folders, backups or other copies of the document.
+
 ## [0.4.1] - 2026-11-11
 
 All ten npm packages move to 0.4.1. The engine, the command line, the MCP server tools and the native validator source are unchanged. This release adds the metadata that the official MCP Registry needs and a setup guide for AI assistants.
