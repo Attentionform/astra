@@ -31,7 +31,7 @@ def arrow(ax, x1, y1, x2, y2, color=MUTED, lw=2):
 
 
 # 1. Hero: the five verbs --------------------------------------------------
-fig, ax = plt.subplots(figsize=(11.5, 5.2))
+fig, ax = plt.subplots(figsize=(9.2, 4.5))
 ax.set_xlim(0, 11.5); ax.set_ylim(0, 5.2); ax.axis("off")
 ax.text(0.1, 4.9, "An AI agent works on a Word file through ASTra, not through XML", fontsize=17, fontweight="bold", color=INK)
 ax.text(0.1, 4.5, "Runs locally. Nothing leaves your machine.", fontsize=12, color=MUTED)
@@ -39,14 +39,14 @@ box(ax, 0.1, 1.5, 1.85, 1.5, "#f3f5f8", LINE, "AI agent\n(Claude, Cursor,\nany M
 box(ax, 9.65, 1.5, 1.75, 1.5, "#f3f5f8", LINE, "report.docx\nplain Word file", 10.5)
 box(ax, 2.55, 0.75, 6.5, 3.35, BLUE_L, BLUE, "", lw=2)
 ax.text(5.8, 3.8, "ASTra", ha="center", fontsize=14, fontweight="bold", color=BLUE)
-verbs = [("Create", "Markdown in,\nreal .docx out"), ("Read", "compact outline\nwith stable IDs"), ("Edit", "typed edits in\none atomic batch"),
-         ("Check", "schema gate on\nevery save"), ("Undo", "git history,\npreview, revert")]
+verbs = [("Create", "Markdown\nto .docx"), ("Read", "outline with\nstable IDs"), ("Edit", "typed edits,\natomic batch"),
+         ("Check", "checked\nsaves"), ("Undo", "git history\nand undo")]
 w = 1.12
 for i, (v, d) in enumerate(verbs):
     x = 2.7 + i * 1.22
     box(ax, x, 1.0, w, 2.55, "white", BLUE, "", lw=1.2)
     ax.text(x + w / 2, 3.2, v, ha="center", fontsize=12.5, fontweight="bold", color=INK)
-    ax.text(x + w / 2, 2.15, d, ha="center", va="center", fontsize=8, color=MUTED, linespacing=1.5)
+    ax.text(x + w / 2, 2.15, d, ha="center", va="center", fontsize=7.6, color=MUTED, linespacing=1.6)
 arrow(ax, 2.0, 2.25, 2.5, 2.25); arrow(ax, 9.1, 2.25, 9.6, 2.25)
 ax.text(5.8, 0.3, "19 MCP tools  \u00b7  CLI  \u00b7  TypeScript library", ha="center", fontsize=11, color=MUTED)
 save(fig, "01-overview.png")
@@ -110,13 +110,13 @@ fig.suptitle("A small edit should be a small change", x=0.06, ha="left", fontsiz
 save(fig, "04-edit-locality.png")
 
 # 5. The gate ------------------------------------------------------------------
-fig, ax = plt.subplots(figsize=(11, 4.4))
+fig, ax = plt.subplots(figsize=(9.4, 3.9))
 ax.set_xlim(0, 11); ax.set_ylim(0, 4.4); ax.axis("off")
-ax.text(0.1, 4.05, "The gate sits at the save: an edit that adds errors never reaches the disk", fontsize=16, fontweight="bold", color=INK)
+ax.text(0.1, 4.05, "The gate sits at the save: an edit that adds errors never reaches the disk", fontsize=14.5, fontweight="bold", color=INK)
 box(ax, 0.1, 1.8, 2.0, 1.2, "#f3f5f8", LINE, "edit batch\ncolor: \"banana\"", 11)
 box(ax, 2.9, 1.8, 2.0, 1.2, "#f3f5f8", LINE, "session\n(in memory)", 11)
 box(ax, 5.7, 1.8, 2.1, 1.2, BLUE_L, BLUE, "schema check\nOpen XML SDK", 11, color=BLUE)
-box(ax, 8.6, 2.55, 2.3, 0.95, RED_L, RED, "save refused\n7 new errors + xPaths", 10.5, color=RED)
+box(ax, 8.6, 2.55, 2.3, 0.95, RED_L, RED, "save refused\n7 new errors, xPaths", 10.5, color=RED)
 box(ax, 8.6, 1.0, 2.3, 0.95, GREEN_L, GREEN, "saved + new\ngit commit", 10.5, color=GREEN)
 arrow(ax, 2.15, 2.4, 2.85, 2.4); arrow(ax, 4.95, 2.4, 5.65, 2.4)
 arrow(ax, 7.85, 2.7, 8.55, 3.0, color=RED); arrow(ax, 7.85, 2.1, 8.55, 1.5, color=GREEN)
@@ -126,7 +126,7 @@ ax.text(0.1, 0.35, "Default mode refuses any save that adds errors. Strict mode 
 save(fig, "05-gate.png")
 
 # 6. History timeline ----------------------------------------------------------
-fig, ax = plt.subplots(figsize=(11, 3.9))
+fig, ax = plt.subplots(figsize=(9.4, 3.5))
 ax.set_xlim(0, 11); ax.set_ylim(0, 3.9); ax.axis("off")
 ax.text(0.1, 3.55, "Every save is a commit. Undo is a new commit, never a rewrite.", fontsize=16, fontweight="bold", color=INK)
 ax.plot([0.9, 9.6], [2.0, 2.0], color=LINE, lw=4, zorder=1)
