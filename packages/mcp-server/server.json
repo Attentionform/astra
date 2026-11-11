@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.Attentionform/astra-mcp-server",
+  "name": "com.attentionform/astra-mcp-server",
   "title": "ASTra",
   "description": "Lets AI agents read, edit and build Word (.docx) documents. Every save is checked against the Office schema and recorded as a git commit.",
   "repository": {
