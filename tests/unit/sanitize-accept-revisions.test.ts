@@ -436,10 +436,11 @@ describe('Phase D sanitization closure: accept-all-revisions + strip-comments', 
     ]);
     const { files: clean, report } = sanitizePackageEntries(files, { stripComments: true });
     expect(clean.has('word/people.xml')).toBe(true);
-    // Kept adjunct still gets author-attr purging (userId presenceInfo is
-    // out-of-scope for the author pass — only author/initials are replaced).
+    // Kept adjunct still gets author-attr purging. A providerId="None" userId holds the display name
+    // and is replaced too; an account id of a real provider stays with the PII pass.
     expect(clean.get('word/people.xml')!.toString('utf8')).not.toContain('w15:author="Mallory"');
     expect(clean.get('word/people.xml')!.toString('utf8')).toContain('w15:author=""');
+    expect(clean.get('word/people.xml')!.toString('utf8')).not.toContain('Mallory');
     expect(report.strippedComments).toBe(0);
   });
 

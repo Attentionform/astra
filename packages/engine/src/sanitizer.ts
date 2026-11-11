@@ -274,6 +274,8 @@ const RSIDS_SELF_CLOSING_RE = /<w:rsids\s*\/>/g;
 // w:author leaves an undeclared w15: prefix use / drops the w15 binding).
 const AUTHOR_ATTR_RE = /\s+(w|w15):author="[^"]*"/g;
 const INITIALS_ATTR_RE = /\s+w:initials="[^"]*"/g;
+const PRESENCE_INFO_TAG_RE = /<w15:presenceInfo\b[^>]*>/g;
+const PRESENCE_USERID_RE = /(\sw15:userId=")[^"]*(")/;
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // Phone matcher (conservative scope, documented): covers leading-+ international,
@@ -1455,6 +1457,19 @@ export function sanitizeDocumentXml(
         .toUpperCase() || 'A'
     );
     out = out.replace(INITIALS_ATTR_RE, ` w:initials="${initials}"`);
+    // people.xml: a person whose providerId is "None" has no account behind it, so Word and ASTra keep the
+    // display name itself in w15:userId. The author pass must replace it too, or the name survives. An id
+    // of a real provider (AD, Windows Live, ...) is an account id and stays with the PII pass.
+    if (partName === 'word/people.xml') {
+      out = out.replace(PRESENCE_INFO_TAG_RE, (tag: string) => {
+        if (!/\sw15:providerId="None"/.test(tag)) return tag;
+        return tag.replace(PRESENCE_USERID_RE, (_m: string, open: string, close: string) => {
+          purgedAuthors += 1;
+          // The schema requires a non-empty userId, and the default replacement author is empty.
+          return `${open}${replacement === '' ? 'Anonymous' : replacement}${close}`;
+        });
+      });
+    }
   }
   let acceptedRevisions = 0;
   let unresolvedRevisions: UnresolvedRevision[] = [];
