@@ -10,6 +10,14 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <InvariantGlobalization>true</InvariantGlobalization>
     <PublishSingleFile>true</PublishSingleFile>
+    <!--
+      Publishing a single file makes the SDK turn on the single-file analyzer, and that adds the trimming
+      package Microsoft.NET.ILLink.Tasks, whose version comes from the SDK that happens to run. The lock file
+      records one version, so a locked `dotnet restore` failed (NU1004) on any machine whose SDK gave
+      another. The analyzer only warns at build time, and the published binary is checked on every platform by
+      the platform smoke test, so turn it off and keep that package out of the build.
+    -->
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
     <SelfContained>true</SelfContained>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <Deterministic>true</Deterministic>
