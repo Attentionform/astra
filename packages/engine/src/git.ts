@@ -1,4 +1,6 @@
+import { captureOriginal, getOriginalInfo, originalSha256 } from './original';
 import fs from 'fs';
+import os from 'os';
 import type { Dirent } from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
@@ -244,6 +246,49 @@ async function indexedPartPaths(repoDir: string): Promise<Set<string>> {
 }
 
 /**
+ * A failed first initialization can leave package parts staged in a repository
+ * with no commits. The explicit `history --init` repair starts a new baseline,
+ * so discard those uncommitted package entries before writing the retry's
+ * snapshot; otherwise a stale staged part can leak into that baseline.
+ */
+async function clearUncommittedPackageParts(repoDir: string): Promise<void> {
+  const repoRoot = path.resolve(repoDir);
+  for (const rel of await indexedPartPaths(repoDir)) {
+    if (isTraversalName(rel)) {
+      throw Object.assign(new Error(`History repair refused an unsafe indexed path: ${rel}`), { code: 'E_SANDBOX' });
+    }
+    const fullPath = path.resolve(repoRoot, rel);
+    const relative = path.relative(repoRoot, fullPath);
+    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw Object.assign(new Error(`History repair refused an indexed path outside its repository: ${rel}`), { code: 'E_SANDBOX' });
+    }
+    assertWriteTargetNoSymlink(fullPath);
+    try {
+      await fsp.unlink(fullPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+    }
+    await git.remove({ fs, dir: repoDir, filepath: rel });
+  }
+}
+
+/** The only expected `git.log` failure that means "no commits yet". */
+async function isUnbornHistory(repoDir: string): Promise<boolean> {
+  let head: string;
+  try {
+    head = await fsp.readFile(path.join(repoDir, '.git', 'HEAD'), 'utf8');
+  } catch {
+    return false;
+  }
+  if (!/^ref:\s*refs\/heads\/[^\s]+\s*$/.test(head)) return false;
+  const [branches, tags] = await Promise.all([
+    git.listBranches({ fs, dir: repoDir }),
+    git.listTags({ fs, dir: repoDir }),
+  ]);
+  return branches.length === 0 && tags.length === 0;
+}
+
+/**
  * Decides whether the commit being built is a proven complete snapshot: the caller supplied the full
  * package, and the index now holds exactly the parts that were written, no more and no fewer.
  */
@@ -463,6 +508,130 @@ export async function getHistoryCommitCount(repoDir: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+const GIT_INITIALIZATION_LOCK = '.astra-init.lock';
+function gitInitializationLockPath(repoDir: string): string { return path.join(repoDir, GIT_INITIALIZATION_LOCK); }
+function gitInitializationIncompleteError(repoDir: string): Error & { code: string; remedy: string } {
+  return Object.assign(new Error(`History initialization is incomplete at ${repoDir}.`), {
+    code: 'E_STATE',
+    remedy: 'Stop other ASTra processes using this document, inspect the history directory, then run `astra history <file> --init` to record a baseline.',
+  });
+}
+async function gitInitializationLockExists(repoDir: string): Promise<boolean> {
+  const file = gitInitializationLockPath(repoDir);
+  try {
+    const st = await fsp.lstat(file);
+    if (!st.isFile() || st.isSymbolicLink()) throw Object.assign(new Error(`Unsafe history initialization lock: ${file}`), { code: 'E_SANDBOX' });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+/**
+ * Describe who recorded an initialization lock. The answer is evidence, not proof: a pid that is not found on
+ * this host does not show that deleting the lock is safe (other hosts, other PID namespaces and reused pids
+ * look the same), so an unclear case says so.
+ */
+async function describeInitializationLock(file: string): Promise<string> {
+  let record: { pid?: unknown; hostname?: unknown; startedAt?: unknown } = {};
+  try {
+    const st = await fsp.lstat(file);
+    if (st.isFile() && !st.isSymbolicLink() && st.size <= 4096) record = JSON.parse(await fsp.readFile(file, 'utf8')) as typeof record;
+  } catch { /* unreadable or malformed: described below as unknown */ }
+  const pid = typeof record.pid === 'number' && Number.isInteger(record.pid) && record.pid > 0 ? record.pid : undefined;
+  const hostname = typeof record.hostname === 'string' ? record.hostname.slice(0, 255) : undefined;
+  const started = typeof record.startedAt === 'string' ? ` since ${record.startedAt.slice(0, 40)}` : '';
+  if (pid === undefined) return `the lock does not record its owner${started}; cannot tell whether an initializer is still running`;
+  if (hostname === undefined) return `owner pid ${pid}, host not recorded${started}; cannot tell whether it is still running`;
+  if (hostname !== os.hostname()) return `owner pid ${pid} on host ${hostname}${started}; this host is ${os.hostname()}, cannot tell whether it is still running`;
+  try {
+    process.kill(pid, 0);
+    return `owner pid ${pid} on this host${started}; that process is running`;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'EPERM') return `owner pid ${pid} on this host${started}; that process is running`;
+    if ((error as NodeJS.ErrnoException)?.code === 'ESRCH') return `owner pid ${pid} on this host${started}; that process was not found (this alone does not prove the lock is stale)`;
+    return `owner pid ${pid} on this host${started}; cannot tell whether it is still running`;
+  }
+}
+async function gitInitializationConflictError(file: string): Promise<Error & { code: string; remedy: string }> {
+  return Object.assign(new Error(`Another or interrupted ASTra history initialization is marked at ${file} (${await describeInitializationLock(file)}).`), {
+    code: 'E_CONFLICT',
+    remedy: `Do not delete the lock while any ASTra process (an agent, a pipeline or a CLI run) may be using this document. Once you have made sure none is, delete ${file}; if the history then has no commits, run \`astra history <file> --init\`. ASTra never removes the lock itself.`,
+  });
+}
+/**
+ * Commit count that answers 0 only for a repository with no commits yet. A history that cannot be read (a
+ * transient I/O error, a corrupt ref) is an error, not "no commits": `getHistoryCommitCount` maps both to 0,
+ * which is fine for display but would make a damaged history look like an interrupted initialization.
+ */
+async function countCommitsStrict(repoDir: string): Promise<number> {
+  await assertUsableSidecarGit(repoDir);
+  try {
+    return (await git.log({ fs, dir: repoDir })).length;
+  } catch (error) {
+    if (await isUnbornHistory(repoDir)) return 0;
+    throw error;
+  }
+}
+export async function assertGitHistoryReady(repoDir: string): Promise<void> {
+  await assertNoGitInitializationInProgress(repoDir);
+  if (await countCommitsStrict(repoDir) === 0) throw gitInitializationIncompleteError(repoDir);
+}
+export async function assertNoGitInitializationInProgress(repoDir: string): Promise<void> {
+  if (await gitInitializationLockExists(repoDir)) throw await gitInitializationConflictError(gitInitializationLockPath(repoDir));
+}
+/**
+ * Call before changing a document that records history, before its file is touched: fails with the same error a
+ * later commit would raise while an initialization lock is held or an interrupted initialization left no commit,
+ * so a save never writes the file only to roll it back. The lock can still appear after this check; it narrows
+ * the window, it does not close it.
+ */
+export async function assertHistoryReadyForWrite(docPath: string): Promise<void> {
+  const repoDir = getRepoDir(docPath);
+  await assertNoGitInitializationInProgress(repoDir);
+  if (fs.existsSync(path.join(repoDir, '.git'))) await assertGitHistoryReady(repoDir);
+}
+async function withGitInitializationLock<T>(repoDir: string, run: () => Promise<T>): Promise<T> {
+  const file = gitInitializationLockPath(repoDir);
+  assertWriteTargetNoSymlink(file);
+  const token = crypto.randomUUID();
+  let handle: fs.promises.FileHandle;
+  try {
+    handle = await fsp.open(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'EEXIST') throw await gitInitializationConflictError(file);
+    throw error;
+  }
+  let primaryError: unknown;
+  let result: T;
+  try {
+    await handle.writeFile(JSON.stringify({ version: 2, pid: process.pid, hostname: os.hostname(), token, startedAt: new Date().toISOString() }));
+    await handle.sync();
+    result = await run();
+  } catch (error) {
+    primaryError = error;
+  }
+  await handle.close().catch(() => undefined);
+  let cleanupError: unknown;
+  try {
+    const current = JSON.parse(await fsp.readFile(file, 'utf8')) as { token?: string };
+    if (current.token !== token) throw Object.assign(new Error(`History initialization lock ownership changed; left in place: ${file}`), { code: 'E_CONFLICT' });
+    await fsp.unlink(file);
+  } catch (error) {
+    cleanupError = error;
+  }
+  if (cleanupError && (cleanupError as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+    if (primaryError) {
+      const cause = primaryError instanceof Error ? primaryError.message : String(primaryError);
+      throw Object.assign(new Error(`${cause}; initialization lock cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`), { code: 'E_IO', lockPath: file });
+    }
+    throw Object.assign(new Error(`History initialization lock cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`), { code: 'E_IO', lockPath: file });
+  }
+  if (cleanupError && !primaryError) throw Object.assign(new Error(`History initialization finished, but its lock file disappeared while it ran: ${file}. Another process or a cleaner may have removed it, so exclusivity is not guaranteed for this run. Inspect the history with \`astra history <file>\` before relying on it.`), { code: 'E_CONFLICT' });
+  if (primaryError) throw primaryError;
+  return result!;
 }
 
 /**
@@ -894,21 +1063,61 @@ export async function ensureAstraGitRepo(target: string): Promise<string> {
 export async function initAstraRepo(
   docPath: string,
   initialXml: string,
-  extraFiles?: Record<string, string | Buffer>
+  extraFiles?: Record<string, string | Buffer>,
+  originalBytes?: Buffer
 ): Promise<string> {
   const repoDir = await ensureAstraGitRepo(docPath);
+  await withGitInitializationLock(repoDir, async () => {
+    // `git.log` is intentionally strict here. The best-effort history counter
+    // maps unreadable history to zero, which is suitable for display but must
+    // not authorize destructive repair of an existing, corrupt repository.
+    await git.init({ fs, dir: repoDir });
+    let commits: Awaited<ReturnType<typeof git.log>>;
+    try {
+      commits = await git.log({ fs, dir: repoDir });
+    } catch (error) {
+      // isomorphic-git reports an unborn branch as a missing ref. Treat that
+      // as empty only when the repository has no branch or tag refs at all;
+      // an unreadable existing ref must not authorize repair.
+      if (!await isUnbornHistory(repoDir)) throw error;
+      commits = [];
+    }
+    if (commits.length > 0) {
+      throw Object.assign(new Error(`History is already initialized at ${repoDir}.`), { code: 'E_CONFLICT' });
+    }
+    // A zero-commit repository can be an interrupted prior initialization.
+    // The explicit `history --init` repair records a fresh baseline, now
+    // serialized with competing initializers.
+    await clearUncommittedPackageParts(repoDir);
+    // A snapshot can survive an initializer that was killed after publishing it and before its first commit.
+    // It belongs to the bytes that initializer opened. If this retry opens different bytes, recording them as
+    // the baseline would pair the old original with a baseline it never produced, and a later restore would
+    // replace the changed document with the older one. Refuse and keep both files. Matching bytes resume.
+    if (originalBytes) {
+      const existing = await getOriginalInfo(path.resolve(docPath));
+      if (existing.available && existing.sha256 !== originalSha256(originalBytes)) {
+        const snapshotPath = path.join(repoDir, '.git', 'astra-original', 'original.snapshot');
+        throw Object.assign(new Error(
+          `History initialization refused: an interrupted earlier initialization left a retained original (sha256 ${existing.sha256}) that differs from this file (sha256 ${originalSha256(originalBytes)}), and no history was recorded.`,
+        ), {
+          code: 'E_CONFLICT',
+          reason: 'original-mismatch',
+          remedy: `Nothing was changed. The retained original may be the only copy of the earlier document: keep ${snapshotPath} (copy or rename it, do not delete it; \`astra history <file> --export-original <out>\` can still write its bytes to a new file), then run \`astra history <file> --init\` again once it is out of the way.`,
+        });
+      }
+    }
+    await captureOriginal(path.resolve(docPath), originalBytes);
 
-  await git.init({ fs, dir: repoDir });
+    await writeAndAdd(repoDir, 'document.xml', initialXml);
+    const writtenParts = await writeSnapshotParts(repoDir, extraFiles);
+    await applySnapshotMarker(repoDir, await snapshotIsProvenComplete(repoDir, extraFiles, writtenParts));
 
-  await writeAndAdd(repoDir, 'document.xml', initialXml);
-  const writtenParts = await writeSnapshotParts(repoDir, extraFiles);
-  await applySnapshotMarker(repoDir, await snapshotIsProvenComplete(repoDir, extraFiles, writtenParts));
-
-  await git.commit({
-    fs,
-    dir: repoDir,
-    author: { name: 'ASTra', email: 'astra@attentionform.com' },
-    message: 'Initial state'
+    await git.commit({
+      fs,
+      dir: repoDir,
+      author: { name: 'ASTra', email: 'astra@attentionform.com' },
+      message: 'Initial state'
+    });
   });
 
   // R-6: record the new head durably. Re-runs the tombstone check so a
@@ -936,6 +1145,7 @@ export async function commitChange(
   const maxCommits = resolveHistoryMaxCommits(limits?.maxCommits);
   const maxSidecarBytes = resolveHistoryMaxSidecarBytes(limits?.maxSidecarBytes);
   const repoDir = await ensureAstraGitRepo(docPath);
+  await assertGitHistoryReady(repoDir);
 
   // Quota gate BEFORE any write: commit count first (cheap), then sidecar
   // bytes (current + incoming). Loud E_QUOTA names the raise-the-limit
@@ -1074,8 +1284,39 @@ export async function commitChange(
   return sha;
 }
 
+export interface HistoryInitializationState {
+  /**
+   * `absent`: no history and no initializer. `in-progress`: an initialization lock is held. `incomplete`: a history
+   * with no commit, or whose first commit is not a complete package snapshot. `complete`: the lock is gone and the
+   * first ("Initial state") commit exists and is a complete snapshot. The current head plays no part: later edits
+   * do not change it.
+   */
+  state: 'absent' | 'in-progress' | 'incomplete' | 'complete';
+  detail?: string;
+}
+/** Read-only; never throws. */
+export async function getHistoryInitializationState(docPath: string): Promise<HistoryInitializationState> {
+  const repoDir = getRepoDir(docPath);
+  try {
+    if (await gitInitializationLockExists(repoDir)) {
+      return { state: 'in-progress', detail: 'Another ASTra process holds the history initialization lock (or it was interrupted).' };
+    }
+    if (!fs.existsSync(path.join(repoDir, '.git'))) return { state: 'absent' };
+    await assertUsableSidecarGit(repoDir);
+    const commits = await git.log({ fs, dir: repoDir });
+    if (commits.length === 0) return { state: 'incomplete', detail: 'History initialization is incomplete: no commit was recorded.' };
+    const root = commits[commits.length - 1];
+    const initial = await checkoutCommit(docPath, root.oid);
+    if (!initial.complete) return { state: 'incomplete', detail: 'The first history commit is not a complete package snapshot.' };
+    return { state: 'complete' };
+  } catch (error) {
+    return { state: 'incomplete', detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export async function getHistory(docPath: string) {
   const repoDir = getRepoDir(docPath);
+  await assertNoGitInitializationInProgress(repoDir);
   // Reads obey the same rule as writes: a stray `.git` entry is never followed.
   await assertUsableSidecarGit(repoDir);
   let commits;
