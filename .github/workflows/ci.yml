@@ -86,12 +86,13 @@ jobs:
         with:
           dotnet-version: 10.0.403
       - run: npm run build:native --workspace=@attentionform/ooxml-validator
+      - name: Build packages used by subprocess recovery tests
+        run: |
+          npm run build --workspace=@attentionform/ooxml-validator
+          npm run build --workspace=@attentionform/astra-engine
       - name: Verify exclusive capture, export and atomic replacement
         run: npx vitest run tests/unit/original-recovery.test.ts
       - name: Verify Windows locked-target restore and retry
         if: runner.os == 'Windows'
         shell: pwsh
-        run: |
-          npm run build --workspace=@attentionform/ooxml-validator
-          npm run build --workspace=@attentionform/astra-engine
-          ./tests/fixtures/windows-locked-restore.ps1
+        run: ./tests/fixtures/windows-locked-restore.ps1
