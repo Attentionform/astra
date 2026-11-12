@@ -348,7 +348,9 @@ export async function executeSaveDocument(
     }
     try {
       handle.filePath = target;
-      handle.originalInfo = await getOriginalInfo(target);
+      if (prevFilePath !== target || !handle.originalInfo || handle.originalInfo.available || handle.originalInfo.detail !== 'Another opener recorded a different original for this history.') {
+        handle.originalInfo = await getOriginalInfo(target);
+      }
       if (prevFilePath !== target) handle.originalWarning = undefined;
       if (!handle.originalInfo.available && !['predates-feature', 'not-applicable'].includes(handle.originalInfo.reason)) {
         handle.originalWarning = `Exact-original recovery is unavailable: ${handle.originalInfo.reason}. Keep a separate copy of the input file.`;

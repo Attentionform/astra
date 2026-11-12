@@ -160,7 +160,8 @@ export async function handleGetDocumentHistory(
         totalCommits: full.length,
         history: slice,
         warning,
-        original: await getOriginalInfo(filePath),
+        original: handle.originalInfo && !handle.originalInfo.available && handle.originalInfo.detail === 'Another opener recorded a different original for this history.'
+          ? handle.originalInfo : await getOriginalInfo(filePath),
       };
     });
   } catch (err: unknown) {

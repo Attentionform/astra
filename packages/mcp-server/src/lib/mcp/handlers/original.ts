@@ -26,6 +26,9 @@ export async function handleExportOriginalDocument(store: McpSessionStore, input
   try {
     return await store.withSession(parsed.data.sessionId, async handle => {
       if (!path.isAbsolute(handle.filePath)) refuse('E_VALIDATION', 'This memory session has no retained original.');
+      if (handle.originalInfo && !handle.originalInfo.available && handle.originalInfo.detail === 'Another opener recorded a different original for this history.') {
+        refuse('E_CONFLICT', 'This session could not capture its input: another opener recorded a different original. Inspect history before recovery.');
+      }
       const outPath = validateSaveTarget(parsed.data.outPath);
       if (outPath === handle.filePath) refuse('E_CONFLICT', 'Use restore_original_document to replace the active document.');
       const original = await exportOriginal(handle.filePath, outPath, { overwrite: parsed.data.overwrite === true });
@@ -62,6 +65,9 @@ export async function handleRestoreOriginalDocument(store: McpSessionStore, inpu
   try {
     return await store.withSession(parsed.data.sessionId, async handle => {
       if (!path.isAbsolute(handle.filePath)) refuse('E_VALIDATION', 'This memory session has no retained original.');
+      if (handle.originalInfo && !handle.originalInfo.available && handle.originalInfo.detail === 'Another opener recorded a different original for this history.') {
+        refuse('E_CONFLICT', 'This session could not capture its input: another opener recorded a different original. Inspect history before recovery.');
+      }
       if (handle.revision !== handle.savedRevision && !parsed.data.discard) refuse('E_CONFLICT', 'The session has unsaved edits. Save first, or explicitly pass discard:true.');
       const source = validateSaveTarget(handle.filePath);
       const original = await getOriginalInfo(source);

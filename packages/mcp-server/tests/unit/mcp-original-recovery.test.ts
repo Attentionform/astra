@@ -31,6 +31,17 @@ async function save(s: Awaited<ReturnType<typeof setup>>) {
 }
 
 describe('exact-original recovery through MCP',()=>{
+ it('a session that lost a conflicting first capture never exports or restores another opener’s original',async()=>{
+  const s=await setup();const h=s.store.get(s.sessionId);
+  h.originalInfo={available:false,reason:'capture-failed',detail:'Another opener recorded a different original for this history.'};
+  const history=await GIT_HISTORY_HANDLERS.get_document_history(s.store,{sessionId:s.sessionId});
+  expect(history.ok && history.original.available).toBe(false);
+  const exported=await handleExportOriginalDocument(s.store,{sessionId:s.sessionId,outPath:path.join(s.dir,'wrong.docx')});
+  expect(exported.ok).toBe(false);
+  const restored=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId});expect(restored.ok).toBe(false);
+  await save(s);expect(h.originalInfo?.available).toBe(false);
+  const again=await handleExportOriginalDocument(s.store,{sessionId:s.sessionId,outPath:path.join(s.dir,'wrong2.docx')});expect(again.ok).toBe(false);
+ });
  it('exports the exact original when an allowed document contains a macro part', async()=>{
   const dir=await fsp.mkdtemp(path.join(os.tmpdir(),'astra-original-macro-'));dirs.push(dir);
   const file=path.join(dir,'input.docx');const zip=new engine.AdmZip(engine.createBlankDocxBuffer('blank'));
