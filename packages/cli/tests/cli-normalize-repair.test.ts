@@ -109,6 +109,33 @@ describe('normalize and the history repository', () => {
     expect(await commits(file)).toBe(before + 1);
   });
 
+  it('refuses before writing the file while a history initialization lock is held', async () => {
+    const { file } = smartTagDocx();
+    await run(['history', file, '--init']);
+    const before = fs.readFileSync(file);
+    const commitsBefore = await commits(file);
+    const lock = path.join(getRepoDir(file), '.astra-init.lock');
+    fs.writeFileSync(lock, JSON.stringify({ version: 2, pid: 999999, hostname: 'other-host', token: 'held', startedAt: new Date().toISOString() }));
+    await expect(run(['normalize', file])).resolves.not.toBe(0);
+    expect(fs.readFileSync(file).equals(before)).toBe(true);
+    fs.rmSync(lock);
+    expect(await commits(file)).toBe(commitsBefore);
+  });
+
+  it('refuses before writing the file while an initialization lock is held and .git does not exist yet', async () => {
+    const { file } = smartTagDocx();
+    const before = fs.readFileSync(file);
+    const repo = getRepoDir(file);
+    fs.mkdirSync(repo, { recursive: true });
+    const lock = path.join(repo, '.astra-init.lock');
+    fs.writeFileSync(lock, JSON.stringify({ version: 2, pid: process.pid, hostname: os.hostname(), token: 'held', startedAt: new Date().toISOString() }));
+    expect(fs.existsSync(path.join(repo, '.git'))).toBe(false);
+    await expect(run(['normalize', file])).resolves.not.toBe(0);
+    expect(fs.readFileSync(file).equals(before)).toBe(true);
+    fs.rmSync(lock);
+    await expect(run(['normalize', file])).resolves.toBe(0);
+  });
+
   it('records nothing with --no-history, with --out, or without a history repository', async () => {
     const a = smartTagDocx();
     await run(['history', a.file, '--init']);

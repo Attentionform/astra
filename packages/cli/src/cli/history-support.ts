@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { DocxParser, commitChange, getRepoDir, isTrackedPackageFile } from '@attentionform/astra-engine';
-import { CLI_NAME, printStderr } from './output';
+import { DocxParser, assertHistoryReadyForWrite, commitChange, getEngineErrorCode, getRepoDir, isTrackedPackageFile } from '@attentionform/astra-engine';
+import { CLI_NAME, type GlobalOpts, printStderr } from './output';
+import { failWithCode, readErrRemedyProp } from './errors';
 
 // Helpers shared by the history commands and by commands that record a revision when they write
 // (batch). The CLI never creates the `.astra/` sidecar on its own: recording happens only when a
@@ -66,6 +67,43 @@ export function trackedExtras(
 
 export function extrasRecord(extras: Map<string, Buffer>): Record<string, Buffer> {
   return Object.fromEntries(extras);
+}
+
+/**
+ * Refuse, before the document is written, when the write would be recorded in a history that cannot take a
+ * commit right now (an initialization lock is held, or an interrupted initialization left no commit). Applies
+ * when history is on and the command writes the input file itself: while an initialization lock is held (also
+ * before `.git` exists), and when an existing history is unusable. The check narrows the window; it cannot make
+ * the write and the commit atomic.
+ */
+export async function assertBatchHistoryWritable(args: { file: string; target: string; noHistory: boolean }): Promise<void> {
+  if (args.noHistory) return;
+  if (path.resolve(args.target) !== path.resolve(args.file)) return;
+  // No `.git` check first: initialization takes its lock before it creates `.git`, so a held lock with no `.git`
+  // yet (or left by a crash in that window) must refuse here too. With no lock and no history, the check passes
+  // and the command keeps its no-history behavior.
+  try {
+    await assertHistoryReadyForWrite(path.resolve(args.file));
+  } catch (err: unknown) {
+    // Only a held initialization lock (E_CONFLICT) or an interrupted initialization (E_STATE) refuses the write.
+    // Any other read failure keeps batch's contract: the edit is saved and the failed revision is reported as a warning.
+    const code = getEngineErrorCode(err);
+    if (code === 'E_CONFLICT' || code === 'E_STATE') throw err;
+  }
+}
+
+/**
+ * `assertBatchHistoryWritable` for commands that report failures by exit code: returns the exit code of the
+ * refusal (nothing written, no backup made yet), or undefined when the write may go ahead.
+ */
+export async function refuseWhenHistoryBusy(out: GlobalOpts, args: { file: string; target: string; noHistory: boolean }): Promise<number | undefined> {
+  try {
+    await assertBatchHistoryWritable(args);
+    return undefined;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return failWithCode(out, message, getEngineErrorCode(err) ?? 'E_CONFLICT', undefined, readErrRemedyProp(err) ?? 'wait for the other ASTra process to finish, then retry. Nothing was written', err);
+  }
 }
 
 export type BatchRevisionResult = { recorded: true; commit: string } | { recorded: false; reason: string } | null;

@@ -1,12 +1,17 @@
+import * as path from 'path';
 import {
   DocxParser,
   checkoutCommit,
   commitChange,
+  assertHistoryReadyForWrite,
   getEngineErrorCode,
   getHistory,
   getHistoryCommitCount,
   getRepoDir,
   initAstraRepo,
+  getOriginalInfo,
+  exportOriginal,
+  restoreOriginal,
   BASELINE_MAX_ERRORS,
   buildBaseline,
   INCOMPLETE_SNAPSHOT_WARNING,
@@ -128,6 +133,14 @@ async function readCommits(cmd: string, file: string): Promise<SidecarCommits> {
     return await getHistory(file);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    // A held initialization lock is a conflict with another ASTra process, not an unreadable sidecar: keep its
+    // code and its remedy (who holds it and how to proceed) instead of the generic read-failure advice.
+    if ((err as { code?: unknown } | null)?.code === 'E_CONFLICT') {
+      throw Object.assign(new Error(`${cmd}: ${msg}`), {
+        code: 'E_CONFLICT' as const,
+        remedy: readErrRemedyProp(err) ?? 'make sure no other ASTra process is using this document, then retry',
+      });
+    }
     // A 0-commit (unborn) chain cannot be logged. An interrupted init, a
     // deleted ref, or corruption all look the same from here (no commits
     // reachable from HEAD), so the generic "directory is readable" hint
@@ -276,6 +289,8 @@ interface RestoreOptions {
  */
 async function restoreAndCommit(opts: RestoreOptions): Promise<{ commitOid: string; commitMessage: string }> {
   const { cmd, file, parser, prevBytes, target, targetOid, commitMessage } = opts;
+  // Refuse before the file is touched when an initialization lock is held, not after a failed commit.
+  await assertHistoryReadyForWrite(file);
   const snapshot = parser.capturePackageSnapshot();
   // A commit with the snapshot marker recorded every part: all of them are replaced. An older commit
   // recorded only the legacy set, so parts it never recorded are left as they are.
@@ -355,7 +370,7 @@ async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: Macr
   const xml = parser.readDocumentXml();
   const extras = extrasRecord(trackedExtras(parser.capturePackageSnapshot()));
   try {
-    await initAstraRepo(file, xml, extras);
+    await initAstraRepo(path.resolve(file), xml, extras, buf);
   } catch (err: unknown) {
     // Mirror revert's write wrap: a sidecar create/write refusal (e.g. EACCES
     // on a read-only document directory) is an IO failure, not a document
@@ -372,6 +387,8 @@ async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: Macr
   const warning = sidecarWarning(commits);
   if (warning) printStderr(`${CLI_NAME}: warning: ${warning}`);
   const head = commits[0]?.oid ?? null;
+  const original = await getOriginalInfo(path.resolve(file));
+  printStderr(`${CLI_NAME}: original ${original.available ? `captured, sha256 ${original.sha256}` : `unavailable (${original.reason})`}`);
   print(
     out,
     `HISTORY INIT ${file}: recorded baseline ${shortOid(head)} (${Object.keys(extras).length} tracked package ` +
@@ -382,6 +399,7 @@ async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: Macr
     command: 'history',
     file,
     initialized: true,
+    original,
     commitOid: head,
     totalCommits: commits.length,
     currentCommit: head,
@@ -391,20 +409,62 @@ async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: Macr
   return EXIT_OK;
 }
 
+/**
+ * Restore exact source bytes without passing them through rezip. The work (history-head check, verified backup,
+ * atomic replace, one appended commit, rollback) is the engine's `restoreOriginal`, the same transaction the MCP
+ * restore tool follows; this wrapper only maps its result and errors to CLI output.
+ */
+async function restoreOriginalFile(out: GlobalOpts, file: string, allowMacros: boolean): Promise<number> {
+  let result: Awaited<ReturnType<typeof restoreOriginal>>;
+  try {
+    // The captured original must open under the same macro policy as any document: a macro-enabled original needs --allow-macros.
+    result = await restoreOriginal(path.resolve(file), allowMacros ? { macroPolicy: { allowMacros: true } } : {});
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    const backupPath = (err as { backupPath?: unknown } | null)?.backupPath;
+    throw Object.assign(new Error(`history --restore-original: ${message}`), {
+      code: getEngineErrorCode(err) ?? ('E_IO' as const),
+      remedy: typeof backupPath === 'string'
+        ? `Recover the working file from ${backupPath}.`
+        : readErrRemedyProp(err) ?? 'Inspect history and retry after resolving the error.',
+    });
+  }
+  if (result.warning) printStderr(`${CLI_NAME}: warning: ${result.warning}`);
+  print(out, `RESTORE ORIGINAL OK ${file}: exact original bytes restored; commit ${shortOid(result.commitOid)}${result.durabilityUnconfirmed ? '; directory durability unconfirmed' : ''}`);
+  printJson(out, { ok: true, command: 'history', file, restoredOriginal: true, sha256: result.sha256, commitOid: result.commitOid, ...(result.durabilityUnconfirmed ? { durabilityUnconfirmed: true } : {}) });
+  return EXIT_OK;
+}
+
 export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'history');
   let file: string | undefined;
   let init = false;
   let allowMacros = false;
   let stripMacros = false;
-  for (const a of args) {
+  let exportPath: string | undefined;
+  let wantRestoreOriginal = false;
+  let force = false;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
     if (a === '--init' || a === '--track') init = true;
+    else if (a === '--export-original') {
+      const next = args[++i];
+      if (!next || next.startsWith('--')) return usage(out, 'history: --export-original requires an output path');
+      exportPath = next;
+    }
+    else if (a === '--restore-original') wantRestoreOriginal = true;
+    else if (a === '--force') force = true;
     else if (a === '--allow-macros') allowMacros = true;
     else if (a === '--strip-macros') stripMacros = true;
     else if (a.startsWith('--')) return usage(out, `history: unknown flag "${a}"`);
     else if (!file) file = a;
     else return usage(out, 'history takes exactly one <docx> argument');
   }
+  const actions = [init, !!exportPath, wantRestoreOriginal].filter(Boolean).length;
+  if (actions > 1) return usage(out, 'history: choose only one of --init, --export-original or --restore-original');
+  if (force && !exportPath && !wantRestoreOriginal) return usage(out, 'history: --force requires --export-original or --restore-original');
+  if ((exportPath || wantRestoreOriginal) && stripMacros) return usage(out, 'history: original recovery never strips or changes bytes, so --strip-macros does not apply');
+  if (exportPath && allowMacros) return usage(out, 'history: --export-original copies bytes without opening them, so --allow-macros does not apply');
   if (!file) return usage(out, 'history requires <docx>');
   if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
   const macroOpts = macroOptsFromFlags({ allowMacros, stripMacros });
@@ -426,7 +486,17 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
     }
     const gate = sidecarGate(out, 'history', file);
     if (gate !== null) return gate;
+    if (exportPath) {
+      if (path.resolve(exportPath) === path.resolve(file)) return usage(out, 'history: export-original requires a different output path; use --restore-original to replace the working file');
+      const original = await exportOriginal(path.resolve(file), path.resolve(exportPath), { overwrite: force });
+      print(out, `EXPORT ORIGINAL OK ${exportPath}`);
+      printJson(out, { ok: true, command: 'history', file, outPath: exportPath, original });
+      return EXIT_OK;
+    }
+    if (wantRestoreOriginal) return await restoreOriginalFile(out, file, allowMacros);
+    const original = await getOriginalInfo(path.resolve(file));
     const commits = await readCommits('history', file);
+    print(out, `ORIGINAL ${original.available ? `available, sha256 ${original.sha256}` : `unavailable (${original.reason})`}`);
     const warning = sidecarWarning(commits);
     if (warning) printStderr(`${CLI_NAME}: warning: ${warning}`);
     const head = commits[0]?.oid ?? null;
@@ -445,6 +515,7 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
       ok: true,
       command: 'history',
       file,
+      original,
       ...(init ? { initialized: false } : {}),
       totalCommits: commits.length,
       currentCommit: head,

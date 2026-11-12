@@ -5,7 +5,7 @@ import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import * as path from 'path';
 import { macroFlagsUsageError, macroOptsFromFlags, macroOutputRefusal, macroStripNameRefusal, readDocx, writeDocx } from './io';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
-import { extrasRecord, hasHistorySidecar, recordBatchRevision, trackedExtras } from './history-support';
+import { extrasRecord, hasHistorySidecar, recordBatchRevision, refuseWhenHistoryBusy, trackedExtras } from './history-support';
 import { type BackupState, ensureBackupCopy, resolveBackupPath, truncLine } from './batch-cmd';
 
 /**
@@ -153,6 +153,10 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
       'pick a valid .docx and retry. Nothing was written',
       err
     );
+  }
+  if (normalized.length > 0) {
+    const busy = await refuseWhenHistoryBusy(out, { file, target, noHistory });
+    if (busy !== undefined) return busy;
   }
   const backupCode = await ensureBackupCopy(out, file, buf, target, backupState);
   if (backupCode !== undefined) return backupCode;

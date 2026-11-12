@@ -1,6 +1,6 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { extrasRecord, hasHistorySidecar, recordBatchRevision, trackedExtras } from './history-support';
+import { assertBatchHistoryWritable, extrasRecord, hasHistorySidecar, recordBatchRevision, refuseWhenHistoryBusy, trackedExtras } from './history-support';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
 import { BASELINE_MAX_ERRORS, BatchOperationsSchema, applyDocumentIdentity, operationIssueRemedy, DocxParser, commitStateIfDiffersFromHead, getDuplicateParaIdPolicy, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, formatNormalizedInline, mergeNormalized, previewNormalizedForDisplay, print, printJson, printStderr, readEngineNormalized, readParserNormalizations, stringifyJsonPayload } from './output';
@@ -1099,6 +1099,8 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
         reportDryRun(out, { file, target, appliedCount: 0, cleared: clearCount, preview, normalized: previewNormalizedForDisplay(working, ctx.macroOpts), rowLabel: ctx.rowLabel });
         return EXIT_OK;
       }
+      const clearBusy = await refuseWhenHistoryBusy(out, { file, target, noHistory: ctx.noHistory === true });
+      if (clearBusy !== undefined) return clearBusy;
       const clearBackupCode = await ensureBackupCopy(out, file, docx, target, ctx.backupState);
       if (clearBackupCode !== undefined) return clearBackupCode;
       // Display-only: the gate above already rezipped through the core
@@ -1313,6 +1315,8 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
             typeof (v as Record<string, unknown>)['preview'] === 'string'
         ) as { nodeId: string; preview: string }[])
       : [];
+    const busy = await refuseWhenHistoryBusy(out, { file, target, noHistory: ctx.noHistory === true });
+    if (busy !== undefined) return busy;
     const backupCode = await ensureBackupCopy(out, file, docx, target, ctx.backupState);
     if (backupCode !== undefined) return backupCode;
     // Display-only: the post-batch gate above already rezipped through the
@@ -1381,9 +1385,11 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
           'raise ASTRA_MAX_RATIO / --max-ratio or ASTRA_MAX_UNCOMPRESSED_BYTES / --max-uncompressed-bytes above the observed value, or use a smaller document')
         : code === 'E_SANDBOX'
           ? (extractEngineRemedy(rawMsg) ?? readErrRemedyProp(err) ?? getEngineRemedy('E_SANDBOX'))
-          : rawMsg.includes('--allow-macros')
-            ? undefined
-            : 're-inspect ids via `astra inspect` (or `astra search <docx> <text>` to locate text, `anchor:end` to append) and retry. Nothing was written';
+          : code === 'E_CONFLICT' && readErrRemedyProp(err) !== undefined
+            ? readErrRemedyProp(err)
+            : rawMsg.includes('--allow-macros')
+              ? undefined
+              : 're-inspect ids via `astra inspect` (or `astra search <docx> <text>` to locate text, `anchor:end` to append) and retry. Nothing was written';
     return failWithCode(out, rawMsg, code, undefined, remedy, err);
   }
 }
@@ -1732,6 +1738,7 @@ export async function runStreamSession(
         /* the properties are advisory; a failure here must not block the write */
       }
       const finalBytes = parser.rezip({ reproducible });
+      await assertBatchHistoryWritable({ file, target, noHistory: opts.noHistory === true });
       await writeDocx(target, finalBytes);
       lastWritten = finalBytes;
       await recordBatchRevision({ file, target, parser, message: `batch (stream): ${batchesApplied} batch(es)`, noHistory: opts.noHistory === true });
@@ -1868,9 +1875,11 @@ export async function runStreamSession(
             'raise ASTRA_MAX_RATIO / --max-ratio or ASTRA_MAX_UNCOMPRESSED_BYTES / --max-uncompressed-bytes above the observed value, or use a smaller document')
           : code === 'E_SANDBOX'
             ? (extractEngineRemedy(rawMsg) ?? readErrRemedyProp(err) ?? 'check the sandbox temp dir is usable, then retry')
-            : rawMsg.includes('--allow-macros')
-              ? undefined
-              : 're-inspect ids via `astra inspect` (or `astra search <docx> <text>` to locate text, `anchor:end` to append) and retry. Nothing was written';
+            : code === 'E_CONFLICT' && readErrRemedyProp(err) !== undefined
+              ? readErrRemedyProp(err)
+              : rawMsg.includes('--allow-macros')
+                ? undefined
+                : 're-inspect ids via `astra inspect` (or `astra search <docx> <text>` to locate text, `anchor:end` to append) and retry. Nothing was written';
       return {
         code,
         message: rewriteMcpRemedies(cleanCliMessage(rawMsg)),

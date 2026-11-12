@@ -68,7 +68,7 @@ Commands (exit 0 ok · 1 operational failure · 2 usage):
   import   <file.md> [-o <out.docx>] [--template report|memo|blank] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   stats    <docx>
   visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros]
-  history  <docx> [--init|--track]
+  history  <docx> [--init|--track|--export-original <out>|--restore-original] [--force]
   preview-revert <docx> [--steps <n>]
   revert   <docx> [--steps <n>]
   redo     <docx>
@@ -491,6 +491,8 @@ Inspects recorded sidecar version control commits for a document, listing revisi
 
 To keep history somewhere else, set `ASTRA_HISTORY_DIR` to a directory (for the CLI and for the MCP server's environment). Each document's history then lives in `$ASTRA_HISTORY_DIR/<key>/<file>/`, where `<key>` is a short hash of the document's folder, so two folders holding a file of the same name keep separate histories, and the tombstone registry sits in `$ASTRA_HISTORY_DIR/<key>/`. Nothing is written beside the document. History made under one setting is not visible under the other: set it before the first save, and keep it set.
 
+To permanently discard a document's history and captured original, first close all ASTra sessions using it. Delete that document's history folder shown above, then edit `.astra-tombstones.json` in the corresponding registry directory and remove only the JSON property whose key is that document's file name. Preserve entries for other documents. This cannot be undone without a backup. The next MCP open, or CLI `history --init`, creates a fresh history from the file as it exists then. If the tombstone is left behind, ASTra warns that the old history disappeared.
+
 ```bash
 # View commit history (read-only)
 astra history report.docx
@@ -515,6 +517,51 @@ Date:   Sun Oct 25 12:00:00 2026 +0000
 History commands strictly refuse a history repository whose `.git` entry is a redirect file with error code `E_IO`.
 
 ---
+
+#### Exact original-file recovery
+
+Opt into history **before your first edit** to capture the current DOCX bytes:
+
+```bash
+astra history report.docx --init
+astra history report.docx --export-original untouched.docx
+astra history report.docx --restore-original
+```
+
+The listing and `--init` report `original.available`, its SHA-256 and size, or an explicit reason it is unavailable. Export returns the captured bytes without changing the working file or recording a commit. Existing destinations are refused unless `--force` is supplied. Restore replaces the working file with those exact bytes and records a new history commit. If restore succeeds with `durabilityUnconfirmed: true` in JSON, the exact bytes were replaced but the filesystem did not confirm that the directory update was durably synced. It refuses unrecorded changes even with `--force`; close other programs editing the file before restoring. Ordinary revert and redo recover document states and can reserialize the ZIP, so only direct original export and restore promise exact source bytes. The next normal save also normalizes the document as usual.
+
+CLI capture occurs only at explicit `history --init`. Older history stores have no captured original and are not migrated. A failed or corrupt capture never returns a substitute. The retained original counts toward the history storage quota. **Sanitize cleans the working file only; the original and earlier history can retain names, deleted text and other sensitive data.** The sidecar must be retained to recover the original.
+
+#### What the original-recovery guarantee covers
+
+When a document first receives a history, ASTra reads its bytes from disk before parsing them, stores them next to the history, and records their SHA-256. `--export-original` and `--restore-original` return exactly those bytes, and only after reading them back and checking the hash. The guarantee holds when all of these are true:
+
+- the history was created by ASTra 0.5.0 or later (older histories have no original and are not migrated);
+- the history folder is still there, together with `.git/astra-original/original.snapshot` inside it;
+- one ASTra process at a time works on the document (see "One writer per document" below).
+
+The original is the file at that path when its history is created. If a save writes to a different path that already holds a document with no history (Save As onto an existing file), the bytes that were overwritten become the retained original of the new history, and a later restore returns them. `--restore-original --allow-macros` is needed when the original carries macro parts, as for any command that opens such a file; export never opens the file and needs no flag.
+
+If any check fails, ASTra reports why (`original.reason`, for example `predates-feature`, `capture-failed`, `incomplete` or `initializing`) and never substitutes another file. The stored original is a plain copy of the input, so it can hold text, names and metadata that you later removed from the working document; sanitizing the working file does not change it. It also counts toward the history quota. Where the filesystem cannot confirm that a directory update reached storage, restore reports `durabilityUnconfirmed`. ASTra does not test power-loss durability. Storing and exporting an original uses a hard link to publish the finished file exactly once, so a location whose filesystem does not support hard links (some network shares and FAT or exFAT volumes) cannot hold an original; capture then fails with an explicit reason, or export asks for another directory. A history folder copied with a tool that skips hidden folders loses the original.
+
+#### One writer per document
+
+ASTra coordinates only the creation of a history. After that, each writer holds its own copy of the document and overwrites the whole file when it saves, and two history commits can run at the same time. If two ASTra processes (two agents, an agent and a CLI run, two CLI runs) edit and save the same document, one of them can lose its edit without an error, a save can fail with "history commit failed, file restored", and in rare cases the file can end up truncated. In a test of 0.4.2 with two MCP servers saving to one file, 28 of 30 trials lost one writer's edit, 8 saves failed and 2 left an unreadable `.docx`; the Git history itself stayed intact. This is not new in 0.5.0 and 0.5.0 does not change it. Give each document to one writer at a time, or give each writer its own copy. Merging edits from two agents is not supported.
+
+Do not run ASTra 0.4.x and 0.5.x on the same document at the same time. 0.4.x does not take part in the history-creation lock described below and does not know about the stored original.
+
+#### Interrupted captures and a stuck initialization lock
+
+ASTra removes its own temporary file after a handled success or failure. A crash during capture can leave a file named `.original.snapshot.astra-tmp-<uuid>` in the history's `.git/astra-original/` folder (by default `<docDir>/.astra/<file>/.git/astra-original/`; with `ASTRA_HISTORY_DIR`, the matching folder under that root). It counts toward the quota and can hold sensitive document bytes. After stopping every ASTra process that uses that history, delete only that temporary file by hand. No command removes it for you. Never delete `original.snapshot` itself: it is the retained original.
+
+First history creation takes an exclusive `.astra-init.lock` file in the history folder. If a process is killed before it can release the lock, the MCP save, revert, redo and restore tools and the CLI `batch`, `normalize`, `revert`, `redo` and `history --restore-original` commands (when they would record history) refuse before they touch the file, with an error that names the lock and, when it can, the process that created it (process id and host name). A process that is not found on this host does not prove the lock is stale, because the lock may belong to a process on another machine that shares the folder. ASTra never removes the lock and never waits for it. To clear it:
+
+1. Make sure no ASTra process (agent, pipeline or CLI run) is using the document, on any machine that can reach the folder.
+2. Copy the history folder aside as a backup.
+3. Delete `.astra-init.lock`.
+4. If the history has no commits, run `astra history <file> --init`. If an `original.snapshot` is already there and its SHA-256 differs from the file you are initializing, `--init` refuses and keeps both; `astra history <file> --export-original <out>` still writes the retained bytes, so the earlier document is not lost.
+
+ASTra does not promise cross-process locking on network filesystems.
 
 ### 4.13 Preview Revert (`astra preview-revert`)
 
