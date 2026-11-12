@@ -31,6 +31,14 @@ async function save(s: Awaited<ReturnType<typeof setup>>) {
 }
 
 describe('exact-original recovery through MCP',()=>{
+ it('exports the exact original when an allowed document contains a macro part', async()=>{
+  const dir=await fsp.mkdtemp(path.join(os.tmpdir(),'astra-original-macro-'));dirs.push(dir);
+  const file=path.join(dir,'input.docx');const zip=new engine.AdmZip(engine.createBlankDocxBuffer('blank'));
+  zip.addFile('word/vbaProject.bin',Buffer.from('fictional macro content'));const raw=zip.toBuffer();await fsp.writeFile(file,raw);
+  const store=createMcpSessionStore();const handle=await store.openDocument(file,undefined,{allowMacros:true});
+  const out=path.join(dir,'recovered.docx');const result=await handleExportOriginalDocument(store,{sessionId:handle.sessionId,outPath:out});
+  expect(result.ok,JSON.stringify(result)).toBe(true);expect(sha(await fsp.readFile(out))).toBe(sha(raw));
+ });
  it('captures raw bytes at open and exports them after edits without changing the session', async()=>{
   const s=await setup();expect(s.store.get(s.sessionId).originalInfo?.available).toBe(true);
   await edit(s);await save(s);
