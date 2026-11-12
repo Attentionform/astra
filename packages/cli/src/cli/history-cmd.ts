@@ -430,16 +430,18 @@ async function restoreOriginalFile(out: GlobalOpts, file: string): Promise<numbe
   const backup = newRestoreBackupPath(file);
   await createVerifiedBackup(backup, before);
   let writeAttempted = false;
+  let durabilityUnconfirmed = false;
   try {
     if (hash(await readDocx(file)) !== hash(before)) {
       throw Object.assign(new Error('history --restore-original: file changed while preparing restore'), { code: 'E_CONFLICT' });
     }
     writeAttempted = true;
-    await replaceFileAtomic(file, original);
+    const replacement = await replaceFileAtomic(file, original);
+    durabilityUnconfirmed = replacement.durabilityUnconfirmed === true;
     const commitOid = await commitChange(file, restoredXml, `Restore original file (sha256 ${hash(original)})`, extras);
     await fsp.unlink(backup).catch(() => printStderr(`${CLI_NAME}: warning: restored successfully; retained backup ${backup}`));
-    print(out, `RESTORE ORIGINAL OK ${file}: exact original bytes restored; commit ${shortOid(commitOid)}`);
-    printJson(out, { ok: true, command: 'history', file, restoredOriginal: true, sha256: hash(original), commitOid });
+    print(out, `RESTORE ORIGINAL OK ${file}: exact original bytes restored; commit ${shortOid(commitOid)}${durabilityUnconfirmed ? '; directory durability unconfirmed' : ''}`);
+    printJson(out, { ok: true, command: 'history', file, restoredOriginal: true, sha256: hash(original), commitOid, ...(durabilityUnconfirmed ? { durabilityUnconfirmed: true } : {}) });
     return EXIT_OK;
   } catch (err: unknown) {
     const outcome = err && typeof err === 'object' && 'outcome' in err ? String(err.outcome) : undefined;

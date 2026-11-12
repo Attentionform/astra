@@ -336,7 +336,7 @@ Export a captured original byte for byte: `{sessionId, outPath, overwrite?}`. Th
 
 ### `restore_original_document`
 
-Restore the captured original to the open document: `{sessionId, discard?}`. Unsaved edits are refused unless `discard: true`; a changed file or inconsistent history is refused. The operation records a new history state. Ordinary revert and redo restore document state, which may not reproduce the original ZIP bytes.
+Restore the captured original to the open document: `{sessionId, discard?}`. Unsaved edits are refused unless `discard: true`; a changed file or inconsistent history is refused. The operation records a new history state. A successful response may include `durabilityUnconfirmed: true` when the exact bytes were replaced but the filesystem could not confirm a durable directory sync. Ordinary revert and redo restore document state, which may not reproduce the original ZIP bytes.
 
 | Parameter | Type | Required | Description |
 |---|---|:---:|---|

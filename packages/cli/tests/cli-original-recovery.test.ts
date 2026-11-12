@@ -74,6 +74,33 @@ describe('CLI exact original recovery', () => {
     expect(fs.readFileSync(file)).toEqual(original);
     expect(fs.readdirSync(dir).some(name => name.includes('astra-restore-backup'))).toBe(false);
   });
+  it('reports unconfirmed directory durability after a successful restore', async () => {
+    const original = fs.readFileSync(file);
+    expect((await cli(['history', file, '--init'])).status).toBe(0);
+    expect((await cli(['batch', file, '--append', 'Saved change'])).status).toBe(0);
+    const replace = engine.replaceFileAtomic.bind(engine);
+    const replaceSpy = vi.spyOn(engine, 'replaceFileAtomic').mockImplementationOnce(async (target, bytes) => ({
+      ...(await replace(target, bytes)),
+      durabilityUnconfirmed: true,
+    }));
+
+    const restored = await cli(['history', file, '--restore-original']);
+    expect(restored.status).toBe(0);
+    expect(restored.body.durabilityUnconfirmed).toBe(true);
+    expect(fs.readFileSync(file)).toEqual(original);
+
+    expect((await cli(['batch', file, '--append', 'Another saved change'])).status).toBe(0);
+    replaceSpy.mockImplementationOnce(async (target, bytes) => ({
+      ...(await replace(target, bytes)),
+      durabilityUnconfirmed: true,
+    }));
+    vi.mocked(console.log).mockClear();
+    const humanStatus = await run(['history', file, '--restore-original']);
+    expect(humanStatus).toBe(0);
+    expect(vi.mocked(console.log).mock.calls.map(call => String(call[0])).join('\n'))
+      .toContain('directory durability unconfirmed');
+    expect(fs.readFileSync(file)).toEqual(original);
+  });
   it('preflights auxiliary XML before replacing the working file', async () => {
     const originalZip = new engine.AdmZip(fs.readFileSync(file));
     originalZip.updateFile('docProps/core.xml', Buffer.from('<cp:coreProperties>'));
