@@ -42,6 +42,8 @@ import {
   CloseDocumentSchema,
   ExecuteBatchSchema,
   GetDocumentHistorySchema,
+  ExportOriginalDocumentSchema,
+  RestoreOriginalDocumentSchema,
   GetStatsSchema,
   GIT_HISTORY_DESCRIPTIONS,
   GIT_HISTORY_HANDLERS,
@@ -276,6 +278,16 @@ export function createAstraMcpServer(store: McpSessionStore = createMcpSessionSt
       inputSchema: VisualInspectSchema,
     },
     async (args: unknown) => toTextResult(await handleVisualInspect(store, args))
+  );
+  server.registerTool(
+    'export_original_document',
+    { description: GIT_HISTORY_DESCRIPTIONS.export_original_document, inputSchema: ExportOriginalDocumentSchema },
+    async (args: unknown) => toTextResult(await GIT_HISTORY_HANDLERS.export_original_document(store, args))
+  );
+  server.registerTool(
+    'restore_original_document',
+    { description: GIT_HISTORY_DESCRIPTIONS.restore_original_document, inputSchema: RestoreOriginalDocumentSchema },
+    async (args: unknown) => toTextResult(await GIT_HISTORY_HANDLERS.restore_original_document(store, args))
   );
   server.registerTool(
     'get_document_history',

@@ -1,0 +1,29 @@
+{
+  "name": "export_original_document",
+  "description": "Export the exact original DOCX captured when this history was created. Requires sessionId and outPath; overwrite defaults to false. Verifies the retained SHA-256 and never serializes the original. Does not change the live session. Refuses overwriting the active document: use restore_original_document instead. Old histories and memory-only sessions may have no original. The original can contain content removed by later sanitization; history retains it until the history store is deleted.",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "outPath": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      },
+      "overwrite": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "sessionId",
+      "outPath"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.5.0"
+}

@@ -516,6 +516,20 @@ History commands strictly refuse a history repository whose `.git` entry is a re
 
 ---
 
+#### Exact original-file recovery
+
+Opt into history **before your first edit** to capture the current DOCX bytes:
+
+```bash
+astra history report.docx --init
+astra history report.docx --export-original untouched.docx
+astra history report.docx --restore-original
+```
+
+The listing and `--init` report `original.available`, its SHA-256 and size, or an explicit reason it is unavailable. Export returns the captured bytes without changing the working file or recording a commit. Existing destinations are refused unless `--force` is supplied. Restore replaces the working file with those exact bytes and records a new history commit. It refuses unrecorded changes even with `--force`; close other programs editing the file before restoring. Ordinary revert and redo recover document states and can reserialize the ZIP, so only direct original export and restore promise exact source bytes. The next normal save also normalizes the document as usual.
+
+CLI capture occurs only at explicit `history --init`. Older history stores have no captured original and are not migrated. A failed or corrupt capture never returns a substitute. The retained original counts toward the history storage quota. **Sanitize cleans the working file only; the original and earlier history can retain names, deleted text and other sensitive data.** The sidecar must be retained to recover the original.
+
 ### 4.13 Preview Revert (`astra preview-revert`)
 
 Previews restoring package state `--steps <n>` commits back read-only without modifying the file on disk.

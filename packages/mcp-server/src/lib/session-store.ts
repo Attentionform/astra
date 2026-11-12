@@ -12,6 +12,8 @@ import {
   canonicalizeForAsset as canonicalizeForMcp,
   getRepoDir,
   initAstraRepo,
+  getOriginalInfo,
+  type OriginalInfo,
   isPathInsideDir as isMcpPathInsideDir,
   isTrackedPackageFile,
   setTrustedWriteRootsProvider,
@@ -257,6 +259,11 @@ export interface DocHandle {
   openBaseline?: ValidationBaseline | null;
   /** sha256 of the file bytes read at open, to tell whether the file on disk is still the opened one. */
   openSha256?: string;
+  /** Fingerprint of the last bytes read or successfully written by ASTra. */
+  lastWrittenSha256?: string;
+  originalInfo?: OriginalInfo;
+  originalWarning?: string;
+  macroPolicy?: DocxParserMacroOptions;
 }
 
 /**
@@ -734,7 +741,8 @@ export function collectTrackedExtrasForGit(parser: DocxParser): Record<string, B
 export async function ensureGitRepo(
   docPath: string,
   xml: string,
-  extras: Record<string, Buffer>
+  extras: Record<string, Buffer>,
+  originalBytes?: Buffer
 ): Promise<boolean> {
   const repoDir = getRepoDir(docPath);
   let hasGit = false;
@@ -744,18 +752,26 @@ export async function ensureGitRepo(
     hasGit = false;
   }
   if (hasGit) return true;
-  await initAstraRepo(docPath, xml, extras);
+  await initAstraRepo(docPath, xml, extras, originalBytes);
   return false;
 }
 
 /** Best-effort git init for a freshly opened handle (never throws). */
-async function initGitForHandleBestEffort(handle: DocHandle): Promise<void> {
+async function initGitForHandleBestEffort(handle: DocHandle, originalBytes?: Buffer): Promise<void> {
   try {
     if (!path.isAbsolute(handle.filePath)) return;
     const xml = handle.parser.readDocumentXml();
-    await ensureGitRepo(handle.filePath, xml, collectTrackedExtrasForGit(handle.parser));
+    const alreadyExisted = await ensureGitRepo(handle.filePath, xml, collectTrackedExtrasForGit(handle.parser), originalBytes);
+    handle.originalInfo = await getOriginalInfo(handle.filePath);
+    if (!alreadyExisted && originalBytes && handle.originalInfo.available && handle.originalInfo.sha256 !== createHash('sha256').update(originalBytes).digest('hex')) {
+      handle.originalInfo = { available: false, reason: 'capture-failed', detail: 'Another opener recorded a different original for this history.' };
+    }
+    if (!handle.originalInfo.available && !['predates-feature', 'not-applicable'].includes(handle.originalInfo.reason)) {
+      handle.originalWarning = `Exact-original recovery is unavailable: ${handle.originalInfo.reason}. Keep a separate copy of the input file.`;
+    }
   } catch {
-    /* open succeeds regardless — history tools report the gap */
+    handle.originalInfo = { available: false, reason: 'capture-failed' };
+    handle.originalWarning = 'Original-file capture failed. Editing is available, but exact-original recovery is not. Keep a separate copy of the input file.';
   }
 }
 
@@ -1060,7 +1076,8 @@ export class McpSessionStore {
   public async openDocument(
     filePath: string,
     sessionId?: string,
-    macroOpts?: DocxParserMacroOptions
+    macroOpts?: DocxParserMacroOptions,
+    captureInput = true
   ): Promise<DocHandle> {
     const cleanPath = validateDocPath(filePath);
     const expiredEvicted = this.evictExpired();
@@ -1102,10 +1119,12 @@ export class McpSessionStore {
       mutex: new SessionMutex(),
       redoStack: this.createRedoStack(),
       pendingAudit: { ops: 0, nodeIds: [] },
+      lastWrittenSha256: createHash('sha256').update(buf).digest('hex'),
+      macroPolicy: macroOpts,
     };
     this.sessions.set(id, handle);
     // Git backing: initial baseline commit for history/revert/redo tools.
-    await initGitForHandleBestEffort(handle);
+    await initGitForHandleBestEffort(handle, captureInput ? buf : undefined);
     // Phase C-4: surface LRU/byte-cap (+ pre-open idle) evictions on the
     // open response so callers learn which sessions died for capacity.
     this.lastOpenEvicted = [...expiredEvicted, ...this.evictToFit(id)];
@@ -1193,10 +1212,13 @@ export class McpSessionStore {
       mutex: new SessionMutex(),
       redoStack: this.createRedoStack(),
       pendingAudit: { ops: 0, nodeIds: [] },
+      lastWrittenSha256: createHash('sha256').update(buf).digest('hex'),
+      macroPolicy: macroOpts,
     };
     this.sessions.set(id, handle);
     // Git backing when the label is a real absolute path (memory labels skip).
-    await initGitForHandleBestEffort(handle);
+    await initGitForHandleBestEffort(handle, buf);
+    if (!path.isAbsolute(handle.filePath)) handle.originalInfo = { available: false, reason: 'not-applicable' };
     this.lastOpenEvicted = [...expiredEvicted, ...this.evictToFit(id)];
     const live = this.sessions.get(id);
     if (!live) {

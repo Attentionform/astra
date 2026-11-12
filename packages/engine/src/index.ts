@@ -11,6 +11,7 @@ export * from './document-manager';
 export * from './page-map';
 export * from './read-cache';
 export * from './git';
+export * from './original';
 export * from './recovery';
 export * from './grep';
 export * from './validator';

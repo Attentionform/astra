@@ -1,6 +1,6 @@
 {
   "name": "@attentionform/astra",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Command-line tool for OOXML (.docx) document engineering",
   "main": "dist/cli.js",
   "types": "dist/packages/cli/src/cli.d.ts",
@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@attentionform/astra-engine": "^0.4.0",
-    "@attentionform/ooxml-validator": "^0.4.2",
+    "@attentionform/ooxml-validator": "^0.5.0",
     "@xmldom/xmldom": "0.8.15",
     "adm-zip": "0.6.1",
     "isomorphic-git": "^1.25.0",

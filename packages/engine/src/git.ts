@@ -1,3 +1,4 @@
+import { captureOriginal } from './original';
 import fs from 'fs';
 import type { Dirent } from 'fs';
 import fsp from 'fs/promises';
@@ -894,11 +895,13 @@ export async function ensureAstraGitRepo(target: string): Promise<string> {
 export async function initAstraRepo(
   docPath: string,
   initialXml: string,
-  extraFiles?: Record<string, string | Buffer>
+  extraFiles?: Record<string, string | Buffer>,
+  originalBytes?: Buffer
 ): Promise<string> {
   const repoDir = await ensureAstraGitRepo(docPath);
 
   await git.init({ fs, dir: repoDir });
+  await captureOriginal(path.resolve(docPath), originalBytes);
 
   await writeAndAdd(repoDir, 'document.xml', initialXml);
   const writtenParts = await writeSnapshotParts(repoDir, extraFiles);

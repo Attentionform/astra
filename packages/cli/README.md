@@ -210,3 +210,7 @@ node packages/cli/dist/cli.js --help
 ## License
 
 Business Source License 1.1 (`BUSL-1.1`): source-available, free for individuals, education, non-profits, public bodies, small organizations and small products (see LICENSING.md); other production use needs a commercial license. Plans and prices: https://attentionform.com/pricing. Each version converts to Apache-2.0 four years after release. See [LICENSE](LICENSE) and write to astra@attentionform.com for a commercial license.
+
+### Recover the original file
+
+Run `astra history report.docx --init` before editing to opt into history and exact original capture. `astra history report.docx --export-original original.docx` writes the verified original to a new file; add `--force` to replace an existing destination. `astra history report.docx --restore-original` restores it in place, refusing unrecorded disk changes and appending history. History output reports whether an original is available. Older histories are not migrated. Sanitize cleans only the working document; the retained original and history can still contain sensitive data. Only direct original recovery promises exact bytes; normal saves and revert/redo can reserialize the DOCX.

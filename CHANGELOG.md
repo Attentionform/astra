@@ -6,6 +6,17 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added
+
+- Exact original DOCX capture when new history is initialized, with SHA-256 verification and explicit availability status. The CLI remains opt-in with `history --init`; histories created before this feature are not migrated.
+- Original-file export and in-place restore through the MCP tools and `astra history --export-original <out>` / `--restore-original`. Export preserves original bytes without changing the working document. Restore refuses conflicting disk changes and records history. Normal saves and ordinary revert/redo still serialize document states.
+
+### Privacy
+
+- The retained original can contain data later removed from the working document by sanitization. Sanitization does not erase the original or earlier history. Original storage counts toward the history quota.
+
 ## [0.4.2] - 2026-11-12
 
 All ten npm packages move to 0.4.2. This release fixes how history restores a document: a revert now puts back every package part exactly as it was saved. The MCP tool names and input schemas are unchanged; the generated schema files carry the new version only.

@@ -1,3 +1,8 @@
+import * as fsp from 'fs/promises';
+import * as fs from 'fs';
+import * as path from 'path';
+import git from 'isomorphic-git';
+import { createHash, randomUUID } from 'crypto';
 import {
   DocxParser,
   checkoutCommit,
@@ -7,6 +12,11 @@ import {
   getHistoryCommitCount,
   getRepoDir,
   initAstraRepo,
+  getOriginalInfo,
+  readOriginal,
+  exportOriginal,
+  replaceFileAtomic,
+  writeFileExclusive,
   BASELINE_MAX_ERRORS,
   buildBaseline,
   INCOMPLETE_SNAPSHOT_WARNING,
@@ -355,7 +365,7 @@ async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: Macr
   const xml = parser.readDocumentXml();
   const extras = extrasRecord(trackedExtras(parser.capturePackageSnapshot()));
   try {
-    await initAstraRepo(file, xml, extras);
+    await initAstraRepo(path.resolve(file), xml, extras, buf);
   } catch (err: unknown) {
     // Mirror revert's write wrap: a sidecar create/write refusal (e.g. EACCES
     // on a read-only document directory) is an IO failure, not a document
@@ -372,6 +382,8 @@ async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: Macr
   const warning = sidecarWarning(commits);
   if (warning) printStderr(`${CLI_NAME}: warning: ${warning}`);
   const head = commits[0]?.oid ?? null;
+  const original = await getOriginalInfo(path.resolve(file));
+  printStderr(`${CLI_NAME}: original ${original.available ? `captured, sha256 ${original.sha256}` : `unavailable (${original.reason})`}`);
   print(
     out,
     `HISTORY INIT ${file}: recorded baseline ${shortOid(head)} (${Object.keys(extras).length} tracked package ` +
@@ -382,6 +394,7 @@ async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: Macr
     command: 'history',
     file,
     initialized: true,
+    original,
     commitOid: head,
     totalCommits: commits.length,
     currentCommit: head,
@@ -391,20 +404,84 @@ async function initHistorySidecar(out: GlobalOpts, file: string, macroOpts: Macr
   return EXIT_OK;
 }
 
+/** Restore exact source bytes without passing them through rezip. */
+async function restoreOriginalFile(out: GlobalOpts, file: string): Promise<number> {
+  const before = await readDocx(file);
+  const hash = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
+  const parser = new DocxParser(before);
+  const commits = await readCommits('history --restore-original', file);
+  const head = commits[0]?.oid;
+  if (!head) throw new Error('history --restore-original: history has no recorded state');
+  const changed = await divergedFiles(file, parser, head);
+  if (changed.length) throw conflictError('history --restore-original', file, head, changed);
+  const original = await readOriginal(path.resolve(file));
+  // Opening policy must accept the captured package before the working file is changed.
+  const restoredParser = new DocxParser(original);
+  const restoredXml = restoredParser.readDocumentXml();
+  const extras = extrasRecord(trackedExtras(restoredParser.capturePackageSnapshot()));
+  const repoDir = getRepoDir(file);
+  const beforeIndex = JSON.stringify(await git.statusMatrix({ fs, dir: repoDir }));
+  const backup = `${file}.astra-restore-backup-${randomUUID()}`;
+  await writeFileExclusive(backup, before);
+  if (hash(await readDocx(backup)) !== hash(before)) throw Object.assign(new Error(`Original restore backup verification failed: ${backup}`), { code: 'E_IO' });
+  let writeAttempted = false;
+  try {
+    if (hash(await readDocx(file)) !== hash(before)) {
+      throw Object.assign(new Error('history --restore-original: file changed while preparing restore'), { code: 'E_CONFLICT' });
+    }
+    writeAttempted = true;
+    await replaceFileAtomic(file, original);
+    const commitOid = await commitChange(file, restoredXml, `Restore original file (sha256 ${hash(original)})`, extras);
+    await fsp.unlink(backup).catch(() => printStderr(`${CLI_NAME}: warning: restored successfully; retained backup ${backup}`));
+    print(out, `RESTORE ORIGINAL OK ${file}: exact original bytes restored; commit ${shortOid(commitOid)}`);
+    printJson(out, { ok: true, command: 'history', file, restoredOriginal: true, sha256: hash(original), commitOid });
+    return EXIT_OK;
+  } catch (err: unknown) {
+    const outcome = err && typeof err === 'object' && 'outcome' in err ? String(err.outcome) : undefined;
+    let rollbackOk = !writeAttempted || outcome === 'not-replaced';
+    if (writeAttempted && outcome !== 'not-replaced') {
+      try { await replaceFileAtomic(file, before); rollbackOk = true; } catch { rollbackOk = false; }
+    }
+    const after = await readCommits('history --restore-original', file).catch(() => null);
+    const afterIndex = await git.statusMatrix({ fs, dir: repoDir }).then(rows => JSON.stringify(rows)).catch(() => null);
+    const historyChanged = !after || after[0]?.oid !== head || afterIndex !== beforeIndex;
+    if (rollbackOk) await fsp.unlink(backup).catch(() => undefined);
+    const message = err instanceof Error ? err.message : String(err);
+    throw Object.assign(new Error(`history --restore-original: ${message}; ${rollbackOk ? 'working file retained or restored' : `rollback failed; recovery copy: ${backup}`}${historyChanged ? '; history changed despite the failure, inspect history before continuing' : ''}`), {
+      code: getEngineErrorCode(err) ?? 'E_IO',
+      remedy: rollbackOk ? 'Inspect history and retry after resolving the error.' : `Recover the working file from ${backup}.`,
+    });
+  }
+}
+
 export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'history');
   let file: string | undefined;
   let init = false;
   let allowMacros = false;
   let stripMacros = false;
-  for (const a of args) {
+  let exportPath: string | undefined;
+  let restoreOriginal = false;
+  let force = false;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
     if (a === '--init' || a === '--track') init = true;
+    else if (a === '--export-original') {
+      const next = args[++i];
+      if (!next || next.startsWith('--')) return usage(out, 'history: --export-original requires an output path');
+      exportPath = next;
+    }
+    else if (a === '--restore-original') restoreOriginal = true;
+    else if (a === '--force') force = true;
     else if (a === '--allow-macros') allowMacros = true;
     else if (a === '--strip-macros') stripMacros = true;
     else if (a.startsWith('--')) return usage(out, `history: unknown flag "${a}"`);
     else if (!file) file = a;
     else return usage(out, 'history takes exactly one <docx> argument');
   }
+  if ([init, !!exportPath, restoreOriginal].filter(Boolean).length > 1) return usage(out, 'history: --init, --export-original and --restore-original are mutually exclusive');
+  if (force && !exportPath && !restoreOriginal) return usage(out, 'history: --force requires --export-original or --restore-original');
+  if ((exportPath || restoreOriginal) && (allowMacros || stripMacros)) return usage(out, 'history: macro options apply only to --init; original recovery never strips or changes bytes');
   if (!file) return usage(out, 'history requires <docx>');
   if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
   const macroOpts = macroOptsFromFlags({ allowMacros, stripMacros });
@@ -426,6 +503,16 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
     }
     const gate = sidecarGate(out, 'history', file);
     if (gate !== null) return gate;
+    if (exportPath) {
+      if (path.resolve(exportPath) === path.resolve(file)) return usage(out, 'history: export-original requires a different output path; use --restore-original to replace the working file');
+      const original = await exportOriginal(path.resolve(file), path.resolve(exportPath), { overwrite: force });
+      print(out, `EXPORT ORIGINAL OK ${exportPath}`);
+      printJson(out, { ok: true, command: 'history', file, outPath: exportPath, original });
+      return EXIT_OK;
+    }
+    if (restoreOriginal) return await restoreOriginalFile(out, file);
+    const original = await getOriginalInfo(path.resolve(file));
+    print(out, `ORIGINAL ${original.available ? `available, sha256 ${original.sha256}` : `unavailable (${original.reason})`}`);
     const commits = await readCommits('history', file);
     const warning = sidecarWarning(commits);
     if (warning) printStderr(`${CLI_NAME}: warning: ${warning}`);
@@ -445,6 +532,7 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
       ok: true,
       command: 'history',
       file,
+      original,
       ...(init ? { initialized: false } : {}),
       totalCommits: commits.length,
       currentCommit: head,

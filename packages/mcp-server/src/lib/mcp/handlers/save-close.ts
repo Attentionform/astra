@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 1926-2196 + 2203-2273).
 // Zero logic edits (pathDirname + restore helpers live in ../diff and are imported).
 import * as fsp from 'fs/promises';
@@ -9,6 +10,7 @@ import {
   assertWriteTargetNoSymlink,
   chartXmlGetterForAst,
   commitChange,
+  getOriginalInfo,
   commitStateIfDiffersFromHead,
   refreshAstInPlace,
   getEngineErrorCode,
@@ -305,7 +307,7 @@ export async function executeSaveDocument(
     const authorName = sanitizeCommitAuthor(parsed.data.author);
     let commitOid: string;
     try {
-      await ensureGitRepo(target, savedXml, extras);
+      await ensureGitRepo(target, savedXml, extras, prevBytes ?? undefined);
       commitOid = await commitChange(target, savedXml, commitMessage, extras, undefined, authorName);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -346,6 +348,12 @@ export async function executeSaveDocument(
     }
     try {
       handle.filePath = target;
+      handle.originalInfo = await getOriginalInfo(target);
+      if (prevFilePath !== target) handle.originalWarning = undefined;
+      if (!handle.originalInfo.available && !['predates-feature', 'not-applicable'].includes(handle.originalInfo.reason)) {
+        handle.originalWarning = `Exact-original recovery is unavailable: ${handle.originalInfo.reason}. Keep a separate copy of the input file.`;
+      }
+      handle.lastWrittenSha256 = createHash('sha256').update(buf).digest('hex');
       handle.byteSize = buf.length;
       // Audit bridge: snapshot the since-save footprint BEFORE markSaved
       // resets the accumulator, then annotate the new head commit.
@@ -398,6 +406,7 @@ export async function executeSaveDocument(
       ok: true as const,
       sessionId: handle.sessionId,
       path: target,
+      ...(handle.originalWarning ? { originalWarning: handle.originalWarning } : {}),
       revision: handle.revision,
       commitOid,
       commitMessage,

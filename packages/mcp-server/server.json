@@ -9,12 +9,12 @@
     "subfolder": "packages/mcp-server"
   },
   "websiteUrl": "https://attentionform.com",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@attentionform/astra-mcp-server",
-      "version": "0.4.2",
+      "version": "0.5.0",
       "runtimeHint": "npx",
       "transport": { "type": "stdio" },
       "packageArguments": [

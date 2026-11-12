@@ -1,3 +1,5 @@
+import { handleExportOriginalDocument, handleRestoreOriginalDocument } from './original';
+import { createHash } from 'crypto';
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 2275-2290 + 2300-3029).
 // Zero logic edits (sidecar/COMMIT_OID_RE/refresh/restore helpers live in ../diff and ../errors).
 import * as fsp from 'fs/promises';
@@ -7,6 +9,8 @@ import {
   commitChange,
   getEngineErrorCode,
   getHistory,
+  getOriginalInfo,
+  type OriginalInfo,
   getSidecarHistoryWarning,
   INCOMPLETE_SNAPSHOT_WARNING,
   trackedPredicateFor,
@@ -82,6 +86,7 @@ export async function handleGetDocumentHistory(
       history: HistoryEntry[];
       /** R-6 sidecar-removal warning (string when a regenerated chain replaced recorded history, else null). Additive, never a failure. */
       warning: string | null;
+      original: OriginalInfo;
     }
   | McpErrorShape
 > {
@@ -117,6 +122,7 @@ export async function handleGetDocumentHistory(
           totalCommits: 0,
           history: [],
           warning: emptyWarning,
+          original: handle.originalInfo ?? { available: false as const, reason: 'not-applicable' as const },
         };
       }
       const full = await getHistory(filePath);
@@ -154,6 +160,7 @@ export async function handleGetDocumentHistory(
         totalCommits: full.length,
         history: slice,
         warning,
+        original: await getOriginalInfo(filePath),
       };
     });
   } catch (err: unknown) {
@@ -405,6 +412,7 @@ export async function handleRevertDocument(
           affectedNodeIds: diffIdTexts(liveBefore.texts, liveAfter.order, liveAfter.texts),
         });
         store.markSaved(handle);
+        handle.lastWrittenSha256 = createHash('sha256').update(buf).digest('hex');
         // The restored package is the saved state now: later saves are compared with it.
         adoptBaseline(handle, candidate);
         return {
@@ -614,6 +622,7 @@ export async function handleRedoDocument(
           affectedNodeIds: diffIdTexts(redoBefore.texts, redoAfter.order, redoAfter.texts),
         });
         store.markSaved(handle);
+        handle.lastWrittenSha256 = createHash('sha256').update(buf).digest('hex');
         // The restored package is the saved state now: later saves are compared with it.
         adoptBaseline(handle, candidate);
         return {
@@ -910,6 +919,8 @@ export async function handlePreviewRevert(
 
 /** Git-history dispatch table (registered alongside lean-6 in index.ts). */
 export const GIT_HISTORY_HANDLERS = {
+  export_original_document: handleExportOriginalDocument,
+  restore_original_document: handleRestoreOriginalDocument,
   get_document_history: handleGetDocumentHistory,
   preview_revert: handlePreviewRevert,
   revert_document: handleRevertDocument,

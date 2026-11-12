@@ -294,7 +294,7 @@ export class DocumentManager {
     const repoDir = getRepoDir(trustedSource);
     if (!fs.existsSync(repoDir)) {
       const initialXml = this.parser.readDocumentXml();
-      await initAstraRepo(trustedSource, initialXml, this.collectPackageExtras());
+      await initAstraRepo(trustedSource, initialXml, this.collectPackageExtras(), buf);
     }
 
     // Push initial snapshot into atomic history stack
@@ -445,6 +445,14 @@ export class DocumentManager {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
+    // A new Save As history belongs to its destination. Preserve an existing destination before
+    // overwriting it; a newly created destination has no imported original. Source history is unchanged.
+    let originalTargetBytes: Buffer | undefined;
+    if (!fs.existsSync(getRepoDir(trustedTarget))) {
+      try { originalTargetBytes = await fsp.readFile(trustedTarget); }
+      catch (err) { if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err; }
+    }
+
     const preSaveSnapshot = this.parser.createAtomicSnapshot('PreSaveTypographyBackup');
     let typographyFixes: TypographicFix[] = [];
     if (options?.applyTypography !== false) {
@@ -479,7 +487,7 @@ export class DocumentManager {
     const repoDir = getRepoDir(trustedTarget);
     if (!fs.existsSync(repoDir)) {
       const initialXml = this.parser.readDocumentXml();
-      await initAstraRepo(trustedTarget, initialXml, this.collectPackageExtras());
+      await initAstraRepo(trustedTarget, initialXml, this.collectPackageExtras(), originalTargetBytes);
     } else {
       const currentXml = this.parser.readDocumentXml();
       await commitChange(trustedTarget, currentXml, `Saved document to ${path.basename(trustedTarget)}`, this.collectPackageExtras());

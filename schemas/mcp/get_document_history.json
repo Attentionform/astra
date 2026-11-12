@@ -1,6 +1,6 @@
 {
   "name": "get_document_history",
-  "description": "List the saved git history for a session (newest first, read-only: never mutates, never flips dirty). Paginate with limit (1-100, default 20) and offset (default 0). Returns {ok:true,sessionId,documentPath,currentCommit,totalCommits,history:[{oid,message,author,timestamp,timestampMs,opCount,affectedNodeIds,resultingHeadOid}]} (timestampMs = ms-precision epoch millis; commit-time clock for tracked commits, git seconds for older ones; opCount is always present (0 for pre-tracking commits and heals-only saves: it folds operations, not normalizer rewrites); affectedNodeIds is always present ([] when untracked); resultingHeadOid always equals oid (append-only; refs never move). Example {\"sessionId\":\"sess_abc\",\"limit\":10} -> history slice. Use the oids with revert_document (or preview_revert first) to restore an earlier saved state.",
+  "description": "List the saved git history and original-file availability for a session (newest first, read-only: never mutates, never flips dirty). Paginate with limit (1-100, default 20) and offset (default 0). Returns {ok:true,sessionId,documentPath,currentCommit,totalCommits,history:[{oid,message,author,timestamp,timestampMs,opCount,affectedNodeIds,resultingHeadOid}]} (timestampMs = ms-precision epoch millis; commit-time clock for tracked commits, git seconds for older ones; opCount is always present (0 for pre-tracking commits and heals-only saves: it folds operations, not normalizer rewrites); affectedNodeIds is always present ([] when untracked); resultingHeadOid always equals oid (append-only; refs never move). Example {\"sessionId\":\"sess_abc\",\"limit\":10} -> history slice. Use the oids with revert_document (or preview_revert first) to restore an earlier saved state.",
   "parameters": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
@@ -26,5 +26,5 @@
     ],
     "additionalProperties": false
   },
-  "x-generated-from": "astra-mcp-server@0.4.2"
+  "x-generated-from": "astra-mcp-server@0.5.0"
 }
