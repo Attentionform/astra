@@ -245,6 +245,49 @@ async function indexedPartPaths(repoDir: string): Promise<Set<string>> {
 }
 
 /**
+ * A failed first initialization can leave package parts staged in a repository
+ * with no commits. The explicit `history --init` repair starts a new baseline,
+ * so discard those uncommitted package entries before writing the retry's
+ * snapshot; otherwise a stale staged part can leak into that baseline.
+ */
+async function clearUncommittedPackageParts(repoDir: string): Promise<void> {
+  const repoRoot = path.resolve(repoDir);
+  for (const rel of await indexedPartPaths(repoDir)) {
+    if (isTraversalName(rel)) {
+      throw Object.assign(new Error(`History repair refused an unsafe indexed path: ${rel}`), { code: 'E_SANDBOX' });
+    }
+    const fullPath = path.resolve(repoRoot, rel);
+    const relative = path.relative(repoRoot, fullPath);
+    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw Object.assign(new Error(`History repair refused an indexed path outside its repository: ${rel}`), { code: 'E_SANDBOX' });
+    }
+    assertWriteTargetNoSymlink(fullPath);
+    try {
+      await fsp.unlink(fullPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+    }
+    await git.remove({ fs, dir: repoDir, filepath: rel });
+  }
+}
+
+/** The only expected `git.log` failure that means "no commits yet". */
+async function isUnbornHistory(repoDir: string): Promise<boolean> {
+  let head: string;
+  try {
+    head = await fsp.readFile(path.join(repoDir, '.git', 'HEAD'), 'utf8');
+  } catch {
+    return false;
+  }
+  if (!/^ref:\s*refs\/heads\/[^\s]+\s*$/.test(head)) return false;
+  const [branches, tags] = await Promise.all([
+    git.listBranches({ fs, dir: repoDir }),
+    git.listTags({ fs, dir: repoDir }),
+  ]);
+  return branches.length === 0 && tags.length === 0;
+}
+
+/**
  * Decides whether the commit being built is a proven complete snapshot: the caller supplied the full
  * package, and the index now holds exactly the parts that were written, no more and no fewer.
  */
@@ -977,15 +1020,27 @@ export async function initAstraRepo(
 ): Promise<string> {
   const repoDir = await ensureAstraGitRepo(docPath);
   await withGitInitializationLock(repoDir, async () => {
-    const gitExists = fs.existsSync(path.join(repoDir, '.git'));
-    if (gitExists && await getHistoryCommitCount(repoDir) > 0) {
+    // `git.log` is intentionally strict here. The best-effort history counter
+    // maps unreadable history to zero, which is suitable for display but must
+    // not authorize destructive repair of an existing, corrupt repository.
+    await git.init({ fs, dir: repoDir });
+    let commits: Awaited<ReturnType<typeof git.log>>;
+    try {
+      commits = await git.log({ fs, dir: repoDir });
+    } catch (error) {
+      // isomorphic-git reports an unborn branch as a missing ref. Treat that
+      // as empty only when the repository has no branch or tag refs at all;
+      // an unreadable existing ref must not authorize repair.
+      if (!await isUnbornHistory(repoDir)) throw error;
+      commits = [];
+    }
+    if (commits.length > 0) {
       throw Object.assign(new Error(`History is already initialized at ${repoDir}.`), { code: 'E_CONFLICT' });
     }
     // A zero-commit repository can be an interrupted prior initialization.
-    // Re-running git.init and recording the current package snapshot is the
-    // existing explicit `history --init` repair path, now serialized with
-    // competing initializers.
-    await git.init({ fs, dir: repoDir });
+    // The explicit `history --init` repair records a fresh baseline, now
+    // serialized with competing initializers.
+    await clearUncommittedPackageParts(repoDir);
     await captureOriginal(path.resolve(docPath), originalBytes);
 
     await writeAndAdd(repoDir, 'document.xml', initialXml);

@@ -197,6 +197,39 @@ describe('exact original capture and export', () => {
     await initAstraRepo(doc, '<a/>', {}, data);
     expect(await readOriginal(doc)).toEqual(data);
   });
+  it('does not commit package parts staged by a failed initialization when the zero-commit history is retried', async () => {
+    await expect(initAstraRepo(doc, '<a><partial/></a>', {
+      'word/styles.xml': Buffer.from('<styles>from failed attempt</styles>'),
+      '../outside.xml': Buffer.from('must fail'),
+    }, data)).rejects.toThrow('Security Violation');
+
+    await initAstraRepo(doc, '<a><recovered/></a>', {}, data);
+    const history = await getHistory(doc);
+    expect(history).toHaveLength(1);
+    const recovered = await checkoutCommit(doc, history[0].oid);
+    expect(recovered.xml).toBe('<a><recovered/></a>');
+    expect(recovered.extra.has('word/styles.xml')).toBe(false);
+  });
+  it('does not destructively repair a history whose existing commit log is unreadable', async () => {
+    const style = Buffer.from('<styles>keep existing data</styles>');
+    await initAstraRepo(doc, '<a/>', { 'word/styles.xml': style }, data);
+    const repoDir = getRepoDir(doc);
+    const [head] = await getHistory(doc);
+    const commitObject = path.join(repoDir, '.git', 'objects', head.oid.slice(0, 2), head.oid.slice(2));
+    await fsp.unlink(commitObject);
+
+    await expect(initAstraRepo(doc, '<b/>', {}, data)).rejects.toThrow();
+    expect(await fsp.readFile(path.join(repoDir, 'word/styles.xml'))).toEqual(style);
+  });
+  it('refuses to reinitialize a committed history without changing its package snapshot', async () => {
+    const style = Buffer.from('<styles>committed data</styles>');
+    await initAstraRepo(doc, '<a/>', { 'word/styles.xml': style }, data);
+    const before = await getHistory(doc);
+
+    await expect(initAstraRepo(doc, '<b/>', {}, data)).rejects.toMatchObject({ code: 'E_CONFLICT' });
+    expect(await getHistory(doc)).toEqual(before);
+    expect(await fsp.readFile(path.join(getRepoDir(doc), 'word/styles.xml'))).toEqual(style);
+  });
   it('reports absence, incomplete publication and corrupt bytes without returning a substitute', async () => {
     expect(await getOriginalInfo(doc)).toEqual({ available: false, reason: 'predates-feature' });
     await initAstraRepo(doc, '<a/>', {}, data);
@@ -449,6 +482,28 @@ describe('publication helpers', () => {
     await expect(writeFileExclusive(newOut, data)).rejects.toThrow('injected partial write');
     await expect(fsp.stat(newOut)).rejects.toMatchObject({ code: 'ENOENT' });
   });
+  it('cleans the candidate when closing the verified temp fails', async () => {
+    const out = path.join(dir, 'close-failure-output');
+    const open = fsp.open.bind(fsp);
+    vi.spyOn(fsp, 'open').mockImplementation(async (...args) => {
+      const handle = await open(...args);
+      if (String(args[0]).includes('.astra-tmp-')) {
+        const close = handle.close.bind(handle);
+        vi.spyOn(handle, 'close').mockImplementationOnce(async () => {
+          await close();
+          throw Object.assign(new Error('injected file close failure'), { code: 'EIO' });
+        });
+      }
+      return handle;
+    });
+    let caught: unknown;
+    try { await writeFileExclusive(out, data); } catch (error) { caught = error; }
+    expect(caught).toMatchObject({ code: 'EIO' });
+    expect(caught).not.toHaveProperty('tempPath');
+    expect(String(caught)).toContain('injected file close failure');
+    await expect(fsp.stat(out)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect((await fsp.readdir(dir)).some((name) => name.includes('.astra-tmp-'))).toBe(false);
+  });
   it('a failure reported after rename is reported as replaced when complete new bytes are verified', async () => {
     const out = path.join(dir, 'out'); await fsp.writeFile(out, 'old');
     const rename = fsp.rename.bind(fsp);
@@ -510,18 +565,43 @@ describe('publication helpers', () => {
     await initAstraRepo(doc, '<a/>', {});
     const target = path.join(getRepoDir(doc), '.git', 'astra-original', 'exclusive-output.docx');
     const directory = path.dirname(target);
-    for (const failure of ['directory-open', 'directory-sync']) {
+    for (const failure of ['directory-open', 'directory-sync', 'directory-close']) {
       const out = `${target}.${failure}`;
       const open = fsp.open.bind(fsp);
       vi.spyOn(fsp, 'open').mockImplementation(async (...args) => {
         if (failure === 'directory-open' && String(args[0]) === directory) throw Object.assign(new Error('injected directory open failure'), { code: 'EACCES' });
         const handle = await open(...args);
         if (failure === 'directory-sync' && String(args[0]) === directory) vi.spyOn(handle, 'sync').mockRejectedValueOnce(Object.assign(new Error('injected directory sync failure'), { code: 'EIO' }));
+        if (failure === 'directory-close' && String(args[0]) === directory) {
+          const close = handle.close.bind(handle);
+          vi.spyOn(handle, 'close').mockImplementationOnce(async () => {
+            await close();
+            throw Object.assign(new Error('injected directory close failure'), { code: 'EIO' });
+          });
+        }
         return handle;
       });
       await expect(writeFileExclusive(out, data)).resolves.toBeUndefined();
       expect(await fsp.readFile(out)).toEqual(data);
       vi.restoreAllMocks();
     }
+  });
+  it('reports unconfirmed directory durability without undoing a successful atomic replacement', async () => {
+    const out = path.join(dir, 'directory-close-replace');
+    await fsp.writeFile(out, 'old bytes');
+    const open = fsp.open.bind(fsp);
+    vi.spyOn(fsp, 'open').mockImplementation(async (...args) => {
+      const handle = await open(...args);
+      if (String(args[0]) === dir) {
+        const close = handle.close.bind(handle);
+        vi.spyOn(handle, 'close').mockImplementationOnce(async () => {
+          await close();
+          throw Object.assign(new Error('injected directory close failure'), { code: 'EIO' });
+        });
+      }
+      return handle;
+    });
+    await expect(replaceFileAtomic(out, data)).resolves.toMatchObject({ outcome: 'replaced', durabilityUnconfirmed: true });
+    expect(await fsp.readFile(out)).toEqual(data);
   });
 });

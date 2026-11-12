@@ -44,8 +44,16 @@ async function exists(file: string): Promise<boolean> {
 async function syncDirectory(dir: string): Promise<boolean> {
   if (process.platform === 'win32') return false;
   let h: fsp.FileHandle | undefined;
-  try { h = await fsp.open(dir, fs.constants.O_RDONLY); await h.sync(); return true; }
-  catch { return false; } finally { await h?.close(); }
+  let synced = false;
+  try {
+    h = await fsp.open(dir, fs.constants.O_RDONLY);
+    await h.sync();
+    synced = true;
+  } catch {
+    /* directory durability is reported separately from publication success */
+  }
+  try { await h?.close(); } catch { synced = false; }
+  return synced;
 }
 async function cleanupTemp(file: string): Promise<void> {
   try { await fsp.unlink(file); } catch (e) {
@@ -59,6 +67,7 @@ async function preparedTempParts(target: string, parts: readonly Buffer[], mode 
   assertWriteTargetNoSymlink(target);
   const tmp = path.join(dir, `.${path.basename(target).slice(0, 60)}.astra-tmp-${randomUUID()}`);
   const h = await fsp.open(tmp, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, mode);
+  let writeError: unknown;
   try {
     for (const part of parts) {
       let offset = 0;
@@ -70,8 +79,18 @@ async function preparedTempParts(target: string, parts: readonly Buffer[], mode 
     }
     await h.sync();
   }
-  catch (e) { await h.close(); try { await cleanupTemp(tmp); } catch (cleanup) { throw coded(`${e instanceof Error ? e.message : String(e)}; ${cleanup instanceof Error ? cleanup.message : String(cleanup)}`); } throw e; }
-  await h.close();
+  catch (error) { writeError = error; }
+  let closeError: unknown;
+  try { await h.close(); } catch (error) { closeError = error; }
+  if (writeError || closeError) {
+    const primary = writeError ?? closeError;
+    let message = primary instanceof Error ? primary.message : String(primary);
+    if (writeError && closeError) message += `; temporary file close also failed: ${closeError instanceof Error ? closeError.message : String(closeError)}`;
+    let cleanupFailed = false;
+    try { await cleanupTemp(tmp); }
+    catch (cleanup) { cleanupFailed = true; message += `; ${cleanup instanceof Error ? cleanup.message : String(cleanup)}`; }
+    throw Object.assign(coded(message, errno(primary) || 'E_IO'), { ...(cleanupFailed ? { tempPath: tmp } : {}), cause: primary });
+  }
   try {
     const expectedBytes = parts.reduce((total, part) => total + part.length, 0);
     const expectedHash = createHash('sha256');
