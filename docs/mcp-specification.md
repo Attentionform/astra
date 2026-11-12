@@ -2,7 +2,7 @@
 
 The official Model Context Protocol (MCP) reference for ASTra.
 
-ASTra exposes **19 tools** over standard input/output (`stdio`, using JSON-RPC). They let AI agents and developer tools inspect, search, edit, export and keep a history of Microsoft Word (`.docx`) documents. Every save is checked against the document schema first, and a batch of edits is applied all-or-nothing.
+ASTra exposes **21 tools** over standard input/output (`stdio`, using JSON-RPC). They let AI agents and developer tools inspect, search, edit, export and keep a history of Microsoft Word (`.docx`) documents. Every save is checked against the document schema first, and a batch of edits is applied all-or-nothing.
 
 ---
 
@@ -11,7 +11,7 @@ ASTra exposes **19 tools** over standard input/output (`stdio`, using JSON-RPC).
 1. [Quick Client Integration](#1-quick-client-integration)
 2. [Security & Sandboxing Model](#2-security--sandboxing-model)
 3. [The Standard Agent Workflow](#3-the-standard-agent-workflow)
-4. [Complete 19-Tool Reference](#4-complete-19-tool-reference)
+4. [Complete 21-Tool Reference](#4-complete-21-tool-reference)
    - [Document Management](#41-document-management)
    - [Inspection & Query](#42-inspection--query)
    - [Mutation & Composition](#43-mutation--composition)
@@ -131,7 +131,7 @@ Autonomous agents should interact with documents through this canonical lifecycl
 
 ---
 
-## 4. Complete 19-Tool Reference
+## 4. Complete 21-Tool Reference
 
 ### 4.1 Document Management
 
@@ -496,6 +496,18 @@ The wireframe shows tables as `[TABLE: n cols]` followed by the header row and t
 ### 4.5 History & Time-Travel
 
 ASTra tracks document version history in a local, append-only sidecar repository located at `<docDir>/.astra/<file>/` (with `<docDir>/.astra-tombstones.json` recording which documents have history). Set `ASTRA_HISTORY_DIR` in the server's environment to keep both under that directory instead; see the CLI guide, section 4.12, for the layout and a `.gitignore` snippet.
+
+#### `export_original_document`
+
+Export a captured original byte for byte: `{sessionId, outPath, overwrite?}`. The destination must be inside an allowed directory. Existing destinations require `overwrite: true`. Export does not change the open document.
+
+#### `restore_original_document`
+
+Restore the captured original to the open document: `{sessionId, discard?}`. Unsaved edits are refused unless `discard: true`; a changed file or inconsistent history is refused. The operation records a new history state. Ordinary revert and redo restore document state, which may not reproduce the original ZIP bytes.
+
+Original capture is automatic when an existing document first receives a new MCP history. Older histories may have no original. Sanitizing a document does not remove sensitive content from its history or captured original.
+
+---
 
 #### `get_document_history`
 Retrieves commit history for the current document.

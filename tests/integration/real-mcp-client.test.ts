@@ -168,7 +168,7 @@ async function runRealClientTests(): Promise<void> {
   let sessionId = "";
   const serverPath = path.join(REPO_ROOT, 'packages/mcp-server/dist/index.js');
 
-  await step('2. Connect MCP client over StdioServerTransport & verify 19 tools', async () => {
+  await step('2. Connect MCP client over StdioServerTransport & verify 21 tools', async () => {
     // Rebuild dist when stale (mirrors the harness dist-staleness pattern).
     const distEntry = path.join(REPO_ROOT, 'packages', 'mcp-server', 'dist', 'index.js');
     const srcEntry = path.join(REPO_ROOT, 'packages', 'mcp-server', 'src', 'index.ts');
@@ -205,6 +205,7 @@ async function runRealClientTests(): Promise<void> {
       'compose_document',
       'execute_batch',
       'export_document',
+      'export_original_document',
       'get_document_history',
       'get_stats',
       'import_document',
@@ -214,6 +215,7 @@ async function runRealClientTests(): Promise<void> {
       'open_document',
       'preview_revert',
       'redo_document',
+      'restore_original_document',
       'revert_document',
       'sanitize_document',
       'save_document',
@@ -222,7 +224,7 @@ async function runRealClientTests(): Promise<void> {
       'visual_inspect',
     ].sort();
 
-    assert(toolNames.length === 19, `Expected 19 tools, got ${toolNames.length}`);
+    assert(toolNames.length === 21, `Expected 21 tools, got ${toolNames.length}`);
     assert(
       JSON.stringify(toolNames) === JSON.stringify(expectedTools),
       `Tools mismatch: ${JSON.stringify(toolNames)}`

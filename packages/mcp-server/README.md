@@ -2,7 +2,7 @@
 
 Official Model Context Protocol (MCP) server for the ASTra document engine.
 
-`@attentionform/astra-mcp-server` exposes a comprehensive, 19-tool agentic interface over standard I/O (`stdio`). It enables AI coding assistants, including **Claude Desktop**, **Cursor**, **Windsurf**, **Cline**, and custom LLM agents, to inspect, query, mutate, and export Microsoft Word (`.docx`) documents with transactional integrity and zero schema corruption.
+`@attentionform/astra-mcp-server` exposes a comprehensive, 21-tool agentic interface over standard I/O (`stdio`). It enables AI coding assistants, including **Claude Desktop**, **Cursor**, **Windsurf**, **Cline**, and custom LLM agents, to inspect, query, mutate, and export Microsoft Word (`.docx`) documents with transactional integrity and zero schema corruption.
 
 ---
 
@@ -120,9 +120,9 @@ npx -y @attentionform/astra-mcp-server --check-schemas ./fresh-schemas
 
 ---
 
-## The 19 MCP Tools
+## The 21 MCP Tools
 
-ASTra provides a complete set of 19 tools organized by capability. The server returns all 19 tools over `tools/list`:
+ASTra provides a complete set of 21 tools organized by capability. The server returns all 21 tools over `tools/list`:
 
 ### `open_document`
 Opens a `.docx` file into an isolated in-memory editing session.
@@ -321,6 +321,18 @@ Generates 2D spatial layout telemetry and optional headless page renders.
 **Returns:** `{ ok: true, sessionId, telemetry, images: [{ page, path }], outDir }`
 
 The wireframe in `telemetry` shows `[TABLE: n cols]` with the header row and the first rows, `- ` and `1.` list markers, and `[CALLOUT]` for a shaded one-cell table.
+
+---
+
+### `export_original_document`
+
+Export a captured original byte for byte: `{sessionId, outPath, overwrite?}`. The destination must be inside an allowed directory. Existing destinations require `overwrite: true`. Export does not change the open document.
+
+### `restore_original_document`
+
+Restore the captured original to the open document: `{sessionId, discard?}`. Unsaved edits are refused unless `discard: true`; a changed file or inconsistent history is refused. The operation records a new history state. Ordinary revert and redo restore document state, which may not reproduce the original ZIP bytes.
+
+Original capture is automatic when an existing document first receives a new MCP history. Older histories may have no original. Sanitizing a document does not remove sensitive content from its history or captured original.
 
 ---
 

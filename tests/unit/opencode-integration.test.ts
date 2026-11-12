@@ -91,7 +91,7 @@ describe('OpenCode Integration Suite', () => {
       expect(content).toContain('model:');
       expect(content).toContain('tools:');
 
-      // All 14 tools in frontmatter
+      // Document editing and recovery tools in frontmatter
       const requiredTools = [
         'open_document',
         'inspect_document',
@@ -102,9 +102,11 @@ describe('OpenCode Integration Suite', () => {
         'new_document',
         'compose_document',
         'export_document',
+        'export_original_document',
         'visual_inspect',
         'get_document_history',
         'preview_revert',
+        'restore_original_document',
         'revert_document',
         'redo_document',
       ];
@@ -279,7 +281,7 @@ describe('OpenCode Integration Suite', () => {
     });
 
     it('executes full turnkey workflow: listTools -> open -> inspect -> search -> execute_batch -> export -> save -> close', async () => {
-      // 1. Calls tools/list and asserts all 19 tools are exposed
+      // 1. Calls tools/list and asserts all 21 tools are exposed
       const toolsResult = await client.listTools();
       const toolNames = toolsResult.tools.map((t) => t.name).sort();
       expect(toolNames).toEqual([
@@ -287,6 +289,7 @@ describe('OpenCode Integration Suite', () => {
         'compose_document',
         'execute_batch',
         'export_document',
+        'export_original_document',
         'get_document_history',
         'get_stats',
         'import_document',
@@ -296,14 +299,15 @@ describe('OpenCode Integration Suite', () => {
         'open_document',
         'preview_revert',
         'redo_document',
-        'revert_document',
+        'restore_original_document',
+          'revert_document',
         'sanitize_document',
         'save_document',
         'search_content',
         'validate_document',
         'visual_inspect',
       ]);
-      expect(toolsResult.tools.length).toBe(19);
+      expect(toolsResult.tools.length).toBe(21);
 
       // 2. Calls open_document on test-gallery/T1_coffee_onepager.docx
       expect(fs.existsSync(COFFEE_DOC_PATH)).toBe(true);

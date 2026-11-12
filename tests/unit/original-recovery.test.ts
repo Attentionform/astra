@@ -37,6 +37,7 @@ describe('exact original capture and export', () => {
     expect(originalSha256(await fsp.readFile(out))).toBe(originalSha256(data));
   });
   it('Save As captures the preexisting destination while preserving the source original', async () => {
+    vi.stubEnv('ASTRA_EXTRA_DOC_ROOTS', dir);
     const sourceBytes = createBlankDocxBuffer('blank');
     await fsp.writeFile(doc, sourceBytes);
     const destination = path.join(dir, 'existing.docx');
