@@ -160,11 +160,17 @@ function mcpSession(allowedDir, outPath) {
     const child = isWin
       ? spawn(['astra-mcp-server', ...args.map(q)].join(' '), { shell: true, env, stdio: ['pipe', 'pipe', 'pipe'] })
       : spawn('astra-mcp-server', args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    // On Windows the shell owns the Node server and its validator descendants.
+    // Killing the shell alone leaves their pipes open and keeps this smoke process alive.
+    const stopChild = () => {
+      if (isWin && child.pid) spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' });
+      else child.kill();
+    };
     let buffer = '';
     let stderr = '';
     const replies = new Map();
     const timer = setTimeout(() => {
-      child.kill();
+      stopChild();
       reject(new Error(`the MCP server did not answer in time\nstderr: ${stderr}\nstdout: ${buffer}`));
     }, 90_000);
     const send = (message) => child.stdin.write(JSON.stringify(message) + '\n');
@@ -191,7 +197,8 @@ function mcpSession(allowedDir, outPath) {
         if (replies.has(2) && replies.has(3)) {
           clearTimeout(timer);
           child.stdin.end();
-          setTimeout(() => child.kill(), 3000).unref();
+          if (isWin) stopChild();
+          else setTimeout(stopChild, 3000).unref();
           resolve({ tools: replies.get(2), created: replies.get(3) });
         }
       }
