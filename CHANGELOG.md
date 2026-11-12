@@ -6,6 +6,27 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+### Added
+
+- Exact original DOCX capture when new history is initialized, with SHA-256 verification and explicit availability status. The CLI remains opt-in with `history --init`; histories created before this feature are not migrated.
+- Original-file export and in-place restore through the MCP tools and `astra history --export-original <out>` / `--restore-original`. Export preserves original bytes without changing the working document. Restore refuses conflicting disk changes and records history. Normal saves and ordinary revert/redo still serialize document states.
+
+### Changed
+
+- First history creation is serialized with an exclusive `.astra-init.lock`. A process killed during creation can leave it; ASTra then refuses writes that would record history, before touching the file, and names the lock, its creator and the steps to clear it. ASTra never removes the lock and never waits for it. A history that has no commits yet refuses `--init` when a retained original from different bytes is already there (`E_CONFLICT`, both kept).
+- A package snapshot that cannot be collected now stops the history commit that needed it (first history creation, save, revert, redo and original restore, and every commit the editor library makes) and reports it. An empty set of parts is never recorded in its place. A save checks this before it writes the file. Before, an empty set of package parts could be committed as a complete snapshot, which a later revert would trust. `batch` and `normalize` also refuse while a first-creation lock is held before the history folder exists.
+- Opening a document through the MCP server is faster than in 0.4.2, because the document is serialized once per open and not at all when history already exists. Measured against the published 0.4.2 package, median of 16 opens per build on one machine: a 200-page file took 1.67 s instead of 2.14 s on first open (about 22 percent less, validation on) and 0.84 s instead of 1.66 s on reopen (about 49 percent less); with validation off, 1.66 s instead of 2.05 s and 0.72 s instead of 1.52 s. A 200-page file with 20 MB of media took 2.85 s instead of 3.10 s on first open, which is inside the run-to-run spread, and 0.81 s instead of 1.90 s on reopen. On a CI machine (four threads, prose files, median of 30 opens per build) the open took 16 percent less on 100 and 200 pages (371 ms instead of 442 ms, 627 ms instead of 745 ms) and 8 percent less on 50 pages, but 4 percent more on 10 pages (170 ms instead of 163 ms) and 10 percent more on a 1-page file (155 ms instead of 141 ms), because storing the original is a fixed cost that small files do not earn back. Saving and editing took the same time as in 0.4.2 (within 3 percent). Times depend on the machine and the file.
+
+### Known limits
+
+- Two ASTra processes that save the same document at the same time are not coordinated; one can lose an edit, a save can fail with its file restored, and rarely a file can be left truncated. This is how 0.4.2 behaves as well and is not changed here. Use one writer per document.
+- Do not run 0.4.x and 0.5.x on the same document at the same time.
+- A location without hard-link support cannot store or export an original.
+
+### Privacy
+
+- The retained original can contain data later removed from the working document by sanitization. Sanitization does not erase the original or earlier history. Original storage counts toward the history quota.
+
 ## [0.4.2] - 2026-11-12
 
 All ten npm packages move to 0.4.2. This release fixes how history restores a document: a revert now puts back every package part exactly as it was saved. The MCP tool names and input schemas are unchanged; the generated schema files carry the new version only.
