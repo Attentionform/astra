@@ -491,6 +491,8 @@ Inspects recorded sidecar version control commits for a document, listing revisi
 
 To keep history somewhere else, set `ASTRA_HISTORY_DIR` to a directory (for the CLI and for the MCP server's environment). Each document's history then lives in `$ASTRA_HISTORY_DIR/<key>/<file>/`, where `<key>` is a short hash of the document's folder, so two folders holding a file of the same name keep separate histories, and the tombstone registry sits in `$ASTRA_HISTORY_DIR/<key>/`. Nothing is written beside the document. History made under one setting is not visible under the other: set it before the first save, and keep it set.
 
+To permanently discard a document's history and captured original, first close all ASTra sessions using it. Delete that document's history folder shown above, then edit `.astra-tombstones.json` in the corresponding registry directory and remove only the JSON property whose key is that document's file name. Preserve entries for other documents. This cannot be undone without a backup. The next MCP open, or CLI `history --init`, creates a fresh history from the file as it exists then. If the tombstone is left behind, ASTra warns that the old history disappeared.
+
 ```bash
 # View commit history (read-only)
 astra history report.docx
