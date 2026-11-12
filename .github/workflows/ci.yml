@@ -66,3 +66,33 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/platform-smoke.yml
+
+  original-recovery-filesystem:
+    name: Original recovery (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm install -g npm@^11
+      - run: npm ci
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+      - run: npm run build:native --workspace=@attentionform/ooxml-validator
+      - name: Build packages used by subprocess recovery tests
+        run: |
+          npm run build --workspace=@attentionform/ooxml-validator
+          npm run build --workspace=@attentionform/astra-engine
+      - name: Verify exclusive capture, export, restore and atomic replacement
+        run: npx vitest run tests/unit/original-recovery.test.ts tests/unit/original-restore-engine.test.ts
+      - name: Verify Windows locked-target restore and retry
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/fixtures/windows-locked-restore.ps1
