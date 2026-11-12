@@ -1,6 +1,6 @@
 {
   "_comment": "Read by .github/workflows/benchmarks.yml on every push to a bench/** branch. Edit, commit, push to run. A manual dispatch can override each field.",
-  "target_ref": "fix/revert-package-parts",
-  "baseline": "none",
-  "experiments": "r1 c2 c2_oracles c1 c1_oracles faults e3 e3_followup e1 e1_oracles e1_control e4 e5 e5_orphans e6"
+  "target_ref": "feat/original-recovery-clean",
+  "baseline": "published",
+  "experiments": "e6"
 }

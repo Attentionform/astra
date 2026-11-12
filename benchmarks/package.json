@@ -5,7 +5,7 @@
   "version": "0.0.0",
   "description": "Reproducible measurements of the published ASTra packages. Not part of the shipped product.",
   "dependencies": {
-    "@attentionform/astra-mcp-server": "0.4.1",
+    "@attentionform/astra-mcp-server": "0.4.2",
     "@modelcontextprotocol/sdk": "1.32.2",
     "adm-zip": "0.5.16",
     "gpt-tokenizer": "3.0.1"
