@@ -243,7 +243,7 @@ export async function handleNewDocument(
   }
 
   try {
-    const handle = await store.openDocument(target, parsed.data.sessionId);
+    const handle = await store.openDocument(target, parsed.data.sessionId, undefined, false);
     handle.parser.adoptBuiltinSeedFrom(parser);
     if (parsed.data.author !== undefined) handle.ast.settings.defaultAuthor = parsed.data.author;
     let bytes = buf.length;

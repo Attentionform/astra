@@ -14,11 +14,13 @@ tools:
   - new_document
   - compose_document
   - export_document
+  - export_original_document
   - visual_inspect
   - get_document_history
   - preview_revert
   - revert_document
   - redo_document
+  - restore_original_document
 ---
 
 # ASTra Document Editor: Expert OOXML Engineering Agent

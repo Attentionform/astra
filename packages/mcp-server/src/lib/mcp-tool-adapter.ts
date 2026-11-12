@@ -15,3 +15,5 @@ export * from './mcp/handlers/save-close';
 export * from './mcp/handlers/history';
 export * from './mcp/handlers/export-audit';
 export * from './mcp/registry';
+
+export * from './mcp/handlers/original';

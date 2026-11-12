@@ -20,10 +20,12 @@ const ALL_TOOLS = [
   'new_document',
   'compose_document',
   'export_document',
+      'export_original_document',
   'visual_inspect',
   'get_document_history',
   'preview_revert',
-  'revert_document',
+  'restore_original_document',
+      'revert_document',
   'redo_document',
   'validate_document',
   'get_stats',
@@ -69,9 +71,9 @@ function allOutput(): string {
 }
 
 describe('mcp-server cli flags', () => {
-  it('served tool list holds all nineteen tools', () => {
+  it('served tool list holds all twenty-one tools', () => {
     expect(getServedToolNames().sort()).toEqual([...ALL_TOOLS].sort());
-    expect(getServedToolNames()).toHaveLength(19);
+    expect(getServedToolNames()).toHaveLength(21);
   });
 
   it('--help prints usage on stdout, exit 0, server never starts', async () => {
@@ -83,7 +85,7 @@ describe('mcp-server cli flags', () => {
     expect(out).toContain('--allowed-dir');
     expect(out).toContain('stdio');
     expect(out).toContain('Examples:');
-    expect(out).toMatch(/19 tools/);
+    expect(out).toMatch(/21 tools/);
     for (const tool of ALL_TOOLS) expect(out).toContain(tool);
     expect(stderrChunks.join('')).toBe('');
     expect(allOutput()).not.toContain('serving');

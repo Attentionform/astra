@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 1926-2196 + 2203-2273).
 // Zero logic edits (pathDirname + restore helpers live in ../diff and are imported).
 import * as fsp from 'fs/promises';
@@ -9,6 +10,8 @@ import {
   assertWriteTargetNoSymlink,
   chartXmlGetterForAst,
   commitChange,
+  assertHistoryReadyForWrite,
+  getOriginalInfo,
   commitStateIfDiffersFromHead,
   refreshAstInPlace,
   getEngineErrorCode,
@@ -242,6 +245,11 @@ export async function executeSaveDocument(
     const saveGateNormalized = readParserNormalizations(handle.parser);
     const buf = handle.parser.rezip();
     const saveNormalized = mergeNormalized(saveGateNormalized, readParserNormalizations(handle.parser));
+    // What the history will record, taken BEFORE the target is touched: when the package parts cannot be collected,
+    // the save fails with the file, the history and the session exactly as they were. The parser does not change
+    // between here and the commit, so this is the saved package.
+    const savedXml = handle.parser.readDocumentXml();
+    const extras = collectTrackedExtrasForGit(handle.parser);
     // Commit-failure atomicity: snapshot the on-disk bytes plus the revision
     // markers BEFORE the write lands, so a later commit throw can put
     // everything back and advance nothing.
@@ -255,6 +263,9 @@ export async function executeSaveDocument(
     } catch {
       prevBytes = null;
     }
+    // Refuse before the target is touched when an initialization lock is held or an interrupted
+    // initialization left no history, instead of writing and rolling back after the commit fails.
+    await assertHistoryReadyForWrite(target);
     try {
       // M1: lstat the leaf (refuse symlinks incl. dangling) before mkdir
       // (mkdir -p through a symlink parent would create outside dirs) and
@@ -290,11 +301,9 @@ export async function executeSaveDocument(
       });
     }
     // History commit AFTER the file lands: the sidecar repo records the
-    // exact saved package (document.xml + tracked extras). Omitted messages
+    // exact saved package (document.xml + tracked extras, collected above). Omitted messages
     // fall back deterministically from the revision delta (k ops since the
     // last save; a clean first save is the initial baseline).
-    const savedXml = handle.parser.readDocumentXml();
-    const extras = collectTrackedExtrasForGit(handle.parser);
     const opsSinceSave = handle.revision - handle.savedRevision;
     const fallbackMessage =
       opsSinceSave <= 0
@@ -305,7 +314,7 @@ export async function executeSaveDocument(
     const authorName = sanitizeCommitAuthor(parsed.data.author);
     let commitOid: string;
     try {
-      await ensureGitRepo(target, savedXml, extras);
+      await ensureGitRepo(target, savedXml, extras, prevBytes ?? undefined);
       commitOid = await commitChange(target, savedXml, commitMessage, extras, undefined, authorName);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -346,6 +355,15 @@ export async function executeSaveDocument(
     }
     try {
       handle.filePath = target;
+      if (prevFilePath !== target || !handle.originalInfo) {
+        handle.originalInfo = await getOriginalInfo(target);
+        handle.originalPin = handle.originalInfo.available ? { kind: 'retained', sha256: handle.originalInfo.sha256 } : undefined;
+      }
+      if (prevFilePath !== target) handle.originalWarning = undefined;
+      if (!handle.originalInfo.available && !['predates-feature', 'not-applicable'].includes(handle.originalInfo.reason)) {
+        handle.originalWarning = `Exact-original recovery is unavailable: ${handle.originalInfo.reason}. Keep a separate copy of the input file.`;
+      }
+      handle.lastWrittenSha256 = createHash('sha256').update(buf).digest('hex');
       handle.byteSize = buf.length;
       // Audit bridge: snapshot the since-save footprint BEFORE markSaved
       // resets the accumulator, then annotate the new head commit.
@@ -398,6 +416,7 @@ export async function executeSaveDocument(
       ok: true as const,
       sessionId: handle.sessionId,
       path: target,
+      ...(handle.originalWarning ? { originalWarning: handle.originalWarning } : {}),
       revision: handle.revision,
       commitOid,
       commitMessage,

@@ -11,7 +11,13 @@ import {
   ToonGenerator,
   canonicalizeForAsset as canonicalizeForMcp,
   getRepoDir,
+  assertGitHistoryReady,
   initAstraRepo,
+  getOriginalInfo,
+  getHistoryInitializationState,
+  getHistory,
+  checkoutCommit,
+  type OriginalInfo,
   isPathInsideDir as isMcpPathInsideDir,
   isTrackedPackageFile,
   setTrustedWriteRootsProvider,
@@ -257,6 +263,19 @@ export interface DocHandle {
   openBaseline?: ValidationBaseline | null;
   /** sha256 of the file bytes read at open, to tell whether the file on disk is still the opened one. */
   openSha256?: string;
+  /** Fingerprint of the last bytes read or successfully written by ASTra. */
+  lastWrittenSha256?: string;
+  /** Status of the retained original as this session last learned it. Read it through `resolveSessionOriginal`. */
+  originalInfo?: OriginalInfo;
+  /**
+   * What this session pinned about the retained original, so a later check cannot hand it another history's
+   * original: `retained` is the SHA-256 of the verified retained original read at open; `input` is the SHA-256 of
+   * the file this session opened, for a session that opened while history initialization was still running.
+   * No pin: this session has no claim on any original.
+   */
+  originalPin?: { kind: 'retained' | 'input'; sha256: string };
+  originalWarning?: string;
+  macroPolicy?: DocxParserMacroOptions;
 }
 
 /**
@@ -708,6 +727,9 @@ export function validateOpenBufferLabel(rawLabel: unknown): string {
  * Collects the versioned package extras (media/rels/styles/headers) for git.
  * document.xml is committed separately; everything matching
  * isTrackedPackageFile is snapshotted alongside it.
+ *
+ * Throws when the package snapshot cannot be collected. An empty record would be committed as a complete
+ * snapshot with no package parts, and a later revert would then remove the real parts as if that were intended.
  */
 export function collectTrackedExtrasForGit(parser: DocxParser): Record<string, Buffer> {
   try {
@@ -718,10 +740,16 @@ export function collectTrackedExtrasForGit(parser: DocxParser): Record<string, B
     }
     return extras;
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[collectTrackedExtrasForGit] snapshot failed: ${msg}`);
-    return {};
+    throw snapshotCollectionError(err);
   }
+}
+
+function snapshotCollectionError(cause: unknown): Error {
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  return Object.assign(new Error(`The document's package parts could not be collected for history (${detail}). Nothing was recorded.`), {
+    code: 'E_STATE',
+    remedy: 'Nothing was recorded in history. Retry; if it keeps failing, the document package may be damaged.',
+  });
 }
 
 /**
@@ -734,8 +762,29 @@ export function collectTrackedExtrasForGit(parser: DocxParser): Record<string, B
 export async function ensureGitRepo(
   docPath: string,
   xml: string,
-  extras: Record<string, Buffer>
+  extras: Record<string, Buffer>,
+  originalBytes?: Buffer
 ): Promise<boolean> {
+  return (await ensureGitRepoWith(docPath, () => ({ xml, extras }), originalBytes)).existed;
+}
+
+/** What a first history commit records for a document: its serialization and its tracked package parts. */
+interface GitBaseline {
+  xml: string;
+  extras: Record<string, Buffer>;
+}
+
+/**
+ * Like `ensureGitRepo`, but the baseline is built only if the history has to be created. A document that
+ * already has history is not serialized at all, which is the expensive part of an open. Returns the baseline
+ * it committed (`undefined` when the history already existed).
+ */
+async function ensureGitRepoWith(
+  docPath: string,
+  baseline: () => GitBaseline,
+  originalBytes?: Buffer,
+  options?: { alreadyReady?: boolean }
+): Promise<{ existed: boolean; baseline?: GitBaseline }> {
   const repoDir = getRepoDir(docPath);
   let hasGit = false;
   try {
@@ -743,19 +792,163 @@ export async function ensureGitRepo(
   } catch {
     hasGit = false;
   }
-  if (hasGit) return true;
-  await initAstraRepo(docPath, xml, extras);
-  return false;
+  if (hasGit) {
+    // The caller may have proven readiness a moment ago (before it read the original's status); do not read the
+    // whole commit chain twice on a reopen.
+    if (!options?.alreadyReady) await assertGitHistoryReady(repoDir);
+    return { existed: true };
+  }
+  try {
+    const initial = baseline();
+    await initAstraRepo(docPath, initial.xml, initial.extras, originalBytes);
+    return { existed: false, baseline: initial };
+  } catch (error) {
+    // Another process may have completed the first commit after our initial
+    // absence check. Only accept that history once its initialization lock is
+    // gone and the committed chain is readable.
+    if (fs.existsSync(path.join(repoDir, '.git'))) {
+      await assertGitHistoryReady(repoDir);
+      return { existed: true };
+    }
+    throw error;
+  }
 }
 
+/**
+ * One serialization of the live document for the first history commit: its XML plus the tracked package parts,
+ * taken from the same snapshot. Throws when the parts cannot be collected, so no first commit is published
+ * without them (see `collectTrackedExtrasForGit`).
+ */
+function collectBaselineForGit(parser: DocxParser): GitBaseline {
+  const xml = parser.readDocumentXml();
+  try {
+    const snapshot = parser.capturePackageSnapshot({ documentXml: xml });
+    const extras: Record<string, Buffer> = {};
+    for (const [name, buf] of snapshot) if (isTrackedPackageFile(name)) extras[name] = buf;
+    return { xml, extras };
+  } catch (err: unknown) {
+    throw snapshotCollectionError(err);
+  }
+}
+
+const sha256Of = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
+
+/**
+ * The retained original's status for this session, checked now. A session pins one hash when it opens (see
+ * `DocHandle.originalPin`); the working document's own bytes are never compared with the original, because an
+ * edited document legitimately differs from it.
+ * - `retained` pin: the stored original must still verify and still have the pinned SHA-256.
+ * - `input` pin (the session opened while another process was initializing the history): the session becomes
+ *   eligible only once that initialization is complete and the verified original has the SHA-256 of the file
+ *   this session opened. Until then it reports `initializing`; a different original never upgrades it.
+ * - no pin: the status recorded at open stands.
+ */
+export async function resolveSessionOriginal(handle: DocHandle): Promise<OriginalInfo> {
+  const fallback: OriginalInfo = handle.originalInfo ?? { available: false, reason: 'not-applicable' };
+  const pin = handle.originalPin;
+  if (!pin || !path.isAbsolute(handle.filePath)) return fallback;
+  const current = await getOriginalInfo(handle.filePath);
+  if (pin.kind === 'retained') {
+    if (!current.available) return current;
+    if (current.sha256 !== pin.sha256) {
+      return { available: false, reason: 'capture-failed', detail: 'The retained original no longer matches the one this session opened.' };
+    }
+    return current;
+  }
+  if (current.available && current.sha256 !== pin.sha256) {
+    return { available: false, reason: 'capture-failed', detail: 'Another opener recorded a different original for this history.' };
+  }
+  const initialization = await getHistoryInitializationState(handle.filePath);
+  if (initialization.state !== 'complete') {
+    return { available: false, reason: 'initializing', detail: initialization.detail ?? 'History initialization has not completed. Check get_document_history again later.' };
+  }
+  if (!current.available) return current;
+  handle.originalInfo = current;
+  handle.originalPin = { kind: 'retained', sha256: current.sha256 };
+  handle.originalWarning = undefined;
+  return current;
+}
+
+const INITIALIZING_WARNING = 'History initialization was not complete when this document opened (another ASTra process may be creating it). Editing is available. Exact-original recovery becomes available if that initialization finishes for this same file; check get_document_history.';
+
 /** Best-effort git init for a freshly opened handle (never throws). */
-async function initGitForHandleBestEffort(handle: DocHandle): Promise<void> {
+async function initGitForHandleBestEffort(handle: DocHandle, originalBytes?: Buffer): Promise<void> {
   try {
     if (!path.isAbsolute(handle.filePath)) return;
-    const xml = handle.parser.readDocumentXml();
-    await ensureGitRepo(handle.filePath, xml, collectTrackedExtrasForGit(handle.parser));
-  } catch {
-    /* open succeeds regardless — history tools report the gap */
+    // Read the original's status BEFORE ensureGitRepo. A competing first opener can create .git and then pause
+    // before publishing the original; such a session pins the SHA-256 of its input instead and is verified
+    // later (resolveSessionOriginal), so it never waits and never takes another history's original.
+    // A published original proves nothing about its history until that history is complete: the first
+    // initializer publishes the original, then commits. So an original read at open belongs to a pre-existing
+    // history only if the history was already complete (no lock, at least one commit) BEFORE that read; the
+    // check below runs first and is reused by ensureGitRepoWith, which does not read the commit chain again.
+    const repoDir = getRepoDir(handle.filePath);
+    let completeBeforeRead = false;
+    if (fs.existsSync(path.join(repoDir, '.git'))) {
+      try {
+        await assertGitHistoryReady(repoDir);
+        completeBeforeRead = true;
+      } catch {
+        /* ensureGitRepoWith reports the refusal; this session keeps the input-hash rule */
+      }
+    }
+    const availabilityAtOpen = await getOriginalInfo(handle.filePath);
+    const ensured = await ensureGitRepoWith(handle.filePath, () => collectBaselineForGit(handle.parser), originalBytes, { alreadyReady: completeBeforeRead });
+    if (ensured.existed) {
+      // A pre-existing complete history owns its original; pin the verified original's hash. When the status
+      // read at open said "nothing yet", or the history was not yet complete when it was read, a competing
+      // opener may have created the history since, so read it again and hold it to this session's input hash.
+      const preExisting = completeBeforeRead && availabilityAtOpen.available;
+      const now = preExisting ? availabilityAtOpen : await getOriginalInfo(handle.filePath);
+      handle.originalInfo = now;
+      if (now.available) {
+        if (preExisting || (originalBytes && sha256Of(originalBytes) === now.sha256)) {
+          handle.originalPin = { kind: 'retained', sha256: now.sha256 };
+        } else {
+          handle.originalInfo = { available: false, reason: 'capture-failed', detail: 'Another opener recorded a different original for this history.' };
+        }
+      } else if (originalBytes && now.reason === 'incomplete') {
+        handle.originalInfo = { available: false, reason: 'initializing', detail: 'The history was still being initialized when this session opened.' };
+        handle.originalPin = { kind: 'input', sha256: sha256Of(originalBytes) };
+        handle.originalWarning = INITIALIZING_WARNING;
+      }
+    } else {
+      handle.originalInfo = await getOriginalInfo(handle.filePath);
+      // Verify the committed baseline against the baseline just recorded (already serialized once; nothing is
+      // serialized again). A baseline whose parts could not be collected is never verified.
+      const recorded = ensured.baseline!;
+      const history = await getHistory(handle.filePath);
+      const head = history[0] ? await checkoutCommit(handle.filePath, history[0].oid) : undefined;
+      const names = Object.keys(recorded.extras).sort();
+      const headNames = head ? [...head.extra.keys()].sort() : [];
+      const initialStateMatches = !!head?.complete && recorded.xml === head.xml && JSON.stringify(names) === JSON.stringify(headNames) && names.every(name => recorded.extras[name].equals(head.extra.get(name)!));
+      if (!initialStateMatches && handle.originalInfo.available) {
+        handle.originalInfo = { available: false, reason: 'capture-failed', detail: 'Concurrent history initialization produced a different initial document state. Close and reopen after inspecting history.' };
+      }
+      if (originalBytes && handle.originalInfo.available && handle.originalInfo.sha256 !== sha256Of(originalBytes)) {
+        handle.originalInfo = { available: false, reason: 'capture-failed', detail: 'Another opener recorded a different original for this history.' };
+      }
+      if (handle.originalInfo.available) handle.originalPin = { kind: 'retained', sha256: handle.originalInfo.sha256 };
+    }
+    if (!handle.originalInfo.available && !['predates-feature', 'not-applicable'].includes(handle.originalInfo.reason)) {
+      handle.originalWarning = handle.originalInfo.reason === 'initializing'
+        ? INITIALIZING_WARNING
+        : `Exact-original recovery is unavailable: ${handle.originalInfo.reason}. Keep a separate copy of the input file.`;
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    const mismatch = (error as { reason?: unknown } | null)?.reason === 'original-mismatch';
+    const initialization = originalBytes && !mismatch && path.isAbsolute(handle.filePath)
+      ? await getHistoryInitializationState(handle.filePath)
+      : undefined;
+    if (initialization && originalBytes && initialization.state !== 'absent') {
+      handle.originalInfo = { available: false, reason: 'initializing', detail: initialization.detail ?? detail };
+      handle.originalPin = { kind: 'input', sha256: sha256Of(originalBytes) };
+      handle.originalWarning = INITIALIZING_WARNING;
+    } else {
+      handle.originalInfo = mismatch ? { available: false, reason: 'capture-failed', detail } : { available: false, reason: 'incomplete', detail };
+      handle.originalWarning = `History initialization or original-file capture did not complete. Editing is available, but exact-original recovery is not. ${detail} Keep a separate copy of the input file.`;
+    }
   }
 }
 
@@ -1060,7 +1253,8 @@ export class McpSessionStore {
   public async openDocument(
     filePath: string,
     sessionId?: string,
-    macroOpts?: DocxParserMacroOptions
+    macroOpts?: DocxParserMacroOptions,
+    captureInput = true
   ): Promise<DocHandle> {
     const cleanPath = validateDocPath(filePath);
     const expiredEvicted = this.evictExpired();
@@ -1102,10 +1296,12 @@ export class McpSessionStore {
       mutex: new SessionMutex(),
       redoStack: this.createRedoStack(),
       pendingAudit: { ops: 0, nodeIds: [] },
+      lastWrittenSha256: createHash('sha256').update(buf).digest('hex'),
+      macroPolicy: macroOpts,
     };
     this.sessions.set(id, handle);
     // Git backing: initial baseline commit for history/revert/redo tools.
-    await initGitForHandleBestEffort(handle);
+    await initGitForHandleBestEffort(handle, captureInput ? buf : undefined);
     // Phase C-4: surface LRU/byte-cap (+ pre-open idle) evictions on the
     // open response so callers learn which sessions died for capacity.
     this.lastOpenEvicted = [...expiredEvicted, ...this.evictToFit(id)];
@@ -1193,10 +1389,13 @@ export class McpSessionStore {
       mutex: new SessionMutex(),
       redoStack: this.createRedoStack(),
       pendingAudit: { ops: 0, nodeIds: [] },
+      lastWrittenSha256: createHash('sha256').update(buf).digest('hex'),
+      macroPolicy: macroOpts,
     };
     this.sessions.set(id, handle);
     // Git backing when the label is a real absolute path (memory labels skip).
-    await initGitForHandleBestEffort(handle);
+    await initGitForHandleBestEffort(handle, buf);
+    if (!path.isAbsolute(handle.filePath)) handle.originalInfo = { available: false, reason: 'not-applicable' };
     this.lastOpenEvicted = [...expiredEvicted, ...this.evictToFit(id)];
     const live = this.sessions.get(id);
     if (!live) {

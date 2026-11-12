@@ -83,7 +83,7 @@ You need [Node.js](https://nodejs.org) 22.19 or newer. ASTra runs on your machin
 
 The server can only read and write inside the folders you name with `--allowed-dir`. Details are in [Quickstart](#quickstart) and the [MCP Specification](docs/mcp-specification.md).
 
-**Check that it works.** Restart your assistant. It should list an `astra` server with 19 tools, starting with `open_document`, `inspect_document` and `execute_batch`. Then ask:
+**Check that it works.** Restart your assistant. It should list an `astra` server with 21 tools, starting with `open_document`, `inspect_document` and `execute_batch`. Then ask:
 
 > Create a new report document in my documents folder, add a heading and one paragraph, and save it.
 
@@ -96,7 +96,7 @@ The assistant should open the file, edit it and report that the save was checked
 - Check `node --version`. It must be 22.19 or newer.
 - **Restart the assistant** after you change its configuration. Most of them read it only at start.
 - If the server banner reports an old version, a globally installed copy can shadow `npx`. Run `npm uninstall -g @attentionform/astra-mcp-server`, or pin a version: `@attentionform/astra-mcp-server@0.4.0`.
-- Run it by hand to see its output: `npx -y @attentionform/astra-mcp-server --allowed-dir "$PWD"` prints a line starting `serving 19 tools` when it starts.
+- Run it by hand to see its output: `npx -y @attentionform/astra-mcp-server --allowed-dir "$PWD"` prints a line starting `serving 21 tools` when it starts.
 
 ## See it work
 
@@ -160,7 +160,7 @@ How the tools treat a file that already has validator errors:
 - `normalize_document` repairs known error kinds (element order, decimal sizes, smart tags and a few others). It drops any repair that changes the visible text or adds an error, and reports `remaining` and `rolledBack`. It does not claim the file is valid.
 - `--strip-macros` removes the macro parts and every reference to them, and refuses what it does not know.
 
-All 19 tools and their parameters are described in the [MCP Specification](docs/mcp-specification.md).
+All 21 tools and their parameters are described in the [MCP Specification](docs/mcp-specification.md).
 
 ### Use the command line
 
@@ -183,7 +183,7 @@ Add `--json` to any command for machine-readable output. The [CLI Guide](docs/cl
 
 | If you want to... | Use | Package |
 |---|---|---|
-| Let an AI assistant (Claude Desktop, Claude Code, Cursor, Windsurf, or any MCP client) read, create and edit Word files | The 19-tool MCP server | [`@attentionform/astra-mcp-server`](packages/mcp-server/README.md) |
+| Let an AI assistant (Claude Desktop, Claude Code, Cursor, Windsurf, or any MCP client) read, create and edit Word files | The 21-tool MCP server | [`@attentionform/astra-mcp-server`](packages/mcp-server/README.md) |
 | Inspect, edit, validate, convert or clean documents from a terminal, a script or CI | The command-line tool | [`@attentionform/astra`](packages/cli/README.md) |
 | Build document editing and validation into your own Node.js program | The engine library | [`@attentionform/astra-engine`](packages/engine/README.md) |
 | Check any `.docx` against the Office Open XML schema | The validator | [`@attentionform/ooxml-validator`](packages/ooxml-validator/README.md) |
@@ -236,6 +236,7 @@ console.log(result.ok, result.errors);
 - **No temporary files.** `validateBuffer` checks a document held in memory through a resident worker process.
 
 ## Version history, like git
+
 
 The MCP server records every save as a commit in a hidden git repository next to the document, in `.astra/` by default. The history is append-only: restoring an old version adds a new commit instead of rewriting the past. Each entry carries a message, an author, how many operations the save contained and which node IDs they touched. The files are plain local files and ASTra never uploads them.
 
@@ -398,7 +399,7 @@ ASTra sits between your tool and the file. It reads the document as a compact ou
 
 ## Documentation
 
-- [MCP Specification](docs/mcp-specification.md): all 19 tools, inputs and outputs, folder restrictions, client setup.
+- [MCP Specification](docs/mcp-specification.md): all 21 tools, inputs and outputs, folder restrictions, client setup.
 - [CLI Guide](docs/cli-guide.md): every command and option, batch syntax, JSON streaming and CI use.
 - [Page Layout](docs/page-layout.md): sections, orientation, headers and footers, columns, page borders and multi-level lists.
 - [Architecture](docs/architecture.md): how documents are parsed, addressed, edited and validated.

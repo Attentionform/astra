@@ -162,8 +162,11 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
 };
 
 export const GIT_HISTORY_DESCRIPTIONS: Record<GitHistoryToolName, string> = {
+  export_original_document: 'Export the exact original DOCX captured when this history was created. Requires sessionId and outPath; overwrite defaults to false. Verifies the retained SHA-256 and never serializes the original. Does not change the live session. Refuses overwriting the active document: use restore_original_document instead. Old histories and memory-only sessions may have no original. The original can contain content removed by later sanitization; history retains it until the history store is deleted.',
+  restore_original_document: 'Replace the working file with the exact captured original, verified by SHA-256, and record a new history commit. Requires sessionId. Unsaved edits refuse unless discard:true explicitly discards them. Refuses an externally changed file or history that does not match the saved state. Close other programs editing this file before restoring; an external write racing the final replacement cannot be excluded. Reloads the session under its opening policy. Normal revert/redo restore document state, not necessarily the original ZIP bytes. The next normal save may normalize the file again. Use export_original_document for recovery to a different path.',
+
   get_document_history: withSharedDocs(
-    'List the saved git history for a session (newest first, read-only: never mutates, never flips dirty). ' +
+    'List the saved git history and original-file availability for a session (newest first, read-only: never mutates, never flips dirty). ' +
       'Paginate with limit (1-100, default 20) and offset (default 0). ' +
       'Returns {ok:true,sessionId,documentPath,currentCommit,totalCommits,history:[{oid,message,author,timestamp,timestampMs,opCount,affectedNodeIds,resultingHeadOid}]} ' +
       '(timestampMs = ms-precision epoch millis; commit-time clock for tracked commits, git seconds for older ones; ' +

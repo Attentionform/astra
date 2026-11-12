@@ -242,3 +242,14 @@ export type GetStatsInput = z.infer<typeof GetStatsSchema>;
 export type SanitizeDocumentInput = z.infer<typeof SanitizeDocumentSchema>;
 export type NormalizeDocumentInput = z.infer<typeof NormalizeDocumentSchema>;
 export type ImportDocumentInput = z.infer<typeof ImportDocumentSchema>;
+
+/** Exact retained-input recovery. These paths never serialize the exported original. */
+export const ExportOriginalDocumentSchema = z.object({
+  sessionId: z.string().min(1).max(128),
+  outPath: z.string().min(1).max(1024),
+  overwrite: z.boolean().optional(),
+}).strict();
+export const RestoreOriginalDocumentSchema = z.object({
+  sessionId: z.string().min(1).max(128),
+  discard: z.boolean().optional(),
+}).strict();

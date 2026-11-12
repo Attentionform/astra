@@ -2,12 +2,13 @@
 /**
  * @attentionform/astra-mcp-server — Track-B lean-6 MCP server over stdio.
  *
- * Exposes 19 tools (lean-6 + new_document + compose_document + export + visual + git history + document audit):
+ * Exposes 21 tools (lean-6 + new_document + compose_document + export + visual + git history + document audit):
  *   open_document / inspect_document / search_content /
  *   execute_batch / save_document / close_document / new_document /
  *   compose_document /
  *   export_document / visual_inspect /
  *   get_document_history / preview_revert / revert_document / redo_document /
+ *   export_original_document / restore_original_document /
  *   validate_document / get_stats / sanitize_document / normalize_document / import_document
  *
  * Engine wiring:
@@ -42,6 +43,8 @@ import {
   CloseDocumentSchema,
   ExecuteBatchSchema,
   GetDocumentHistorySchema,
+  ExportOriginalDocumentSchema,
+  RestoreOriginalDocumentSchema,
   GetStatsSchema,
   GIT_HISTORY_DESCRIPTIONS,
   GIT_HISTORY_HANDLERS,
@@ -212,7 +215,7 @@ export function takeDirFlag(argv: readonly string[], flag: string): string | und
 }
 
 /**
- * Builds the MCP server bound to `store` (19 tools: lean-6 + new_document + compose_document + export + visual + git history + document audit).
+ * Builds the MCP server bound to `store` (21 tools: lean-6 + new_document + compose_document + export + visual + git history + document audit).
  * A fresh store is created per call when omitted (no module-level singleton —
  * matches the backend session-store ownership rule).
  */
@@ -276,6 +279,16 @@ export function createAstraMcpServer(store: McpSessionStore = createMcpSessionSt
       inputSchema: VisualInspectSchema,
     },
     async (args: unknown) => toTextResult(await handleVisualInspect(store, args))
+  );
+  server.registerTool(
+    'export_original_document',
+    { description: GIT_HISTORY_DESCRIPTIONS.export_original_document, inputSchema: ExportOriginalDocumentSchema },
+    async (args: unknown) => toTextResult(await GIT_HISTORY_HANDLERS.export_original_document(store, args))
+  );
+  server.registerTool(
+    'restore_original_document',
+    { description: GIT_HISTORY_DESCRIPTIONS.restore_original_document, inputSchema: RestoreOriginalDocumentSchema },
+    async (args: unknown) => toTextResult(await GIT_HISTORY_HANDLERS.restore_original_document(store, args))
   );
   server.registerTool(
     'get_document_history',

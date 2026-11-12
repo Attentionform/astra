@@ -1,3 +1,5 @@
+import { handleExportOriginalDocument, handleRestoreOriginalDocument } from './original';
+import { createHash } from 'crypto';
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 2275-2290 + 2300-3029).
 // Zero logic edits (sidecar/COMMIT_OID_RE/refresh/restore helpers live in ../diff and ../errors).
 import * as fsp from 'fs/promises';
@@ -5,15 +7,17 @@ import {
   assertWriteTargetNoSymlink,
   checkoutCommit,
   commitChange,
+  assertHistoryReadyForWrite,
   getEngineErrorCode,
   getHistory,
+  type OriginalInfo,
   getSidecarHistoryWarning,
   INCOMPLETE_SNAPSHOT_WARNING,
   trackedPredicateFor,
   writeFileNoFollow,
 } from '@attentionform/astra-engine';
 import type { McpSessionStore } from '../../session-store';
-import { collectTrackedExtrasForGit, ensureGitRepo } from '../../session-store';
+import { collectTrackedExtrasForGit, ensureGitRepo, resolveSessionOriginal } from '../../session-store';
 import {
   mcpError,
   mcpErrorFrom,
@@ -82,6 +86,7 @@ export async function handleGetDocumentHistory(
       history: HistoryEntry[];
       /** R-6 sidecar-removal warning (string when a regenerated chain replaced recorded history, else null). Additive, never a failure. */
       warning: string | null;
+      original: OriginalInfo;
     }
   | McpErrorShape
 > {
@@ -117,6 +122,23 @@ export async function handleGetDocumentHistory(
           totalCommits: 0,
           history: [],
           warning: emptyWarning,
+          original: await resolveSessionOriginal(handle),
+        };
+      }
+      // A session that opened while the history was still being initialized (or whose initialization never
+      // finished) cannot read it yet. It gets an empty listing and the status, not an error, and the next call
+      // checks again.
+      const original = await resolveSessionOriginal(handle);
+      if (!original.available && original.reason === 'initializing') {
+        return {
+          ok: true as const,
+          sessionId,
+          documentPath: filePath,
+          currentCommit: null,
+          totalCommits: 0,
+          history: [],
+          warning: original.detail ?? 'History initialization has not completed.',
+          original,
         };
       }
       const full = await getHistory(filePath);
@@ -154,6 +176,9 @@ export async function handleGetDocumentHistory(
         totalCommits: full.length,
         history: slice,
         warning,
+        // Recovery status was re-verified above against what this session pinned at open, so a corrupted or
+        // replaced original is not reported as available and another history's original is never adopted.
+        original,
       };
     });
   } catch (err: unknown) {
@@ -322,6 +347,7 @@ export async function handleRevertDocument(
           truncated: false,
         };
       }
+      await assertHistoryReadyForWrite(handle.filePath);
       let target: Awaited<ReturnType<typeof checkoutCommit>>;
       try {
         target = await checkoutCommit(handle.filePath, targetOid);
@@ -405,6 +431,7 @@ export async function handleRevertDocument(
           affectedNodeIds: diffIdTexts(liveBefore.texts, liveAfter.order, liveAfter.texts),
         });
         store.markSaved(handle);
+        handle.lastWrittenSha256 = createHash('sha256').update(buf).digest('hex');
         // The restored package is the saved state now: later saves are compared with it.
         adoptBaseline(handle, candidate);
         return {
@@ -538,6 +565,7 @@ export async function handleRedoDocument(
       const redoReasonProvided = 'reason' in rawRedo && parsed.data.reason !== undefined;
       const redoReasonText = redoReasonProvided ? sanitizeCommitMessage(parsed.data.reason, '') : '';
       const authorName = sanitizeCommitAuthor(parsed.data.author);
+      await assertHistoryReadyForWrite(handle.filePath);
       const redoBefore = collectAstIdTexts(handle.ast);
       // Snapshots for atomic rollback: revision markers, stack depth, the
       // live package and the on-disk bytes.
@@ -614,6 +642,7 @@ export async function handleRedoDocument(
           affectedNodeIds: diffIdTexts(redoBefore.texts, redoAfter.order, redoAfter.texts),
         });
         store.markSaved(handle);
+        handle.lastWrittenSha256 = createHash('sha256').update(buf).digest('hex');
         // The restored package is the saved state now: later saves are compared with it.
         adoptBaseline(handle, candidate);
         return {
@@ -910,6 +939,8 @@ export async function handlePreviewRevert(
 
 /** Git-history dispatch table (registered alongside lean-6 in index.ts). */
 export const GIT_HISTORY_HANDLERS = {
+  export_original_document: handleExportOriginalDocument,
+  restore_original_document: handleRestoreOriginalDocument,
   get_document_history: handleGetDocumentHistory,
   preview_revert: handlePreviewRevert,
   revert_document: handleRevertDocument,

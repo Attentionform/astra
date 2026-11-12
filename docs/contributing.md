@@ -102,7 +102,7 @@ ASTra is structured as an npm workspaces monorepo containing four core packages:
 packages/
 ├── engine/       # @attentionform/astra-engine: Core OOXML parser, AST, 27 operations, TOON, validator gate
 ├── cli/          # @attentionform/astra: Pure POSIX command-line interface (astra bin)
-├── mcp-server/   # @attentionform/astra-mcp-server: Model Context Protocol 19-tool stdio server
+├── mcp-server/   # @attentionform/astra-mcp-server: Model Context Protocol 21-tool stdio server
 └── ooxml-validator/  # @attentionform/ooxml-validator: .NET Open XML schema validator and its platform binaries
 ```
 

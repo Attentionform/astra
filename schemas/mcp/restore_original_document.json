@@ -1,0 +1,23 @@
+{
+  "name": "restore_original_document",
+  "description": "Replace the working file with the exact captured original, verified by SHA-256, and record a new history commit. Requires sessionId. Unsaved edits refuse unless discard:true explicitly discards them. Refuses an externally changed file or history that does not match the saved state. Close other programs editing this file before restoring; an external write racing the final replacement cannot be excluded. Reloads the session under its opening policy. Normal revert/redo restore document state, not necessarily the original ZIP bytes. The next normal save may normalize the file again. Use export_original_document for recovery to a different path.",
+  "parameters": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "sessionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "discard": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "sessionId"
+    ],
+    "additionalProperties": false
+  },
+  "x-generated-from": "astra-mcp-server@0.4.2"
+}

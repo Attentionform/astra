@@ -2,7 +2,7 @@
 
 Official Model Context Protocol (MCP) server for the ASTra document engine.
 
-`@attentionform/astra-mcp-server` exposes a comprehensive, 19-tool agentic interface over standard I/O (`stdio`). It enables AI coding assistants, including **Claude Desktop**, **Cursor**, **Windsurf**, **Cline**, and custom LLM agents, to inspect, query, mutate, and export Microsoft Word (`.docx`) documents with transactional integrity and zero schema corruption.
+`@attentionform/astra-mcp-server` exposes a comprehensive, 21-tool agentic interface over standard I/O (`stdio`). It enables AI coding assistants, including **Claude Desktop**, **Cursor**, **Windsurf**, **Cline**, and custom LLM agents, to inspect, query, mutate, and export Microsoft Word (`.docx`) documents with transactional integrity and zero schema corruption.
 
 ---
 
@@ -120,9 +120,9 @@ npx -y @attentionform/astra-mcp-server --check-schemas ./fresh-schemas
 
 ---
 
-## The 19 MCP Tools
+## The 21 MCP Tools
 
-ASTra provides a complete set of 19 tools organized by capability. The server returns all 19 tools over `tools/list`:
+ASTra provides a complete set of 21 tools organized by capability. The server returns all 21 tools over `tools/list`:
 
 ### `open_document`
 Opens a `.docx` file into an isolated in-memory editing session.
@@ -321,6 +321,29 @@ Generates 2D spatial layout telemetry and optional headless page renders.
 **Returns:** `{ ok: true, sessionId, telemetry, images: [{ page, path }], outDir }`
 
 The wireframe in `telemetry` shows `[TABLE: n cols]` with the header row and the first rows, `- ` and `1.` list markers, and `[CALLOUT]` for a shaded one-cell table.
+
+---
+
+### `export_original_document`
+
+Export a captured original byte for byte: `{sessionId, outPath, overwrite?}`. The destination must be inside an allowed directory. Existing destinations require `overwrite: true`. Export does not change the open document.
+
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `sessionId` | `string` | Yes | Active session identifier. |
+| `outPath` | `string` | Yes | Destination for the exact original file. |
+| `overwrite` | `boolean` | No | Replace an existing destination when true. |
+
+### `restore_original_document`
+
+Restore the captured original to the open document: `{sessionId, discard?}`. Unsaved edits are refused unless `discard: true`; a changed file or inconsistent history is refused. The operation records a new history state. A successful response may include `durabilityUnconfirmed: true` when the exact bytes were replaced but the filesystem could not confirm a durable directory sync. Ordinary revert and redo restore document state, which may not reproduce the original ZIP bytes.
+
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `sessionId` | `string` | Yes | Active session identifier. |
+| `discard` | `boolean` | No | Discard unsaved session edits when true. |
+
+Original capture is automatic when an existing document first receives a new MCP history. Older histories may have no original. Sanitizing a document does not remove sensitive content from its history or captured original. When `save_document` writes to a new path that already holds a document with no history, the bytes it overwrote become that history's original. `get_document_history` reports `original.available`, or the reason it is unavailable. A session that opens while another process is still creating the history reports `reason: "initializing"`; it becomes eligible for export and restore only after that initialization finishes and the stored original has the SHA-256 of the file this session opened, and a different original never makes it eligible. First history creation uses an exclusive `.astra-init.lock` in the history folder on filesystems that honor exclusive file creation. If a killed process leaves it, `save_document`, `revert_document`, `redo_document` and `restore_original_document` refuse before touching the file and name the lock (with the creating process id and host name when known); ASTra never removes it or waits for it, and clearing it by hand is described in the CLI guide (`docs/cli-guide.md`, "Interrupted captures and a stuck initialization lock"). Two ASTra processes saving to the same document are not coordinated after the history exists, so one can lose an edit; give each document one writer at a time. Do not run ASTra 0.4.x and 0.5.x on the same document. Network filesystem coordination is not guaranteed.
 
 ---
 

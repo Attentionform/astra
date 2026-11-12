@@ -40,6 +40,8 @@ export function getLean6ToolNames(): Lean6ToolName[] {
 /** Git-history tool names (history browsing + preview + revert + redo; registered alongside lean-6). */
 export const GIT_HISTORY_TOOL_NAMES = [
   'get_document_history',
+  'export_original_document',
+  'restore_original_document',
   'preview_revert',
   'revert_document',
   'redo_document',

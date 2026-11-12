@@ -772,7 +772,7 @@ export class DocxParser {
    * Captures a full package snapshot: a clone of every zip entry buffer.
    * Used by OperationEngine for transactional rollback of failed batches.
    */
-  public capturePackageSnapshot(): Map<string, Buffer> {
+  public capturePackageSnapshot(options?: { documentXml?: string }): Map<string, Buffer> {
     // R-10: batch ingress drops rogues at snapshot time so a pre-batch
     // snapshot can neither carry them forward nor resurrect them on rewind.
     this.purgeRogueZipEntries();
@@ -788,8 +788,10 @@ export class DocxParser {
     // the DOM; the zip is only flushed at rezip). Snapshot the live
     // serialization so rollback restores the exact pre-batch state instead
     // of reloading stale bytes and re-minting fresh w14:paraIds.
+    // `documentXml` is a serialization the caller already made of this same DOM; passing it skips a second,
+    // identical serialization (the costly part of a snapshot on a large document).
     try {
-      snapshot.set('word/document.xml', Buffer.from(this.readDocumentXml(), 'utf8'));
+      snapshot.set('word/document.xml', Buffer.from(options?.documentXml ?? this.readDocumentXml(), 'utf8'));
     } catch { /* fall back to the zip bytes on serialization failure */ }
     return snapshot;
   }
