@@ -124,3 +124,5 @@ export * from './style-guide/summary';
 // Q0a central sandbox jail + Q0b central error table (single source of truth)
 export * from './sandbox/paths';
 export * from './errors';
+
+export * from './restore-original';

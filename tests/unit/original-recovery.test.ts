@@ -9,7 +9,7 @@ import {
 
 let dir: string;
 let doc: string;
-beforeEach(async () => { dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'astra-original-')); doc = path.join(dir, 'test.docx'); });
+beforeEach(async () => { dir = await fsp.realpath(await fsp.mkdtemp(path.join(os.tmpdir(), 'astra-original-'))); doc = path.join(dir, 'test.docx'); });
 afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await fsp.rm(dir, { recursive: true, force: true }); });
 const data = Buffer.from('PK original bytes: sensitive reviewer');
 describe('exact original capture and export', () => {
