@@ -13,6 +13,14 @@ beforeEach(async () => { dir = await fsp.realpath(await fsp.mkdtemp(path.join(os
 afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await fsp.rm(dir, { recursive: true, force: true }); });
 const data = Buffer.from('PK original bytes: sensitive reviewer');
 describe('exact original capture and export', () => {
+  it('refuses exporting over the working file or into its history store', async () => {
+    await fsp.writeFile(doc, data);
+    await initAstraRepo(doc, '<a/>', {}, data);
+    await expect(exportOriginal(doc, doc, { overwrite: true })).rejects.toMatchObject({ code: 'E_CONFLICT' });
+    const metadata = path.join(getRepoDir(doc), '.git', 'astra-original', 'meta.json');
+    await expect(exportOriginal(doc, metadata, { overwrite: true })).rejects.toMatchObject({ code: 'E_CONFLICT' });
+    expect(await readOriginal(doc)).toEqual(data);
+  });
   it('records exact input, retains it across saves and keeps it out of package parts', async () => {
     await initAstraRepo(doc, '<a/>', {}, data);
     const info = await getOriginalInfo(doc);

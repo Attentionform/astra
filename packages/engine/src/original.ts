@@ -181,7 +181,22 @@ export async function readOriginal(docPath: string): Promise<Buffer> {
 }
 export async function exportOriginal(docPath: string, outPath: string, opts?: { overwrite?: boolean }): Promise<OriginalInfo> {
   const bytes = await readOriginal(docPath);
-  if (path.resolve(docPath) === path.resolve(outPath)) throw coded('Use restore_original_document to replace the working file.', 'E_CONFLICT');
+  const source = await fsp.realpath(docPath).catch((e: unknown) => { if (errno(e) === 'ENOENT') return path.resolve(docPath); throw e; });
+  const parent = path.dirname(path.resolve(outPath));
+  const destination = path.join(await fsp.realpath(parent).catch((e: unknown) => { if (errno(e) === 'ENOENT') return parent; throw e; }), path.basename(outPath));
+  const samePath = (a: string, b: string): boolean => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+  let sameFile = samePath(source, destination);
+  try {
+    const [a, b] = await Promise.all([fsp.stat(source), fsp.stat(destination)]);
+    sameFile ||= a.ino !== 0 && b.ino !== 0 && a.dev === b.dev && a.ino === b.ino;
+  } catch (e) { if (errno(e) !== 'ENOENT') throw e; }
+  if (sameFile) throw coded('Use restore_original_document to replace the working file.', 'E_CONFLICT');
+  const repo = await fsp.realpath(getRepoDir(docPath));
+  const normalizedDest = process.platform === 'win32' ? destination.toLowerCase() : destination;
+  const normalizedRepo = process.platform === 'win32' ? repo.toLowerCase() : repo;
+  if (normalizedDest === normalizedRepo || normalizedDest.startsWith(`${normalizedRepo}${path.sep}`)) {
+    throw coded('Original export cannot write inside the document history store.', 'E_CONFLICT');
+  }
   if (opts?.overwrite) await replaceFileAtomic(outPath, bytes); else await writeFileExclusive(outPath, bytes);
   return getOriginalInfo(docPath);
 }
