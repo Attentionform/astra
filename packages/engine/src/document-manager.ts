@@ -294,7 +294,7 @@ export class DocumentManager {
     const repoDir = getRepoDir(trustedSource);
     if (!fs.existsSync(repoDir)) {
       const initialXml = this.parser.readDocumentXml();
-      await initAstraRepo(trustedSource, initialXml, this.collectPackageExtras());
+      await initAstraRepo(trustedSource, initialXml, this.collectPackageExtras(), buf);
     }
 
     // Push initial snapshot into atomic history stack
@@ -349,6 +349,7 @@ export class DocumentManager {
 
     this.parser = DocxParser.createNewDocument(templateType);
     const newDocxBuf = this.parser.rezip();
+    const createExtras = this.collectPackageExtras();
     // Validate with OOXML validator before committing to disk
     try {
       const validation = await validateDocxBuffer(newDocxBuf);
@@ -412,10 +413,10 @@ export class DocumentManager {
     const repoDir = getRepoDir(finalPath);
     if (!fs.existsSync(repoDir)) {
       const initialXml = this.parser.readDocumentXml();
-      await initAstraRepo(finalPath, initialXml, this.collectPackageExtras());
+      await initAstraRepo(finalPath, initialXml, createExtras);
     } else {
       const initialXml = this.parser.readDocumentXml();
-      await commitChange(finalPath, initialXml, `Created document from ${templateType} template`, this.collectPackageExtras());
+      await commitChange(finalPath, initialXml, `Created document from ${templateType} template`, createExtras);
     }
     this.snapshotStack = [this.parser.createAtomicSnapshot('Initial state')];
     this.redoStack = [];
@@ -445,6 +446,14 @@ export class DocumentManager {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
+    // A new Save As history belongs to its destination. Preserve an existing destination before
+    // overwriting it; a newly created destination has no imported original. Source history is unchanged.
+    let originalTargetBytes: Buffer | undefined;
+    if (!fs.existsSync(getRepoDir(trustedTarget))) {
+      try { originalTargetBytes = await fsp.readFile(trustedTarget); }
+      catch (err) { if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err; }
+    }
+
     const preSaveSnapshot = this.parser.createAtomicSnapshot('PreSaveTypographyBackup');
     let typographyFixes: TypographicFix[] = [];
     if (options?.applyTypography !== false) {
@@ -470,6 +479,9 @@ export class DocumentManager {
       });
     }
 
+    // The package parts for the history are collected BEFORE the destination is written, so a failure here
+    // leaves the destination untouched.
+    const packageExtras = this.collectPackageExtras();
     await atomicWriteFile(trustedTarget, docxBuf);
     this.lastPersistedBuf = docxBuf;
 
@@ -479,10 +491,10 @@ export class DocumentManager {
     const repoDir = getRepoDir(trustedTarget);
     if (!fs.existsSync(repoDir)) {
       const initialXml = this.parser.readDocumentXml();
-      await initAstraRepo(trustedTarget, initialXml, this.collectPackageExtras());
+      await initAstraRepo(trustedTarget, initialXml, packageExtras, originalTargetBytes);
     } else {
       const currentXml = this.parser.readDocumentXml();
-      await commitChange(trustedTarget, currentXml, `Saved document to ${path.basename(trustedTarget)}`, this.collectPackageExtras());
+      await commitChange(trustedTarget, currentXml, `Saved document to ${path.basename(trustedTarget)}`, packageExtras);
     }
     // UX-C item 1: explicit save re-baselines the no-op gate.
     try {
@@ -612,12 +624,13 @@ export class DocumentManager {
     const snapshot = coalesced ? null : this.parser.createAtomicSnapshot(commitMessage);
 
     const newDocxBuf = this.parser.rezip();
+    const packageExtras = this.collectPackageExtrasOrRestore();
     await this.persistValidated(this.activeDocPath, newDocxBuf);
     if (snapshot) this.pushSnapshot(snapshot);
 
     if (!coalesced) {
       const updatedXml = this.parser.readDocumentXml();
-      await commitChange(this.activeDocPath, updatedXml, commitMessage, this.collectPackageExtras());
+      await commitChange(this.activeDocPath, updatedXml, commitMessage, packageExtras);
       try {
         this.lastCommittedXmlHash = hashDocumentXml(updatedXml);
       } catch { /* ignore */ }
@@ -652,12 +665,13 @@ export class DocumentManager {
 
     // Re-zip and save out the docx file (validated; a refusal reverts the node edit)
     const newDocxBuf = this.parser.rezip();
+    const packageExtras = this.collectPackageExtrasOrRestore();
     await this.persistValidated(this.activeDocPath, newDocxBuf);
     this.pushSnapshot(snapshot);
 
     // Add to Git undo stack
     const updatedXml = this.parser.readDocumentXml();
-    await commitChange(this.activeDocPath, updatedXml, commitMessage, this.collectPackageExtras());
+    await commitChange(this.activeDocPath, updatedXml, commitMessage, packageExtras);
     try {
       this.lastCommittedXmlHash = hashDocumentXml(updatedXml);
     } catch { /* ignore */ }
@@ -831,8 +845,10 @@ export class DocumentManager {
     if (!this.parser) throw new Error("No active document.");
     const result = this.parser.applyTrackedChanges(mode);
     if (!this.activeDocPath) return result;
-    await this.persistValidated(this.activeDocPath, this.parser.rezip());
-    await commitChange(this.activeDocPath, this.parser.readDocumentXml(), `Tracked changes ${mode}`, this.collectPackageExtras());
+    const resolvedBuf = this.parser.rezip();
+    const packageExtras = this.collectPackageExtrasOrRestore();
+    await this.persistValidated(this.activeDocPath, resolvedBuf);
+    await commitChange(this.activeDocPath, this.parser.readDocumentXml(), `Tracked changes ${mode}`, packageExtras);
     this.markClean();
     return result;
   }
@@ -885,6 +901,14 @@ export class DocumentManager {
     this.parser.restoreAtomicSnapshot(redoSnapshot);
 
     const revertedZipBuf = this.parser.rezip();
+    let packageExtras: Record<string, Buffer>;
+    try {
+      packageExtras = this.collectPackageExtras();
+    } catch (err: unknown) {
+      this.redoStack.push(redoSnapshot);
+      this.restoreLastPersisted();
+      throw err;
+    }
     try {
       await this.persistValidated(this.activeDocPath, revertedZipBuf);
     } catch (err: unknown) {
@@ -894,7 +918,7 @@ export class DocumentManager {
     this.snapshotStack.push(redoSnapshot);
 
     const updatedXml = this.parser.readDocumentXml();
-    await commitChange(this.activeDocPath, updatedXml, `Redo: ${redoSnapshot.label}`, this.collectPackageExtras());
+    await commitChange(this.activeDocPath, updatedXml, `Redo: ${redoSnapshot.label}`, packageExtras);
     try {
       this.lastCommittedXmlHash = hashDocumentXml(updatedXml);
     } catch { /* ignore */ }
@@ -907,26 +931,46 @@ export class DocumentManager {
    * document.xml is committed separately; everything matching
    * isTrackedPackageFile is snapshotted alongside it.
    */
+  /**
+   * The tracked package parts (media, rels, styles, headers, comments...) the history records next to
+   * document.xml. Throws (`E_STATE`) when they cannot be collected, for every commit and never with `{}`:
+   * `commitChange` reads a supplied record as the complete package, removes indexed parts missing from it and
+   * marks the commit complete, so an empty record from a failed capture would silently drop every part and a
+   * later restore would trust that. Callers collect BEFORE they write the document, so a failure leaves the
+   * file, the history and the session as they were.
+   */
   private collectPackageExtras(): Record<string, Buffer> {
-    if (!this.parser) return {};
+    const unusable = (detail: string): Error =>
+      Object.assign(new Error(`The document's package parts could not be collected for history (${detail}). Nothing was recorded.`), { code: 'E_STATE' });
+    if (!this.parser) throw unusable('no document is loaded');
     try {
-      let isTracked: ((name: string) => boolean) | undefined;
-      try {
-        isTracked = asGitUndoPackage(gitMod).isTrackedPackageFile;
-      } catch {
-        return {};
-      }
+      const isTracked = asGitUndoPackage(gitMod).isTrackedPackageFile;
       const parserCaps = asPackageSnapshotCapable(this.parser);
-      if (typeof parserCaps.capturePackageSnapshot !== 'function') return {};
-      if (typeof isTracked !== 'function') return {};
+      if (typeof isTracked !== 'function' || typeof parserCaps.capturePackageSnapshot !== 'function') {
+        throw new Error('this parser cannot snapshot its package');
+      }
       const snap: Map<string, Buffer> = parserCaps.capturePackageSnapshot();
       const extras: Record<string, Buffer> = {};
       for (const [name, buf] of snap) {
         if (isTracked(name)) extras[name] = buf;
       }
       return extras;
-    } catch {
-      return {};
+    } catch (err) {
+      throw unusable(errorMessageOf(err));
+    }
+  }
+
+  /**
+   * `collectPackageExtras` for an edit that has already changed the parser in memory but has not been written:
+   * when the parts cannot be collected, the parser goes back to the last persisted state, as a validation refusal
+   * does, and nothing is written.
+   */
+  private collectPackageExtrasOrRestore(): Record<string, Buffer> {
+    try {
+      return this.collectPackageExtras();
+    } catch (err) {
+      this.restoreLastPersisted();
+      throw err;
     }
   }
 }

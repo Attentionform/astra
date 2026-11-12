@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   captureOriginal, commitChange, exportOriginal, getOriginalInfo, getRepoDir,
-  initAstraRepo, originalSha256, readOriginal, replaceFileAtomic, writeFileExclusive, checkoutCommit, getHistory,
+  initAstraRepo, DocumentManager, DocxParser, createBlankDocxBuffer, originalSha256, readOriginal, replaceFileAtomic, writeFileExclusive, checkoutCommit, getHistory,
   assertGitHistoryReady, assertHistoryReadyForWrite,
   createVerifiedBackup,
 } from '@attentionform/astra-engine';
@@ -67,6 +67,46 @@ describe('exact original capture and export', () => {
     await expect(exportOriginal(doc, out)).rejects.toMatchObject({ code: 'E_CONFLICT' });
     await exportOriginal(doc, out, { overwrite: true });
     expect(originalSha256(await fsp.readFile(out))).toBe(originalSha256(data));
+  });
+  it('Save As captures the preexisting destination while preserving the source original', async () => {
+    vi.stubEnv('ASTRA_EXTRA_DOC_ROOTS', dir);
+    const sourceBytes = createBlankDocxBuffer('blank');
+    await fsp.writeFile(doc, sourceBytes);
+    const destination = path.join(dir, 'existing.docx');
+    const destinationBytes = Buffer.concat([createBlankDocxBuffer('blank'), Buffer.from('original trailer')]);
+    await fsp.writeFile(destination, destinationBytes);
+    const dm = new DocumentManager();
+    await dm.openDocument(doc);
+    await dm.saveAsDocument(destination, { applyTypography: false });
+    expect(await readOriginal(doc)).toEqual(sourceBytes);
+    expect(await readOriginal(destination)).toEqual(destinationBytes);
+    await dm.saveAsDocument(destination, { applyTypography: false });
+    expect(await readOriginal(destination)).toEqual(destinationBytes);
+  });
+  it('does not create a history or touch the destination when the package parts cannot be collected', async () => {
+    vi.stubEnv('ASTRA_EXTRA_DOC_ROOTS', dir);
+    await fsp.writeFile(doc, createBlankDocxBuffer('blank'));
+    const destinationBytes = Buffer.concat([createBlankDocxBuffer('blank'), Buffer.from('existing destination')]);
+    const destination = path.join(dir, 'target.docx');
+    await fsp.writeFile(destination, destinationBytes);
+    const fresh = path.join(dir, 'fresh.docx');
+    const second = path.join(dir, 'second.docx');
+    await fsp.writeFile(second, createBlankDocxBuffer('blank'));
+    const dm = new DocumentManager();
+    await dm.openDocument(doc);
+    const snapshot = vi.spyOn(DocxParser.prototype, 'capturePackageSnapshot').mockImplementation(() => { throw new Error('injected snapshot collection failure'); });
+    await expect(dm.saveAsDocument(destination, { applyTypography: false })).rejects.toMatchObject({ code: 'E_STATE' });
+    await expect(dm.saveAsDocument(fresh, { applyTypography: false })).rejects.toMatchObject({ code: 'E_STATE' });
+    expect(await fsp.readFile(destination)).toEqual(destinationBytes);
+    expect(fs.existsSync(fresh)).toBe(false);
+    expect(fs.existsSync(getRepoDir(destination))).toBe(false);
+    expect(fs.existsSync(getRepoDir(fresh))).toBe(false);
+    // Opening a document that has no history yet does not create one from an empty package either.
+    await expect(new DocumentManager().openDocument(second)).rejects.toMatchObject({ code: 'E_STATE' });
+    expect(fs.existsSync(getRepoDir(second))).toBe(false);
+    snapshot.mockRestore();
+    await dm.saveAsDocument(destination, { applyTypography: false });
+    expect(await readOriginal(destination)).toEqual(destinationBytes);
   });
   it('never replaces an original when later input differs', async () => {
     await initAstraRepo(doc, '<a/>', {}, data);
