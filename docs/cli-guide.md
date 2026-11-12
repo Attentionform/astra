@@ -68,7 +68,7 @@ Commands (exit 0 ok · 1 operational failure · 2 usage):
   import   <file.md> [-o <out.docx>] [--template report|memo|blank] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   stats    <docx>
   visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros]
-  history  <docx> [--init|--track]
+  history  <docx> [--init|--track|--export-original <out>|--restore-original] [--force]
   preview-revert <docx> [--steps <n>]
   revert   <docx> [--steps <n>]
   redo     <docx>

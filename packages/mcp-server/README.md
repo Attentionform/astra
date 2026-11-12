@@ -328,9 +328,20 @@ The wireframe in `telemetry` shows `[TABLE: n cols]` with the header row and the
 
 Export a captured original byte for byte: `{sessionId, outPath, overwrite?}`. The destination must be inside an allowed directory. Existing destinations require `overwrite: true`. Export does not change the open document.
 
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `sessionId` | `string` | Yes | Active session identifier. |
+| `outPath` | `string` | Yes | Destination for the exact original file. |
+| `overwrite` | `boolean` | No | Replace an existing destination when true. |
+
 ### `restore_original_document`
 
 Restore the captured original to the open document: `{sessionId, discard?}`. Unsaved edits are refused unless `discard: true`; a changed file or inconsistent history is refused. The operation records a new history state. Ordinary revert and redo restore document state, which may not reproduce the original ZIP bytes.
+
+| Parameter | Type | Required | Description |
+|---|---|:---:|---|
+| `sessionId` | `string` | Yes | Active session identifier. |
+| `discard` | `boolean` | No | Discard unsaved session edits when true. |
 
 Original capture is automatic when an existing document first receives a new MCP history. Older histories may have no original. Sanitizing a document does not remove sensitive content from its history or captured original.
 

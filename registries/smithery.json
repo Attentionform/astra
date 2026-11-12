@@ -64,6 +64,14 @@
         "description": "2D spatial layout telemetry with optional headless rendered images"
       },
       {
+        "name": "export_original_document",
+        "description": "Export the captured original document byte for byte to a separate path"
+      },
+      {
+        "name": "restore_original_document",
+        "description": "Restore the captured original bytes to the working file with conflict checks and history"
+      },
+      {
         "name": "get_document_history",
         "description": "List saved git history for a session (newest first, read-only)"
       },
