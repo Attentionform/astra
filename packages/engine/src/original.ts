@@ -172,6 +172,10 @@ export async function createVerifiedBackup(target: string, bytes: Buffer): Promi
     throw error;
   }
 }
+/** Short, collision-resistant sibling path that also works for maximum-length document names. */
+export function newRestoreBackupPath(target: string): string {
+  return path.join(path.dirname(target), `.astra-restore-backup-${randomUUID()}`);
+}
 /** Same-directory replacement. Errors carry an outcome so the caller can recover honestly. */
 export async function replaceFileAtomic(target: string, data: Buffer): Promise<AtomicReplaceResult> {
   let tmp: string | undefined;

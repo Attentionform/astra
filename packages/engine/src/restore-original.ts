@@ -2,12 +2,11 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import git from 'isomorphic-git';
 import { DocxParser } from './parser';
 import type { DocxParserMacroOptions } from './parser';
 import { checkoutCommit, commitChange, getHistory, getRepoDir, isTrackedPackageFile } from './git';
-import { createVerifiedBackup, originalSha256, readOriginal, replaceFileAtomic } from './original';
+import { createVerifiedBackup, newRestoreBackupPath, originalSha256, readOriginal, replaceFileAtomic } from './original';
 import { assertWriteTargetNoSymlink } from './sandbox/paths';
 
 export interface RestoreOriginalOptions {
@@ -60,7 +59,7 @@ export async function restoreOriginal(docPath: string, options: RestoreOriginalO
   for (const [name, data] of snapshot) if (isTrackedPackageFile(name)) extras[name] = data;
   const repoDir = getRepoDir(target);
   const indexBefore = JSON.stringify(await git.statusMatrix({ fs, dir: repoDir }));
-  const backup = path.join(path.dirname(target), `.${path.basename(target)}.astra-restore-backup-${randomUUID()}`);
+  const backup = newRestoreBackupPath(target);
   await createVerifiedBackup(backup, before);
   let replaced = false;
   let attemptedCommit = false;

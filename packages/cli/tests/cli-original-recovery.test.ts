@@ -39,7 +39,8 @@ describe('CLI exact original recovery', () => {
   it('restores raw original bytes and appends one recorded state', async () => {
     const original = fs.readFileSync(file);
     expect((await cli(['history', file, '--init'])).status).toBe(0);
-    expect((await cli(['batch', file, '--append', 'Saved change'])).status).toBe(0);
+    const batch = await cli(['batch', file, '--append', 'Saved change']);
+    expect(batch.status, batch.stderr).toBe(0);
     const edited = fs.readFileSync(file);
     const depth = (await getHistory(file)).length;
     const restored = await cli(['history', file, '--restore-original']);
@@ -52,6 +53,50 @@ describe('CLI exact original recovery', () => {
     expect((await cli(['redo', file])).status).toBe(0);
     expect(new DocxParser(fs.readFileSync(file)).readDocumentXml()).toBe(new DocxParser(original).readDocumentXml());
     expect(fs.readdirSync(dir).some(n => n.includes('restore-backup'))).toBe(false);
+  });
+  it('uses a short backup name for a valid near-limit document filename', async () => {
+    const longFile = path.join(dir, `${'r'.repeat(220)}.docx`);
+    fs.renameSync(file, longFile);
+    file = longFile;
+    const original = fs.readFileSync(file);
+    expect((await cli(['history', file, '--init'])).status).toBe(0);
+    const changedZip = new engine.AdmZip(original);
+    changedZip.addFile('customXml/item1.xml', Buffer.from('<root>saved</root>'));
+    const working = changedZip.toBuffer();
+    fs.writeFileSync(file, working);
+    const parser = new engine.DocxParser(working);
+    await parser.getAST();
+    const extras = Object.fromEntries(
+      [...parser.capturePackageSnapshot()].filter(([name]) => engine.isTrackedPackageFile(name)),
+    );
+    await engine.commitChange(file, parser.readDocumentXml(), 'Record a change', extras);
+    expect((await cli(['history', file, '--restore-original'])).status).toBe(0);
+    expect(fs.readFileSync(file)).toEqual(original);
+    expect(fs.readdirSync(dir).some(name => name.includes('astra-restore-backup'))).toBe(false);
+  });
+  it('preflights auxiliary XML before replacing the working file', async () => {
+    const originalZip = new engine.AdmZip(fs.readFileSync(file));
+    originalZip.updateFile('docProps/core.xml', Buffer.from('<cp:coreProperties>'));
+    const original = originalZip.toBuffer();
+    fs.writeFileSync(file, original);
+    expect((await cli(['history', file, '--init'])).status).toBe(0);
+
+    const workingZip = new engine.AdmZip(original);
+    workingZip.deleteFile('docProps/core.xml');
+    const working = workingZip.toBuffer();
+    fs.writeFileSync(file, working);
+    const parser = new engine.DocxParser(working);
+    await parser.getAST();
+    const extras = Object.fromEntries(
+      [...parser.capturePackageSnapshot()].filter(([name]) => engine.isTrackedPackageFile(name)),
+    );
+    await engine.commitChange(file, parser.readDocumentXml(), 'Remove malformed auxiliary XML', extras);
+    const historyBefore = (await getHistory(file)).map(entry => entry.oid);
+
+    const restored = await cli(['history', file, '--restore-original']);
+    expect(restored.status).toBe(1);
+    expect(fs.readFileSync(file)).toEqual(working);
+    expect((await getHistory(file)).map(entry => entry.oid)).toEqual(historyBefore);
   });
   it('leaves bytes and history unchanged when backup creation fails', async () => {
     expect((await cli(['history', file, '--init'])).status).toBe(0);

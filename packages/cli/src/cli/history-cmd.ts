@@ -2,7 +2,7 @@ import * as fsp from 'fs/promises';
 import * as fs from 'fs';
 import * as path from 'path';
 import git from 'isomorphic-git';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import {
   DocxParser,
   checkoutCommit,
@@ -17,6 +17,7 @@ import {
   exportOriginal,
   replaceFileAtomic,
   createVerifiedBackup,
+  newRestoreBackupPath,
   inspectOriginalArtifacts,
   cleanOriginalArtifacts,
   BASELINE_MAX_ERRORS,
@@ -419,11 +420,14 @@ async function restoreOriginalFile(out: GlobalOpts, file: string): Promise<numbe
   const original = await readOriginal(path.resolve(file));
   // Opening policy must accept the captured package before the working file is changed.
   const restoredParser = new DocxParser(original);
+  // Match the engine and MCP restore paths: reject anything the full open
+  // pipeline cannot hydrate before replacing the working file.
+  await restoredParser.getAST();
   const restoredXml = restoredParser.readDocumentXml();
   const extras = extrasRecord(trackedExtras(restoredParser.capturePackageSnapshot()));
   const repoDir = getRepoDir(file);
   const beforeIndex = JSON.stringify(await git.statusMatrix({ fs, dir: repoDir }));
-  const backup = `${file}.astra-restore-backup-${randomUUID()}`;
+  const backup = newRestoreBackupPath(file);
   await createVerifiedBackup(backup, before);
   let writeAttempted = false;
   try {

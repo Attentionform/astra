@@ -2,10 +2,10 @@ import * as fsp from 'fs/promises';
 import * as fs from 'fs';
 import git from 'isomorphic-git';
 import * as path from 'path';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import {
   DocxParser, OperationEngine, ToonGenerator, readOriginal, getOriginalInfo,
-  exportOriginal, replaceFileAtomic, createVerifiedBackup, getHistory, checkoutCommit,
+  exportOriginal, replaceFileAtomic, createVerifiedBackup, newRestoreBackupPath, getHistory, checkoutCommit,
   commitChange, isTrackedPackageFile, getRepoDir,
 } from '@attentionform/astra-engine';
 import type { DocHandle, McpSessionStore } from '../../session-store';
@@ -83,7 +83,7 @@ export async function handleRestoreOriginalDocument(store: McpSessionStore, inpu
       const engine = new OperationEngine(ast, parser);
       if (handle.styleGuide) engine.setStyleGuide(handle.styleGuide);
       const validation = await validateForBaseline(bytes);
-      const backup = path.join(path.dirname(source), `.${path.basename(source)}.astra-restore-backup-${randomUUID()}`);
+      const backup = newRestoreBackupPath(source);
       await createVerifiedBackup(backup, previous);
       const matrixBefore = await git.statusMatrix({ fs, dir: getRepoDir(source) }).catch(() => undefined);
       const oldRedoLength = handle.redoStack.length;
