@@ -68,7 +68,7 @@ Commands (exit 0 ok · 1 operational failure · 2 usage):
   import   <file.md> [-o <out.docx>] [--template report|memo|blank] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   stats    <docx>
   visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros]
-  history  <docx> [--init|--track|--export-original <out>|--restore-original] [--force]
+  history  <docx> [--init|--track|--export-original <out>|--restore-original|--inspect-recovery-artifacts|--clean-recovery-artifacts --assume-quiescent --force] [--force]
   preview-revert <docx> [--steps <n>]
   revert   <docx> [--steps <n>]
   redo     <docx>
@@ -531,6 +531,26 @@ astra history report.docx --restore-original
 The listing and `--init` report `original.available`, its SHA-256 and size, or an explicit reason it is unavailable. Export returns the captured bytes without changing the working file or recording a commit. Existing destinations are refused unless `--force` is supplied. Restore replaces the working file with those exact bytes and records a new history commit. It refuses unrecorded changes even with `--force`; close other programs editing the file before restoring. Ordinary revert and redo recover document states and can reserialize the ZIP, so only direct original export and restore promise exact source bytes. The next normal save also normalizes the document as usual.
 
 CLI capture occurs only at explicit `history --init`. Older history stores have no captured original and are not migrated. A failed or corrupt capture never returns a substitute. The retained original counts toward the history storage quota. **Sanitize cleans the working file only; the original and earlier history can retain names, deleted text and other sensitive data.** The sidecar must be retained to recover the original.
+
+#### Recovery artifact inspection and cleanup
+
+An interrupted process can leave a uniquely named temporary file under the selected document's private `astra-original` directory. For older histories, an interrupted two-file capture can also leave a hash-named object that was never referenced by valid metadata. These files count toward the history sidecar's stored bytes, and they can contain sensitive document data. ASTra always removes its own temporary file after a handled success or failure; a process or machine crash can still leave one behind.
+
+Inspect first. Inspection is read-only, does not print file contents and reports only the selected history directory, names, classifications and estimated sizes:
+
+```bash
+astra history report.docx --inspect-recovery-artifacts
+```
+
+Cleanup is deliberately manual and requires an explicit operator assertion:
+
+```bash
+astra history report.docx --clean-recovery-artifacts --assume-quiescent --force
+```
+
+Before running it, stop all ASTra processes and hosts that could use this history. `--assume-quiescent` is not an OS-enforced lock. If another writer is active, it can lose a temporary file; on a shared filesystem where quiescence cannot be established, leave artifacts for an administrator to inspect. Cleanup rechecks each candidate and removes only recognized temporary files or hash-verified, unreferenced legacy objects. It skips unknown, malformed, corrupt, symlinked and ambiguous entries. It never removes a committed `original.snapshot`, a legacy original referenced by valid metadata, status/metadata files or restore backups. The command is repeatable; its JSON result lists removed, skipped and failed items. No secure erasure is promised.
+
+First history initialization is serialized with an exclusive `.astra-init.lock` in the sidecar when the filesystem honors exclusive file creation. If an uncatchable interruption leaves the lock, ASTra refuses another initializer rather than deciding whether its owner is still active. The inspection command reports the lock. Remove it manually only after confirming all ASTra processes using that history have stopped; then rerun `history --init`. Recovery artifact cleanup never removes this lock. Older ASTra versions do not participate in this coordination, and ASTra does not promise cross-process locking on network filesystems.
 
 ### 4.13 Preview Revert (`astra preview-revert`)
 

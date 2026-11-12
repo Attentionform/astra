@@ -133,7 +133,7 @@ const outputBuffer = parser.rezip();
 
 When a history was initialized with the original file bytes, `getOriginalInfo(path)` reports whether those bytes are available. `exportOriginal(path, outputPath)` writes a hash-verified copy without overwriting an existing file by default. `restoreOriginal(path)` replaces the working file with the verified original and records the restore in history. The file-level restore API requires the caller to coordinate concurrent access and reload any live document session. Ordinary revert and redo can reserialize the package and do not guarantee identical ZIP bytes.
 
-Originals retained in history can contain information removed later by sanitization. Older histories do not automatically acquire an original.
+Originals retained in history can contain information removed later by sanitization. Older histories do not automatically acquire an original. `inspectOriginalArtifacts(path)` lists recovery-directory entries without exposing their contents; `cleanOriginalArtifacts(path, { assumeQuiescent: true, force: true })` removes only recognized temporary files and safely classified legacy orphans. The caller must stop every process and host using that history first; this is an explicit precondition, not an enforced lock. Committed originals, metadata and restore backups are never cleanup candidates. An interrupted `.astra-init.lock` requires manual inspection and is not removed by this API.
 
 ### `validateDocxBuffer` & `assertValidDocx`
 Direct validation utility functions:

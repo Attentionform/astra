@@ -466,6 +466,83 @@ export async function getHistoryCommitCount(repoDir: string): Promise<number> {
   }
 }
 
+const GIT_INITIALIZATION_LOCK = '.astra-init.lock';
+function gitInitializationLockPath(repoDir: string): string { return path.join(repoDir, GIT_INITIALIZATION_LOCK); }
+function gitInitializationIncompleteError(repoDir: string): Error & { code: string; remedy: string } {
+  return Object.assign(new Error(`History initialization is incomplete at ${repoDir}.`), {
+    code: 'E_STATE',
+    remedy: 'Stop other ASTra processes using this document, inspect the history directory, then run `astra history <file> --init` to record a baseline.',
+  });
+}
+async function gitInitializationLockExists(repoDir: string): Promise<boolean> {
+  const file = gitInitializationLockPath(repoDir);
+  try {
+    const st = await fsp.lstat(file);
+    if (!st.isFile() || st.isSymbolicLink()) throw Object.assign(new Error(`Unsafe history initialization lock: ${file}`), { code: 'E_SANDBOX' });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+export async function assertGitHistoryReady(repoDir: string): Promise<void> {
+  await assertNoGitInitializationInProgress(repoDir);
+  if (await getHistoryCommitCount(repoDir) === 0) throw gitInitializationIncompleteError(repoDir);
+}
+export async function assertNoGitInitializationInProgress(repoDir: string): Promise<void> {
+  if (await gitInitializationLockExists(repoDir)) {
+    throw Object.assign(new Error(`Another or interrupted ASTra history initialization is marked at ${gitInitializationLockPath(repoDir)}.`), {
+      code: 'E_CONFLICT',
+      remedy: 'If no ASTra process is using this history, inspect the lock and remove it manually before retrying. Never remove it while an initializer may still be active.',
+    });
+  }
+}
+async function withGitInitializationLock<T>(repoDir: string, run: () => Promise<T>): Promise<T> {
+  const file = gitInitializationLockPath(repoDir);
+  assertWriteTargetNoSymlink(file);
+  const token = crypto.randomUUID();
+  let handle: fs.promises.FileHandle;
+  try {
+    handle = await fsp.open(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'EEXIST') {
+      throw Object.assign(new Error(`Another or interrupted ASTra history initialization is marked at ${file}.`), {
+        code: 'E_CONFLICT',
+        remedy: 'If no ASTra process is using this history, inspect the lock and remove it manually before retrying. Never remove it while an initializer may still be active.',
+      });
+    }
+    throw error;
+  }
+  let primaryError: unknown;
+  let result: T;
+  try {
+    await handle.writeFile(JSON.stringify({ version: 1, pid: process.pid, token, startedAt: new Date().toISOString() }));
+    await handle.sync();
+    result = await run();
+  } catch (error) {
+    primaryError = error;
+  }
+  await handle.close().catch(() => undefined);
+  let cleanupError: unknown;
+  try {
+    const current = JSON.parse(await fsp.readFile(file, 'utf8')) as { token?: string };
+    if (current.token !== token) throw Object.assign(new Error(`History initialization lock ownership changed; left in place: ${file}`), { code: 'E_CONFLICT' });
+    await fsp.unlink(file);
+  } catch (error) {
+    cleanupError = error;
+  }
+  if (cleanupError && (cleanupError as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+    if (primaryError) {
+      const cause = primaryError instanceof Error ? primaryError.message : String(primaryError);
+      throw Object.assign(new Error(`${cause}; initialization lock cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`), { code: 'E_IO', lockPath: file });
+    }
+    throw Object.assign(new Error(`History initialization lock cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`), { code: 'E_IO', lockPath: file });
+  }
+  if (cleanupError && !primaryError) throw Object.assign(new Error(`History initialization lock disappeared unexpectedly: ${file}`), { code: 'E_CONFLICT' });
+  if (primaryError) throw primaryError;
+  return result!;
+}
+
 /**
  * R-6 tombstone warning (decision Q3 option B): deleting the `.astra/`
  * sidecar used to silently regenerate a lookalike fresh chain, hiding the
@@ -899,19 +976,28 @@ export async function initAstraRepo(
   originalBytes?: Buffer
 ): Promise<string> {
   const repoDir = await ensureAstraGitRepo(docPath);
+  await withGitInitializationLock(repoDir, async () => {
+    const gitExists = fs.existsSync(path.join(repoDir, '.git'));
+    if (gitExists && await getHistoryCommitCount(repoDir) > 0) {
+      throw Object.assign(new Error(`History is already initialized at ${repoDir}.`), { code: 'E_CONFLICT' });
+    }
+    // A zero-commit repository can be an interrupted prior initialization.
+    // Re-running git.init and recording the current package snapshot is the
+    // existing explicit `history --init` repair path, now serialized with
+    // competing initializers.
+    await git.init({ fs, dir: repoDir });
+    await captureOriginal(path.resolve(docPath), originalBytes);
 
-  await git.init({ fs, dir: repoDir });
-  await captureOriginal(path.resolve(docPath), originalBytes);
+    await writeAndAdd(repoDir, 'document.xml', initialXml);
+    const writtenParts = await writeSnapshotParts(repoDir, extraFiles);
+    await applySnapshotMarker(repoDir, await snapshotIsProvenComplete(repoDir, extraFiles, writtenParts));
 
-  await writeAndAdd(repoDir, 'document.xml', initialXml);
-  const writtenParts = await writeSnapshotParts(repoDir, extraFiles);
-  await applySnapshotMarker(repoDir, await snapshotIsProvenComplete(repoDir, extraFiles, writtenParts));
-
-  await git.commit({
-    fs,
-    dir: repoDir,
-    author: { name: 'ASTra', email: 'astra@attentionform.com' },
-    message: 'Initial state'
+    await git.commit({
+      fs,
+      dir: repoDir,
+      author: { name: 'ASTra', email: 'astra@attentionform.com' },
+      message: 'Initial state'
+    });
   });
 
   // R-6: record the new head durably. Re-runs the tombstone check so a
@@ -939,6 +1025,7 @@ export async function commitChange(
   const maxCommits = resolveHistoryMaxCommits(limits?.maxCommits);
   const maxSidecarBytes = resolveHistoryMaxSidecarBytes(limits?.maxSidecarBytes);
   const repoDir = await ensureAstraGitRepo(docPath);
+  await assertGitHistoryReady(repoDir);
 
   // Quota gate BEFORE any write: commit count first (cheap), then sidecar
   // bytes (current + incoming). Loud E_QUOTA names the raise-the-limit
@@ -1079,6 +1166,7 @@ export async function commitChange(
 
 export async function getHistory(docPath: string) {
   const repoDir = getRepoDir(docPath);
+  await assertNoGitInitializationInProgress(repoDir);
   // Reads obey the same rule as writes: a stray `.git` entry is never followed.
   await assertUsableSidecarGit(repoDir);
   let commits;

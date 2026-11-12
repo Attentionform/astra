@@ -16,7 +16,9 @@ import {
   readOriginal,
   exportOriginal,
   replaceFileAtomic,
-  writeFileExclusive,
+  createVerifiedBackup,
+  inspectOriginalArtifacts,
+  cleanOriginalArtifacts,
   BASELINE_MAX_ERRORS,
   buildBaseline,
   INCOMPLETE_SNAPSHOT_WARNING,
@@ -24,7 +26,7 @@ import {
   judgeAgainstBaseline,
   validateDocxBuffer,
 } from '@attentionform/astra-engine';
-import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
+import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, readErrRemedyProp } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { macroFlagsUsageError, macroOptsFromFlags, macroStripNameRefusal, readDocx, writeDocx } from './io';
@@ -422,8 +424,7 @@ async function restoreOriginalFile(out: GlobalOpts, file: string): Promise<numbe
   const repoDir = getRepoDir(file);
   const beforeIndex = JSON.stringify(await git.statusMatrix({ fs, dir: repoDir }));
   const backup = `${file}.astra-restore-backup-${randomUUID()}`;
-  await writeFileExclusive(backup, before);
-  if (hash(await readDocx(backup)) !== hash(before)) throw Object.assign(new Error(`Original restore backup verification failed: ${backup}`), { code: 'E_IO' });
+  await createVerifiedBackup(backup, before);
   let writeAttempted = false;
   try {
     if (hash(await readDocx(file)) !== hash(before)) {
@@ -462,6 +463,9 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
   let stripMacros = false;
   let exportPath: string | undefined;
   let restoreOriginal = false;
+  let inspectArtifacts = false;
+  let cleanArtifacts = false;
+  let assumeQuiescent = false;
   let force = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -472,6 +476,9 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
       exportPath = next;
     }
     else if (a === '--restore-original') restoreOriginal = true;
+    else if (a === '--inspect-recovery-artifacts') inspectArtifacts = true;
+    else if (a === '--clean-recovery-artifacts') cleanArtifacts = true;
+    else if (a === '--assume-quiescent') assumeQuiescent = true;
     else if (a === '--force') force = true;
     else if (a === '--allow-macros') allowMacros = true;
     else if (a === '--strip-macros') stripMacros = true;
@@ -479,13 +486,37 @@ export async function cmdHistory(out: GlobalOpts, args: string[]): Promise<numbe
     else if (!file) file = a;
     else return usage(out, 'history takes exactly one <docx> argument');
   }
-  if ([init, !!exportPath, restoreOriginal].filter(Boolean).length > 1) return usage(out, 'history: --init, --export-original and --restore-original are mutually exclusive');
-  if (force && !exportPath && !restoreOriginal) return usage(out, 'history: --force requires --export-original or --restore-original');
+  const actions = [init, !!exportPath, restoreOriginal, inspectArtifacts, cleanArtifacts].filter(Boolean).length;
+  if (actions > 1) return usage(out, 'history: choose only one of --init, --export-original, --restore-original, --inspect-recovery-artifacts or --clean-recovery-artifacts');
+  if (force && !exportPath && !restoreOriginal && !cleanArtifacts) return usage(out, 'history: --force requires --export-original, --restore-original or --clean-recovery-artifacts');
+  if (assumeQuiescent && !cleanArtifacts) return usage(out, 'history: --assume-quiescent requires --clean-recovery-artifacts');
+  if (cleanArtifacts && (!force || !assumeQuiescent)) return usage(out, 'history: cleanup requires --clean-recovery-artifacts --assume-quiescent --force');
   if ((exportPath || restoreOriginal) && (allowMacros || stripMacros)) return usage(out, 'history: macro options apply only to --init; original recovery never strips or changes bytes');
   if (!file) return usage(out, 'history requires <docx>');
   if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
   const macroOpts = macroOptsFromFlags({ allowMacros, stripMacros });
   try {
+    if (inspectArtifacts || cleanArtifacts) {
+      // Inspection must work for a partially initialized sidecar, including a
+      // process killed before `.git` exists, so it intentionally precedes the
+      // normal history gate and never creates or repairs the history.
+      const cleanup = cleanArtifacts
+        ? await cleanOriginalArtifacts(path.resolve(file), { assumeQuiescent, force })
+        : undefined;
+      const report = cleanup ?? await inspectOriginalArtifacts(path.resolve(file));
+      const warning = 'Recovery artifacts may contain sensitive document data. Cleanup is safe only after every ASTra process using this history has stopped; this is an operator assertion, not an enforced lock.';
+      if (!out.json) printStderr(`${CLI_NAME}: warning: ${warning}`);
+      print(out, `${cleanArtifacts ? 'RECOVERY ARTIFACT CLEANUP' : 'RECOVERY ARTIFACTS'} ${file}: ${report.directory}`);
+      print(out, `  ${cleanup?.removed.length ?? 0} removed, ${cleanup?.skipped.length ?? 0} skipped, ${cleanup?.failures.length ?? 0} failed; ${report.artifacts.length} remaining, approximately ${report.totalBytes} bytes.`);
+      if (report.initializationLock) print(out, `  initialization-lock ${report.initializationLock.path} (${report.initializationLock.bytes} bytes, ${report.initializationLock.state}); never removed by artifact cleanup`);
+      for (const name of cleanup?.removed ?? []) print(out, `  removed ${name}`);
+      for (const item of cleanup?.skipped ?? []) print(out, `  skipped ${item.name}: ${item.reason}`);
+      for (const item of cleanup?.failures ?? []) printStderr(`${CLI_NAME}: cleanup failed for ${item.name}: ${item.detail}`);
+      for (const item of report.artifacts.slice(0, HISTORY_FILES_SHOWN)) print(out, `  ${item.kind} ${item.name} (${item.bytes} bytes)${item.eligibleForCleanup ? ' [cleanup candidate]' : ''}`);
+      if (report.artifacts.length > HISTORY_FILES_SHOWN) print(out, `  … ${report.artifacts.length - HISTORY_FILES_SHOWN} more (see --json)`);
+      printJson(out, { ok: (cleanup?.failures.length ?? 0) === 0, command: 'history', file, directory: report.directory, cleanup: cleanArtifacts, warning, ...(report.initializationLock ? { initializationLock: report.initializationLock } : {}), ...(cleanArtifacts ? { assumeQuiescent, removed: cleanup?.removed ?? [], skipped: cleanup?.skipped ?? [], failures: cleanup?.failures ?? [] } : {}), artifacts: report.artifacts, totalBytes: report.totalBytes, totalBytesIsEstimate: true });
+      return (cleanup?.failures.length ?? 0) > 0 ? EXIT_FAIL : EXIT_OK;
+    }
     if (init) {
       const state = sidecarGitState(file);
       // A stray `.git` file is refused (never followed/replaced); only a

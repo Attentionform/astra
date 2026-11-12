@@ -7,7 +7,7 @@ import git from 'isomorphic-git';
 import { DocxParser } from './parser';
 import type { DocxParserMacroOptions } from './parser';
 import { checkoutCommit, commitChange, getHistory, getRepoDir, isTrackedPackageFile } from './git';
-import { originalSha256, readOriginal, replaceFileAtomic, writeFileExclusive } from './original';
+import { createVerifiedBackup, originalSha256, readOriginal, replaceFileAtomic } from './original';
 import { assertWriteTargetNoSymlink } from './sandbox/paths';
 
 export interface RestoreOriginalOptions {
@@ -61,10 +61,7 @@ export async function restoreOriginal(docPath: string, options: RestoreOriginalO
   const repoDir = getRepoDir(target);
   const indexBefore = JSON.stringify(await git.statusMatrix({ fs, dir: repoDir }));
   const backup = path.join(path.dirname(target), `.${path.basename(target)}.astra-restore-backup-${randomUUID()}`);
-  await writeFileExclusive(backup, before);
-  if (originalSha256(await fsp.readFile(backup)) !== beforeHash) {
-    throw Object.assign(new Error(`Original restore backup verification failed. Recovery copy: ${backup}`), { code: 'E_IO' });
-  }
+  await createVerifiedBackup(backup, before);
   let replaced = false;
   let attemptedCommit = false;
   try {

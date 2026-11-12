@@ -9,7 +9,6 @@ import {
   commitChange,
   getEngineErrorCode,
   getHistory,
-  getOriginalInfo,
   type OriginalInfo,
   getSidecarHistoryWarning,
   INCOMPLETE_SNAPSHOT_WARNING,
@@ -160,8 +159,10 @@ export async function handleGetDocumentHistory(
         totalCommits: full.length,
         history: slice,
         warning,
-        original: handle.originalInfo && !handle.originalInfo.available && handle.originalInfo.detail === 'Another opener recorded a different original for this history.'
-          ? handle.originalInfo : await getOriginalInfo(filePath),
+        // Recovery eligibility is pinned to this session's open. Re-reading
+        // global sidecar state here could upgrade an opener that observed an
+        // in-progress initialization into another session's original.
+        original: handle.originalInfo ?? { available: false as const, reason: 'not-applicable' as const },
       };
     });
   } catch (err: unknown) {

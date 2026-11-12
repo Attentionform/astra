@@ -11,8 +11,11 @@ import {
   ToonGenerator,
   canonicalizeForAsset as canonicalizeForMcp,
   getRepoDir,
+  assertGitHistoryReady,
   initAstraRepo,
   getOriginalInfo,
+  getHistory,
+  checkoutCommit,
   type OriginalInfo,
   isPathInsideDir as isMcpPathInsideDir,
   isTrackedPackageFile,
@@ -751,27 +754,66 @@ export async function ensureGitRepo(
   } catch {
     hasGit = false;
   }
-  if (hasGit) return true;
-  await initAstraRepo(docPath, xml, extras, originalBytes);
-  return false;
+  if (hasGit) {
+    await assertGitHistoryReady(repoDir);
+    return true;
+  }
+  try {
+    await initAstraRepo(docPath, xml, extras, originalBytes);
+    return false;
+  } catch (error) {
+    // Another process may have completed the first commit after our initial
+    // absence check. Only accept that history once its initialization lock is
+    // gone and the committed chain is readable.
+    if (fs.existsSync(path.join(repoDir, '.git'))) {
+      await assertGitHistoryReady(repoDir);
+      return true;
+    }
+    throw error;
+  }
 }
 
 /** Best-effort git init for a freshly opened handle (never throws). */
 async function initGitForHandleBestEffort(handle: DocHandle, originalBytes?: Buffer): Promise<void> {
   try {
     if (!path.isAbsolute(handle.filePath)) return;
+    // Snapshot recovery availability BEFORE ensureGitRepo. A competing first
+    // opener can create .git and then pause before publishing the original.
+    // Sessions that observe that partial initialization stay ineligible for
+    // recovery for their lifetime; they must reopen after initialization.
+    const availabilityAtOpen = await getOriginalInfo(handle.filePath);
     const xml = handle.parser.readDocumentXml();
     const alreadyExisted = await ensureGitRepo(handle.filePath, xml, collectTrackedExtrasForGit(handle.parser), originalBytes);
-    handle.originalInfo = await getOriginalInfo(handle.filePath);
-    if (!alreadyExisted && originalBytes && handle.originalInfo.available && handle.originalInfo.sha256 !== createHash('sha256').update(originalBytes).digest('hex')) {
-      handle.originalInfo = { available: false, reason: 'capture-failed', detail: 'Another opener recorded a different original for this history.' };
+    if (alreadyExisted) {
+      // A pre-existing complete history owns its original. An unavailable
+      // answer at open is pinned too; it must never upgrade from a later
+      // concurrent capture.
+      const history = await getHistory(handle.filePath);
+      handle.originalInfo = history.length > 0
+        ? availabilityAtOpen
+        : { available: false, reason: 'incomplete', detail: 'History initialization was in progress when this session opened. Close and reopen after it completes.' };
+    } else {
+      handle.originalInfo = await getOriginalInfo(handle.filePath);
+      const history = await getHistory(handle.filePath);
+      const head = history[0] ? await checkoutCommit(handle.filePath, history[0].oid) : undefined;
+      const snapshot = handle.parser.capturePackageSnapshot();
+      const names = [...snapshot.keys()].filter(isTrackedPackageFile).sort();
+      const recordedNames = head ? [...head.extra.keys()].sort() : [];
+      const initialStateMatches = !!head?.complete && handle.parser.readDocumentXml() === head.xml && JSON.stringify(names) === JSON.stringify(recordedNames) && names.every(name => snapshot.get(name)!.equals(head.extra.get(name)!));
+      if (!initialStateMatches && handle.originalInfo.available) {
+        handle.originalInfo = { available: false, reason: 'capture-failed', detail: 'Concurrent history initialization produced a different initial document state. Close and reopen after inspecting history.' };
+      }
+      if (originalBytes && handle.originalInfo.available && handle.originalInfo.sha256 !== createHash('sha256').update(originalBytes).digest('hex')) {
+        handle.originalInfo = { available: false, reason: 'capture-failed', detail: 'Another opener recorded a different original for this history.' };
+      }
     }
     if (!handle.originalInfo.available && !['predates-feature', 'not-applicable'].includes(handle.originalInfo.reason)) {
       handle.originalWarning = `Exact-original recovery is unavailable: ${handle.originalInfo.reason}. Keep a separate copy of the input file.`;
     }
-  } catch {
-    handle.originalInfo = { available: false, reason: 'capture-failed' };
-    handle.originalWarning = 'Original-file capture failed. Editing is available, but exact-original recovery is not. Keep a separate copy of the input file.';
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    handle.originalInfo = { available: false, reason: 'incomplete', detail };
+    handle.originalWarning = `History initialization or original-file capture did not complete. Editing is available, but exact-original recovery is not. ${detail} Keep a separate copy of the input file.`;
   }
 }
 

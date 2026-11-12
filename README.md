@@ -237,7 +237,7 @@ console.log(result.ok, result.errors);
 
 ## Version history, like git
 
-Original recovery preserves the input DOCX bytes when a new history captures them. Check `original.available` in history before relying on it. In the CLI, opt in before editing with `astra history report.docx --init`, then export with `--export-original original.docx` or restore with `--restore-original`. Older histories have no original and are not migrated. Sanitizing a working file does not remove sensitive data from its retained original or history. See the [history guide](docs/cli-guide.md#412-document-history-astra-history).
+Original recovery preserves the input DOCX bytes when a new history captures them. Check `original.available` in history before relying on it. In the CLI, opt in before editing with `astra history report.docx --init`, then export with `--export-original original.docx` or restore with `--restore-original`. Older histories have no original and are not migrated. Sanitizing a working file does not remove sensitive data from its retained original or history. Use `--inspect-recovery-artifacts` to review interrupted capture files; cleanup requires the explicit offline assertion `--clean-recovery-artifacts --assume-quiescent --force`. See the [history guide](docs/cli-guide.md#412-document-history-astra-history).
 
 
 The MCP server records every save as a commit in a hidden git repository next to the document, in `.astra/` by default. The history is append-only: restoring an old version adds a new commit instead of rewriting the past. Each entry carries a message, an author, how many operations the save contained and which node IDs they touched. The files are plain local files and ASTra never uploads them.

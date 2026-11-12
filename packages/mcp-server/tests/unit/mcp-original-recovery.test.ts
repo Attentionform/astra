@@ -3,6 +3,8 @@ import * as fsp from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { createHash } from 'crypto';
+import fs from 'node:fs';
+import git from 'isomorphic-git';
 import * as engine from '@attentionform/astra-engine';
 import { createMcpSessionStore } from '../../src/lib/session-store';
 import { LEAN6_HANDLERS, GIT_HISTORY_HANDLERS } from '../../src/lib/mcp-tool-adapter';
@@ -41,6 +43,27 @@ describe('exact-original recovery through MCP',()=>{
   const restored=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId});expect(restored.ok).toBe(false);
   await save(s);expect(h.originalInfo?.available).toBe(false);
   const again=await handleExportOriginalDocument(s.store,{sessionId:s.sessionId,outPath:path.join(s.dir,'wrong2.docx')});expect(again.ok).toBe(false);
+ });
+ it('does not let a session opened during initialization adopt another opener’s original later',async()=>{
+  const dir=await fsp.mkdtemp(path.join(os.tmpdir(),'astra-original-open-race-'));dirs.push(dir);
+  const file=path.join(dir,'racing.docx');const firstBytes=engine.createBlankDocxBuffer('blank');const secondBytes=Buffer.concat([firstBytes,Buffer.from('other input bytes')]);await fsp.writeFile(file,secondBytes);
+  const store=createMcpSessionStore();
+  // Construct the exact observable state of a competing initializer: a Git
+  // directory exists, but no initial commit or original snapshot is published.
+  // The second session must pin this ambiguity even after another opener later
+  // completes initialization for different input bytes.
+  await engine.ensureAstraGitRepo(file);
+  await git.init({fs,dir:engine.getRepoDir(file)});
+  const second=await store.openBuffer(secondBytes,file);const early=second.originalInfo;
+  expect(early?.available).toBe(false);
+  await fsp.rm(engine.getRepoDir(file),{recursive:true,force:true});
+  const first=await store.openBuffer(firstBytes,file);
+  expect(first.originalInfo?.available).toBe(true);
+  const history=await GIT_HISTORY_HANDLERS.get_document_history(store,{sessionId:second.sessionId});
+  expect(history.ok && history.original.available).toBe(false);
+  const exported=await handleExportOriginalDocument(store,{sessionId:second.sessionId,outPath:path.join(dir,'wrong.docx')});
+  expect(exported.ok).toBe(false);
+  const restored=await handleRestoreOriginalDocument(store,{sessionId:second.sessionId});expect(restored.ok).toBe(false);
  });
  it('exports the exact original when an allowed document contains a macro part', async()=>{
   const dir=await fsp.mkdtemp(path.join(os.tmpdir(),'astra-original-macro-'));dirs.push(dir);
@@ -104,6 +127,13 @@ describe('exact-original recovery through MCP',()=>{
   vi.spyOn(engine,'commitChange').mockRejectedValueOnce(new Error('injected commit failure'));
   const result=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId});expect(result.ok).toBe(false);expect((await fsp.readFile(s.file)).equals(before)).toBe(true);expect(h.parser).toBe(parser);expect(h.revision).toBe(rev);expect((await engine.getHistory(s.file)).map(x=>x.oid)).toEqual(hist.map(x=>x.oid));
  });
+ it('leaves disk, session and history unchanged when backup creation fails',async()=>{
+  const s=await setup();await edit(s);await save(s);const before=await fsp.readFile(s.file);const h=s.store.get(s.sessionId);const parser=h.parser;const revision=h.revision;const history=(await engine.getHistory(s.file)).map(x=>x.oid);
+  vi.spyOn(engine,'createVerifiedBackup').mockRejectedValueOnce(Object.assign(new Error('injected backup creation failure'),{code:'EACCES'}));
+  const result=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId});expect(result.ok).toBe(false);
+  expect(await fsp.readFile(s.file)).toEqual(before);expect(h.parser).toBe(parser);expect(h.revision).toBe(revision);expect((await engine.getHistory(s.file)).map(x=>x.oid)).toEqual(history);
+  expect((await fsp.readdir(s.dir)).some(name=>name.includes('astra-restore-backup'))).toBe(false);
+ });
  it('memory-label sessions have no original and cannot restore',async()=>{
   const store=createMcpSessionStore();const h=await store.openBuffer(engine.createBlankDocxBuffer('blank'));
   expect(h.originalInfo).toEqual({available:false,reason:'not-applicable'});
@@ -132,7 +162,7 @@ describe('exact-original recovery through MCP',()=>{
  });
  it('corrupt retained original never replaces the working file',async()=>{
   const s=await setup();const info=await engine.getOriginalInfo(s.file);if(!info.available)throw new Error('capture unavailable');
-  await fsp.writeFile(path.join(engine.getRepoDir(s.file),'.git','astra-original',`original-${info.sha256}.docx`),'corrupt');
+  await fsp.writeFile(path.join(engine.getRepoDir(s.file),'.git','astra-original','original.snapshot'),'corrupt');
   const result=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId});expect(result.ok).toBe(false);expect((await fsp.readFile(s.file)).equals(s.original)).toBe(true);
  });
 

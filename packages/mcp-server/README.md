@@ -343,7 +343,7 @@ Restore the captured original to the open document: `{sessionId, discard?}`. Uns
 | `sessionId` | `string` | Yes | Active session identifier. |
 | `discard` | `boolean` | No | Discard unsaved session edits when true. |
 
-Original capture is automatic when an existing document first receives a new MCP history. Older histories may have no original. Sanitizing a document does not remove sensitive content from its history or captured original.
+Original capture is automatic when an existing document first receives a new MCP history. Older histories may have no original. Sanitizing a document does not remove sensitive content from its history or captured original. When concurrent opens observe an incomplete first initialization, that session keeps recovery unavailable and cannot later adopt another opener's original; close and reopen after initialization completes. First initialization uses an exclusive sidecar lock on filesystems that honor exclusive file creation; an interrupted lock requires manual inspection after all ASTra processes using that history have stopped. Older ASTra versions do not participate in the lock, and network filesystem coordination is not guaranteed.
 
 ---
 

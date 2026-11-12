@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
+import * as engine from '@attentionform/astra-engine';
 import { createBlankDocxBuffer, getHistory, getRepoDir } from '@attentionform/astra-engine';
 import { run } from '../src/cli';
 
@@ -52,6 +53,18 @@ describe('CLI exact original recovery', () => {
     expect(new DocxParser(fs.readFileSync(file)).readDocumentXml()).toBe(new DocxParser(original).readDocumentXml());
     expect(fs.readdirSync(dir).some(n => n.includes('restore-backup'))).toBe(false);
   });
+  it('leaves bytes and history unchanged when backup creation fails', async () => {
+    expect((await cli(['history', file, '--init'])).status).toBe(0);
+    expect((await cli(['batch', file, '--append', 'Saved change'])).status).toBe(0);
+    const before = fs.readFileSync(file);
+    const beforeHistory = (await getHistory(file)).map((entry) => entry.oid);
+    vi.spyOn(engine, 'createVerifiedBackup').mockRejectedValueOnce(Object.assign(new Error('injected backup creation failure'), { code: 'EACCES' }));
+    const result = await cli(['history', file, '--restore-original']);
+    expect(result.status).toBe(1);
+    expect(fs.readFileSync(file)).toEqual(before);
+    expect((await getHistory(file)).map((entry) => entry.oid)).toEqual(beforeHistory);
+    expect(fs.readdirSync(dir).some((name) => name.includes('astra-restore-backup'))).toBe(false);
+  });
   it('refuses an unrecorded disk edit without overwriting it', async () => {
     expect((await cli(['history', file, '--init'])).status).toBe(0);
     const { AdmZip } = await import('@attentionform/astra-engine');
@@ -66,8 +79,7 @@ describe('CLI exact original recovery', () => {
     const before = fs.readFileSync(file);
     expect((await cli(['history', file, '--init'])).status).toBe(0);
     const originalDir = path.join(getRepoDir(file), '.git', 'astra-original');
-    const stored = fs.readdirSync(originalDir).find(name => /^original-.*\.docx$/.test(name))!;
-    fs.writeFileSync(path.join(originalDir, stored), 'corrupt');
+    fs.writeFileSync(path.join(originalDir, 'original.snapshot'), 'corrupt');
     const out = path.join(dir, 'bad.docx');
     expect((await cli(['history', file, '--export-original', out])).status).toBe(1);
     expect(fs.existsSync(out)).toBe(false);
@@ -81,5 +93,47 @@ describe('CLI exact original recovery', () => {
     for (const extra of [['--export-original'], ['--init', '--restore-original'], ['--force'], ['--restore-original', '--strip-macros']]) {
       expect((await cli(['history', file, ...extra])).status).toBe(2);
     }
+  });
+  it('inspects and cleans only offline-classified artifacts with explicit flags', async () => {
+    const original = fs.readFileSync(file);
+    expect((await cli(['history', file, '--init'])).status).toBe(0);
+    const originalDir = path.join(getRepoDir(file), '.git', 'astra-original');
+    const temp = '.original.snapshot.astra-tmp-123e4567-e89b-12d3-a456-426614174000';
+    const secret = 'sensitive interrupted temporary content';
+    fs.writeFileSync(path.join(originalDir, temp), secret);
+    fs.writeFileSync(path.join(originalDir, 'unknown.txt'), 'preserve me');
+
+    const inspected = await cli(['history', file, '--inspect-recovery-artifacts']);
+    expect(inspected.status).toBe(0);
+    expect(inspected.body.directory).toBe(originalDir);
+    expect(JSON.stringify(inspected.body)).not.toContain(secret);
+    expect(inspected.body.totalBytesIsEstimate).toBe(true);
+    const artifacts = inspected.body.artifacts as Array<{ name: string; eligibleForCleanup: boolean }>;
+    expect(artifacts.find((item) => item.name === temp)?.eligibleForCleanup).toBe(true);
+
+    expect((await cli(['history', file, '--clean-recovery-artifacts'])).status).toBe(2);
+    expect(fs.existsSync(path.join(originalDir, temp))).toBe(true);
+    const cleaned = await cli(['history', file, '--clean-recovery-artifacts', '--assume-quiescent', '--force']);
+    expect(cleaned.status).toBe(0);
+    expect(cleaned.body.ok).toBe(true);
+    expect(cleaned.body.removed).toEqual([temp]);
+    expect(fs.existsSync(path.join(originalDir, temp))).toBe(false);
+    expect(fs.readFileSync(path.join(originalDir, 'original.snapshot'))).toBeTruthy();
+    expect(fs.readFileSync(path.join(originalDir, 'unknown.txt'), 'utf8')).toBe('preserve me');
+    expect(fs.readFileSync(file)).toEqual(original);
+  });
+  it('inspects and preserves an interrupted initialization lock even before .git exists', async () => {
+    const repoDir = getRepoDir(file);
+    fs.mkdirSync(repoDir, { recursive: true });
+    const lock = path.join(repoDir, '.astra-init.lock');
+    fs.writeFileSync(lock, JSON.stringify({ version: 1, pid: 999999, token: 'interrupted' }));
+    expect(fs.existsSync(path.join(repoDir, '.git'))).toBe(false);
+    const inspection = await cli(['history', file, '--inspect-recovery-artifacts']);
+    expect(inspection.status).toBe(0);
+    expect(inspection.body.initializationLock).toMatchObject({ path: lock, state: 'present' });
+    const cleanup = await cli(['history', file, '--clean-recovery-artifacts', '--assume-quiescent', '--force']);
+    expect(cleanup.status).toBe(1);
+    expect(fs.existsSync(lock)).toBe(true);
+    expect(fs.existsSync(path.join(repoDir, '.git'))).toBe(false);
   });
 });

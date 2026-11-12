@@ -348,7 +348,7 @@ export async function executeSaveDocument(
     }
     try {
       handle.filePath = target;
-      if (prevFilePath !== target || !handle.originalInfo || handle.originalInfo.available || handle.originalInfo.detail !== 'Another opener recorded a different original for this history.') {
+      if (prevFilePath !== target || !handle.originalInfo) {
         handle.originalInfo = await getOriginalInfo(target);
       }
       if (prevFilePath !== target) handle.originalWarning = undefined;

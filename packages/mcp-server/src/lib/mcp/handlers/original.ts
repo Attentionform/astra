@@ -5,7 +5,7 @@ import * as path from 'path';
 import { createHash, randomUUID } from 'crypto';
 import {
   DocxParser, OperationEngine, ToonGenerator, readOriginal, getOriginalInfo,
-  exportOriginal, replaceFileAtomic, writeFileExclusive, getHistory, checkoutCommit,
+  exportOriginal, replaceFileAtomic, createVerifiedBackup, getHistory, checkoutCommit,
   commitChange, isTrackedPackageFile, getRepoDir,
 } from '@attentionform/astra-engine';
 import type { DocHandle, McpSessionStore } from '../../session-store';
@@ -26,8 +26,8 @@ export async function handleExportOriginalDocument(store: McpSessionStore, input
   try {
     return await store.withSession(parsed.data.sessionId, async handle => {
       if (!path.isAbsolute(handle.filePath)) refuse('E_VALIDATION', 'This memory session has no retained original.');
-      if (handle.originalInfo && !handle.originalInfo.available && handle.originalInfo.detail === 'Another opener recorded a different original for this history.') {
-        refuse('E_CONFLICT', 'This session could not capture its input: another opener recorded a different original. Inspect history before recovery.');
+      if (handle.originalInfo && !handle.originalInfo.available) {
+        refuse('E_CONFLICT', `Exact-original recovery is unavailable to this session (${handle.originalInfo.reason}). ${handle.originalInfo.detail ?? 'Close and reopen after checking history.'}`);
       }
       const outPath = validateSaveTarget(parsed.data.outPath);
       if (outPath === handle.filePath) refuse('E_CONFLICT', 'Use restore_original_document to replace the active document.');
@@ -65,8 +65,8 @@ export async function handleRestoreOriginalDocument(store: McpSessionStore, inpu
   try {
     return await store.withSession(parsed.data.sessionId, async handle => {
       if (!path.isAbsolute(handle.filePath)) refuse('E_VALIDATION', 'This memory session has no retained original.');
-      if (handle.originalInfo && !handle.originalInfo.available && handle.originalInfo.detail === 'Another opener recorded a different original for this history.') {
-        refuse('E_CONFLICT', 'This session could not capture its input: another opener recorded a different original. Inspect history before recovery.');
+      if (handle.originalInfo && !handle.originalInfo.available) {
+        refuse('E_CONFLICT', `Exact-original recovery is unavailable to this session (${handle.originalInfo.reason}). ${handle.originalInfo.detail ?? 'Close and reopen after checking history.'}`);
       }
       if (handle.revision !== handle.savedRevision && !parsed.data.discard) refuse('E_CONFLICT', 'The session has unsaved edits. Save first, or explicitly pass discard:true.');
       const source = validateSaveTarget(handle.filePath);
@@ -84,13 +84,7 @@ export async function handleRestoreOriginalDocument(store: McpSessionStore, inpu
       if (handle.styleGuide) engine.setStyleGuide(handle.styleGuide);
       const validation = await validateForBaseline(bytes);
       const backup = path.join(path.dirname(source), `.${path.basename(source)}.astra-restore-backup-${randomUUID()}`);
-      await writeFileExclusive(backup, previous);
-      try {
-        if (hash(await fsp.readFile(backup)) !== hash(previous)) refuse('E_IO', `Backup verification failed: ${backup}`);
-      } catch (error) {
-        await fsp.unlink(backup).catch(() => undefined);
-        throw error;
-      }
+      await createVerifiedBackup(backup, previous);
       const matrixBefore = await git.statusMatrix({ fs, dir: getRepoDir(source) }).catch(() => undefined);
       const oldRedoLength = handle.redoStack.length;
       const previousSession = {
