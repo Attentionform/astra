@@ -164,4 +164,21 @@ describe('publication helpers', () => {
     await expect(writeFileExclusive(out, data)).rejects.toThrow('does not support safe exclusive publication');
     await expect(fsp.stat(out)).rejects.toMatchObject({ code: 'ENOENT' });
   });
+  it('reports both publication and temporary cleanup failures with the retained path', async () => {
+    const out = path.join(dir, 'out');
+    vi.spyOn(fsp, 'link').mockRejectedValueOnce(Object.assign(new Error('injected publish failure'), { code: 'EIO' }));
+    vi.spyOn(fsp, 'unlink').mockRejectedValueOnce(Object.assign(new Error('injected cleanup failure'), { code: 'EACCES' }));
+    let caught: unknown;
+    try { await writeFileExclusive(out, data); } catch (error) { caught = error; }
+    expect(caught).toMatchObject({ tempPath: expect.stringContaining('.astra-tmp-') });
+    expect(String(caught)).toContain('injected publish failure');
+    expect(String(caught)).toContain('injected cleanup failure');
+    await expect(fsp.stat(out)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+  it('reports that a destination exists when cleanup fails after publication', async () => {
+    const out = path.join(dir, 'out');
+    vi.spyOn(fsp, 'unlink').mockRejectedValueOnce(Object.assign(new Error('injected cleanup failure'), { code: 'EACCES' }));
+    await expect(writeFileExclusive(out, data)).rejects.toMatchObject({ published: true, tempPath: expect.any(String) });
+    expect(await fsp.readFile(out)).toEqual(data);
+  });
 });

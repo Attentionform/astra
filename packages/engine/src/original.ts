@@ -55,6 +55,7 @@ async function preparedTemp(target: string, data: Buffer, mode = 0o600): Promise
 /** Publish a complete file exclusively. No partial destination and no unsafe fallback on unsupported filesystems. */
 export async function writeFileExclusive(target: string, data: Buffer): Promise<void> {
   const tmp = await preparedTemp(target, data);
+  let failure: unknown;
   try {
     assertWriteTargetNoSymlink(target);
     try { await fsp.link(tmp, target); }
@@ -66,7 +67,18 @@ export async function writeFileExclusive(target: string, data: Buffer): Promise<
       throw e;
     }
     await syncDirectory(path.dirname(target));
-  } finally { await cleanupTemp(tmp); }
+  } catch (error) {
+    failure = error;
+  }
+  try { await cleanupTemp(tmp); }
+  catch (cleanup) {
+    const detail = cleanup instanceof Error ? cleanup.message : String(cleanup);
+    if (failure) {
+      throw Object.assign(coded(`${failure instanceof Error ? failure.message : String(failure)}; ${detail}`, errno(failure) || 'E_IO'), { tempPath: tmp });
+    }
+    throw Object.assign(coded(`Destination was published at ${target}, but ${detail}`), { tempPath: tmp, published: true });
+  }
+  if (failure) throw failure;
 }
 /** Same-directory replacement. Errors carry an outcome so the caller can recover honestly. */
 export async function replaceFileAtomic(target: string, data: Buffer): Promise<AtomicReplaceResult> {
