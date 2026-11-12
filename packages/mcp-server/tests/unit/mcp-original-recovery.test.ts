@@ -77,6 +77,15 @@ describe('exact-original recovery through MCP',()=>{
   const result=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId});expect(result.ok).toBe(false);expect(s.store.get(s.sessionId).revision).toBe(rev);
   const confirmed=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId,discard:true});expect(confirmed.ok,JSON.stringify(confirmed)).toBe(true);expect(sha(await fsp.readFile(s.file))).toBe(sha(s.original));
  });
+ it('can restore the same original twice without losing the original bytes or the session',async()=>{
+  const s=await setup();await edit(s);await save(s);
+  for(let i=0;i<2;i++){
+   const result=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId});
+   expect(result.ok,JSON.stringify(result)).toBe(true);
+   expect(sha(await fsp.readFile(s.file))).toBe(sha(s.original));
+   expect(s.store.get(s.sessionId).lastWrittenSha256).toBe(sha(s.original));
+  }
+ });
  it('refuses external modification after an ASTra save',async()=>{
   const s=await setup();await edit(s);await save(s);const external=Buffer.from('outside change');await fsp.writeFile(s.file,external);
   const result=await handleRestoreOriginalDocument(s.store,{sessionId:s.sessionId});expect(result.ok).toBe(false);expect((await fsp.readFile(s.file)).equals(external)).toBe(true);
