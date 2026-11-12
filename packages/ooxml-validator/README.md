@@ -86,7 +86,7 @@ Returns diagnostic metadata regarding the active binary, platform package, SDK v
 
 ## Local Development & Building Native Binaries
 
-Building the native executable requires the .NET 10 SDK, version 10.0.100 or newer (the minimum in `native/global.json`). CI builds with the exact version set as `dotnet-version` in `.github/workflows/`; all three workflows must carry the same version (a test checks this). To bump it, change the version in all three workflows, then regenerate the lock file with that SDK (`dotnet restore native/ooxml-validator.csproj --force-evaluate`): the lock records runtime-tied packages, so a locked restore fails on a different SDK until it is regenerated. The restore also audits the dependencies and fails on a known high or critical advisory.
+Building the native executable requires the exact .NET SDK version pinned in the repository-root `global.json` (currently 10.0.403). SDK roll-forward is disabled because the lock file records runtime-tied packages. All four workflows that build the validator use that same exact SDK version, and a test checks that they stay aligned. To bump it, update `global.json` and every workflow's `dotnet-version`, then regenerate the lock file with that SDK (`dotnet restore native/ooxml-validator.csproj --force-evaluate`). The restore also audits dependencies and fails on a known high or critical advisory.
 
 ```bash
 # Build the native binary for the current host architecture:

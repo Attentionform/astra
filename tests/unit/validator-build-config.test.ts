@@ -6,11 +6,6 @@ const root = path.resolve(__dirname, '..', '..');
 const read = (rel: string): string => fs.readFileSync(path.join(root, rel), 'utf8');
 const workflows = ['ci.yml', 'release.yml', 'validator-platform.yml', 'platform-smoke.yml'].map((f) => `.github/workflows/${f}`);
 
-/** "10.0.403" -> [10, 0, 403] */
-function sdkParts(v: string): number[] {
-  return v.split('.').map((n) => Number(n));
-}
-
 describe('validator native build configuration', () => {
   const pins = workflows.flatMap((wf) =>
     [...read(wf).matchAll(/dotnet-version:\s*'?([^'\s]+)'?/g)].map((m) => ({ wf, version: m[1] }))
@@ -25,14 +20,10 @@ describe('validator native build configuration', () => {
     expect(new Set(pins.map((p) => p.version)).size).toBe(1);
   });
 
-  it('the CI pin satisfies the minimum SDK in global.json', () => {
-    const sdk = JSON.parse(read('packages/ooxml-validator/native/global.json')).sdk;
-    const min = sdkParts(sdk.version);
-    const pinned = sdkParts(pins[0].version);
-    expect(sdk.rollForward).toBe('latestFeature');
-    expect(pinned[0]).toBe(min[0]);
-    expect(pinned[1]).toBe(min[1]);
-    expect(pinned[2]).toBeGreaterThanOrEqual(min[2]);
+  it('pins the repository to the exact SDK installed by every workflow', () => {
+    const sdk = JSON.parse(read('global.json')).sdk;
+    expect(sdk.rollForward).toBe('disable');
+    expect(new Set(pins.map((p) => p.version))).toEqual(new Set([sdk.version]));
   });
 
   it('fails the restore on high and critical NuGet advisories', () => {
