@@ -82,5 +82,9 @@ jobs:
           cache: npm
       - run: npm install -g npm@^11
       - run: npm ci
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.403
+      - run: npm run build:native --workspace=@attentionform/ooxml-validator
       - name: Verify exclusive capture, export and atomic replacement
         run: npx vitest run tests/unit/original-recovery.test.ts
