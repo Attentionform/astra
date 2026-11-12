@@ -6,8 +6,6 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
-## [Unreleased]
-
 ### Added
 
 - Exact original DOCX capture when new history is initialized, with SHA-256 verification and explicit availability status. The CLI remains opt-in with `history --init`; histories created before this feature are not migrated.

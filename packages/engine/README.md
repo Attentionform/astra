@@ -129,6 +129,12 @@ const validation = await parser.validateOOXML();
 const outputBuffer = parser.rezip();
 ```
 
+### Exact original recovery
+
+When a history was initialized with the original file bytes, `getOriginalInfo(path)` reports whether those bytes are available. `exportOriginal(path, outputPath)` writes a hash-verified copy without overwriting an existing file by default. `restoreOriginal(path)` replaces the working file with the verified original and records the restore in history. The file-level restore API requires the caller to coordinate concurrent access and reload any live document session. Ordinary revert and redo can reserialize the package and do not guarantee identical ZIP bytes.
+
+Originals retained in history can contain information removed later by sanitization. Older histories do not automatically acquire an original.
+
 ### `validateDocxBuffer` & `assertValidDocx`
 Direct validation utility functions:
 
