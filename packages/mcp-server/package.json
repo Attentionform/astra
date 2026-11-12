@@ -1,7 +1,7 @@
 {
   "name": "@attentionform/astra-mcp-server",
   "mcpName": "com.attentionform/astra-mcp-server",
-  "version": "0.5.0",
+  "version": "0.4.2",
   "description": "Official Model Context Protocol (MCP) server for ASTra document IDE",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,8 +42,8 @@
     "adm-zip-gate": "node ../../scripts/check-adm-zip-imports.mjs"
   },
   "dependencies": {
-    "@attentionform/astra-engine": "^0.5.0",
-    "@attentionform/ooxml-validator": "^0.5.0",
+    "@attentionform/astra-engine": "^0.4.2",
+    "@attentionform/ooxml-validator": "^0.4.2",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@xmldom/xmldom": "0.8.15",
     "adm-zip": "0.6.1",
