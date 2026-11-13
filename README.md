@@ -160,7 +160,7 @@ How the tools treat a file that already has validator errors:
 - `normalize_document` repairs known error kinds (element order, decimal sizes, smart tags and a few others). It drops any repair that changes the visible text or adds an error, and reports `remaining` and `rolledBack`. It does not claim the file is valid.
 - `--strip-macros` removes the macro parts and every reference to them, and refuses what it does not know.
 
-All 21 tools and their parameters are described in the [MCP Specification](docs/mcp-specification.md).
+All 21 tools and their parameters are described in the [MCP Specification](docs/mcp-specification.md). To read a long document without paying for all of it, see [Reading a document cheaply](docs/reading-documents.md).
 
 ### Use the command line
 

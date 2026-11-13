@@ -248,7 +248,7 @@ naming the discarded unsaved revision count. Save first when the warning matters
 ### 4.2 Inspection & Query
 
 #### `inspect_document`
-Returns document structure using Token-Optimized Outline Notation (TOON).
+Returns document structure using Token-Optimized Outline Notation (TOON). Which control to use to read less is in [Reading a document cheaply](reading-documents.md).
 
 **Input Parameters:**
 | Parameter | Type | Required | Description |
