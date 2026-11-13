@@ -147,7 +147,7 @@ export const COMPOSE_DOCUMENT_DESCRIPTION =
   'every chunk before it is rewound and the document stays as it was. Citation numbers and the References list restart in each compose call. ' +
   'Optional template (report|memo|blank) is accepted on the first compose only and requires the open document to still hold ' +
   'that template seed, otherwise composition fails before any write ' +
-  '(for a fresh templated document call new_document first, then compose_document with template), and placement is append after existing content except for an unchanged built-in template created in this session. Reopened documents and external templates keep existing content. ' +
+  '(to append to an existing document omit template; for a fresh templated document call new_document first, then compose_document with template), and placement is append after existing content except for an unchanged built-in template created in this session. Reopened documents and external templates keep existing content. ' +
   'Returns {ok:true,opCount,appliedCount,revision,createdNodeIds,results,validation:{valid,errorCount,errors}} where createdNodeIds ' +
   'lists new node ids in document order (use them as anchors without re-inspecting) and validation proves the post-compose ' +
   'package state via a read-only OOXML check (save_document re-gates before writing). ' +
