@@ -372,3 +372,36 @@ describe('astra inspect --outline', () => {
     expect(await run(['inspect', file, '--outline', '--fidelity', 'compact'])).toBe(2);
   });
 });
+
+describe('outline recognises a heading whatever type the parser gave the paragraph', () => {
+  const hd = (inner: string, text: string, extra = ''): string => `<w:p><w:pPr><w:pStyle w:val="Heading2"/>${extra}</w:pPr>${inner}<w:r><w:t>${text}</w:t></w:r></w:p>`;
+  const EQUATION = '<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:oMath><m:r><m:t>x</m:t></m:r></m:oMath></m:oMathPara>';
+  const CHART =
+    '<w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId99"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+  const body =
+    para('Top', 'Heading1') + hd(EQUATION, 'Eq head') + para('under eq', 'Heading3') +
+    hd(CHART, 'Chart head') + para('under chart', 'Heading3') +
+    hd('', 'Numbered head', '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>') + para('under numbered', 'Heading3');
+
+  it('lists the same headings as the structural summary, with the right breadcrumbs and count', async () => {
+    const { parser, ast, toon } = await load(body);
+    const types = new Set(ast.sections[0].nodes.map((n) => n.type));
+    expect(types.has('equation') && types.has('chart'), [...types].join()).toBe(true); // the case under test
+    const rows = toon.toon(ast, { fidelity: 'outline' }).rows;
+    const fromSummary = parser.getStructuralSummary().nodes.filter((n) => n.isHeading);
+    expect(rows.map((r) => [r.id, r.level])).toEqual(fromSummary.map((n) => [n.id, n.headingLevel]));
+    expect(rows.map((r) => r.text)).toEqual(['Top', 'Eq head', 'under eq', 'Chart head', 'under chart', 'Numbered head', 'under numbered']);
+    expect(rows.find((r) => r.text === 'under eq')!.path).toBe('Top > Eq head');
+    expect(rows.find((r) => r.text === 'under chart')!.path).toBe('Top > Chart head');
+    expect(rows.find((r) => r.text === 'under numbered')!.path).toBe('Top > Numbered head');
+  });
+
+  it('inspect_document counts them in outline.headings', async () => {
+    const store = createMcpSessionStore();
+    const handle = await store.openBuffer(docWith(body), 'types.docx');
+    const res = await handleInspectDocument(store, { sessionId: handle.sessionId, fidelity: 'outline' });
+    if (res.ok !== true) throw new Error(JSON.stringify(res));
+    expect(res.outline!.headings).toBe(7);
+    expect(res.totalNodes).toBe(7);
+  });
+});

@@ -45,9 +45,12 @@ export function ownParagraphStyleId(paragraph: Element): string | undefined {
   return undefined;
 }
 
-/** The style and level of a body node that is a heading, or null: a paragraph whose own style is a heading style. */
-export function headingOfNode(node: Pick<Node, 'type' | 'xml'>): { style: string; level: number } | null {
-  if (node.type !== 'paragraph') return null;
+/**
+ * The style and level of a body node that is a heading, or null: a paragraph whose own style is a heading style.
+ * The test is on the XML (a `w:p`), not on the AST node type: the parser types a paragraph that holds a display
+ * equation, a chart or an image as `equation`, `chart` or `image`, and the structural summary still calls it a heading.
+ */
+export function headingOfNode(node: Pick<Node, 'xml'>): { style: string; level: number } | null {
   const style = ownParagraphStyleId(node.xml);
   const level = headingLevelOfStyleId(style);
   return style !== undefined && level !== null ? { style, level } : null;
