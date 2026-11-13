@@ -8,7 +8,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [0.5.1] - 2026-11-14
 
-Four npm packages move to 0.5.1: `@attentionform/astra-engine`, `@attentionform/astra-mcp-server`, `@attentionform/astra` and the `@attentionform/ooxml-validator` wrapper. The six native validator binaries stay at 0.5.0; the validator did not change. This release makes `astra visual` and PDF export work on Windows and macOS, exports files with only element-order errors, refuses a bad colour, highlight or size at the call, adds a headings-only `outline` view of a document, and explains how to read a document cheaply.
+Ten npm packages move to 0.5.1: `@attentionform/astra-engine`, `@attentionform/astra-mcp-server`, `@attentionform/astra`, the `@attentionform/ooxml-validator` wrapper and the six native validator binaries. The validator itself did not change. This release makes `astra visual` and PDF export work on Windows and macOS, exports files with only element-order errors, refuses a bad colour, highlight or size at the call, adds a headings-only `outline` view of a document, and explains how to read a document cheaply.
 
 ### Added
 
