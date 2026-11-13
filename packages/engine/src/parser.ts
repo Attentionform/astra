@@ -1,3 +1,4 @@
+import { headingLevelOfStyle, headingLevelOfStyleId, ownParagraphStyleId } from './heading-style';
 import { firstFreeRevisionId, maxRevisionId, REVISION_TAGS, takeRevisionId } from './ooxml/revision-ids';
 import { countRevisions, resolveRevisions, listRevisions, readRevision, expandMoveSelection, type RevisionResolution, type RevisionSelector } from './ooxml/revisions';
 import { commentThreadMap, commentThreadsCoveredBy, deleteCommentThread, listComments } from './ooxml/comments';
@@ -204,19 +205,7 @@ export function getDuplicateParaIdPolicy(): DuplicateParaIdPolicy {
   return duplicateParaIdPolicy;
 }
 
-/**
- * The outline level of a style id that already counted as a heading (its lowercase id contains `heading`, `title` or
- * `subtitle`). `Heading1` to `Heading9` (spaces ignored) give 1 to 9, `Title` gives 1 and `Subtitle` gives 2. Any other
- * matching style (`TOCHeading`, `Heading1Char`, `BookTitle`) keeps level 1. Which paragraphs are headings is decided by
- * the caller and is not changed here.
- */
-export function headingLevelOfStyle(lowerStyleId: string): number {
-  const id = lowerStyleId.replace(/\s+/g, '');
-  const numbered = /^heading([1-9])$/.exec(id);
-  if (numbered) return Number(numbered[1]);
-  if (id === 'subtitle') return 2;
-  return 1;
-}
+export { headingLevelOfStyle };
 
 export class DocxParser {
   private builtinSeedSnapshot?: Map<string, Buffer>;
@@ -1368,26 +1357,11 @@ export class DocxParser {
       // Check if heading
       let isHeading = false;
       let headingLevel: number | undefined = undefined;
-      // Only a paragraph's own style counts: a table, or a paragraph that holds a textbox, must not take the
-      // style of a paragraph nested inside it.
-      let pStyle: Element | undefined;
-      if (node.tagName === 'w:p') {
-        for (let c = 0; c < node.childNodes.length && !pStyle; c++) {
-          const pPr = node.childNodes[c] as Element;
-          if (pPr.nodeType !== 1 || pPr.tagName !== 'w:pPr') continue;
-          for (let k = 0; k < pPr.childNodes.length; k++) {
-            const el = pPr.childNodes[k] as Element;
-            if (el.nodeType === 1 && el.tagName === 'w:pStyle') { pStyle = el; break; }
-          }
-        }
-      }
-      if (pStyle) {
-        const val = pStyle.getAttribute('w:val') || '';
-        const lowerVal = val.toLowerCase();
-        if (lowerVal.includes('heading') || lowerVal.includes('title') || lowerVal.includes('subtitle')) {
-          isHeading = true;
-          headingLevel = headingLevelOfStyle(lowerVal);
-        }
+      // Only a paragraph's own style counts (see ownParagraphStyleId).
+      const ownLevel = headingLevelOfStyleId(ownParagraphStyleId(node));
+      if (ownLevel !== null) {
+        isHeading = true;
+        headingLevel = ownLevel;
       }
 
       const hasTrackedChanges = nodeHasTrackedChanges(node);

@@ -187,7 +187,7 @@ export function stringifyJsonPayload(payload: unknown, space?: string | number):
   return space === undefined ? JSON.stringify(clean) : JSON.stringify(clean, null, space);
 }
 
-export type Fidelity = 'compact' | 'standard' | 'full';
+export type Fidelity = 'outline' | 'compact' | 'standard' | 'full';
 
 export interface GlobalOpts {
   json: boolean;

@@ -2,24 +2,28 @@ import { XMLSerializer } from '@xmldom/xmldom';
 import { toError } from './errors';
 import { DocumentAST, Section, Node, HeadingNode } from './ast';
 import { hasListNumbering, isOrderedListItem } from './export/markdown';
+import { headingOfNode, ownParagraphStyleId } from './heading-style';
 
-/** Track-B tiered TOON fidelity. compact=current outline, standard=default enriched, full=section-scoped dump. */
-export type ToonFidelity = 'compact' | 'standard' | 'full';
+/**
+ * Track-B tiered TOON fidelity. outline=headings only, compact=every node with the minimal columns,
+ * standard=default enriched, full=section-scoped dump.
+ */
+export type ToonFidelity = 'outline' | 'compact' | 'standard' | 'full';
 
 export const TOON_DEFAULT_FIDELITY: ToonFidelity = 'standard';
 /** Standard-tier token overhead cap vs compact (measured on rendered text). */
 export const TOON_STANDARD_OVERHEAD_CAP = 1.5;
 
 export function isToonFidelity(value: unknown): value is ToonFidelity {
-  return value === 'compact' || value === 'standard' || value === 'full';
+  return value === 'outline' || value === 'compact' || value === 'standard' || value === 'full';
 }
 
 export function assertToonFidelity(value: unknown): asserts value is ToonFidelity {
   if (!isToonFidelity(value)) {
     throw new Error(
-      `Unknown TOON fidelity '${String(value)}'. Supported: compact|standard|full. ` +
+      `Unknown TOON fidelity '${String(value)}'. Supported: outline|compact|standard|full. ` +
         `Remedy: call toon({ fidelity: 'standard' }) for the default enriched outline, ` +
-        `'compact' for the minimal outline, or 'full' with a sectionId for rPr/pPr detail.`
+        `'compact' for the minimal table, 'outline' for headings only, or 'full' with a sectionId for rPr/pPr detail.`
     );
   }
 }
@@ -41,6 +45,8 @@ export interface ToonRow {
   flags: string;
   /** Full-tier only: serialized w:pPr + w:rPr dump. Absent for compact/standard. */
   detail?: string;
+  /** Outline tier only: the heading level (1 to 9). Absent for every other tier. */
+  level?: number;
 }
 
 export interface ToonTable {
@@ -848,6 +854,32 @@ export function resolveSectionScope(sections: readonly Section[], sectionId: str
   return [];
 }
 
+/** Columns of the `outline` tier. */
+const OUTLINE_HEADERS = ['ID', 'L', 'Style', 'Text', 'Section'] as const;
+/** The `outline` tier cuts a heading's text here unless the caller sets `maxTextLength`. */
+export const OUTLINE_DEFAULT_TEXT_LENGTH = 80;
+/**
+ * A heading's text can hold the column separator, a backslash or a line break. In the outline's cells (`Text`,
+ * `Style`, `Section`) a backslash is written `\\`, a pipe `\|`, a line break `\n` (and a return `\r`, a tab `\t`), so a
+ * reader can split a row on ` | ` and decode each cell.
+ */
+export function escapeOutlineCell(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+}
+
+/** One ancestor heading in a `Section` cell: escaped like a cell, and a `>` is written `\>` because ` > ` joins the parts. */
+function escapeOutlinePathPart(value: string): string {
+  return escapeOutlineCell(value).replace(/>/g, '\\>');
+}
+
+/** A breadcrumb part (one ancestor heading) is cut here. */
+const OUTLINE_PATH_PART_LENGTH = 60;
+
 export class ToonGenerator {
   private cache: Map<string, ToonTable> = new Map();
   private checksumCache: Map<string, string> = new Map();
@@ -994,7 +1026,11 @@ export class ToonGenerator {
 
     const maxLen = options?.maxTextLength;
 
-    for (const section of sectionsToProcess) {
+    if (fidelity === 'outline') {
+      rows.push(...this.buildOutlineRows(ast, sectionsToProcess, maxLen ?? OUTLINE_DEFAULT_TEXT_LENGTH));
+    }
+
+    for (const section of fidelity === 'outline' ? [] : sectionsToProcess) {
       const sectionPath = sectionPaths.get(section.id) || 'Root';
       const sectionHeader = section.heading?.text || '';
 
@@ -1045,9 +1081,11 @@ export class ToonGenerator {
       }
     }
 
-    const headers = fidelity === 'full'
-      ? ['ID', 'V', 'Path', 'Header', 'Style', 'Text', 'Flags', 'Detail']
-      : ['ID', 'V', 'Path', 'Header', 'Style', 'Text', 'Flags'];
+    const headers = fidelity === 'outline'
+      ? [...OUTLINE_HEADERS]
+      : fidelity === 'full'
+        ? ['ID', 'V', 'Path', 'Header', 'Style', 'Text', 'Flags', 'Detail']
+        : ['ID', 'V', 'Path', 'Header', 'Style', 'Text', 'Flags'];
     const table: ToonTable = {
       headers,
       rows,
@@ -1142,6 +1180,23 @@ export class ToonGenerator {
         if (fidelity !== 'compact') {
           combined += `${fingerprintFmt(n)};`;
         }
+        if (fidelity === 'outline') {
+          // The outline reads the style from the paragraph's own XML, not from cached metadata.
+          combined += `os${n.type === 'paragraph' ? (ownParagraphStyleId(n.xml) ?? '-') : '-'};`;
+        }
+      }
+    }
+    if (fidelity === 'outline') {
+      // The Section column is built from every heading above a row, in the whole document, so a scoped outline must
+      // see headings outside its scope: their level and style (own XML) and the text that is cut into the breadcrumb.
+      combined += 'oh:';
+      for (const sec of ast.sections) {
+        for (const n of sec.nodes) {
+          const h = headingOfNode(n);
+          if (!h) continue;
+          const t = (n.metadata.text ?? '').trim();
+          combined += `${n.id}:${h.level}:${h.style}:${t.length}:${t.slice(0, OUTLINE_PATH_PART_LENGTH + 4)};`;
+        }
       }
     }
     // Global revision signals: cheap counts + short heads, never full XML.
@@ -1175,6 +1230,43 @@ export class ToonGenerator {
       combined += 'num:?;';
     }
     return combined;
+  }
+
+  /**
+   * The `outline` tier: one row per heading, in document order. A heading is a top-level body paragraph whose own
+   * `w:pStyle` is a heading style (`headingLevelOfStyleId`), the rule the structural summary uses. Section is the
+   * chain of headings above it, nested by level, and is built over the whole document so a `sectionId` scope still
+   * shows the real parents. `scope` limits which headings are listed.
+   */
+  private buildOutlineRows(ast: DocumentAST, scope: readonly Section[], maxLen: number): ToonRow[] {
+    const inScope = new Set<string>();
+    for (const sec of scope) for (const n of sec.nodes) inScope.add(n.id);
+    const cut = (text: string, max: number): string => (max > 0 && text.length > max ? `${text.substring(0, max)}...` : text);
+    const stack: Array<{ level: number; text: string }> = [];
+    const rows: ToonRow[] = [];
+    for (const sec of ast.sections) {
+      for (const node of sec.nodes) {
+        const heading = headingOfNode(node);
+        if (!heading) continue;
+        const { style, level } = heading;
+        while (stack.length > 0 && stack[stack.length - 1].level >= level) stack.pop();
+        const text = node.metadata.text.trim() || this.generatePlaceholderText(node);
+        if (inScope.has(node.id)) {
+          rows.push({
+            id: node.id,
+            version: node.version,
+            path: stack.map((h) => escapeOutlinePathPart(cut(h.text, OUTLINE_PATH_PART_LENGTH))).join(' > '),
+            header: '',
+            style,
+            text: cut(text, maxLen),
+            flags: '',
+            level,
+          });
+        }
+        stack.push({ level, text });
+      }
+    }
+    return rows;
   }
 
   private buildSectionPaths(sections: Section[]): Map<string, string> {
@@ -1351,7 +1443,58 @@ export class ToonGenerator {
     return flags.join(' ');
   }
 
+  /**
+   * One rendered row, wrapped to `rawWidth` when it is a usable width. Text is the cell at `textPos`; only it may
+   * wrap: the prefix (all columns before Text, trailing separator included) and the suffix (the columns after it,
+   * leading separator included) stay whole. The suffix rides on the LAST line so folding continuations back recovers
+   * the default line byte-identically; a row that fits emits exactly the default line.
+   */
+  private renderRowLine(rowParts: string[], textPos: number, sep: string, textVal: string, rawWidth: unknown): string {
+    const width =
+      typeof rawWidth === 'number' && Number.isFinite(rawWidth) && rawWidth >= 1
+        ? Math.floor(rawWidth)
+        : undefined;
+    if (width === undefined) return `${rowParts.join(sep)}\n`;
+    const prefix = `${rowParts.slice(0, textPos).join(sep)}${sep}`;
+    const tail = rowParts.slice(textPos + 1);
+    const suffix = tail.length > 0 ? `${sep}${tail.join(sep)}` : '';
+    const prefixLen = displayLen(prefix);
+    // The last line carries prefix indent + segment + suffix, so it has the tightest budget; wrapping every
+    // segment to it keeps all lines within width. Non-positive budget (tiny width or a prefix that already
+    // overflows) falls back to the default line: other columns never wrap, even at the cost of exceeding width.
+    const budget = width - prefixLen - displayLen(suffix);
+    if (budget <= 0) return `${rowParts.join(sep)}\n`;
+    const segments = wrapTextCell(textVal, budget);
+    if (segments.length <= 1) return `${rowParts.join(sep)}\n`;
+    const indent = ' '.repeat(prefixLen);
+    let out = `${prefix}${segments[0]}\n`;
+    for (let k = 1; k < segments.length - 1; k++) out += `${indent}${segments[k]}\n`;
+    out += `${indent}${segments[segments.length - 1]}${suffix}\n`;
+    return out;
+  }
+
+  private renderOutlineText(table: ToonTable, options?: ToonRenderOptions): string {
+    const compact = options?.compact ?? false;
+    const sep = compact ? '|' : ' | ';
+    let output = `> fidelity: ${table.fidelity || 'lossy'} tier: outline\n`;
+    if (options?.includeHeaderRow !== false) {
+      output += `${OUTLINE_HEADERS.join(sep)}\n`;
+      if (!compact) output += `${OUTLINE_HEADERS.map(() => '---').join(' | ')}\n`;
+    }
+    for (const row of table.rows) {
+      let text = row.text;
+      if (options?.maxTextLength && options.maxTextLength > 0 && text.length > options.maxTextLength) {
+        text = `${text.substring(0, options.maxTextLength)}...`;
+      }
+      // row.path is already escaped part by part (see escapeOutlinePathPart); the other cells are escaped here.
+      const cells = [row.id, String(row.level ?? ''), escapeOutlineCell(row.style), escapeOutlineCell(text), row.path];
+      output += this.renderRowLine(cells, 3, sep, cells[3], options?.width);
+    }
+    return output;
+  }
+
   public renderToonText(table: ToonTable, options?: ToonRenderOptions): string {
+    if (table.tier === 'outline') return this.renderOutlineText(table, options);
     const omits = new Set<string>(options?.omitColumns ?? []);
     const compact = options?.compact ?? false;
     const tier: ToonFidelity = table.tier ?? 'compact';
@@ -1417,50 +1560,9 @@ export class ToonGenerator {
         }
       }
 
-      const sep = compact ? '|' : ' | ';
-      const rawWidth = options?.width;
-      const width =
-        typeof rawWidth === 'number' && Number.isFinite(rawWidth) && rawWidth >= 1
-          ? Math.floor(rawWidth)
-          : undefined;
-      if (width === undefined) {
-        output += `${rowParts.join(sep)}\n`;
-        continue;
-      }
-      // Text is the cell after id, version, and whichever of
-      // path/header/style are present. Only it may wrap: the prefix (all
-      // columns before Text, trailing separator included) and the suffix
-      // (flags/detail, leading separator included) stay whole. The suffix
-      // rides on the LAST line so folding continuations back recovers the
-      // default line byte-identically; a row that fits emits exactly the
-      // default line.
       const textPos =
         2 + (omits.has('path') ? 0 : 1) + (omits.has('header') ? 0 : 1) + (omits.has('style') ? 0 : 1);
-      const prefix = `${rowParts.slice(0, textPos).join(sep)}${sep}`;
-      const tail = rowParts.slice(textPos + 1);
-      const suffix = tail.length > 0 ? `${sep}${tail.join(sep)}` : '';
-      const prefixLen = displayLen(prefix);
-      // The last line carries prefix indent + segment + suffix, so it has
-      // the tightest budget; wrapping every segment to it keeps all lines
-      // within width. Non-positive budget (tiny width or a prefix that
-      // already overflows) falls back to the default line — other columns
-      // never wrap, even at the cost of exceeding width.
-      const budget = width - prefixLen - displayLen(suffix);
-      if (budget <= 0) {
-        output += `${rowParts.join(sep)}\n`;
-        continue;
-      }
-      const segments = wrapTextCell(textVal, budget);
-      if (segments.length <= 1) {
-        output += `${rowParts.join(sep)}\n`;
-        continue;
-      }
-      const indent = ' '.repeat(prefixLen);
-      output += `${prefix}${segments[0]}\n`;
-      for (let k = 1; k < segments.length - 1; k++) {
-        output += `${indent}${segments[k]}\n`;
-      }
-      output += `${indent}${segments[segments.length - 1]}${suffix}\n`;
+      output += this.renderRowLine(rowParts, textPos, compact ? '|' : ' | ', textVal, options?.width);
     }
 
     return output;
