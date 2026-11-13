@@ -299,7 +299,9 @@ function assertTemplateSeed(parser: DocxParser, template: string): void {
 
   if (!matched) {
     throw new Error(
-      `E_VALIDATION: line 1: open document does not hold the ${template} seed ("${marker}"). Remedy: open a fresh ${template} document first, then compose into it.`
+      `E_VALIDATION: line 1: open document does not hold the ${template} seed ("${marker}"). ` +
+        `Remedy: to add to this document, call compose_document again without template; ` +
+        `to start from the ${template} template, call new_document with template "${template}" first and compose into that.`
     );
   }
 }

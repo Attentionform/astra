@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+### Changed
+
+- `compose_document` with `template` into a document that is not that template's seed now says both ways out: call it again without `template` to append, or call `new_document` with the template first. The tool description says the same.
+
 ## [0.5.0] - 2026-11-13
 
 All ten npm packages move to 0.5.0. This release adds recovery of the exact original file: ASTra keeps the bytes of a document when its history is first created, and you can export them or restore them in place as one recorded step. History now also stops, with nothing written, when a package part cannot be collected. The MCP server serves 21 tools (two new: `export_original_document` and `restore_original_document`). Histories written by 0.5.0 are not meant to be shared with 0.4.x (see Known limits).

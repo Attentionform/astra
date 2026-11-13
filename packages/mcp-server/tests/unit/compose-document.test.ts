@@ -352,11 +352,36 @@ describe('compose_document handler', () => {
     if (res.ok) throw new Error('mismatched template unexpectedly composed');
     expect(res.code).toBe('E_VALIDATION');
     expect(res.message).toContain('does not hold the report seed');
+    expect(res.message).toContain('without template');
+    expect(res.message).toContain('new_document with template "report"');
     const after = await LEAN6_HANDLERS.inspect_document(store, { sessionId });
     expect(after.ok).toBe(true);
     if (!after.ok || !before.ok) throw new Error('inspect failed');
     expect(after.toonText).toBe(before.toonText);
     expect(after.revision).toBe(before.revision);
+  });
+
+  it('the remedy routes work: omit template to append, or start from a fresh template document', async () => {
+    // Route 1: the same call without template appends to the existing document.
+    const { store, sessionId } = await openBlankSession();
+    const refused = await handleComposeDocument(store, { sessionId, markdown: 'Body text here.\n', template: 'report' });
+    expect(refused.ok).toBe(false);
+    const appended = await handleComposeDocument(store, { sessionId, markdown: 'Body text here.\n' });
+    expect(appended.ok).toBe(true);
+    expect(documentXmlOf(store, sessionId)).toContain('Body text here.');
+    // Route 2: a fresh document made with the template accepts compose with that template.
+    const fresh = await openReportSession();
+    const started = await handleComposeDocument(fresh.store, { sessionId: fresh.sessionId, markdown: '# Plan\n\nBody.\n', template: 'report' });
+    expect(started.ok).toBe(true);
+  });
+
+  it('names the requested template in the remedy (memo into a report seed)', async () => {
+    const { store, sessionId } = await openReportSession();
+    const res = await handleComposeDocument(store, { sessionId, markdown: 'Body text here.\n', template: 'memo' });
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error('mismatched template unexpectedly composed');
+    expect(res.message).toContain('does not hold the memo seed');
+    expect(res.message).toContain('new_document with template "memo"');
   });
 
   it('accepts a matching template and replaces the blank seed', async () => {
