@@ -57,7 +57,7 @@ astra --version
 Usage: astra [--json] [--verbose] [--version] [--help] <command> [args]
 
 Commands (exit 0 ok · 1 operational failure · 2 usage):
-  inspect  <docx> [--fidelity compact|standard|full] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]
+  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]
   validate <docx> [--max-errors <n>] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]
   sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--keep-revisions] [--keep-comments] [--force]
   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
@@ -158,7 +158,8 @@ astra inspect report.docx --visual --format png
 **Options:**
 | Flag | Type | Description |
 |---|---|---|
-| `--fidelity` | `compact\|standard\|full` | Detail tier (default: `standard`). `full` requires `--section`. |
+| `--fidelity` | `outline\|compact\|standard\|full` | Detail tier (default: `standard`). `outline` lists headings only; `full` requires `--section`. |
+| `--outline` | | Same as `--fidelity outline`: one row per heading with its level and the headings above it. A heading is a body paragraph whose own style id contains `heading`, `title` or `subtitle`; `Heading4` is level 4, `Subtitle` 2, `TOCHeading` 1; a custom style such as `Kapitel` is not listed. |
 | `--section <id>` | `string` | Restrict outline to a specific section ID. |
 | `--max-text <n>` | `number` | Truncate node text display at `n` characters (1–10,000). |
 | `--width <n>` | `number` | Wrap text column to `n` columns with hanging indent. |

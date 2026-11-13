@@ -1,6 +1,10 @@
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 1078-1118 + 1129-1474).
 // Zero logic edits.
 import {
+  computeDocStats,
+  countHeadings,
+  resolveSectionScope,
+  type DocumentAST,
   DocxParser,
   ensureAstraGitRepo,
   getHistory,
@@ -153,6 +157,16 @@ export async function handleOpenDocument(
  */
 export const INSPECT_FULL_TOON_TOKEN_THRESHOLD = 2000;
 
+/** What the `outline` tier counts, over the whole document: rows of that tier are headings only. */
+export interface OutlineCounts {
+  /** Headings in the document (all of them, whatever `sectionId`, `offset` or `limit` selected). */
+  headings: number;
+  nodes: number;
+  tables: number;
+  images: number;
+  words: number;
+}
+
 export interface InspectWindowEnvelope {
   totalNodes: number;
   returnedNodes: number;
@@ -174,6 +188,13 @@ export function readPendingNormalizations(handle: { parser?: { getPendingNormali
   } catch {
     return [];
   }
+}
+
+function outlineCountsOf(ast: DocumentAST): OutlineCounts {
+  const stats = computeDocStats(ast);
+  let nodes = 0;
+  for (const sec of ast.sections) nodes += sec.nodes.length;
+  return { headings: countHeadings(ast), nodes, tables: stats.tables + stats.callouts, images: stats.images, words: stats.words };
 }
 
 export async function handleInspectDocument(
@@ -203,6 +224,12 @@ export async function handleInspectDocument(
       truncated: boolean;
       /** Present when windowed: teaches search -> aroundNode zoom -> offset paging. */
       remedy?: string;
+      /** Outline tier only: whole-document counts, because rowCount/totalNodes count heading rows there. */
+      outline?: OutlineCounts;
+      /** Outline tier with aroundNode: the heading the node resolved to (null before the first heading). */
+      aroundResolvedTo?: string | null;
+      /** Outline tier: why a window is empty or not centred where aroundNode pointed. */
+      note?: string;
       /** Compact summary of the session style guide (absent when none attached). */
       styleGuide?: StyleGuideSummary;
       comments?: unknown;
@@ -330,6 +357,7 @@ export async function handleInspectDocument(
           pendingNormalizations: readPendingNormalizations(handle),
           ...(handle.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(handle.styleGuide) } : {}),
           toonText: fullText,
+          ...(fidelity === 'outline' ? { outline: outlineCountsOf(handle.ast) } : {}),
           rowCount: totalNodes,
           totalNodes,
           returnedNodes: totalNodes,
@@ -345,11 +373,44 @@ export async function handleInspectDocument(
       let start: number;
       let end: number;
       let effectiveLimit = limit;
+      let aroundResolvedTo: string | null | undefined;
+      let note: string | undefined;
       if (aroundNode !== undefined) {
-        const idx = table.rows.findIndex((r) => r.id === aroundNode);
+        let idx = table.rows.findIndex((r) => r.id === aroundNode);
+        if (idx < 0 && fidelity === 'outline') {
+          // Outline rows are headings only: a body node resolves to the heading above it, inside the scope.
+          const scoped = sectionId ? resolveSectionScope(handle.ast.sections, sectionId) : handle.ast.sections;
+          const order = scoped.flatMap((sec) => sec.nodes.map((n) => n.id));
+          const at = order.indexOf(aroundNode);
+          if (at < 0) {
+            const anywhere = handle.ast.sections.some((sec) => sec.nodes.some((n) => n.id === aroundNode));
+            if (anywhere) {
+              throw Object.assign(
+                new Error(`inspect_document: aroundNode "${aroundNode}" is not in section "${sectionId}".`),
+                { code: 'E_VALIDATION', remedy: 'Drop sectionId, or pass a node id that belongs to that section.' }
+              );
+            }
+          } else {
+            const headingIds = new Set(table.rows.map((r) => r.id));
+            let above = -1;
+            for (let k = at; k >= 0 && above < 0; k--) if (headingIds.has(order[k])) above = k;
+            if (above >= 0) {
+              idx = table.rows.findIndex((r) => r.id === order[above]);
+              aroundResolvedTo = order[above];
+              note = `Node ${aroundNode} is not a heading; showing the heading above it (${order[above]}).`;
+            } else {
+              aroundResolvedTo = null;
+              note =
+                totalNodes === 0
+                  ? `No headings${sectionId ? ' in this scope' : ' in the document'}; the outline is empty.`
+                  : `Node ${aroundNode} has no heading above it${sectionId ? ' in this scope' : ''}; showing the first headings.`;
+              idx = 0;
+            }
+          }
+        }
         if (idx < 0) {
           throw Object.assign(
-            new Error(`inspect_document: aroundNode "${aroundNode}" not found (${totalNodes} nodes in scope).`),
+            new Error(`inspect_document: aroundNode "${aroundNode}" not found (${totalNodes} ${fidelity === 'outline' ? 'headings' : 'nodes'} in scope).`),
             {
               code: 'E_VALIDATION',
               remedy:
@@ -359,6 +420,10 @@ export async function handleInspectDocument(
         }
         start = Math.max(0, idx - window);
         end = Math.min(totalNodes, idx + window + 1);
+        if (aroundResolvedTo === null) {
+          start = 0;
+          end = Math.min(totalNodes, window * 2 + 1);
+        }
         effectiveLimit = end - start;
       } else {
         if (offset >= totalNodes && totalNodes > 0) {
@@ -443,6 +508,9 @@ export async function handleInspectDocument(
         nextOffset: number | null;
         truncated: boolean;
         remedy?: string;
+        outline?: OutlineCounts;
+        aroundResolvedTo?: string | null;
+        note?: string;
         styleGuide?: StyleGuideSummary;
         comments?: unknown;
         revisions?: unknown;
@@ -458,6 +526,7 @@ export async function handleInspectDocument(
         pendingNormalizations: readPendingNormalizations(handle),
         ...(handle.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(handle.styleGuide) } : {}),
         toonText,
+        ...(fidelity === 'outline' ? { outline: outlineCountsOf(handle.ast) } : {}),
         rowCount: returnedNodes,
         totalNodes,
         returnedNodes,
@@ -467,6 +536,8 @@ export async function handleInspectDocument(
         nextOffset: hasMore ? start + returnedNodes : null,
         truncated,
       };
+      if (aroundResolvedTo !== undefined) out.aroundResolvedTo = aroundResolvedTo;
+      if (note !== undefined) out.note = note;
       if (hasMore || truncated) {
         out.remedy =
           `Large document: showing ${returnedNodes}/${totalNodes} TOON nodes` +

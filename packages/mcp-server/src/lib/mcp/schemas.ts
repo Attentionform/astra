@@ -37,7 +37,7 @@ export const OpenDocumentSchema = z
 export const InspectDocumentSchema = z
   .object({
     sessionId: z.string().min(1).max(128),
-    fidelity: z.enum(['compact', 'standard', 'full']).optional(),
+    fidelity: z.enum(['outline', 'compact', 'standard', 'full']).optional(),
     sectionId: z.string().min(1).max(256).optional(),
     maxTextLength: z.number().int().min(1).max(10000).optional(),
     // Phase C-2 smart windowing: offset/limit page the node rows; aroundNode +

@@ -254,7 +254,7 @@ Returns document structure using Token-Optimized Outline Notation (TOON).
 | Parameter | Type | Required | Description |
 |---|---|:---:|---|
 | `sessionId` | `string` | Yes | Active session identifier. |
-| `fidelity` | `string` | No | `"compact"`, `"standard"` (default), or `"full"`. |
+| `fidelity` | `string` | No | `"outline"` (headings only), `"compact"`, `"standard"` (default), or `"full"`. With `"outline"`, `rowCount` and `totalNodes` count heading rows, and the response adds `outline` (`headings`, `nodes`, `tables`, `images`, `words` for the whole document). `aroundNode` on a node that is not a heading shows the heading above it and reports it as `aroundResolvedTo` (`null` before the first heading, with a `note`). |
 | `sectionId` | `string` | No | Filter output to a specific section ID. |
 | `maxTextLength` | `number` | No | Truncate run text at character limit. |
 | `offset` | `number` | No | Pagination start row for document nodes only (default: 0). An offset past the last node is rejected with `E_VALIDATION`, with or without `include`. |

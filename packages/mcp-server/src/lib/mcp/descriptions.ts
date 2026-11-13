@@ -51,7 +51,8 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
     { workflow: true }
   ),
   inspect_document: withSharedDocs(
-    'Inspect a session: standard TOON outline (fidelity compact|standard|full, default standard) plus style palette passthrough ' +
+    'Inspect a session: standard TOON outline (fidelity outline|compact|standard|full, default standard) plus style palette passthrough ' +
+      'fidelity outline lists headings only (ID, level L, Style, Text, Section = the headings above); there rowCount/totalNodes count heading rows, `outline` {headings,nodes,tables,images,words} counts the whole document, and aroundNode on a body node shows the heading above it (`aroundResolvedTo`). ' +
       '{availableStyles,brandColors,primaryFont} parsed from word/styles.xml, plus document core properties ' +
       '`metadata` {title,creator,subject,description,keywords,category,lastModifiedBy,revision,created,modified} ' +
       'read from docProps/core.xml (absent when the docx has no core part). ' +

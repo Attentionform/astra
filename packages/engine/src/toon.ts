@@ -2,24 +2,28 @@ import { XMLSerializer } from '@xmldom/xmldom';
 import { toError } from './errors';
 import { DocumentAST, Section, Node, HeadingNode } from './ast';
 import { hasListNumbering, isOrderedListItem } from './export/markdown';
+import { headingOfNode, ownParagraphStyleId } from './heading-style';
 
-/** Track-B tiered TOON fidelity. compact=current outline, standard=default enriched, full=section-scoped dump. */
-export type ToonFidelity = 'compact' | 'standard' | 'full';
+/**
+ * Track-B tiered TOON fidelity. outline=headings only, compact=every node with the minimal columns,
+ * standard=default enriched, full=section-scoped dump.
+ */
+export type ToonFidelity = 'outline' | 'compact' | 'standard' | 'full';
 
 export const TOON_DEFAULT_FIDELITY: ToonFidelity = 'standard';
 /** Standard-tier token overhead cap vs compact (measured on rendered text). */
 export const TOON_STANDARD_OVERHEAD_CAP = 1.5;
 
 export function isToonFidelity(value: unknown): value is ToonFidelity {
-  return value === 'compact' || value === 'standard' || value === 'full';
+  return value === 'outline' || value === 'compact' || value === 'standard' || value === 'full';
 }
 
 export function assertToonFidelity(value: unknown): asserts value is ToonFidelity {
   if (!isToonFidelity(value)) {
     throw new Error(
-      `Unknown TOON fidelity '${String(value)}'. Supported: compact|standard|full. ` +
+      `Unknown TOON fidelity '${String(value)}'. Supported: outline|compact|standard|full. ` +
         `Remedy: call toon({ fidelity: 'standard' }) for the default enriched outline, ` +
-        `'compact' for the minimal outline, or 'full' with a sectionId for rPr/pPr detail.`
+        `'compact' for the minimal table, 'outline' for headings only, or 'full' with a sectionId for rPr/pPr detail.`
     );
   }
 }
@@ -41,6 +45,8 @@ export interface ToonRow {
   flags: string;
   /** Full-tier only: serialized w:pPr + w:rPr dump. Absent for compact/standard. */
   detail?: string;
+  /** Outline tier only: the heading level (1 to 9). Absent for every other tier. */
+  level?: number;
 }
 
 export interface ToonTable {
@@ -848,6 +854,13 @@ export function resolveSectionScope(sections: readonly Section[], sectionId: str
   return [];
 }
 
+/** Columns of the `outline` tier. */
+const OUTLINE_HEADERS = ['ID', 'L', 'Style', 'Text', 'Section'] as const;
+/** The `outline` tier cuts a heading's text here unless the caller sets `maxTextLength`. */
+export const OUTLINE_DEFAULT_TEXT_LENGTH = 80;
+/** A breadcrumb part (one ancestor heading) is cut here. */
+const OUTLINE_PATH_PART_LENGTH = 60;
+
 export class ToonGenerator {
   private cache: Map<string, ToonTable> = new Map();
   private checksumCache: Map<string, string> = new Map();
@@ -994,7 +1007,11 @@ export class ToonGenerator {
 
     const maxLen = options?.maxTextLength;
 
-    for (const section of sectionsToProcess) {
+    if (fidelity === 'outline') {
+      rows.push(...this.buildOutlineRows(ast, sectionsToProcess, maxLen ?? OUTLINE_DEFAULT_TEXT_LENGTH));
+    }
+
+    for (const section of fidelity === 'outline' ? [] : sectionsToProcess) {
       const sectionPath = sectionPaths.get(section.id) || 'Root';
       const sectionHeader = section.heading?.text || '';
 
@@ -1045,9 +1062,11 @@ export class ToonGenerator {
       }
     }
 
-    const headers = fidelity === 'full'
-      ? ['ID', 'V', 'Path', 'Header', 'Style', 'Text', 'Flags', 'Detail']
-      : ['ID', 'V', 'Path', 'Header', 'Style', 'Text', 'Flags'];
+    const headers = fidelity === 'outline'
+      ? [...OUTLINE_HEADERS]
+      : fidelity === 'full'
+        ? ['ID', 'V', 'Path', 'Header', 'Style', 'Text', 'Flags', 'Detail']
+        : ['ID', 'V', 'Path', 'Header', 'Style', 'Text', 'Flags'];
     const table: ToonTable = {
       headers,
       rows,
@@ -1142,6 +1161,10 @@ export class ToonGenerator {
         if (fidelity !== 'compact') {
           combined += `${fingerprintFmt(n)};`;
         }
+        if (fidelity === 'outline') {
+          // The outline reads the style from the paragraph's own XML, not from cached metadata.
+          combined += `os${n.type === 'paragraph' ? (ownParagraphStyleId(n.xml) ?? '-') : '-'};`;
+        }
       }
     }
     // Global revision signals: cheap counts + short heads, never full XML.
@@ -1175,6 +1198,43 @@ export class ToonGenerator {
       combined += 'num:?;';
     }
     return combined;
+  }
+
+  /**
+   * The `outline` tier: one row per heading, in document order. A heading is a top-level body paragraph whose own
+   * `w:pStyle` is a heading style (`headingLevelOfStyleId`), the rule the structural summary uses. Section is the
+   * chain of headings above it, nested by level, and is built over the whole document so a `sectionId` scope still
+   * shows the real parents. `scope` limits which headings are listed.
+   */
+  private buildOutlineRows(ast: DocumentAST, scope: readonly Section[], maxLen: number): ToonRow[] {
+    const inScope = new Set<string>();
+    for (const sec of scope) for (const n of sec.nodes) inScope.add(n.id);
+    const cut = (text: string, max: number): string => (max > 0 && text.length > max ? `${text.substring(0, max)}...` : text);
+    const stack: Array<{ level: number; text: string }> = [];
+    const rows: ToonRow[] = [];
+    for (const sec of ast.sections) {
+      for (const node of sec.nodes) {
+        const heading = headingOfNode(node);
+        if (!heading) continue;
+        const { style, level } = heading;
+        while (stack.length > 0 && stack[stack.length - 1].level >= level) stack.pop();
+        const text = node.metadata.text.trim() || this.generatePlaceholderText(node);
+        if (inScope.has(node.id)) {
+          rows.push({
+            id: node.id,
+            version: node.version,
+            path: stack.map((h) => cut(h.text, OUTLINE_PATH_PART_LENGTH)).join(' > '),
+            header: '',
+            style,
+            text: cut(text, maxLen),
+            flags: '',
+            level,
+          });
+        }
+        stack.push({ level, text });
+      }
+    }
+    return rows;
   }
 
   private buildSectionPaths(sections: Section[]): Map<string, string> {
@@ -1351,7 +1411,26 @@ export class ToonGenerator {
     return flags.join(' ');
   }
 
+  private renderOutlineText(table: ToonTable, options?: ToonRenderOptions): string {
+    const compact = options?.compact ?? false;
+    const sep = compact ? '|' : ' | ';
+    let output = `> fidelity: ${table.fidelity || 'lossy'} tier: outline\n`;
+    if (options?.includeHeaderRow !== false) {
+      output += `${OUTLINE_HEADERS.join(sep)}\n`;
+      if (!compact) output += `${OUTLINE_HEADERS.map(() => '---').join(' | ')}\n`;
+    }
+    for (const row of table.rows) {
+      let text = row.text;
+      if (options?.maxTextLength && options.maxTextLength > 0 && text.length > options.maxTextLength) {
+        text = `${text.substring(0, options.maxTextLength)}...`;
+      }
+      output += `${[row.id, String(row.level ?? ''), row.style, text, row.path].join(sep)}\n`;
+    }
+    return output;
+  }
+
   public renderToonText(table: ToonTable, options?: ToonRenderOptions): string {
+    if (table.tier === 'outline') return this.renderOutlineText(table, options);
     const omits = new Set<string>(options?.omitColumns ?? []);
     const compact = options?.compact ?? false;
     const tier: ToonFidelity = table.tier ?? 'compact';

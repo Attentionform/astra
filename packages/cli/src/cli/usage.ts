@@ -6,7 +6,7 @@ export function printUsage(out: GlobalOpts): number {
     `Usage: ${CLI_NAME} [--json] [--verbose] [--version] [--help] <command> [args]`,
     '',
     'Commands (exit 0 ok · 1 operational failure · 2 usage):',
-    '  inspect  <docx> [--fidelity compact|standard|full] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]',
+    '  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]',
     '  validate <docx> [--max-errors <n>] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]',
     '  sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--keep-revisions] [--keep-comments] [--force]',
     '  batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]',
@@ -57,7 +57,7 @@ export function usage(out: GlobalOpts, message?: string): number {
       `Usage: ${CLI_NAME} [--json] [--verbose] [--version] [--help] <command> [args]`,
       '',
       'Commands (exit 0 ok · 1 operational failure · 2 usage):',
-      '  inspect  <docx> [--fidelity compact|standard|full] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]',
+      '  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]',
       '  validate <docx> [--max-errors <n>] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]',
       '  sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--keep-revisions] [--keep-comments] [--force]',
       '  batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]',
@@ -102,10 +102,11 @@ export function usage(out: GlobalOpts, message?: string): number {
 export function commandHelpText(cmd: string): string | undefined {
   const helps: Record<string, string> = {
     inspect: [
-      `Usage: ${CLI_NAME} inspect <docx> [--fidelity compact|standard|full] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros]`,
+      `Usage: ${CLI_NAME} inspect <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros]`,
       '',
       'Print the TOON row table for a .docx plus a footer (rows/sections/nodes, words, estimated pages).',
-      '  --fidelity compact|standard|full   detail tier (default standard)',
+      '  --fidelity outline|compact|standard|full   detail tier (default standard)',
+      '  --outline                          same as --fidelity outline: one row per heading (ID, level L, style, text, parent headings); a heading is a body paragraph whose own style id contains heading, title or subtitle (Heading4 is level 4, Subtitle 2, TOCHeading 1; a custom style such as Kapitel is not listed)',
       '  --section <id>                     restrict to one section or one node: a section id (listed in the sections=N [..] footer) or a node id; a node id prefix needs 4 characters or more; an id that matches nothing is an error that lists the section ids',
       '  --max-text <n>                     integer 1..10000, caps per-node text',
       '  --width <n>                        integer 1..10000, word-wrap the Text column with hanging indent (other columns never wrap; human stdout only, --json toon stays unwrapped)',

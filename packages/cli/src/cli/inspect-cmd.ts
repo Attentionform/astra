@@ -7,7 +7,7 @@ import { printCliVisualTelemetry, renderCliVisualPage } from './visual-cmd';
 
 export function parseFidelity(raw: string | undefined): Fidelity | undefined {
   if (raw === undefined) return undefined;
-  if (raw === 'compact' || raw === 'standard' || raw === 'full') return raw;
+  if (raw === 'outline' || raw === 'compact' || raw === 'standard' || raw === 'full') return raw;
   return undefined;
 }
 
@@ -15,6 +15,7 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
   if (hasHelpFlag(args)) return printCommandHelp(out, 'inspect');
   let file: string | undefined;
   let fidelityRaw: string | undefined;
+  let outlineFlag = false;
   let sectionId: string | undefined;
   let maxTextRaw: string | undefined;
   let widthRaw: string | undefined;
@@ -29,6 +30,7 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--fidelity') fidelityRaw = args[++i];
+    else if (a === '--outline') outlineFlag = true;
     else if (a === '--section') {
       const value = args[++i];
       if (value === undefined || value.length === 0) return usage(out, 'inspect --section requires a value (a section id or a node id)');
@@ -70,9 +72,12 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
   } catch (err: unknown) {
     return usage(out, err instanceof Error ? err.message : String(err));
   }
-  const fidelity = parseFidelity(fidelityRaw);
+  if (outlineFlag && fidelityRaw !== undefined && fidelityRaw !== 'outline') {
+    return usage(out, 'inspect --outline means --fidelity outline; do not combine it with another --fidelity value');
+  }
+  const fidelity = outlineFlag ? 'outline' : parseFidelity(fidelityRaw);
   if (fidelityRaw !== undefined && fidelity === undefined) {
-    return usage(out, 'inspect --fidelity must be compact|standard|full');
+    return usage(out, 'inspect --fidelity must be outline|compact|standard|full');
   }
   if (formatRaw !== undefined && formatRaw !== 'png' && formatRaw !== 'jpeg') {
     return usage(out, 'inspect --format must be png|jpeg');
@@ -146,6 +151,11 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
       sectionIds.slice(0, SECTION_IDS_SHOWN).join(', ') +
       (sectionIds.length > SECTION_IDS_SHOWN ? `, +${sectionIds.length - SECTION_IDS_SHOWN} more` : '');
     print(out, `rows=${table.rows.length} sections=${ast.sections.length} [${sectionIdsShown}] nodes=${summary.nodes.length}`);
+    // Outline tier: rows are headings, so say what they are a share of (counted from the live document).
+    const outlineCounts = table.tier === 'outline' ? { headings: table.rows.length, nodes: summary.nodes.length, tables: stats.tables + stats.callouts, images: stats.images } : undefined;
+    if (outlineCounts) {
+      print(out, `outline: rows are headings (${outlineCounts.headings} listed of ${outlineCounts.nodes} nodes; tables=${outlineCounts.tables} images=${outlineCounts.images}); sections are the file's page sections`);
+    }
     print(out, `words=${stats.words} paragraphs=${stats.paragraphs} pages~${stats.pages} (rough estimate${describePageEstimate(stats) ? `, ${describePageEstimate(stats)}` : ''})`);
     // Would-be normalizations: the allowlist healing a save would apply
     // (dry-run preview over a DOM clone, nothing written). Clean documents
@@ -220,6 +230,7 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
       words: stats.words,
       paragraphs: stats.paragraphs,
       pages: stats.pages,
+      ...(outlineCounts ? { outline: outlineCounts } : {}),
       toon: pureCanonical,
       pendingNormalizations,
       ...(withVisual && visual !== undefined ? { visual } : {}),

@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+### Added
+
+- `astra inspect --outline` (same as `--fidelity outline`) and `inspect_document` with `fidelity: "outline"` list the headings only: `ID | L | Style | Text | Section`, where L is the heading level and Section is the chain of headings above it, nested by level. A heading is a body paragraph whose own style id contains `heading`, `title` or `subtitle` (the rule `isHeading` already used): `Heading4` is level 4, `Subtitle` 2, `TOCHeading` 1; a custom style such as `Kapitel`, a heading inside a table cell and a textbox host paragraph are not listed. Text is cut at 80 characters unless `--max-text` / `maxTextLength` is set. `rowCount` and `totalNodes` count heading rows for this tier, so the response adds `outline` (`headings`, `nodes`, `tables`, `images`, `words` for the whole document); the CLI footer and `--json` carry the same counts. `aroundNode` on a node that is not a heading shows the heading above it and reports `aroundResolvedTo` (`null`, with a `note`, before the first heading or when the document has none).
+
 ### Changed
 
 - `compose_document` with `template` into a document that is not that template's seed now says both ways out: call it again without `template` to append, or call `new_document` with the template first. The tool description says the same.
