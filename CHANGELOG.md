@@ -9,6 +9,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 ### Changed
 
 - `compose_document` with `template` into a document that is not that template's seed now says both ways out: call it again without `template` to append, or call `new_document` with the template first. The tool description says the same.
+- An operation whose action is a verb plus an action name (`setTable`, `addImage`, `deleteTable`) now gets a suggestion. The error names the closest action, or both candidates when the verb is also an action (`deleteTable`: `table` or `delete`), then lists that action's keys and its operations.
 
 ## [0.5.0] - 2026-11-13
 

@@ -40,6 +40,14 @@ describe('batch with an operation the schema refuses', () => {
     expect(r.stderr).toContain('Run `astra batch --schema` for an example of each action');
   });
 
+  it('"setTable" suggests "table" and lists its keys and operations', () => {
+    const r = batch({ action: 'setTable', target });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('"setTable" is not an action. Did you mean "table"?');
+    expect(r.stderr).toContain('Keys of "table":');
+    expect(r.stderr).toContain('Operations of "table":');
+  });
+
   it('"spaceAfter" on style suggests "spacingAfter" and lists the keys of style', () => {
     const r = batch({ action: 'style', target, spaceAfter: 120 });
     expect(r.status).toBe(1);

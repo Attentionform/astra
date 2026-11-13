@@ -62,6 +62,47 @@ describe('unknown action', () => {
   });
 });
 
+describe('unknown action: a verb in front of an action name', () => {
+  it('"setTable" suggests "table" and shows its keys and operations, without picking an operation', () => {
+    const remedy = remedyFor({ action: 'setTable', target: 't_001' })!;
+    expect(remedy).toContain('operation 0: "setTable" is not an action.');
+    expect(remedy).toContain('Did you mean "table"?');
+    expect(remedy).toMatch(/Keys of "table": target,/);
+    expect(remedy).toMatch(/Operations of "table": .*setCellShading/);
+    expect(remedy).not.toContain('Did you mean "setCellShading"');
+    expect(remedy).toContain('Actions: insert');
+  });
+
+  it('"addImage" suggests "image" and "updateTable" suggests "table"', () => {
+    // "add" and "update" are also words for insert and replace, so those are named as second candidates.
+    expect(remedyFor({ action: 'addImage' })!).toContain('Did you mean "image" or "insert"?');
+    expect(remedyFor({ action: 'updateTable' })!).toContain('Did you mean "table" or "replace"?');
+    expect(remedyFor({ action: 'createImage' })!).toContain('Did you mean "image"?');
+  });
+
+  it('an ambiguous verb shows both candidates and names no sub-operation', () => {
+    const del = remedyFor({ action: 'deleteTable' })!;
+    expect(del).toContain('Did you mean "table" or "delete"?');
+    expect(del).not.toMatch(/Did you mean "\w*(Row|Cell|Column)/);
+    expect(del).not.toContain('Keys of "delete"');
+    const ins = remedyFor({ action: 'insertTable' })!;
+    expect(ins).toContain('Did you mean "table" or "insert"?');
+  });
+
+  it('a verb with no matching action, or a remainder that is too short, gives the list and no guess', () => {
+    expect(remedyFor({ action: 'setZzzzzz' })!).not.toContain('Did you mean');
+    expect(remedyFor({ action: 'setx' })!).not.toContain('Did you mean');
+    expect(remedyFor({ action: 'add' })!).not.toContain('Did you mean "add"');
+  });
+
+  it('the existing suggestions are unchanged', () => {
+    expect(remedyFor({ action: 'remove', target: 'x' })!).toContain('Did you mean "delete"?');
+    expect(remedyFor({ action: 'Style', target: 'x' })!).toContain('Did you mean "style"?');
+    expect(remedyFor({ action: 'replce', target: 'x' })!).toContain('Did you mean "replace"?');
+    expect(remedyFor({ action: 'zzzzzzzz' })!).not.toContain('Did you mean');
+  });
+});
+
 describe('unknown key', () => {
   it('"spaceAfter" on style suggests "spacingAfter" and lists the keys of style', () => {
     const remedy = remedyFor({ action: 'style', target: 'x', spaceAfter: 120 })!;

@@ -23,6 +23,8 @@ export interface OperationHintOptions {
 interface ActionShape {
   action: string;
   keys: string[];
+  /** Values of the action's `operation` or `op` field when it is an enum (`table` has many). */
+  subOperations?: string[];
 }
 
 /** Words people write for an action, mapped to the action. Matched after the name is lowercased. */
@@ -127,6 +129,41 @@ const MAX_KEYS_LISTED = 60;
 
 let cachedShapes: ActionShape[] | undefined;
 
+/** The enum values of an action's `operation` or `op` field, read from its schema object (empty when it has none). */
+function subOperationValues(shape: Record<string, unknown>): string[] {
+  for (const key of ['operation', 'op']) {
+    let field = shape[key] as { def?: Record<string, unknown> } | undefined;
+    // Optional and preprocess wrappers hold the enum one or two levels down.
+    for (let depth = 0; depth < 4 && field?.def; depth++) {
+      const values = (field.def as { entries?: Record<string, unknown>; values?: unknown[] }).entries;
+      if (values && typeof values === 'object') return Object.keys(values);
+      field = (field.def['innerType'] ?? field.def['in'] ?? field.def['out']) as { def?: Record<string, unknown> } | undefined;
+    }
+  }
+  return [];
+}
+
+/** Verbs people put in front of an action name (`setTable`, `addImage`). Matched after the name is lowercased. */
+const ACTION_VERBS = ['set', 'add', 'insert', 'update', 'edit', 'create', 'apply', 'remove', 'delete', 'change', 'make'];
+
+/**
+ * Candidates for a name that is a verb plus an action (`setTable` gives `table`). When the verb is itself an
+ * action or a word for one (`deleteTable`), that action is a candidate as well, because the name is ambiguous.
+ */
+function verbPrefixCandidates(given: string, actions: readonly string[]): string[] {
+  const key = squash(given);
+  for (const verb of ACTION_VERBS) {
+    if (!key.startsWith(verb) || key.length - verb.length < 3) continue;
+    const rest = key.slice(verb.length);
+    const target = actions.find((a) => squash(a) === rest);
+    if (!target) continue;
+    const out = [target];
+    const verbAction = actions.find((a) => squash(a) === verb) ?? ACTION_WORDS[verb];
+    if (verbAction && actions.includes(verbAction) && verbAction !== target) out.push(verbAction);
+    return out;
+  }
+  return [];
+}
 function actionShapes(): ActionShape[] {
   if (cachedShapes) return cachedShapes;
   const shapes: ActionShape[] = [];
@@ -134,7 +171,10 @@ function actionShapes(): ActionShape[] {
   for (const option of options) {
     const literal = option.shape['action']?.def?.values?.[0];
     if (typeof literal !== 'string') continue;
-    shapes.push({ action: literal, keys: Object.keys(option.shape).filter((k) => k !== 'action') });
+    const shape: ActionShape = { action: literal, keys: Object.keys(option.shape).filter((k) => k !== 'action') };
+    const sub = subOperationValues(option.shape as unknown as Record<string, unknown>);
+    if (sub.length > 0) shape.subOperations = sub;
+    shapes.push(shape);
   }
   cachedShapes = shapes;
   return shapes;
@@ -197,9 +237,19 @@ function hintFor(operations: unknown, issue: OperationIssue): string | undefined
     const given = op['action'];
     if (typeof given !== 'string') return undefined;
     const actions = shapes.map((s) => s.action);
-    const near = closestNames(given, actions, ACTION_WORDS);
+    let near = closestNames(given, actions, ACTION_WORDS);
+    if (near.length === 0) near = verbPrefixCandidates(given, actions);
     const parts = [`${label}: "${given}" is not an action.`];
-    if (near.length > 0) parts.push(`Did you mean ${quoted(near)}?`);
+    if (near.length > 0) {
+      parts.push(`Did you mean ${near.map((n) => `"${n}"`).join(' or ')}?`);
+      // What the best candidate accepts, so the caller can see the fields without another call. A second
+      // candidate is named only; listing its fields as well would bury the answer.
+      const candidate = shapes.find((s) => s.action === near[0]);
+      if (candidate) {
+        parts.push(`Keys of "${candidate.action}": ${candidate.keys.slice(0, MAX_KEYS_LISTED).join(', ')}${candidate.keys.length > MAX_KEYS_LISTED ? ', ...' : ''}.`);
+        if (candidate.subOperations) parts.push(`Operations of "${candidate.action}": ${candidate.subOperations.join(', ')}.`);
+      }
+    }
     parts.push(`Actions: ${actions.join(', ')}.`);
     return parts.join(' ');
   }
