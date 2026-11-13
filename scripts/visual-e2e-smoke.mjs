@@ -9,6 +9,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,6 +78,20 @@ try {
   const pdf = fs.readFileSync(pdfOut);
   if (pdf.length < 500 || pdf.subarray(0, 5).toString('latin1') !== '%PDF-') fail('astra export --format pdf did not write a PDF');
   console.log(`astra export pdf: ok, ${pdf.length} bytes`);
+
+  // A file whose only errors are element order is exported from a verified temporary copy; the file is not changed.
+  const orderSource = path.join(work, 'word-order.docx');
+  fs.copyFileSync(path.join(root, 'tests', 'fixtures', 'word-order.docx'), orderSource);
+  const orderBefore = createHash('sha256').update(fs.readFileSync(orderSource)).digest('hex');
+  const orderPdf = path.join(work, 'word-order.pdf');
+  const orderRun = mustAstra(['export', orderSource, '--format', 'pdf', '-o', orderPdf]);
+  if (!/note: the source has 1 element-order error/.test(orderRun.stdout + orderRun.stderr)) {
+    fail(`astra export of word-order.docx printed no repair note:\n${orderRun.stdout}\n${orderRun.stderr}`);
+  }
+  const orderBytes = fs.readFileSync(orderPdf);
+  if (orderBytes.length < 500 || orderBytes.subarray(0, 5).toString('latin1') !== '%PDF-') fail('astra export of word-order.docx did not write a PDF');
+  if (createHash('sha256').update(fs.readFileSync(orderSource)).digest('hex') !== orderBefore) fail('astra export changed the source file');
+  console.log(`astra export pdf of a file with element-order errors: ok, ${orderBytes.length} bytes, source unchanged`);
 
   // MCP server over stdio.
   const transport = new StdioClientTransport({

@@ -6,7 +6,7 @@ import {
   htmlDocumentTitle,
   convertAstToMarkdown,
   collectMarkdownImageAssets,
-  assertValidDocx,
+  prepareDocxForPdfExport,
   convertDocxToPdf,
   DocxParser,
 } from '@attentionform/astra-engine';
@@ -18,6 +18,8 @@ export interface ExportResult {
   format: 'html' | 'markdown' | 'pdf';
   bytes: number;
   assets?: string[];
+  /** Set when the PDF was made from a corrected temporary copy of the source. */
+  note?: string;
 }
 
 export interface ExportOptions {
@@ -194,17 +196,31 @@ export async function executeExport(
       throw new Error('E_VALIDATION: image mode applies to markdown only. Remedy: omit --image-mode or export with --format markdown.');
     }
     const buf = await fsp.readFile(resolvedDocx);
-    await assertValidDocx(buf, 'PDF export source');
+    // A valid file is rendered as it is; a file whose only errors are element order is rendered from a
+    // verified temporary copy. The source file is never written.
+    const prepared = await prepareDocxForPdfExport(buf, 'PDF export source');
     await fsp.mkdir(path.dirname(destination), { recursive: true });
     const { canonicalDest: pdfDestDir } = assertDestinationJailed(destination);
     assertPreWriteDestination(destination, path.dirname(destination), pdfDestDir);
-    await convertDocxToPdf(buf, destination, {
+    await convertDocxToPdf(prepared.buffer, destination, {
       tagged: !(options?.untagged ?? false),
       strict: options?.strict ?? false,
     });
     await assertDestinationPostWrite(destination, pdfDestDir);
     const stat = await fsp.stat(destination);
-    return { ok: true, path: destination, format, bytes: stat.size };
+    return {
+      ok: true,
+      path: destination,
+      format,
+      bytes: stat.size,
+      ...(prepared.repaired
+        ? {
+            note:
+              `the source has ${prepared.reorderedContainers} element-order error(s) in ${prepared.repairedParts.join(', ')}; ` +
+              `the PDF was made from a corrected temporary copy, and the file was not changed`,
+          }
+        : {}),
+    };
   }
 
   const buf = await fsp.readFile(resolvedDocx);
