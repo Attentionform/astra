@@ -67,6 +67,58 @@ jobs:
       contents: read
     uses: ./.github/workflows/platform-smoke.yml
 
+  # A real render, no mocks: LibreOffice and Poppler installed the way a user installs them, then a
+  # page image (PNG) and a PDF export from the built engine, on each operating system. The unit tests
+  # inject the platform rules; this job proves them on the real machines. LibreOffice for Windows and
+  # macOS does not put itself on PATH, so this also covers the install-folder lookup.
+  visual-render:
+    name: Visual render (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm install -g npm@^11
+      - run: npm ci
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+      - run: npm run build:native --workspace=@attentionform/ooxml-validator
+      - name: Build the engine
+        run: |
+          npm run build --workspace=@attentionform/ooxml-validator
+          npm run build --workspace=@attentionform/astra-engine
+      - name: Install LibreOffice and Poppler (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer poppler-utils
+      - name: Install LibreOffice and Poppler (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install --cask libreoffice
+          brew install poppler
+      - name: Install LibreOffice and Poppler (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install libreoffice-fresh poppler -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Show what the machine has
+        shell: bash
+        run: |
+          echo "soffice on PATH:  $(command -v soffice || echo none)"
+          echo "pdftoppm on PATH: $(command -v pdftoppm || echo none)"
+      - name: Render a page and export a PDF
+        run: node scripts/visual-render-smoke.mjs
+
   original-recovery-filesystem:
     name: Original recovery (${{ matrix.os }})
     strategy:
