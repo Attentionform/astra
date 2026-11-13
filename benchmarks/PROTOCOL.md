@@ -271,3 +271,7 @@ experiments was changed, and the 0.4.1 results are not re-labelled.
   `e4_atomicity.jsonl` was always written under the right label; only the console line was wrong.
 * **Build under test:** tag `cli-v0.5.0`, the commit the 0.5.0 packages were published from, built on the runner. This is a
   build of the released source, not a download of the npm package, and the report says so.
+* **Fix (found in run 43457976873):** E3 phase B re-checked what it had written by reading `results/<pinned version>/e3_gate.jsonl`.
+  With a run label that differs from the pinned version, the file did not exist and the step ended with an error after all 292
+  rows were written, so the independent oracle re-check of phase B was skipped. It now reads the current label's file. E3 was
+  re-run alone on both versions (the `faults`, `e3` and `e3_followup` steps); the other experiments of that run are unchanged.

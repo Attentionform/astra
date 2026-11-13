@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { connect } from '../lib/mcp.mjs';
-import { freshDir, jsonl, ROOT, CORPUS, manifest } from '../lib/exp.mjs';
+import { freshDir, jsonl, readJsonl, ROOT, CORPUS, manifest } from '../lib/exp.mjs';
 
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
 const out = jsonl('e3_gate');
@@ -128,7 +128,7 @@ for (const [name, fn] of Object.entries(TYPED)) await phaseB(name, (id, tid) => 
 await s.close();
 
 // independent re-check of everything that phase B wrote
-const written = fs.readFileSync(path.join(ROOT, 'results', JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).dependencies['@attentionform/astra-mcp-server'], 'e3_gate.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse).filter((r) => r.phase === 'B' && r.written).map((r) => r.file);
+const written = readJsonl('e3_gate').filter((r) => r.phase === 'B' && r.written).map((r) => r.file);
 if (written.length) {
   const list = path.join(dir, 'b-written.txt'); fs.writeFileSync(list, written.join('\n'));
   const o = execFileSync('python3', [path.join(ROOT, 'lib/oracles.py'), '--workers', '6', '--list', list], { maxBuffer: 1 << 26 }).toString().split('\n').filter(Boolean).map(JSON.parse);
