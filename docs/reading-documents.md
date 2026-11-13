@@ -33,7 +33,9 @@ A heading is a paragraph in the body of the document whose own style id contains
 - A paragraph inside a table cell or a textbox is not listed.
 - `h1` to `h9` are not heading styles.
 
-The outline names the headings above a row in its `Section` column, nested by level. A top-level heading has an empty `Section`.
+The outline names the headings above a row in its `Section` column, nested by level, joined with ` > `. A top-level heading has an empty `Section`.
+
+A heading can contain the characters that separate cells, so the outline escapes them in `Text`, `Style` and `Section`: a backslash is written `\\`, a pipe `\|`, a line break `\n` (and `\r`, `\t`), and a `>` inside a heading in `Section` is written `\>`. Split a row on ` | `, then decode each cell. The other tiers do not escape: their table cells already use ` | ` inside the `Text` column.
 
 ### Counts in the outline
 
@@ -54,7 +56,7 @@ A section in the sense of `sectionId`, the `sections=` footer and the `sec_root`
 
 ### The page estimate
 
-`pages~` in `astra stats`, `astra inspect` and `get_stats` is an estimate: `max(1, ceil(words/450 + 0.45 per table + 0.5 per image + 1 per page break))`. Tables, images and page breaks are counted at fixed weights because the estimate cannot size them, and the output says how much of the estimate comes from them. For the renderer's page count, use `astra visual`.
+`pages~` in `astra stats`, `astra inspect` and `get_stats` is an estimate: `max(1, ceil(words/450 + 0.45 per table or callout + 0.5 per image + 1 per page break))`. A callout is a one-cell filled table; `astra stats` counts it apart from the tables, and the estimate counts both. Tables, callouts, images and page breaks are counted at fixed weights because the estimate cannot size them, and the output says how much of the estimate comes from them. For the renderer's page count, use `astra visual`.
 
 ## Part 2. Measured sizes
 

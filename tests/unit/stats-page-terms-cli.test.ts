@@ -41,7 +41,7 @@ describe('astra stats', () => {
     expect(await runCli(['stats', docx])).toBe(EXIT_OK);
     const out = lines.join('\n');
     expect(out).toMatch(/pages~\d+ \(rough estimate\)/);
-    expect(out).toContain('pages~ = max(1, ceil(words/450 + 0.45 per table + 0.5 per image + 1 per page break))');
+    expect(out).toContain('pages~ = max(1, ceil(words/450 + 0.45 per table or callout + 0.5 per image + 1 per page break))');
     expect(out).not.toMatch(/500 wpp|words\/500/);
     expect(out).not.toContain('of which');
   });
@@ -50,7 +50,7 @@ describe('astra stats', () => {
     const docx = await make('table', WITH_TABLE);
     expect(await runCli(['stats', docx])).toBe(EXIT_OK);
     const out = lines.join('\n');
-    expect(out).toContain('pages~ of which ~0.45 pages are counted from images, tables and page breaks');
+    expect(out).toContain('pages~ of which ~0.45 pages are counted from tables, callouts, images and page breaks');
     expect(out).toContain('astra visual');
     expect(out).not.toMatch(/accura|confiden|within/i);
   });

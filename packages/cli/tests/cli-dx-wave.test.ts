@@ -824,7 +824,7 @@ describe('stats wordcount recipe', () => {
     // pages labeled as rough estimate with method
     expect(r.stdout).toMatch(/pages~\d+ \(rough estimate/);
     expect(r.stdout).toMatch(/recipe: body paragraphs \+ table cells/);
-    expect(r.stdout).toMatch(/pages~ = max\(1, ceil\(words\/450 \+ 0\.45 per table \+ 0\.5 per image \+ 1 per page break\)\)/);
+    expect(r.stdout).toMatch(/pages~ = max\(1, ceil\(words\/450 \+ 0\.45 per table or callout \+ 0\.5 per image \+ 1 per page break\)\)/);
     expect(r.stdout).not.toMatch(/500 wpp|words\/500/);
     const m = /words=(\d+) paragraphs=(\d+) pages~(\d+)/.exec(r.stdout);
     expect(m, 'stats line parses').toBeTruthy();

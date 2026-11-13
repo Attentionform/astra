@@ -180,7 +180,7 @@ describe('Layout-Weighted Pagination Heuristic (AS-05)', () => {
       });
       const sentence = describePageEstimate(stats);
       expect(sentence).toContain('~0.5 pages');
-      expect(sentence).toContain('images, tables and page breaks');
+      expect(sentence).toContain('tables, callouts, images and page breaks');
       expect(sentence).toContain('astra visual');
       expect(sentence).not.toMatch(/accura|confiden|%|within/i);
     });

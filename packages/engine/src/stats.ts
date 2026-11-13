@@ -157,7 +157,7 @@ export interface DocStats {
   paragraphs: number;
   /** A rough estimate: `max(1, ceil(sum of pageTerms))`. Not the renderer's page count. */
   pages: number;
-  /** The terms of the page estimate, in pages. */
+  /** The terms of the page estimate, in pages. `pageTerms.tables` covers the tables and the callouts together. */
   pageTerms: PageTerms;
   /** Data tables. A callout (one filled cell) is counted in `callouts`, not here. */
   tables: number;
@@ -172,7 +172,7 @@ export interface DocStats {
  *  filled tables (see isCalloutTable); a table that only lives in a textbox/shape
  *  in a plain body paragraph has no AST node and is not counted, so this can
  *  trail a raw document.xml w:tbl census.
- *  pages is an estimated editorial budget: max(1, ceil(words/450 + tables*0.45 + images*0.50 + pageBreaks)).
+ *  pages is an estimated editorial budget: max(1, ceil(words/450 + (tables + callouts)*0.45 + images*0.50 + pageBreaks)).
  *  pageTerms holds the four terms of that sum, in pages. */
 export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: string; metadata: { text?: string; hasImage?: boolean }; xml?: unknown }> }> }): DocStats {
   let words = 0;
@@ -225,7 +225,7 @@ export function roundedPageTerms(terms: PageTerms): PageTerms {
 }
 
 /** The recipe of the page estimate, as printed by the CLI. */
-export const PAGE_ESTIMATE_RECIPE = 'pages~ = max(1, ceil(words/450 + 0.45 per table + 0.5 per image + 1 per page break))';
+export const PAGE_ESTIMATE_RECIPE = 'pages~ = max(1, ceil(words/450 + 0.45 per table or callout + 0.5 per image + 1 per page break))';
 
 /**
  * The sentence that says how much of the estimate is not counted from words, or '' when none of it is. It gives
@@ -236,5 +236,5 @@ export function describePageEstimate(stats: Pick<DocStats, 'pages' | 'pageTerms'
   const other = t.tables + t.images + t.pageBreaks;
   if (other <= 0) return '';
   const rounded = Math.round(other * 100) / 100;
-  return `of which ~${rounded} pages are counted from images, tables and page breaks, which the estimate cannot size; "astra visual" gives the renderer's count`;
+  return `of which ~${rounded} pages are counted from tables, callouts, images and page breaks, which the estimate cannot size; "astra visual" gives the renderer's count`;
 }
