@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-14
+
+Four npm packages move to 0.5.1: `@attentionform/astra-engine`, `@attentionform/astra-mcp-server`, `@attentionform/astra` and the `@attentionform/ooxml-validator` wrapper. The six native validator binaries stay at 0.5.0; the validator did not change. This release makes `astra visual` and PDF export work on Windows and macOS, exports files with only element-order errors, refuses a bad colour, highlight or size at the call, adds a headings-only `outline` view of a document, and explains how to read a document cheaply.
+
 ### Added
 
 - `astra inspect --outline` (same as `--fidelity outline`) and `inspect_document` with `fidelity: "outline"` list the headings only: `ID | L | Style | Text | Section`, where L is the heading level and Section is the chain of headings above it, nested by level. A heading is a body paragraph whose own style id contains `heading`, `title` or `subtitle` (the rule `isHeading` already used): `Heading4` is level 4, `Subtitle` 2, `TOCHeading` 1; a custom style such as `Kapitel`, a heading inside a table cell and a textbox host paragraph are not listed. Text is cut at 80 characters unless `--max-text` / `maxTextLength` is set. `--width` and `--wrap` fold the Text column of the outline like the other tiers (the `--json` `toon` field stays one line per heading); a row whose Section cell leaves no room stays on one line. A pipe, backslash or line break in a heading is escaped in the `Text`, `Style` and `Section` cells (`\|`, `\\`, `\n`), and a `>` in an ancestor heading is written `\>` in `Section`, so a row always splits into five cells. `rowCount` and `totalNodes` count heading rows for this tier, so the response adds `outline` (`headings`, `nodes`, `tables`, `images`, `words` for the whole document); the CLI footer and `--json` carry the same counts. `aroundNode` on a node that is not a heading shows the heading above it and reports `aroundResolvedTo` (`null`, with a `note`, before the first heading or when the document has none).
@@ -25,6 +29,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ### Fixed
 
+- `astra visual` and `astra export --format pdf` now find LibreOffice and Poppler on Windows and macOS: the lookup matches `.exe` and `.com` names on Windows and falls back to the standard install folders (Program Files, `LibreOffice.app`, Homebrew, MacPorts) when `PATH` has no match; PDF export no longer calls `which`, which does not exist on Windows. The error text names an install route for each system.
 - The style shown for a table, and for a paragraph that holds a textbox, is no longer the style of a paragraph nested inside it. Before, a table with a `Heading2` cell printed `Heading2` in its `inspect` Style column and counted as a heading for a table of contents; it now reports no style of its own, like any table.
 - `astra export <file> --format pdf` no longer refuses a file whose only schema errors are the order of child elements (for example `w:color` after `w:sz` in a run's properties, which Word accepts). The export validates the file first. A valid file is rendered as it is. A file with order errors is rendered from a temporary copy in which only that order is corrected; a separate check proves that nothing else differs, every other part is copied unchanged, the copy must validate, and the source file is never written. The command prints a note saying the PDF came from a corrected copy. Anything else (a real schema error, an error that needs a rename or a default value, a part that is not UTF-8, a duplicate or unsafe package entry) is refused before the renderer starts, with a remedy that points to `astra validate` and `astra normalize`. The MCP `export_document` tool is unchanged: it renders the session as a save would write it.
 
@@ -304,7 +309,8 @@ First public release.
 - PDF export and page images need LibreOffice and Poppler installed on your machine.
 - Every output file is validated with the Open XML SDK before it is saved, so files are valid, uncorrupted and open in Microsoft Word.
 
-[Unreleased]: https://github.com/Attentionform/astra/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Attentionform/astra/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/Attentionform/astra/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Attentionform/astra/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/Attentionform/astra/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/Attentionform/astra/compare/v0.4.0...v0.4.1
