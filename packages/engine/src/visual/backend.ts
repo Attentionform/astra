@@ -41,6 +41,8 @@ export interface ResolveOptions {
   env?: NodeJS.ProcessEnv;
   /** Try the platform's standard install folders when PATH has no match (default true, unless pathEnv is given). */
   fallbackDirs?: boolean;
+  /** Replace the platform's standard install folders (tests use this to stay independent of what the host has installed). */
+  installDirs?: string[];
 }
 
 export const VISUAL_DEPENDENCY_REMEDY =
@@ -155,16 +157,16 @@ export function findOnPath(name: string, pathEnv?: string, options: ResolveOptio
       .filter((d) => d.length > 0);
     for (const dir of dirs) {
       for (const n of names) {
-        const candidate = path.join(dir, n);
+        const candidate = path.resolve(dir, n);
         if (isExecutableFile(candidate)) return candidate;
       }
     }
     const useFallback =
       options.fallbackDirs ?? (pathEnv === undefined && env.ASTRA_VISUAL_NO_FALLBACK_DIRS !== '1');
     if (useFallback) {
-      for (const dir of installFolders(trimmed, platform, env)) {
+      for (const dir of options.installDirs ?? installFolders(trimmed, platform, env)) {
         for (const n of names) {
-          const candidate = path.join(dir, n);
+          const candidate = path.resolve(dir, n);
           if (isExecutableFile(candidate)) return candidate;
         }
       }

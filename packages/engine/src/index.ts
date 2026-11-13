@@ -61,6 +61,8 @@ export {
   hasLibreOffice,
   hasPoppler,
   getVisualBackendStatus,
+  findOnPath,
+  installFolders,
   type VisualBackendStatus,
   type VisualBackendOverride,
 } from './visual/backend';

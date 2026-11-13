@@ -83,7 +83,10 @@ describe('findOnPath on Windows rules', () => {
     const programFiles = mkTmp();
     const exe = touchExe(path.join(programFiles, 'LibreOffice', 'program'), 'soffice.exe');
     const env = { ProgramFiles: programFiles, PATH: '' } as NodeJS.ProcessEnv;
-    expect(findOnPath('soffice', undefined, { platform: 'win32', env })).toBe(exe);
+    // The folder list is computed from the injected environment, then narrowed to the fake install.
+    const dirs = installFolders('soffice', 'win32', env).filter((d) => d.startsWith(programFiles));
+    expect(dirs).toEqual([path.join(programFiles, 'LibreOffice', 'program')]);
+    expect(findOnPath('soffice', undefined, { platform: 'win32', env, installDirs: dirs })).toBe(exe);
   });
 });
 
@@ -92,7 +95,17 @@ describe('findOnPath on macOS rules', () => {
     const home = mkTmp();
     const soffice = touchExe(path.join(home, 'Applications', 'LibreOffice.app', 'Contents', 'MacOS'), 'soffice');
     const env = { HOME: home, PATH: '' } as NodeJS.ProcessEnv;
-    expect(findOnPath('soffice', undefined, { platform: 'darwin', env })).toBe(soffice);
+    // Only the home-folder entry is searched, so a real /Applications/LibreOffice.app on the host cannot win.
+    const dirs = installFolders('soffice', 'darwin', env).filter((d) => d.startsWith(home));
+    expect(dirs).toEqual([path.join(home, 'Applications', 'LibreOffice.app', 'Contents', 'MacOS')]);
+    expect(findOnPath('soffice', undefined, { platform: 'darwin', env, installDirs: dirs })).toBe(soffice);
+  });
+
+  it('searches the folders in order: system bundle before the home bundle', () => {
+    const dirs = installFolders('soffice', 'darwin', { HOME: '/Users/x' } as NodeJS.ProcessEnv);
+    expect(dirs.indexOf('/Applications/LibreOffice.app/Contents/MacOS')).toBeLessThan(
+      dirs.indexOf(path.join('/Users/x', 'Applications', 'LibreOffice.app', 'Contents', 'MacOS'))
+    );
   });
 
   it('lists the system bundle, Homebrew and MacPorts folders', () => {
@@ -104,6 +117,16 @@ describe('findOnPath on macOS rules', () => {
     const poppler = installFolders('pdftoppm', 'darwin', { HOME: '/Users/x' } as NodeJS.ProcessEnv);
     expect(poppler).not.toContain('/Applications/LibreOffice.app/Contents/MacOS');
     expect(poppler).toContain('/opt/homebrew/bin');
+  });
+});
+
+describe('relative PATH entries', () => {
+  it('returns an absolute path', () => {
+    const bin = mkTmp();
+    touchExe(bin, 'pdftoppm');
+    const found = findOnPath('pdftoppm', path.relative(process.cwd(), bin), { platform: 'linux', fallbackDirs: false });
+    expect(found).not.toBeNull();
+    expect(path.isAbsolute(found as string)).toBe(true);
   });
 });
 
