@@ -22,6 +22,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ### Fixed
 
+- The style shown for a table, and for a paragraph that holds a textbox, is no longer the style of a paragraph nested inside it. Before, a table with a `Heading2` cell printed `Heading2` in its `inspect` Style column and counted as a heading for a table of contents; it now reports no style of its own, like any table.
 - `astra export <file> --format pdf` no longer refuses a file whose only schema errors are the order of child elements (for example `w:color` after `w:sz` in a run's properties, which Word accepts). The export validates the file first. A valid file is rendered as it is. A file with order errors is rendered from a temporary copy in which only that order is corrected; a separate check proves that nothing else differs, every other part is copied unchanged, the copy must validate, and the source file is never written. The command prints a note saying the PDF came from a corrected copy. Anything else (a real schema error, an error that needs a rename or a default value, a part that is not UTF-8, a duplicate or unsafe package entry) is refused before the renderer starts, with a remedy that points to `astra validate` and `astra normalize`. The MCP `export_document` tool is unchanged: it renders the session as a save would write it.
 
 ## [0.5.0] - 2026-11-13
