@@ -359,7 +359,9 @@ export class WorkerClient {
     await Promise.all(
       targets.map((c) => {
         return new Promise<void>((resolve) => {
-          if (c.killed || c.exitCode !== null) {
+          // `killed` only says a signal was sent, not that the process is gone (on Windows it can take a while), so a
+          // child that was signalled but has not exited is still waited for below.
+          if (c.exitCode !== null || c.signalCode !== null) {
             this.liveChildren.delete(c);
             resolve();
             return;
