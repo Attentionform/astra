@@ -121,6 +121,7 @@ beforeEach(() => {
 afterEach(() => {
   if (savedPath !== undefined) process.env.PATH = savedPath;
   else delete process.env.PATH;
+  delete process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS;
   while (tmpDirs.length > 0) {
     const d = tmpDirs.pop() as string;
     try {
@@ -182,6 +183,7 @@ describe('hasPdfBackend capability gate', () => {
   it('E_DEPENDENCY when binaries hidden via mock PATH', async () => {
     const emptyDir = mkTmpDir('astra-visual-empty-path-');
     process.env.PATH = emptyDir;
+    process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS = '1';
     try {
       expect(findOnPath('soffice')).toBeNull();
       expect(findOnPath('pdftoppm')).toBeNull();
@@ -484,6 +486,7 @@ describe('mcp visual tool (telemetry in inspect + --with-visual file paths)', ()
     const handle = await store.openBuffer(blankDocx(), 'visual-mock-path.docx');
     const emptyDir = mkTmpDir('astra-visual-mcp-path-');
     process.env.PATH = emptyDir;
+    process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS = '1';
     try {
       const res = await handleVisualInspect(store, { sessionId: handle.sessionId, withVisual: true });
       expect(res.ok).toBe(false);

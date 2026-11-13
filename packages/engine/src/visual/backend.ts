@@ -1,9 +1,13 @@
 /**
  * Headless PDF backend capability gate (Sprint 6 Track B).
  *
- * Pure Node (`fs`/`path` only) — both trees keep IDENTICAL copies.
+ * Pure Node (`fs`/`path` only).
  * Resolves `soffice`/`libreoffice` + `pdftoppm` via `$PATH` at CALL time
  * (never cached) so tests can hide binaries by mutating `process.env.PATH`.
+ * On Windows, a bare name also matches `.exe`/`.com`. When PATH has no match,
+ * the standard install folders of each platform are tried (LibreOffice on
+ * Windows and macOS does not put itself on PATH). Set
+ * `ASTRA_VISUAL_NO_FALLBACK_DIRS=1` to turn the folder fallback off.
  * Missing backend => thrown Error with `code: 'E_DEPENDENCY'` + install remedy.
  */
 
@@ -24,13 +28,27 @@ export interface VisualBackendStatus {
 export interface VisualBackendOverride {
   sofficeBin?: string;
   pdftoppmBin?: string;
-  /** Override PATH for tests (defaults to process.env.PATH). */
+  /** Override PATH for tests (defaults to process.env.PATH). An explicit value also turns the install-folder fallback off. */
   pathEnv?: string;
+}
+
+export interface ResolveOptions {
+  /** Platform to resolve for (defaults to `process.platform`). */
+  platform?: NodeJS.Platform;
+  /** Windows executable extensions to try, `;`-separated (defaults to a safe `.exe;.com`). */
+  pathExt?: string;
+  /** Environment used for install-folder fallbacks (defaults to `process.env`). */
+  env?: NodeJS.ProcessEnv;
+  /** Try the platform's standard install folders when PATH has no match (default true, unless pathEnv is given). */
+  fallbackDirs?: boolean;
 }
 
 export const VISUAL_DEPENDENCY_REMEDY =
   'PDF render backend missing. Install LibreOffice and poppler-utils (pdftoppm): ' +
-  'sudo apt install libreoffice poppler-utils, or brew install libreoffice poppler. ' +
+  'Linux: sudo apt install libreoffice poppler-utils; ' +
+  'macOS: brew install --cask libreoffice && brew install poppler; ' +
+  'Windows: winget install TheDocumentFoundation.LibreOffice, then install Poppler for Windows ' +
+  '(for example scoop install poppler, or choco install poppler) and make sure pdftoppm.exe is on PATH. ' +
   'Alternatively inspect the XML/DOM without images (telemetry-only mode).';
 
 export function createDependencyError(missing: string[]): Error & { code: string; remedy: string } {
@@ -41,37 +59,114 @@ export function createDependencyError(missing: string[]): Error & { code: string
   });
 }
 
+/** Executable extensions tried for a bare name on Windows. `.exe` first; `.cmd`/`.bat` are excluded because `execFile` cannot spawn them. */
+function windowsExtensions(pathExt?: string): string[] {
+  const requested: string[] = (pathExt ?? '.EXE;.COM')
+    .split(';')
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e === '.exe' || e === '.com');
+  const ordered = ['.exe', '.com'].filter((e) => requested.includes(e));
+  return ordered.length > 0 ? ordered : ['.exe', '.com'];
+}
+
+function isExecutableFile(candidate: string): boolean {
+  try {
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return fs.statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function candidateNames(name: string, platform: NodeJS.Platform, pathExt?: string): string[] {
+  if (platform !== 'win32') return [name];
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.exe') || lower.endsWith('.com')) return [name];
+  return windowsExtensions(pathExt).map((ext) => name + ext);
+}
+
+/**
+ * Standard install folders per platform and binary. Used only when PATH has
+ * no match: LibreOffice for Windows and macOS keeps its binaries inside the
+ * application folder and does not add it to PATH.
+ */
+export function installFolders(
+  name: string,
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env
+): string[] {
+  const bare = name.toLowerCase().replace(/\.(exe|com)$/, '');
+  const isOffice = bare === 'soffice' || bare === 'libreoffice';
+  const isPoppler = bare === 'pdftoppm';
+  const dirs: string[] = [];
+  if (platform === 'win32') {
+    const programFiles = env.ProgramFiles ?? 'C:\\Program Files';
+    const programFilesX86 = env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
+    const localAppData = env.LOCALAPPDATA;
+    const userProfile = env.USERPROFILE;
+    if (isOffice) {
+      dirs.push(path.join(programFiles, 'LibreOffice', 'program'));
+      dirs.push(path.join(programFilesX86, 'LibreOffice', 'program'));
+      if (localAppData) dirs.push(path.join(localAppData, 'Programs', 'LibreOffice', 'program'));
+    }
+    if (isPoppler) {
+      if (userProfile) dirs.push(path.join(userProfile, 'scoop', 'shims'));
+      dirs.push(path.join(env.ProgramData ?? 'C:\\ProgramData', 'chocolatey', 'bin'));
+      if (localAppData) dirs.push(path.join(localAppData, 'Microsoft', 'WinGet', 'Links'));
+    }
+  } else if (platform === 'darwin') {
+    const home = env.HOME;
+    if (isOffice) {
+      dirs.push('/Applications/LibreOffice.app/Contents/MacOS');
+      if (home) dirs.push(path.join(home, 'Applications', 'LibreOffice.app', 'Contents', 'MacOS'));
+    }
+    // Homebrew (Apple silicon, Intel) and MacPorts, for both binaries.
+    dirs.push('/opt/homebrew/bin', '/usr/local/bin', '/opt/local/bin');
+  }
+  // Linux: package managers put binaries on PATH, so there is no fallback.
+  return dirs;
+}
+
 /**
  * Resolve `name` against `$PATH` (plus absolute/relative paths verbatim).
  * Returns the absolute path or null. Respects `pathEnv` override for tests.
+ * On Windows a bare name also matches `name.exe` and `name.com`.
  */
-export function findOnPath(name: string, pathEnv?: string): string | null {
+export function findOnPath(name: string, pathEnv?: string, options: ResolveOptions = {}): string | null {
   try {
     if (!name || name.trim() === '') return null;
     const trimmed = name.trim();
+    const platform = options.platform ?? process.platform;
+    const env = options.env ?? process.env;
+    const pathExt = options.pathExt ?? (platform === 'win32' ? env.PATHEXT : undefined);
+    const names = candidateNames(trimmed, platform, pathExt);
     // Explicit path (contains a slash): check verbatim, no PATH search.
     if (trimmed.includes('/') || trimmed.includes('\\')) {
-      try {
-        const abs = path.resolve(trimmed);
-        fs.accessSync(abs, fs.constants.X_OK);
-        const stat = fs.statSync(abs);
-        if (stat.isFile()) return abs;
-        return null;
-      } catch {
-        return null;
+      for (const n of names) {
+        const abs = path.resolve(n);
+        if (isExecutableFile(abs)) return abs;
+      }
+      return null;
+    }
+    const pathValue = pathEnv !== undefined ? pathEnv : (env.PATH ?? env.Path ?? '');
+    const dirs = pathValue
+      .split(path.delimiter)
+      .map((d) => d.trim().replace(/^"(.*)"$/, '$1'))
+      .filter((d) => d.length > 0);
+    for (const dir of dirs) {
+      for (const n of names) {
+        const candidate = path.join(dir, n);
+        if (isExecutableFile(candidate)) return candidate;
       }
     }
-    const pathValue = pathEnv !== undefined ? pathEnv : (process.env.PATH ?? '');
-    if (!pathValue) return null;
-    const dirs = pathValue.split(path.delimiter).filter((d) => d.length > 0);
-    for (const dir of dirs) {
-      try {
-        const candidate = path.join(dir, trimmed);
-        fs.accessSync(candidate, fs.constants.X_OK);
-        const stat = fs.statSync(candidate);
-        if (stat.isFile()) return candidate;
-      } catch {
-        continue;
+    const useFallback =
+      options.fallbackDirs ?? (pathEnv === undefined && env.ASTRA_VISUAL_NO_FALLBACK_DIRS !== '1');
+    if (useFallback) {
+      for (const dir of installFolders(trimmed, platform, env)) {
+        for (const n of names) {
+          const candidate = path.join(dir, n);
+          if (isExecutableFile(candidate)) return candidate;
+        }
       }
     }
     return null;

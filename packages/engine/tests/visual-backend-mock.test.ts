@@ -35,6 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   if (savedPath !== undefined) process.env.PATH = savedPath;
   else delete process.env.PATH;
+  delete process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS;
   while (tmpDirs.length > 0) {
     const d = tmpDirs.pop() as string;
     try {
@@ -66,6 +67,7 @@ describe('visual backend gate (mocked)', () => {
   it('findOnPath returns null when PATH is an empty dir', () => {
     const emptyDir = mkTmpDir('astra-visual-mock-path-');
     process.env.PATH = emptyDir;
+    process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS = '1';
     expect(findOnPath('soffice')).toBeNull();
     expect(findOnPath('pdftoppm')).toBeNull();
     expect(findOnPath('libreoffice')).toBeNull();
@@ -85,6 +87,7 @@ describe('visual backend gate (mocked)', () => {
   it('hasPdfBackend reports unavailable when PATH hides binaries', () => {
     const emptyDir = mkTmpDir('astra-visual-mock-empty-');
     process.env.PATH = emptyDir;
+    process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS = '1';
     const status = hasPdfBackend();
     expect(status.available).toBe(false);
     expect(status.backend).toBe('none');

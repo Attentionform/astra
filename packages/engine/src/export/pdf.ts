@@ -1,4 +1,4 @@
-import { execSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
@@ -7,6 +7,7 @@ import { DocumentAST } from '../ast';
 import { assertWriteTargetNoSymlink, writeFileNoFollow } from '../sandbox/paths';
 import { keepForForensics, secureFile, secureMkdtemp } from '../tmp';
 import { PreflightError, runPreflightChecks } from './preflight';
+import { findOnPath } from '../visual/backend';
 
 export class DependencyError extends Error {
   code = 'E_DEPENDENCY';
@@ -93,15 +94,13 @@ export function getPdfBackendBinary(): string | null {
   if (cachedBackendBinary !== undefined) {
     return cachedBackendBinary;
   }
-  const candidates = ['libreoffice', 'soffice'];
-  for (const bin of candidates) {
-    try {
-      execSync(`which ${bin}`, { stdio: 'ignore' });
-      cachedBackendBinary = bin;
-      return bin;
-    } catch {
-      // ignore
-    }
+  // Shared resolver: PATH search (Windows .exe/.com aware), then the
+  // standard install folders. Returns an absolute path, so the spawn does
+  // not depend on PATH lookup rules of the platform.
+  const found = findOnPath('soffice') ?? findOnPath('libreoffice');
+  if (found) {
+    cachedBackendBinary = found;
+    return found;
   }
   cachedBackendBinary = null;
   return null;
@@ -143,7 +142,9 @@ export async function convertDocxToPdf(
       `  Debian/Ubuntu: sudo apt install libreoffice\n` +
       `  Fedora/RHEL:   sudo dnf install libreoffice\n` +
       `  macOS:         brew install --cask libreoffice\n` +
-      `  Windows:       winget install TheDocumentFoundation.LibreOffice`
+      `  Windows:       winget install TheDocumentFoundation.LibreOffice\n` +
+      `ASTra also looks in the standard install folders (for example C:\\Program Files\\LibreOffice\\program ` +
+      `and /Applications/LibreOffice.app/Contents/MacOS).`
     );
   }
 

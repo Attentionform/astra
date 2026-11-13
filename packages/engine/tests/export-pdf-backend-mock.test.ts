@@ -3,7 +3,7 @@
  *
  * Default cases stay spawn-free via the testing override seam
  * (`setPdfBackendBinaryForTesting` short-circuits `getPdfBackendBinary`
- * before any `which`/spawn): filter specs are pure string contracts,
+ * before any resolver probe/spawn): filter specs are pure string contracts,
  * a nulled override yields E_DEPENDENCY without spawning, and override
  * caching is proven without probing the system.
  * The explicit-missing-binary path needs real spawns (truthy binary skips
