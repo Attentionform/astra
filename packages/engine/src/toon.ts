@@ -1443,6 +1443,36 @@ export class ToonGenerator {
     return flags.join(' ');
   }
 
+  /**
+   * One rendered row, wrapped to `rawWidth` when it is a usable width. Text is the cell at `textPos`; only it may
+   * wrap: the prefix (all columns before Text, trailing separator included) and the suffix (the columns after it,
+   * leading separator included) stay whole. The suffix rides on the LAST line so folding continuations back recovers
+   * the default line byte-identically; a row that fits emits exactly the default line.
+   */
+  private renderRowLine(rowParts: string[], textPos: number, sep: string, textVal: string, rawWidth: unknown): string {
+    const width =
+      typeof rawWidth === 'number' && Number.isFinite(rawWidth) && rawWidth >= 1
+        ? Math.floor(rawWidth)
+        : undefined;
+    if (width === undefined) return `${rowParts.join(sep)}\n`;
+    const prefix = `${rowParts.slice(0, textPos).join(sep)}${sep}`;
+    const tail = rowParts.slice(textPos + 1);
+    const suffix = tail.length > 0 ? `${sep}${tail.join(sep)}` : '';
+    const prefixLen = displayLen(prefix);
+    // The last line carries prefix indent + segment + suffix, so it has the tightest budget; wrapping every
+    // segment to it keeps all lines within width. Non-positive budget (tiny width or a prefix that already
+    // overflows) falls back to the default line: other columns never wrap, even at the cost of exceeding width.
+    const budget = width - prefixLen - displayLen(suffix);
+    if (budget <= 0) return `${rowParts.join(sep)}\n`;
+    const segments = wrapTextCell(textVal, budget);
+    if (segments.length <= 1) return `${rowParts.join(sep)}\n`;
+    const indent = ' '.repeat(prefixLen);
+    let out = `${prefix}${segments[0]}\n`;
+    for (let k = 1; k < segments.length - 1; k++) out += `${indent}${segments[k]}\n`;
+    out += `${indent}${segments[segments.length - 1]}${suffix}\n`;
+    return out;
+  }
+
   private renderOutlineText(table: ToonTable, options?: ToonRenderOptions): string {
     const compact = options?.compact ?? false;
     const sep = compact ? '|' : ' | ';
@@ -1457,7 +1487,8 @@ export class ToonGenerator {
         text = `${text.substring(0, options.maxTextLength)}...`;
       }
       // row.path is already escaped part by part (see escapeOutlinePathPart); the other cells are escaped here.
-      output += `${[row.id, String(row.level ?? ''), escapeOutlineCell(row.style), escapeOutlineCell(text), row.path].join(sep)}\n`;
+      const cells = [row.id, String(row.level ?? ''), escapeOutlineCell(row.style), escapeOutlineCell(text), row.path];
+      output += this.renderRowLine(cells, 3, sep, cells[3], options?.width);
     }
     return output;
   }
@@ -1529,50 +1560,9 @@ export class ToonGenerator {
         }
       }
 
-      const sep = compact ? '|' : ' | ';
-      const rawWidth = options?.width;
-      const width =
-        typeof rawWidth === 'number' && Number.isFinite(rawWidth) && rawWidth >= 1
-          ? Math.floor(rawWidth)
-          : undefined;
-      if (width === undefined) {
-        output += `${rowParts.join(sep)}\n`;
-        continue;
-      }
-      // Text is the cell after id, version, and whichever of
-      // path/header/style are present. Only it may wrap: the prefix (all
-      // columns before Text, trailing separator included) and the suffix
-      // (flags/detail, leading separator included) stay whole. The suffix
-      // rides on the LAST line so folding continuations back recovers the
-      // default line byte-identically; a row that fits emits exactly the
-      // default line.
       const textPos =
         2 + (omits.has('path') ? 0 : 1) + (omits.has('header') ? 0 : 1) + (omits.has('style') ? 0 : 1);
-      const prefix = `${rowParts.slice(0, textPos).join(sep)}${sep}`;
-      const tail = rowParts.slice(textPos + 1);
-      const suffix = tail.length > 0 ? `${sep}${tail.join(sep)}` : '';
-      const prefixLen = displayLen(prefix);
-      // The last line carries prefix indent + segment + suffix, so it has
-      // the tightest budget; wrapping every segment to it keeps all lines
-      // within width. Non-positive budget (tiny width or a prefix that
-      // already overflows) falls back to the default line — other columns
-      // never wrap, even at the cost of exceeding width.
-      const budget = width - prefixLen - displayLen(suffix);
-      if (budget <= 0) {
-        output += `${rowParts.join(sep)}\n`;
-        continue;
-      }
-      const segments = wrapTextCell(textVal, budget);
-      if (segments.length <= 1) {
-        output += `${rowParts.join(sep)}\n`;
-        continue;
-      }
-      const indent = ' '.repeat(prefixLen);
-      output += `${prefix}${segments[0]}\n`;
-      for (let k = 1; k < segments.length - 1; k++) {
-        output += `${indent}${segments[k]}\n`;
-      }
-      output += `${indent}${segments[segments.length - 1]}${suffix}\n`;
+      output += this.renderRowLine(rowParts, textPos, compact ? '|' : ' | ', textVal, options?.width);
     }
 
     return output;

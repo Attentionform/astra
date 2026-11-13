@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { AdmZip, DocxParser, ToonGenerator, createBlankDocxBuffer } from '@attentionform/astra-engine';
+import { AdmZip, DocxParser, ToonGenerator, createBlankDocxBuffer, unwrapToonText } from '@attentionform/astra-engine';
 import { handleExecuteBatch, handleInspectDocument } from '../../packages/mcp-server/src/lib/mcp-tool-adapter';
 import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session-store';
 import { run } from '../../packages/cli/src/cli';
@@ -325,6 +325,44 @@ describe('scoped outline cache follows the headings outside the scope', () => {
   });
 });
 
+describe('outline honours the width option', () => {
+  const LONG = 'A long heading that goes on and on about the quarterly plan for staffing budget risk and schedule across every region';
+  const body = para(LONG, 'Heading1') + para('Short', 'Heading1') + para(`${LONG} again, a second top-level one`, 'Heading1');
+
+  it('wraps the Text column with a hanging indent, keeps the other cells whole, and unwraps byte-identically', async () => {
+    const { ast, toon } = await load(body);
+    const table = toon.toon(ast, { fidelity: 'outline', maxTextLength: 300 });
+    const plain = toon.renderToonText(table);
+    const wrapped = toon.renderToonText(table, { width: 70 });
+    expect(wrapped).not.toBe(plain);
+    for (const line of wrapped.split('\n')) expect(line.length, line).toBeLessThanOrEqual(70);
+    expect(wrapped.split('\n').some((l) => /^\s+\S/.test(l))).toBe(true);
+    expect(unwrapToonText(wrapped)).toBe(plain);
+  });
+
+  it('a Section cell that does not fit keeps its row on one line, as the other tiers keep their flags', async () => {
+    const { ast, toon } = await load(para(LONG, 'Heading1') + para('Child', 'Heading2'));
+    const wrapped = toon.renderToonText(toon.toon(ast, { fidelity: 'outline', maxTextLength: 300 }), { width: 60 });
+    const child = wrapped.split('\n').find((l) => l.includes('| Child |'))!;
+    expect(child.endsWith(LONG.slice(0, 60)) || child.includes(LONG.slice(0, 40))).toBe(true);
+    expect(unwrapToonText(wrapped)).toBe(toon.renderToonText(toon.toon(ast, { fidelity: 'outline', maxTextLength: 300 })));
+  });
+
+  it('a row that fits, and a width too small to wrap, are left as the default line', async () => {
+    const { ast, toon } = await load(body);
+    const table = toon.toon(ast, { fidelity: 'outline', maxTextLength: 300 });
+    const plain = toon.renderToonText(table);
+    expect(toon.renderToonText(table, { width: 10000 })).toBe(plain);
+    expect(toon.renderToonText(table, { width: 5 })).toBe(plain);
+  });
+
+  it('the other tiers are rendered as before at the same width', async () => {
+    const { ast, toon } = await load(body);
+    const compact = toon.toon(ast, { fidelity: 'compact' });
+    expect(unwrapToonText(toon.renderToonText(compact, { width: 60 }))).toBe(toon.renderToonText(compact));
+  });
+});
+
 describe('astra inspect --outline', () => {
   let dir: string;
   let file: string;
@@ -363,6 +401,21 @@ describe('astra inspect --outline', () => {
     const json = JSON.parse(seen.filter((l) => l.trim().startsWith('{')).pop()!);
     expect(json.fidelity).toBe('outline');
     expect(json.outline).toMatchObject({ headings: 6, tables: 1 });
+  });
+
+  it('--width wraps the outline for people and --json keeps one line per heading', async () => {
+    const long = 'A long heading that goes on and on about the quarterly plan for staffing budget risk and schedule across every region';
+    fs.writeFileSync(file, docWith(para(long, 'Heading1') + para('Short', 'Heading2')));
+    expect(await run(['inspect', file, '--outline', '--max-text', '200', '--width', '60'])).toBe(0);
+    const human = seen.filter((l) => !l.startsWith('>')).join('\n');
+    const lines = human.split('\n').filter((l) => /^\s+\S/.test(l));
+    expect(lines.length).toBeGreaterThan(0);
+    for (const l of human.split('\n').slice(0, 6)) expect(l.length, l).toBeLessThanOrEqual(60);
+    seen.length = 0;
+    expect(await run(['--json', 'inspect', file, '--outline', '--max-text', '200', '--width', '60'])).toBe(0);
+    const json = JSON.parse(seen.filter((l) => l.trim().startsWith('{')).pop()!);
+    expect(json.toon.split('\n').filter((l: string) => /^\s+\S/.test(l))).toEqual([]);
+    expect(json.toon).toContain(long);
   });
 
   it('a bad --fidelity lists outline; --outline with another --fidelity is a usage error', async () => {

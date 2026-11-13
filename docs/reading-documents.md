@@ -35,7 +35,7 @@ A heading is a paragraph in the body of the document whose own style id contains
 
 The outline names the headings above a row in its `Section` column, nested by level, joined with ` > `. A top-level heading has an empty `Section`.
 
-A heading can contain the characters that separate cells, so the outline escapes them in `Text`, `Style` and `Section`: a backslash is written `\\`, a pipe `\|`, a line break `\n` (and `\r`, `\t`), and a `>` inside a heading in `Section` is written `\>`. Split a row on ` | `, then decode each cell. The other tiers do not escape: their table cells already use ` | ` inside the `Text` column.
+A heading can contain the characters that separate cells, so the outline escapes them in `Text`, `Style` and `Section`: a backslash is written `\\`, a pipe `\|`, a line break `\n` (and `\r`, `\t`), and a `>` inside a heading in `Section` is written `\>`. Split a row on ` | `, then decode each cell. `--width` and `--wrap` fold long heading text onto indented lines for people, as in the other tiers; the `--json` output keeps one line per heading. The other tiers do not escape: their table cells already use ` | ` inside the `Text` column.
 
 ### Counts in the outline
 
