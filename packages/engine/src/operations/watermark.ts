@@ -2,6 +2,7 @@ import { DocumentAST } from '../ast';
 import { DocxParser } from '../parser';
 import { BaseOperation } from './base';
 import { HeaderFooterManipulator } from '../manipulators/header-footer';
+import { normalizeColour } from './colour';
 
 export interface WatermarkOperation extends BaseOperation {
   action: 'watermark';
@@ -21,9 +22,8 @@ export function executeWatermark(op: WatermarkOperation, ast: DocumentAST, parse
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
-  const color = (/^[0-9A-Fa-f]{6}$/.test((op.color || '').replace(/^#/, ''))
-    ? (op.color as string).replace(/^#/, '')
-    : 'D1D5DB');
+  // Hex or a shortlisted name; any other value falls back to the default, as it always has.
+  const color = normalizeColour(op.color) ?? 'D1D5DB';
   const fontSize = op.fontSize || 60;
   const rotation = op.rotation !== undefined ? op.rotation : 315;
 

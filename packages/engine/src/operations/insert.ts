@@ -21,6 +21,7 @@ import { HYPERLINK_REL_TYPE } from './hyperlink';
 import { COMPOSE_CODE_FONT } from '../compose/constants';
 import { unescapeMarkedText } from '../compose/text-spans';
 import { takeRevisionId } from '../ooxml/revision-ids';
+import { requireColour } from './colour';
 
 export interface InsertOperation extends BaseOperation {
   action: 'insert';
@@ -959,7 +960,7 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
     const bottom = createWordElement(doc, 'w:bottom');
 
     const lineStyle = op.lineStyle || 'single';
-    const color = (op.color || 'CBD5E1').replace(/^#/, '');
+    const color = op.color ? requireColour('color', op.color, { allowAuto: true }) : 'CBD5E1';
     const thickness = op.thickness !== undefined ? String(op.thickness) : '12';
 
     bottom.setAttribute('w:val', lineStyle);

@@ -9,6 +9,7 @@ import { createWordElement } from '../ooxml/ns';
 import { emitTrackedCellReplace, resolveRevisionStamp } from '../ooxml/track-changes-emitter';
 import { toError } from '../errors';
 import { takeRevisionId } from '../ooxml/revision-ids';
+import { colourForms, requireBorderSize, requireColour, resolveColourInput } from './colour';
 
 function isTableReproducible(): boolean {
   try {
@@ -647,13 +648,13 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
     afterIndex: Number(pick('afterIndex', op.afterIndex) ?? rows.length - 1),
     cells: cellsArray,
     index: Number(pick('index', op.index) ?? 0),
-    fill: String(pick('fill', op.fill) ?? 'F7F9FC').replace(/^#/, ''),
-    headerFill: (pick('headerFill', op.headerFill) as string | undefined)?.replace(/^#/, ''),
+    fill: String(resolveColourInput(pick('fill', op.fill) ?? 'F7F9FC')).replace(/^#/, ''),
+    headerFill: (resolveColourInput(pick('headerFill', op.headerFill)) as string | undefined)?.replace(/^#/, ''),
     zebra: pick('zebra', op.zebra) as boolean | undefined,
     // Explicit header/single-cell text color for setShading/setCellShading
     // (flat or nested in params; wins over the guide per the precedence
     // invariant). Validated below before any mutation.
-    textColor: (pick('textColor', op.textColor) as string | undefined),
+    textColor: resolveColourInput(pick('textColor', op.textColor)) as string | undefined,
   };
 
   // Advisory warnings collected across shading ops (contrast guardrail).
@@ -677,8 +678,8 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
     const normText = String(P.textColor).replace(/^#/, '');
     if (!/^[0-9A-Fa-f]{6}$/.test(normText)) {
       throw new Error(
-        `E_VALIDATION: ${resolvedOp} requires textColor as a 6-digit hex color with optional leading '#' (got textColor='${String(P.textColor)}'). ` +
-          `Remedy: pass textColor as 6 hex digits, e.g. textColor:'FFFFFF'.`
+        `E_VALIDATION: ${resolvedOp} requires textColor as ${colourForms()} (got textColor='${String(P.textColor)}'). ` +
+          `Remedy: pass textColor as 6 hex digits, e.g. textColor:'FFFFFF', or a colour name such as 'white'.`
       );
     }
     explicitTextColor = normText.toUpperCase();
@@ -1339,16 +1340,8 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
     }
     case 'setBorder': {
       const borderType = String(pick<string>('border', undefined) || 'all');
-      const color = String(pick<string>('color', undefined) || 'D1D5DB').replace(/^#/, '');
-      const rawSz = pick<string | number>('sz', undefined) || (raw.size as string | number | undefined) || 4;
-      const szNum = Number(rawSz);
-      if (!Number.isInteger(szNum) || szNum < 1) {
-        throw toError(
-          'E_VALIDATION',
-          `setBorder sz must be a whole number of eighths of a point (got ${String(rawSz)}).`,
-          'Pass sz:4 for a 0.5 pt line or sz:8 for 1 pt.'
-        );
-      }
+      const color = requireColour('color', pick<string>('color', undefined) || 'D1D5DB', { allowAuto: true });
+      const szNum = requireBorderSize('setBorder sz', pick<string | number>('sz', undefined) ?? (raw.size as string | number | undefined), 4);
       const sz = String(szNum);
       const val = String(raw.val || 'single');
 
@@ -1634,7 +1627,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
         );
       }
       const tc = resolveTableCell(tr, colIndex, 'setCellShading');
-      const fillInput = raw.fill ?? op.fill;
+      const fillInput = resolveColourInput(raw.fill ?? op.fill);
       if (fillInput === undefined) {
         throw new Error(
           `E_VALIDATION: setCellShading requires fill (got no fill). ` +
@@ -1644,8 +1637,8 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
       const fill = String(fillInput).replace(/^#/, '');
       if (!/^[0-9A-Fa-f]{6}$/.test(fill)) {
         throw new Error(
-          `E_VALIDATION: setCellShading requires a 6-digit hex fill with optional leading '#' (got fill='${String(fillInput)}'). ` +
-            `Remedy: pass fill as 6 hex digits, e.g. fill:'FF0000' or fill:'#FF0000'.`
+          `E_VALIDATION: setCellShading requires a fill that is ${colourForms()} (got fill='${String(fillInput)}'). ` +
+            `Remedy: pass fill as 6 hex digits, e.g. fill:'FF0000' or fill:'#FF0000', or a colour name such as 'red'.`
         );
       }
       const normFill = fill.toUpperCase();
@@ -2006,7 +1999,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
       // cell (row+col), row, column, or whole table when both omitted.
       // `textColor` is the name setShading and setCellShading use for the same thing, so it is
       // accepted here as an alias of `color` (an agent that learnt one name tries the other).
-      const colorInput = raw.color ?? op.color ?? raw.textColor ?? op.textColor;
+      const colorInput = resolveColourInput(raw.color ?? op.color ?? raw.textColor ?? op.textColor, { allowAuto: true });
       if (colorInput === undefined || colorInput === null || String(colorInput).trim() === '') {
         throw new Error(
           `E_VALIDATION: setCellTextColor requires color (got no color). ` +
@@ -2014,13 +2007,14 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
         );
       }
       const color = String(colorInput).replace(/^#/, '');
-      if (!/^[0-9A-Fa-f]{6}$/.test(color)) {
+      const autoColor = color === 'auto';
+      if (!autoColor && !/^[0-9A-Fa-f]{6}$/.test(color)) {
         throw new Error(
-          `E_VALIDATION: setCellTextColor requires a 6-digit hex color with optional leading '#' (got color='${String(colorInput)}'). ` +
-            `Remedy: pass color as 6 hex digits, e.g. color:'FFFFFF' or color:'#FFFFFF'.`
+          `E_VALIDATION: setCellTextColor requires ${colourForms({ allowAuto: true })} (got color='${String(colorInput)}'). ` +
+            `Remedy: pass color as 6 hex digits, e.g. color:'FFFFFF' or color:'#FFFFFF', or a colour name such as 'white'.`
         );
       }
-      const normColor = color.toUpperCase();
+      const normColor = autoColor ? 'auto' : color.toUpperCase();
       const cellFillOf = (tc: Element): string => {
         const tcPr = directChildren(tc, 'w:tcPr')[0];
         const shd = tcPr ? directChildren(tcPr, 'w:shd')[0] : undefined;
@@ -2060,7 +2054,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
           }
         }
         // Contrast guardrail: advisory only, never fails the op.
-        warnIfLowContrast(warnings, warnedContrastPairs, cellFillOf(tc), normColor, `cell (${rIdx + 1},${cIdx + 1}) of table '${tableNode.id}'`);
+        if (!autoColor) warnIfLowContrast(warnings, warnedContrastPairs, cellFillOf(tc), normColor, `cell (${rIdx + 1},${cIdx + 1}) of table '${tableNode.id}'`);
       };
       const tRowSrc = rowIndexAlias(raw, op);
       const tColSrc = colIndexAlias(raw, op);

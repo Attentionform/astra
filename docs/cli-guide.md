@@ -269,6 +269,21 @@ cat stream.jsonl | astra batch report.docx - --stream --on-error continue --max-
 ```
 `theme` is optional (`indigo|emerald|amber|slate|rose`); omitted inherits the session/`--style-guide` default. `title` is optional.
 
+**Colour and size fields.** A value is checked when the call is made, and the error names the field and the accepted forms. A colour is six hex digits with an optional `#` (`FF0000`, `#ff0000`), or one of ten names that map to a fixed value: `red` FF0000, `green` 008000, `blue` 0000FF, `black` 000000, `white` FFFFFF, `yellow` FFFF00, `orange` FFA500, `gray` and `grey` 808080, `purple` 800080 (CSS basic colours, not Word's palette). Names and `auto` ignore case, and surrounding spaces are ignored.
+
+| Field | Accepted | What a bad value does |
+| --- | --- | --- |
+| `style` `color` | hex, a name, `auto` | Refused at the call. |
+| `style` `highlight` | `yellow`, `green`, `cyan`, `magenta`, `blue`, `red`, `darkBlue`, `darkCyan`, `darkGreen`, `darkMagenta`, `darkRed`, `darkYellow`, `darkGray`, `lightGray`, `black`, `white`, or `none` (removes the highlight) | Refused at the call. |
+| `style` `fontSize` / `sz` | half-points as a number (`24` is 12 pt) or points as a string (`"12pt"`), at most 1638 pt (3276 half-points) | Refused at the call. |
+| `pageBorder` `color`; `insert` `color` (rule and border blocks); `style` border `color` | hex, a name, `auto` | Refused at the call. |
+| `pageBorder` `sz`; `table` `sz`; `sz` in a `style` border config (`borderBox`, `borderTop`, ...) | whole number of eighths of a point (`8` is 1 pt), 1 to 96; a string such as `"12pt"` is not a border width | Refused at the call. The nested `params` of a `table` operation and the border configs of a `style` operation are free-form in the schema, so the same limit is checked where the width is written; the error is then raised when the operation runs. |
+| `table` `fill`, `headerFill`, `textColor` | hex or a name (not `auto`) | Refused when the operation runs; the batch rolls back. |
+| `table` `color` (`setBorder`, `setCellTextColor`) | hex, a name, `auto` | Refused when the operation runs; the batch rolls back. |
+| chart series `color` | hex or a name | Not refused: any other value is replaced by the style guide's palette colour when a guide is set; without a guide the validator rejects the saved file and nothing is written. |
+| `watermark` `color` | hex or a name | Not refused: any other value is replaced by `D1D5DB` (light grey). |
+| `pageBorder` `fontSize` | accepted and ignored (the border width is `sz`) | Not used. |
+
 ---
 
 ### 4.4 Privacy & Sanitization (`astra sanitize`)

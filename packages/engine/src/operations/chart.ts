@@ -44,6 +44,7 @@ import {
 import { mergeChartDataInPlace } from './chart-merge';
 import { type ChartStyle, applyChartFloating, applyChartStyle, readChartStyle, validateChartStyle } from './chart-style';
 import { chartSpans, findDirectChild, attrValue, chartQualifiedName } from './chart-xml-spans';
+import { normalizeColour } from './colour';
 
 /**
  * Unified chart type system: 2D DrawingML types are the default;
@@ -204,7 +205,8 @@ function withGuideSeriesColors<T extends { color?: unknown }>(
   return series.map((s, i) => {
     const raw = typeof s?.color === 'string' ? s.color.replace(/^#/, '') : '';
     const existing = isShorthandHex(raw) ? expandShorthandHex(raw) : raw;
-    if (/^[0-9A-Fa-f]{6}$/.test(existing)) return s;
+    // An explicit colour (hex, shorthand, or a shortlisted name) wins; the writer maps a name to hex.
+    if (/^[0-9A-Fa-f]{6}$/.test(existing) || (typeof s?.color === 'string' && normalizeColour(s.color) !== undefined)) return s;
     return { ...s, color: guidePaletteColor(palette, i, taken) };
   });
 }

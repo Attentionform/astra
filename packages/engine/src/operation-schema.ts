@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BORDER_WIDTH_MAX, BORDER_WIDTH_MIN, colourDescription, colourForms, colourPattern, HIGHLIGHT_COLOURS, type ColourOptions } from './operations/colour';
 import { toError } from './errors';
 import { anchorAliasOf } from './anchor-alias';
 import { describeTableSubOpKeys, unknownParamsError } from './operation-params';
@@ -115,10 +116,37 @@ const twipsOrPoints = z
   ])
   .describe('Twips (20 per point, so 240 is 12 pt), or a string in points such as "12pt".');
 
+/** Word's own limit for a font size: 1638 pt, which is 3276 half-points. */
+export const MAX_FONT_HALF_POINTS = 3276;
+
+/** Font size: half-points as a number, or points as a string such as "12pt". Both are bounded at 1638 pt. */
 const fontSizeOrSzSchema = z.union([
-  z.number().finite().nonnegative(),
-  z.string().regex(FONT_SIZE_PT_REGEX, 'Font size string must match format like "12pt" or "10.5pt"')
-]);
+  z.number().finite().nonnegative().max(MAX_FONT_HALF_POINTS, 'font size must be at most 1638 pt (3276 half-points)'),
+  z
+    .string()
+    .regex(FONT_SIZE_PT_REGEX, 'Font size string must match format like "12pt" or "10.5pt"')
+    .refine((v) => (parseFontSize(v) ?? 0) <= MAX_FONT_HALF_POINTS, 'font size must be at most 1638 pt (3276 half-points)'),
+]).describe('Font size: a number of half-points (24 is 12 pt) or a string in points such as "12pt"; at most 1638 pt.');
+
+/**
+ * Border width: a whole number of eighths of a point (8 is 1 pt), 1 to 96 (ECMA-376 gives 2 to 96 for page borders;
+ * the writers have always accepted 1). A string such as "12pt" is not a border width.
+ */
+const borderSizeSchema = z
+  .number('border width is a whole number of eighths of a point, e.g. 8 for 1 pt')
+  .int('border width is a whole number of eighths of a point, e.g. 8 for 1 pt')
+  .min(BORDER_WIDTH_MIN, 'border width must be at least 1 (an eighth of a point)')
+  .max(BORDER_WIDTH_MAX, 'border width must be at most 96 (12 pt)')
+  .describe('Border width in eighths of a point (8 is 1 pt), a whole number from 1 to 96.');
+
+/** A colour field: the accepted forms are checked with the same helper the writers use. */
+function colourField(options: ColourOptions = {}, max = 32) {
+  return z
+    .string()
+    .max(max)
+    .regex(new RegExp(colourPattern(options)), `color must be ${colourForms(options)}`)
+    .describe(colourDescription(options));
+}
 
 const styleProperties = z.object({
   bold: z.boolean().optional(),
@@ -128,11 +156,11 @@ const styleProperties = z.object({
   doubleStrikethrough: z.boolean().optional(),
   vertAlign: z.enum(['superscript', 'subscript', 'baseline']).optional(),
   alignment: z.enum(['left', 'center', 'right', 'both', 'justify']).optional(),
-  color: z.string().max(32).optional(),
+  color: colourField({ allowAuto: true }).optional(),
   fontSize: fontSizeOrSzSchema.optional(),
   sz: fontSizeOrSzSchema.optional(),
   fontFamily: z.string().max(128).optional(),
-  highlight: z.string().max(32).optional(),
+  highlight: z.enum(HIGHLIGHT_COLOURS).optional(),
   lineSpacing: z.number().optional(),
   spacingBefore: twipsOrPoints.optional(),
   spacingAfter: twipsOrPoints.optional(),
@@ -152,7 +180,7 @@ const styleProperties = z.object({
 const insertChartSeries = z.object({
   name: z.string().max(500),
   values: z.array(z.number()).max(1_000),
-  color: z.string().max(16).optional(),
+  color: z.string().max(16).describe('Series colour: 6 hex digits, optionally with #, or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple. Any other value is replaced by the style guide palette colour when there is one.').optional(),
 }).catchall(z.unknown());
 
 const insertWrapMode = z.enum(['inline', 'square', 'tight', 'through', 'topAndBottom', 'behindText', 'inFrontOfText']);
@@ -203,7 +231,7 @@ const insertOp = z.object({
   headers: z.array(z.string().max(10_000)).max(100).optional(),
   rows: z.array(z.array(z.string().max(10_000)).max(100)).max(1_000).optional(),
   cellPadding: z.union([z.number().int().nonnegative(), tableCellPadding]).optional(),
-  color: z.string().max(16).optional(),
+  color: colourField({ allowAuto: true }).optional(),
   thickness: z.number().optional(),
   lineStyle: z.string().max(32).optional(),
   spacingBefore: twipsOrPoints.optional(),
@@ -293,11 +321,11 @@ const styleOp = z.object({
   doubleStrikethrough: z.boolean().optional(),
   vertAlign: z.enum(['superscript', 'subscript', 'baseline']).optional(),
   alignment: z.enum(['left', 'center', 'right', 'both', 'justify']).optional(),
-  color: z.string().max(32).optional(),
+  color: colourField({ allowAuto: true }).optional(),
   fontSize: fontSizeOrSzSchema.optional(),
   sz: fontSizeOrSzSchema.optional(),
   fontFamily: z.string().max(128).optional(),
-  highlight: z.string().max(32).optional(),
+  highlight: z.enum(HIGHLIGHT_COLOURS).optional(),
   lineSpacing: z.number().optional(),
   spacingBefore: twipsOrPoints.optional(),
   spacingAfter: twipsOrPoints.optional(),
@@ -390,20 +418,20 @@ const tableOp = z.object({
   cells: z.array(z.string().max(100_000)).max(100).describe('addRow: the text of the new cells, one entry per column from the first (also accepted inside params).').optional(),
   afterIndex: z.number().int().describe('addRow: insert after this row number; addColumn: after this column number (counting from 1; default the last).').optional(),
   index: z.number().int().describe('deleteRow/deleteColumn: the row or column number to remove (counting from 1).').optional(),
-  fill: z.string().max(16).optional(),
-  headerFill: z.string().max(16).optional(),
+  fill: colourField({}, 32).optional(),
+  headerFill: colourField({}, 32).optional(),
   zebra: z.boolean().optional(),
   // Explicit header/single-cell text color for setShading/setCellShading
   // (flat or params-nested; wins over the guide per the precedence invariant).
-  textColor: z.string().max(16).optional(),
+  textColor: colourField({}, 32).optional(),
   widths: z.array(z.number()).max(100).optional(),
   columnWidths: z.array(z.number()).max(100).optional(),
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   rule: z.enum(['atLeast', 'exact', 'auto']).optional(),
   border: z.string().max(32).optional(),
-  color: z.string().max(16).optional(),
-  sz: fontSizeOrSzSchema.optional(),
+  color: colourField({ allowAuto: true }).optional(),
+  sz: borderSizeSchema.optional(),
   vAlign: z.string().max(16).optional(),
   align: tableAlignmentSchema.optional(),
   alignment: tableAlignmentSchema.optional(),
@@ -537,7 +565,7 @@ export function chartHoleSizeSchemaRemedy(detail: string): string | undefined {
 const chartSeries = z.object({
   name: z.string().max(500),
   values: z.array(z.number()).max(1_000),
-  color: z.string().max(16).optional(),
+  color: z.string().max(16).describe('Series colour: 6 hex digits, optionally with #, or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple. Any other value is replaced by the style guide palette colour when there is one.').optional(),
   chartType: z.enum(['column', 'line']).optional(),
   axis: z.enum(['primary', 'secondary']).optional(),
 }).catchall(z.unknown());
@@ -685,7 +713,7 @@ const watermarkSizeSchema = z.union([z.number().finite().nonnegative().max(500),
 const watermarkOp = z.object({
   action: z.literal('watermark'),
   text: z.string().max(500).optional(),
-  color: z.string().max(16).optional(),
+  color: z.string().max(16).describe('Watermark colour: 6 hex digits, optionally with #, or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple. Any other value falls back to D1D5DB.').optional(),
   fontSize: watermarkSizeSchema.optional(),
   sz: watermarkSizeSchema.optional(),
   opacity: z.number().min(0).max(1).optional(),
@@ -696,9 +724,9 @@ const watermarkOp = z.object({
 const pageBorderOp = z.object({
   action: z.literal('pageBorder'),
   style: z.string().max(32).optional(),
-  sz: fontSizeOrSzSchema.optional(),
+  sz: borderSizeSchema.optional(),
   fontSize: fontSizeOrSzSchema.optional(),
-  color: z.string().max(16).optional(),
+  color: colourField({ allowAuto: true }).optional(),
   marginOffset: z.enum(['page', 'text']).optional(),
   sectionIndex: sectionNumber.optional(),
   expectedVersion,
