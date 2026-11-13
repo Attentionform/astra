@@ -24,7 +24,7 @@ const GOLDEN: Record<string, { summary: string; rezip: string }> = {
     "test-gallery/T5_image_doc.docx": { summary: "6082e96492425947ef11f8eba807e3ba2cfcad6e7bf1c0ab290fb41dc42a7a9e", rezip: "4ddb552344327f07a7581c9e15791d302ab1b38aa8c6ec5382962b64a8f06a7e" },
     "test-gallery/T6_honesty.docx": { summary: "3f89ce01141136a57833c946d082e7371c64bf81fafd9fe83f48a01382e33c25", rezip: "bbbe3695865b253f1367bb5e10567313f0a0058a4e4e8b7f912063c3af40777c" },
     "test-gallery/T7_visual_probe.docx": { summary: "fa0f5da780c8712eaf98fcbb16ac3a4654d7d750919a760298685531d6d541c5", rezip: "c1f122496fe60ed86c7cc636a589801134e3475270a039c979e3a17767a9927c" },
-    "test-gallery/T8_footnotes_endnotes.docx": { summary: "c01cb9644c18b13e340068f7f2fef49bbe0ca6a9c3b24519bc4397d0a7561752", rezip: "0871bb3f20c8831c020626ce2a7693515273c877aaed8aa558be808025874463" },
+    "test-gallery/T8_footnotes_endnotes.docx": { summary: "a50f889d75eff3429068f555e5427b475f5f99e62bab6abadf88e47de495ebc9", rezip: "0871bb3f20c8831c020626ce2a7693515273c877aaed8aa558be808025874463" },
     "test-gallery/T9_postmigration.docx": { summary: "7ff18d62b7173e2e94e6212dca7483fad10e97ade529d74c3c432a9fabf39a1e", rezip: "c6c5f25a3913468546696008516ef7b9cb307cf8586f776f51d5b21d3d446369" },
 };
 
@@ -35,6 +35,7 @@ const OPT_OUT =
 
 // T1 and T2: the summary hashes changed once, when the page total stopped counting a page after the last node
 // (T1 reported 2 pages and T2 reported 6; they are 1 and 5). The rezip hashes did not change.
+// T8: the summary hash changed once more, when a Subtitle paragraph went from heading level 1 to 2.
 useReproducibleOutput();
 
 describe.runIf(!OPT_OUT)('parser corpus golden', () => {
