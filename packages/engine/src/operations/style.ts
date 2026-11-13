@@ -5,6 +5,7 @@ import { RPR_CHILD_ORDER, PPR_CHILD_ORDER, appendInSchemaOrder, sortChildrenBySc
 import { parseFontSize, requireTwips } from '../operation-schema';
 import { toError } from '../errors';
 import { closestNames, KEY_WORDS } from '../operation-hints';
+import { requireColour } from './colour';
 
 export interface StyleProperties {
   bold?: boolean;
@@ -89,16 +90,14 @@ function applyRunProps(doc: Document, run: Element, props: StyleProperties): voi
   }
 
   // Color
-  if (props.color !== undefined && props.color !== null) {
+  if (props.color !== undefined && props.color !== null && String(props.color).trim() !== '') {
+    const hex = requireColour('color', props.color, { allowAuto: true });
     let colorEl = rPr.getElementsByTagName('w:color')[0];
     if (!colorEl) {
       colorEl = createWordElement(doc, 'w:color');
       rPr.appendChild(colorEl);
     }
-    const hex = String(props.color).replace(/^#/, '').trim();
-    if (hex) {
-      colorEl.setAttribute('w:val', hex);
-    }
+    colorEl.setAttribute('w:val', hex);
   }
 
   // Font Size: bare numbers are half-points (w:sz units, ECMA-376 file
@@ -798,7 +797,7 @@ export function executeStyle(op: StyleOperation, ast: DocumentAST): void {
           el.setAttribute('w:val', config.style || 'single');
           el.setAttribute('w:sz', String(config.sz ?? 12));
           el.setAttribute('w:space', '1');
-          el.setAttribute('w:color', (config.color || 'CBD5E1').replace(/^#/, ''));
+          el.setAttribute('w:color', config.color ? requireColour('color', config.color, { allowAuto: true }) : 'CBD5E1');
         };
 
         if (props.borderBox) {

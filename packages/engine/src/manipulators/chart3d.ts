@@ -11,6 +11,7 @@ import { RelationshipsManipulator } from './relationships';
 import { createChartElement, createRelationshipsElement, createContentTypesElement, allocateNextDrawingDocPrId } from '../ooxml/ns';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { expandShorthandHex, isShorthandHex } from '../style-guide/parser';
+import { normalizeColour } from '../operations/colour';
 
 /**
  * Requestable 3D chart types: exactly the four the writer produces (identical
@@ -220,6 +221,9 @@ export const DEFAULT_SERIES_PALETTE = ['0066CC', '10B981', 'F59E0B', 'EF4444', '
  * returns verbatim (strip `#` only) — legacy bytes unchanged. */
 export function defaultSeriesColor(color: string | undefined, seriesIdx: number): string {
   if (color) {
+    // Hex, or a shortlisted colour name mapped to hex; surrounding whitespace is ignored.
+    const named = normalizeColour(color);
+    if (named !== undefined) return named;
     const raw = color.replace(/^#/, '');
     if (isShorthandHex(raw)) return expandShorthandHex(raw);
     return raw;

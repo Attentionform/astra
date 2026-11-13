@@ -4,6 +4,7 @@ import { DocxParser, upsertSectPrChild } from '../parser';
 import { createWordElement } from '../ooxml/ns';
 import { sectionPosition } from './section-number';
 import { toError } from '../errors';
+import { requireColour } from './colour';
 
 export interface PageBorderOperation extends BaseOperation {
   action: 'pageBorder';
@@ -60,7 +61,7 @@ export function executePageBorder(op: PageBorderOperation, ast: DocumentAST, par
 
       const style = op.style || 'single';
       const sz = String(op.sz || 12);
-      const color = (op.color || 'CBD5E1').replace(/^#/, '');
+      const color = op.color ? requireColour('color', op.color, { allowAuto: true }) : 'CBD5E1';
 
       ['top', 'left', 'bottom', 'right'].forEach(side => {
         let sideEl = pgBorders.getElementsByTagName(`w:${side}`)[0];

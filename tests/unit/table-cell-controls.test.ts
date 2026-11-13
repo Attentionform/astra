@@ -191,7 +191,8 @@ describe('E3 setCellShading (saved bytes)', () => {
 
   it('invalid hex is loud E_VALIDATION (incl short, non-hex, empty)', async () => {
     const { ast, tableId } = await freshTable();
-    for (const fill of ['FFF', 'FFFFF', 'FF0000FF', 'GGGGGG', 'red', '', 'FF00ZZ', '#FFF', '#GGGGGG']) {
+    // 'red' is not here: a shortlisted colour name is accepted and mapped (colour.ts).
+    for (const fill of ['FFF', 'FFFFF', 'FF0000FF', 'GGGGGG', 'banana', '', 'FF00ZZ', '#FFF', '#GGGGGG']) {
       await expect(executeTable({
         action: 'table', target: tableId,
         params: { op: 'setCellShading', rowIndex: 1, colIndex: 1, fill },
@@ -1068,7 +1069,8 @@ describe('Header text color + keep-together (saved bytes)', () => {
     const saved = savedDocumentXml(parser, ast);
     expect((saved.match(/w:val="FF0000"/g) || []).length).toBe(1);
 
-    for (const color of ['FFF', 'GGGGGG', 'red', '', '#FFF']) {
+    // 'red' is not here: a shortlisted colour name is accepted and mapped (colour.ts).
+    for (const color of ['FFF', 'GGGGGG', 'banana', '', '#FFF']) {
       await expect(executeTable({
         action: 'table', target: tableId,
         params: { op: 'setCellTextColor', rowIndex: 1, colIndex: 1, color },

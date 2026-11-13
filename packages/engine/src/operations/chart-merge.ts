@@ -20,6 +20,7 @@ import {
   type ChartNamespaceScope,
   type Span,
 } from './chart-xml-spans';
+import { normalizeColour } from './colour';
 
 /**
  * Preserve-and-merge chart updates: patches the data nodes an update actually
@@ -114,7 +115,7 @@ function sameStrings(a: string[], b: string[]): boolean {
 
 function normalizeHex(value: string | undefined): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const raw = value.replace(/^#/, '').trim();
+  const raw = (normalizeColour(value) ?? value.replace(/^#/, '')).trim();
   return raw.length > 0 ? raw.toUpperCase() : undefined;
 }
 
@@ -423,7 +424,7 @@ function patchSeriesList(
       const lineSeries = combo
         ? (patch.chartType ?? existing?.chartType) === 'line'
         : baseLineSeries;
-      serXml = patchSeriesColor(serXml, patch.color!.replace(/^#/, ''), lineSeries, scope);
+      serXml = patchSeriesColor(serXml, normalizeColour(patch.color) ?? patch.color!.replace(/^#/, ''), lineSeries, scope);
     }
     pieces.push(serXml);
     cursor = spans[i].end;
