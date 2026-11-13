@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+All ten npm packages move to 0.5.0. This release adds recovery of the exact original file: ASTra keeps the bytes of a document when its history is first created, and you can export them or restore them in place as one recorded step. History now also stops, with nothing written, when a package part cannot be collected. The MCP server serves 21 tools (two new: `export_original_document` and `restore_original_document`). Histories written by 0.5.0 are not meant to be shared with 0.4.x (see Known limits).
+
 ### Added
 
 - Exact original DOCX capture when new history is initialized, with SHA-256 verification and explicit availability status. The CLI remains opt-in with `history --init`; histories created before this feature are not migrated.
@@ -278,7 +282,8 @@ First public release.
 - PDF export and page images need LibreOffice and Poppler installed on your machine.
 - Every output file is validated with the Open XML SDK before it is saved, so files are valid, uncorrupted and open in Microsoft Word.
 
-[Unreleased]: https://github.com/Attentionform/astra/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/Attentionform/astra/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Attentionform/astra/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/Attentionform/astra/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/Attentionform/astra/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Attentionform/astra/compare/v0.3.0...v0.4.0

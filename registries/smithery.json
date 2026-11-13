@@ -1,7 +1,7 @@
 {
   "$schema": "https://smithery.ai/schema/config.json",
   "name": "@attentionform/astra-mcp-server",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Model Context Protocol (MCP) server that lets AI agents read, edit and build Word (.docx) documents, with every save checked against the Office schema",
   "command": "npx",
   "args": [
