@@ -20,7 +20,7 @@ async function fresh() {
 }
 const markup = (ast: any, id: string): string => new XMLSerializer().serializeToString(ast.sections[0].nodes.find((n: any) => n.id === id).xml);
 
-async function rejected(run: () => Promise<unknown>): Promise<string> {
+async function rejected(run: () => unknown): Promise<string> {
   try {
     await run();
   } catch (error) {
