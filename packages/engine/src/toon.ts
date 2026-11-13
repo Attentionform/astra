@@ -1186,6 +1186,19 @@ export class ToonGenerator {
         }
       }
     }
+    if (fidelity === 'outline') {
+      // The Section column is built from every heading above a row, in the whole document, so a scoped outline must
+      // see headings outside its scope: their level and style (own XML) and the text that is cut into the breadcrumb.
+      combined += 'oh:';
+      for (const sec of ast.sections) {
+        for (const n of sec.nodes) {
+          const h = headingOfNode(n);
+          if (!h) continue;
+          const t = (n.metadata.text ?? '').trim();
+          combined += `${n.id}:${h.level}:${h.style}:${t.length}:${t.slice(0, OUTLINE_PATH_PART_LENGTH + 4)};`;
+        }
+      }
+    }
     // Global revision signals: cheap counts + short heads, never full XML.
     try {
       const s = ast.settings;

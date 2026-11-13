@@ -290,6 +290,41 @@ describe('outline tier through inspect_document', () => {
   });
 });
 
+describe('scoped outline cache follows the headings outside the scope', () => {
+  it('editing an ancestor heading changes the breadcrumb of a scoped outline', async () => {
+    const store = createMcpSessionStore();
+    const handle = await store.openBuffer(docWith(SAMPLE), 'scoped.docx');
+    const idOf = (text: string): string => handle.ast.sections.flatMap((s) => s.nodes).find((n) => n.metadata.text === text)!.id;
+    const deep = idOf('Deep');
+    const read = async (): Promise<string> => {
+      const res = await handleInspectDocument(store, { sessionId: handle.sessionId, fidelity: 'outline', sectionId: deep });
+      if (res.ok !== true) throw new Error(JSON.stringify(res));
+      return res.toonText;
+    };
+    expect(await read()).toContain('Alpha > Beta');
+    for (const [target, from, to] of [[idOf('Alpha'), 'Alpha', 'Renamed'], [idOf('Beta'), 'Beta', 'Second']] as const) {
+      const edit = await handleExecuteBatch(store, { sessionId: handle.sessionId, operations: [{ action: 'replace', target, text: to }], sequential: true });
+      expect(edit).toMatchObject({ ok: true });
+      const text = await read();
+      expect(text, `after ${from} -> ${to}`).not.toContain(from === 'Alpha' ? 'Alpha >' : '> Beta');
+      expect(text).toContain(to);
+    }
+    expect(await read()).toContain('Renamed > Second');
+  });
+
+  it('a style change that turns an ancestor into a non-heading changes the scoped breadcrumb', async () => {
+    const { ast } = await load();
+    const toon = new ToonGenerator();
+    const deep = ast.sections[0].nodes.find((n) => n.metadata.text === 'Deep')!;
+    const before = toon.toon(ast, { fidelity: 'outline', sectionId: deep.id }).rows[0].path;
+    expect(before).toBe('Alpha > Beta');
+    const beta = ast.sections[0].nodes.find((n) => n.metadata.text === 'Beta')!;
+    beta.xml.getElementsByTagName('w:pStyle')[0].setAttribute('w:val', 'Normal');
+    const after = toon.toon(ast, { fidelity: 'outline', sectionId: deep.id }).rows[0].path;
+    expect(after).toBe('Alpha');
+  });
+});
+
 describe('astra inspect --outline', () => {
   let dir: string;
   let file: string;
