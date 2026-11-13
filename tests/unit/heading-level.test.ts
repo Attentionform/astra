@@ -87,3 +87,17 @@ describe('headings in a parsed document', () => {
     expect(found.map((h) => h.level)).toEqual([1, 2, 4, 1]);
   });
 });
+
+describe('namedStyle of a node is the style of its own paragraph', () => {
+  it('a table and a textbox host paragraph report no style of a paragraph nested inside them', async () => {
+    const box = '<w:p><w:r><w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml"><v:textbox><w:txbxContent><w:p><w:pPr><w:pStyle w:val="Heading3"/></w:pPr><w:r><w:t>H9-in a box</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>';
+    const cell = '<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>In a cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/>';
+    const ast = await new DocxParser(docWith(['Heading1'], cell + box)).getAST();
+    const nodes = ast.sections.flatMap((s) => s.nodes);
+    const table = nodes.find((n) => n.type === 'table')!;
+    const host = nodes.find((n) => n.metadata.text?.includes('in a box'))!;
+    expect(table.metadata.namedStyle).toBeUndefined();
+    expect(host.metadata.namedStyle).toBeUndefined();
+    expect(nodes.find((n) => n.metadata.text === 'H0-Heading1')!.metadata.namedStyle).toBe('Heading1');
+  });
+});

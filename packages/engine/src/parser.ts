@@ -1732,8 +1732,8 @@ export class DocxParser {
         }
       }
       
-      const pStyleEl = element.getElementsByTagName('w:pStyle')[0];
-      const namedStyle = pStyleEl ? pStyleEl.getAttribute('w:val') || undefined : undefined;
+      // The paragraph's own style only: a table, or a paragraph that holds a textbox, has none of its own to report.
+      const namedStyle = ownParagraphStyleId(element);
 
       let nodeType: 'paragraph' | 'table' | 'chart' | 'chart3d' | 'image' | 'equation' | 'field' | 'list' = element.tagName === 'w:p' ? 'paragraph' : 'table';
       let chartData: { title?: string; categories?: string[]; series?: { name: string; values: number[]; xValues?: number[]; unpairedX?: number; unpairedY?: number }[]; chartType?: string; holeSize?: number; style?: ChartStyle; synthetic?: boolean } | undefined = undefined;
