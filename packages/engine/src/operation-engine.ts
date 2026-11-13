@@ -45,6 +45,13 @@ import type { StyleGuideConfig } from './style-guide/types';
  *   EngineQuotaError ([E_QUOTA] with remedy) — never a silent partial apply,
  *   never null.
  */
+/**
+ * Ids that compose_document mints: prefix `md`, `md2`, `md3`... then `_` and a sequence padded to at least four digits
+ * (`md_0001`, ..., `md_9999`, `md_10000`). A caller-chosen `idPrefix` is not recognized.
+ */
+export const COMPOSE_ID_PATTERN = /^md\d*_\d{4,}$/;
+const COMPOSE_ID_IN_MESSAGE = /\b(md\d*_\d{4,})\b/;
+
 export const ENGINE_MAX_OPS = 500;
 export const ENGINE_MAX_BYTES = 200 * 1024 * 1024;
 /** Documented default hint only (25) — NOT an enforced ceiling. Omit maxSteps for unbounded. */
@@ -1178,6 +1185,18 @@ export class OperationEngine {
   }
 
   private generateHint(op: BaseOperation, errorMessage: string): string | undefined {
+    // A missing id that looks like one compose_document minted: say what that id is and how to recover,
+    // without claiming the cause (a reopen, a typo and a deleted node all end here).
+    // The id is read from the failure itself, so the hint is about the node that was actually missing and
+    // cannot hide a "not found" about another node.
+    const missing = errorMessage.includes('not found') && !errorMessage.includes('not found in node')
+      ? COMPOSE_ID_IN_MESSAGE.exec(errorMessage)
+      : null;
+    if (missing) {
+      return `"${missing[1]}" looks like an id from compose_document. It may be an id of a session that was closed and reopened, ` +
+        `a mistyped id, or a node that was deleted. If the document was reopened, use the paragraph id from persistentIds in the compose response, ` +
+        `find the text with search_content, or re-read ids with inspect_document. Table ids are renumbered by position (t_001...) after reopen.`;
+    }
     // Stale node-id hint for every "not found" EXCEPT the word-level match
     // miss ("text ... not found in node ...", operations/style.ts), which
     // carries its own inspect-and-retry remedy that must not be overwritten.
