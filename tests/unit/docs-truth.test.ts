@@ -297,3 +297,37 @@ describe('docs truth: counts match live', () => {
     expect(Number((mcpAll as RegExpExecArray)[1])).toBe(liveTools);
   });
 });
+
+describe('docs truth: reading-documents.md names only live controls', () => {
+  const page = readText(path.join(REPO_ROOT, 'docs', 'reading-documents.md'));
+  const cliUsage = readText(path.join(REPO_ROOT, 'packages', 'cli', 'src', 'cli', 'usage.ts'));
+  const schemaKeys = Object.keys(InspectDocumentSchema.shape);
+
+  it('every MCP control it names is a key of the inspect_document schema', () => {
+    for (const control of ['maxTokens', 'window', 'aroundNode', 'limit', 'offset', 'maxTextLength', 'fidelity', 'sectionId']) {
+      expect(page, `page names ${control}`).toContain(`\`${control}\``);
+      expect(schemaKeys, control).toContain(control);
+    }
+  });
+
+  it('every control it names for the CLI is in the CLI usage text', () => {
+    for (const flag of ['--outline', '--max-text', '--section', '--fidelity']) {
+      expect(page, `page names ${flag}`).toContain(flag);
+      expect(cliUsage, flag).toContain(flag);
+    }
+    for (const command of ['astra stats', 'astra search', 'astra visual', 'astra export', 'astra create']) {
+      expect(page).toContain(command);
+      expect(cliUsage).toContain(command.replace('astra ', ''));
+    }
+  });
+
+  it('the outline tier it names exists, and the tiers it quotes exist', () => {
+    const tiers = ((InspectDocumentSchema.shape.fidelity as unknown) as { unwrap(): { options: string[] } }).unwrap().options;
+    for (const tier of ['outline', 'compact', 'standard', 'full']) expect(tiers).toContain(tier);
+  });
+
+  it('the generator script it names exists', () => {
+    expect(page).toContain('scripts/measure-read-tiers.mjs');
+    expect(fs.existsSync(path.join(REPO_ROOT, 'scripts', 'measure-read-tiers.mjs'))).toBe(true);
+  });
+});
