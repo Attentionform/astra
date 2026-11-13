@@ -28,6 +28,8 @@ for step in ${EXPERIMENTS}; do
     e5)         run e5_history env E5_WORKER=0 E5_WORKERS=1 node run/e5_history.mjs ;;
     e5_orphans) run e5_orphans node run/e5_orphans.mjs ;;
     e6)         run e6_e7_performance node run/e6_performance.mjs ;;
+    e9)         run e9_original node run/e9_original.mjs ;;
+    e10)        run e10_race node run/e10_race.mjs ;;
     *) stamp "unknown step $step"; failed=1 ;;
   esac
 done

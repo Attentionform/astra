@@ -253,3 +253,21 @@ target page count. The generator constants were changed and the corpus regenerat
 * The harness called `close_document` with an argument the tool does not accept. The call was rejected and the sessions were never closed, so the server reached its 10-session limit and refused later opens. E3 phase A and E4 were affected (opens refused with `E_QUOTA`, which would have counted as "detected" faults), so both were discarded and re-run after fixing the call. The harness now stops on any input-validation rejection of `open`, `save`, `inspect` or `close`.
 * C1: the fidelity reader treated each line of a fenced code block as a separate paragraph, but a code block is one paragraph with line breaks. The reader was fixed and C1 re-run; the first output is kept as `c1_create.firstrun-reader-bug.jsonl`. Two "out-of-scope" inputs (a table without a separator row, and a quote nested four deep) were accepted; the first is plain text by Markdown rules and the second is the documented behaviour (levels beyond 3 are written at level 3). They are reported as documented behaviour, not as refusals.
 * E5: `steps` counts back from the current head, and every revert appends a new commit (history is append-only), so "revert to every depth in one history" does not measure what was intended. E5 now reverts by commit id for every depth, and tests `steps` on a fresh history for depths 1, 2, 5 and 9. The first E5 output is discarded.
+
+**D5 (2026-11-13, before the 0.5.0 run; nothing for 0.5.0 had been measured by this harness yet).** Release 0.5.0 adds original recovery and
+changes how a document is opened, so two experiments were added and two harness defects fixed. No threshold of the earlier
+experiments was changed, and the 0.4.1 results are not re-labelled.
+* **E9 Original recovery (new, `run/e9_original.mjs`).** Expectation H9, written before the run: for all 40 corpus documents,
+  through the MCP server, (a) the exported original has the SHA-256 of the file as it was on disk before the first open,
+  (b) the same holds when the export is made after an edit and a save, and (c) `restore_original_document` leaves the
+  working file with that SHA-256. Met only if 40 of 40 for each. A server without the tools (0.4.2) is recorded as `tool_unavailable`.
+  The corpus is synthetic and was not written in Word, which limits what 40 of 40 shows.
+* **E10 Two writers, one document (new, `run/e10_race.mjs`).** Two MCP server processes open the same file, each replaces a
+  different paragraph, both save at the same time, 30 trials. Descriptive: this is a documented unsupported case (one writer
+  per document), so there is no pass threshold. It records edits lost (one or both), save errors, unreadable files and `git fsck`.
+* **E8 Open latency** (`run/e8_open.mjs`, added in the run of 2026-11-13) is part of this protocol from now on. It measures first open
+  and reopen, with and without validation, and with a 20 MB document. Descriptive; timings are compared only inside one run.
+* **Fix:** E4 printed its console summary from a hard-coded `results/0.4.1` file instead of the current label. The result file
+  `e4_atomicity.jsonl` was always written under the right label; only the console line was wrong.
+* **Build under test:** tag `cli-v0.5.0`, the commit the 0.5.0 packages were published from, built on the runner. This is a
+  build of the released source, not a download of the npm package, and the report says so.

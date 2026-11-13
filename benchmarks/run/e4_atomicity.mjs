@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { connect } from '../lib/mcp.mjs';
-import { freshDir, jsonl, CORPUS, fullOutline, seededRng } from '../lib/exp.mjs';
+import { freshDir, jsonl, readJsonl, CORPUS, fullOutline, seededRng } from '../lib/exp.mjs';
 
 const out = jsonl('e4_atomicity');
 const dir = freshDir('e4');
@@ -53,6 +53,6 @@ for (let rep = 0; rep < REPS; rep++) {
     fs.rmSync(file, { force: true });
   }
 }
-const all = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'results', '0.4.1', 'e4_atomicity.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse);
+const all = readJsonl('e4_atomicity');
 console.log('trials', all.length, 'atomic', all.filter((r) => r.atomic).length, 'recovered', all.filter((r) => r.recovery_ok).length, 'batch accepted despite bad op', all.filter((r) => r.batch_ok).length);
 await s.close();
