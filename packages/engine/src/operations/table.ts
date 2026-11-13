@@ -9,7 +9,7 @@ import { createWordElement } from '../ooxml/ns';
 import { emitTrackedCellReplace, resolveRevisionStamp } from '../ooxml/track-changes-emitter';
 import { toError } from '../errors';
 import { takeRevisionId } from '../ooxml/revision-ids';
-import { colourForms, requireColour, resolveColourInput } from './colour';
+import { colourForms, requireBorderSize, requireColour, resolveColourInput } from './colour';
 
 function isTableReproducible(): boolean {
   try {
@@ -1341,15 +1341,7 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
     case 'setBorder': {
       const borderType = String(pick<string>('border', undefined) || 'all');
       const color = requireColour('color', pick<string>('color', undefined) || 'D1D5DB', { allowAuto: true });
-      const rawSz = pick<string | number>('sz', undefined) || (raw.size as string | number | undefined) || 4;
-      const szNum = Number(rawSz);
-      if (!Number.isInteger(szNum) || szNum < 1) {
-        throw toError(
-          'E_VALIDATION',
-          `setBorder sz must be a whole number of eighths of a point (got ${String(rawSz)}).`,
-          'Pass sz:4 for a 0.5 pt line or sz:8 for 1 pt.'
-        );
-      }
+      const szNum = requireBorderSize('setBorder sz', pick<string | number>('sz', undefined) ?? (raw.size as string | number | undefined), 4);
       const sz = String(szNum);
       const val = String(raw.val || 'single');
 

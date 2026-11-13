@@ -278,7 +278,7 @@ cat stream.jsonl | astra batch report.docx - --stream --on-error continue --max-
 | `style` `highlight` | `yellow`, `green`, `cyan`, `magenta`, `blue`, `red`, `darkBlue`, `darkCyan`, `darkGreen`, `darkMagenta`, `darkRed`, `darkYellow`, `darkGray`, `lightGray`, `black`, `white`, or `none` (removes the highlight) | Refused at the call. |
 | `style` `fontSize` / `sz` | half-points as a number (`24` is 12 pt) or points as a string (`"12pt"`), at most 1638 pt (3276 half-points) | Refused at the call. |
 | `pageBorder` `color`; `insert` `color` (rule and border blocks); `style` border `color` | hex, a name, `auto` | Refused at the call. |
-| `pageBorder` `sz`; `table` `sz` | whole number of eighths of a point (`8` is 1 pt), 1 to 96; a string such as `"12pt"` is not a border width | Refused at the call. |
+| `pageBorder` `sz`; `table` `sz`; `sz` in a `style` border config (`borderBox`, `borderTop`, ...) | whole number of eighths of a point (`8` is 1 pt), 1 to 96; a string such as `"12pt"` is not a border width | Refused at the call. The nested `params` of a `table` operation and the border configs of a `style` operation are free-form in the schema, so the same limit is checked where the width is written; the error is then raised when the operation runs. |
 | `table` `fill`, `headerFill`, `textColor` | hex or a name (not `auto`) | Refused when the operation runs; the batch rolls back. |
 | `table` `color` (`setBorder`, `setCellTextColor`) | hex, a name, `auto` | Refused when the operation runs; the batch rolls back. |
 | chart series `color` | hex or a name | Not refused: any other value is replaced by the style guide's palette colour when a guide is set; without a guide the validator rejects the saved file and nothing is written. |

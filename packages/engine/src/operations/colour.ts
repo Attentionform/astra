@@ -76,6 +76,28 @@ export function requireColour(field: string, input: unknown, options: ColourOpti
   return value;
 }
 
+/** A border width is a whole number of eighths of a point, from 1 (an eighth) to 96 (12 pt). */
+export const BORDER_WIDTH_MIN = 1;
+export const BORDER_WIDTH_MAX = 96;
+
+/**
+ * The border width in `input` (a number, or a string holding a whole number), or `fallback` when it is undefined.
+ * Anything else, or a width outside BORDER_WIDTH_MIN..BORDER_WIDTH_MAX, is an E_VALIDATION error naming the field.
+ * The schema checks the top-level `sz`; this is the same rule for the writers, which also read it from the nested
+ * `params` of a table operation and from the border configs of a style operation.
+ */
+export function requireBorderSize(field: string, input: unknown, fallback: number): number {
+  if (input === undefined) return fallback;
+  const n = typeof input === 'number' ? input : typeof input === 'string' && input.trim() !== '' ? Number(input) : Number.NaN;
+  if (!Number.isInteger(n) || n < BORDER_WIDTH_MIN || n > BORDER_WIDTH_MAX) {
+    throw new Error(
+      `E_VALIDATION: ${field}: border width must be a whole number of eighths of a point from ${BORDER_WIDTH_MIN} to ${BORDER_WIDTH_MAX} (got ${JSON.stringify(input)}). ` +
+        'Remedy: pass sz:4 for a 0.5 pt line, sz:8 for 1 pt, sz:96 for 12 pt (the widest).'
+    );
+  }
+  return n;
+}
+
 /** JSON-schema `pattern` that accepts exactly what `normalizeColour` accepts (case-insensitive forms expanded). */
 export function colourPattern(options: ColourOptions = {}): string {
   const ci = (word: string): string => [...word].map((c) => `[${c.toLowerCase()}${c.toUpperCase()}]`).join('');

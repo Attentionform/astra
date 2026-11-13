@@ -5,7 +5,7 @@ import { RPR_CHILD_ORDER, PPR_CHILD_ORDER, appendInSchemaOrder, sortChildrenBySc
 import { parseFontSize, requireTwips } from '../operation-schema';
 import { toError } from '../errors';
 import { closestNames, KEY_WORDS } from '../operation-hints';
-import { requireColour } from './colour';
+import { requireBorderSize, requireColour } from './colour';
 
 export interface StyleProperties {
   bold?: boolean;
@@ -795,7 +795,7 @@ export function executeStyle(op: StyleOperation, ast: DocumentAST): void {
             pBdr.appendChild(el);
           }
           el.setAttribute('w:val', config.style || 'single');
-          el.setAttribute('w:sz', String(config.sz ?? 12));
+          el.setAttribute('w:sz', String(requireBorderSize(`${side} border sz`, config.sz, 12)));
           el.setAttribute('w:space', '1');
           el.setAttribute('w:color', config.color ? requireColour('color', config.color, { allowAuto: true }) : 'CBD5E1');
         };

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { colourDescription, colourForms, colourPattern, HIGHLIGHT_COLOURS, type ColourOptions } from './operations/colour';
+import { BORDER_WIDTH_MAX, BORDER_WIDTH_MIN, colourDescription, colourForms, colourPattern, HIGHLIGHT_COLOURS, type ColourOptions } from './operations/colour';
 import { toError } from './errors';
 import { anchorAliasOf } from './anchor-alias';
 import { describeTableSubOpKeys, unknownParamsError } from './operation-params';
@@ -132,8 +132,6 @@ const fontSizeOrSzSchema = z.union([
  * Border width: a whole number of eighths of a point (8 is 1 pt), 1 to 96 (ECMA-376 gives 2 to 96 for page borders;
  * the writers have always accepted 1). A string such as "12pt" is not a border width.
  */
-export const BORDER_WIDTH_MIN = 1;
-export const BORDER_WIDTH_MAX = 96;
 const borderSizeSchema = z
   .number('border width is a whole number of eighths of a point, e.g. 8 for 1 pt')
   .int('border width is a whole number of eighths of a point, e.g. 8 for 1 pt')
