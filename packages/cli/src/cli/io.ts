@@ -204,7 +204,7 @@ export async function withAuthorEnv<T>(author: string | undefined, fn: () => T |
 // Document census counters live in @attentionform/astra-engine (single source of truth
 // shared with MCP `get_stats`). Re-exported here so existing CLI importers
 // (`stats-cmd`, `inspect-cmd`) keep working unchanged.
-export { computeDocStats, tableCellTextSpaced } from '@attentionform/astra-engine';
+export { computeDocStats, describePageEstimate, PAGE_ESTIMATE_RECIPE, roundedPageTerms, tableCellTextSpaced } from '@attentionform/astra-engine';
 export type { DocStats } from '@attentionform/astra-engine';
 
 export function escapeXmlText(text: string): string {

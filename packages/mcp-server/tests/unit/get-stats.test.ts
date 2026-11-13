@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { AdmZip, computeDocStats, DocxParser, estimateTokenCount } from '@attentionform/astra-engine';
+import { AdmZip, computeDocStats, DocxParser, estimateTokenCount, roundedPageTerms } from '@attentionform/astra-engine';
 import { createMcpSessionStore } from '../../src/lib/session-store';
 import { handleInspectDocument } from '../../src/lib/mcp/handlers/open-inspect';
 import { handleComposeDocument } from '../../src/tools/compose-document';
@@ -80,6 +80,13 @@ describe('get_stats handler', () => {
       expect(res.tables).toBe(expected.tables);
       expect(res.images).toBe(expected.images);
       expect(res.pages).toBe(expected.pages);
+      // The estimate's terms come from the same counter, add up to the budget the pages are rounded from, and the
+      // existing fields are unchanged.
+      expect(res.pageTerms).toEqual(roundedPageTerms(expected.pageTerms));
+      const exact = expected.pageTerms;
+      expect(res.pages).toBe(Math.max(1, Math.ceil(exact.words + exact.tables + exact.images + exact.pageBreaks)));
+      expect(res.pageTerms.tables).toBeCloseTo(0.45, 5);
+      expect(res.pageTerms.images).toBeCloseTo(0.5, 5);
       expect(res.words).toBeGreaterThan(10);
       expect(res.paragraphs).toBeGreaterThan(3);
       expect(res.tables).toBe(1);
@@ -119,7 +126,8 @@ describe('get_stats handler', () => {
     const statsTokens = estimateTokenCount(JSON.stringify(stats));
     const inspectTokens = estimateTokenCount(inspected.toonText);
     expect(inspectTokens).toBeGreaterThan(1000);
-    expect(statsTokens).toBeLessThan(50);
+    // The envelope carries the four page-estimate terms (about 60 characters), so the bound is 70, not the earlier 50.
+    expect(statsTokens).toBeLessThan(70);
     expect(statsTokens).toBeLessThan(inspectTokens / 10);
   });
 

@@ -27,6 +27,7 @@ import {
   type DocumentAST,
   PII_COVERAGE,
   computeDocStats,
+  roundedPageTerms,
   piiCoverageSentence,
   refreshAstInPlace,
   revisionsRemedy,
@@ -205,6 +206,7 @@ export async function handleGetStats(
       callouts: number;
       images: number;
       pages: number;
+      pageTerms: { words: number; tables: number; images: number; pageBreaks: number };
     }
   | McpErrorShape
 > {
@@ -227,6 +229,7 @@ export async function handleGetStats(
         callouts: stats.callouts,
         images: stats.images,
         pages: stats.pages,
+        pageTerms: roundedPageTerms(stats.pageTerms),
       };
     });
   } catch (err: unknown) {
