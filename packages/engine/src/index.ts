@@ -53,6 +53,7 @@ export * from './manipulators/core-properties';
 export * from './export/html';
 export * from './export/markdown';
 export * from './export/pdf';
+export * from './export/pdf-source';
 export { hasExportPdfBackend } from './export/pdf';
 
 // Visual Review & Rendering (Headless)

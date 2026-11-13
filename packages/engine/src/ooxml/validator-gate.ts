@@ -50,15 +50,17 @@ export class OoxmlValidationError extends Error {
   public readonly errors: ValidationError[];
   public readonly firstError: ValidationError;
   public readonly code = 'E_VALIDATION' as const;
-  public readonly remedy = 're-export the file from Word (or pick a valid .docx) and retry';
+  public readonly remedy: string;
   public readonly retryable = false as const;
 
-  constructor(errors: ValidationError[], context: string = 'Document') {
+  /** `remedy` replaces the default text for callers that know a better next step (PDF export does). */
+  constructor(errors: ValidationError[], context: string = 'Document', remedy?: string) {
     const first = errors[0] || {};
     const xp = (typeof first.xPath === 'string' && first.xPath) || (typeof first.path === 'string' && first.path) || 'unknown';
     const hint = tableIndexHintForXPath((first as { xPath?: unknown }).xPath ?? (first as { path?: unknown }).path);
     const detail = `${first.description || 'Schema error'} @ ${xp}${hint ? ` (${hint})` : ''}`;
     super(`[OOXML Schema Violation] ${context} has ${errors.length} validation error(s): ${detail}`);
+    this.remedy = remedy ?? 're-export the file from Word (or pick a valid .docx) and retry';
     this.name = 'OoxmlValidationError';
     this.errors = errors;
     this.firstError = first;

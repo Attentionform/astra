@@ -134,6 +134,7 @@ export async function cmdExport(out: GlobalOpts, args: string[]): Promise<number
       ...(assetPrefix !== undefined ? { assetPrefix } : {}),
     });
     print(out, `EXPORT OK ${docxPath} -> ${result.path} (${result.format.toUpperCase()}, ${result.bytes} bytes)`);
+    if (result.note) print(out, `note: ${result.note}`);
     printJson(out, { command: 'export', ...result });
     return EXIT_OK;
   } catch (err: unknown) {

@@ -11,6 +11,11 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 - `compose_document` with `template` into a document that is not that template's seed now says both ways out: call it again without `template` to append, or call `new_document` with the template first. The tool description says the same.
 - An operation whose action is a verb plus an action name (`setTable`, `addImage`, `deleteTable`) now gets a suggestion. The error names the closest action, or both candidates when the verb is also an action (`deleteTable`: `table` or `delete`), then lists that action's keys and its operations.
 - A batch that fails on an id that `compose_document` could have minted (`md_0002`, `md2_0001`, `md_10000`) now says what the id is and how to go on: use the paragraph id from `persistentIds`, find the text with `search_content`, or re-read ids with `inspect_document`. The message lists a reopen, a typo and a deleted node as possible causes and does not claim one. Other missing ids keep the existing message.
+- `astra export --format pdf` now checks the package limits (`ASTRA_MAX_RATIO`, `ASTRA_MAX_UNCOMPRESSED_BYTES`, the same ceilings as opening a document) before it validates or renders, for every input. A valid package over a ceiling that was rendered before now stops with `E_LIMIT` and the remedy that names the setting.
+
+### Fixed
+
+- `astra export <file> --format pdf` no longer refuses a file whose only schema errors are the order of child elements (for example `w:color` after `w:sz` in a run's properties, which Word accepts). The export validates the file first. A valid file is rendered as it is. A file with order errors is rendered from a temporary copy in which only that order is corrected; a separate check proves that nothing else differs, every other part is copied unchanged, the copy must validate, and the source file is never written. The command prints a note saying the PDF came from a corrected copy. Anything else (a real schema error, an error that needs a rename or a default value, a part that is not UTF-8, a duplicate or unsafe package entry) is refused before the renderer starts, with a remedy that points to `astra validate` and `astra normalize`. The MCP `export_document` tool is unchanged: it renders the session as a save would write it.
 
 ## [0.5.0] - 2026-11-13
 

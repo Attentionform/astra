@@ -194,11 +194,12 @@ function sortContainerChildren(
 }
 
 /** Pass 3 driver over the four whitelisted containers. */
-function passSorts(doc: Document, entries: string[]): void {
+function passSorts(doc: Document, entries: string[], reorderedContainers?: string[]): void {
   for (const { tag, order } of SORT_CONTAINERS) {
     for (const container of snapshotElements(doc, tag)) {
       const { reordered, before, after } = sortContainerChildren(container, order);
       if (reordered) {
+        reorderedContainers?.push(elementXPath(container));
         entries.push(`Reordered ${tag} into schema order${locationSuffix(container)}: [${before.join(',')}] \u2192 [${after.join(',')}]`);
       }
     }
@@ -280,6 +281,171 @@ export function normalizePartXml(partName: string, xml: string): { xml: string; 
   passSorts(doc, entries);
   if (entries.length === 0) return { xml, normalized: [] };
   return { xml: partSerializer.serializeToString(doc), normalized: entries };
+}
+
+/**
+ * Reorder-only repair of one XML part: runs pass 3 (sequence sort) and nothing else. No alias renames and no
+ * default infills, so element names, attributes and text are never touched. Returns the (possibly unchanged)
+ * XML, the log entries, and the xPath of every container whose children were reordered. A part with nothing to
+ * reorder returns its exact input string. PDF export uses this to repair a copy, then proves the repair with
+ * `verifyOrderOnlyRepair`.
+ */
+export function reorderPartXml(
+  partName: string,
+  xml: string
+): { xml: string; reordered: string[]; containers: string[] } {
+  const doc = parsePartStrict(partName, xml);
+  if (!doc) return { xml, reordered: [], containers: [] };
+  const entries: string[] = [];
+  const containers: string[] = [];
+  passSorts(doc, entries, containers);
+  if (entries.length === 0) return { xml, reordered: [], containers: [] };
+  return { xml: partSerializer.serializeToString(doc), reordered: entries, containers };
+}
+
+const WML_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+/**
+ * The containers an order-only repair may reorder: the tags the normalizer sorts, with each container's child
+ * order. The verifier reads this table, never the list a repair reports, so a wrong report cannot widen what is
+ * accepted. A container is matched by namespace URI (WordprocessingML main) and local name; its listed children
+ * are matched by the qualified name as written, the same rule `sortContainerChildren` uses.
+ */
+export const ORDERED_CONTAINERS: ReadonlyMap<string, ReadonlySet<string>> = new Map(
+  SORT_CONTAINERS.map((c) => [c.tag.slice(c.tag.indexOf(':') + 1), new Set(c.order)])
+);
+
+const XMLNS_NS = 'http://www.w3.org/2000/xmlns/';
+
+function isWhitespaceText(node: Node): boolean {
+  return node.nodeType === 3 && /^[ \t\r\n]*$/.test(node.nodeValue ?? '');
+}
+
+function nodeKey(node: Node): string | null {
+  if (node.nodeType === 3 || node.nodeType === 4) return `#text:${JSON.stringify(node.nodeValue ?? '')}`;
+  if (node.nodeType === 7) return `#pi:${(node as ProcessingInstruction).target}:${JSON.stringify((node as ProcessingInstruction).data)}`;
+  if (node.nodeType === 8) return `#comment:${JSON.stringify(node.nodeValue ?? '')}`;
+  return null;
+}
+
+/** Element identity and attributes. Throws when a prefixed name has no namespace URI (equivalence cannot be shown). */
+function elementHead(el: Element): string {
+  const prefix = el.prefix ?? '';
+  if (prefix && !el.namespaceURI) throw new Error(`no namespace for ${el.tagName}`);
+  const attrs: string[] = [];
+  for (let i = 0; el.attributes && i < el.attributes.length; i++) {
+    const at = el.attributes[i];
+    const isDecl = at.name === 'xmlns' || at.name.startsWith('xmlns:');
+    if (!isDecl && at.name.includes(':') && !at.namespaceURI) throw new Error(`no namespace for @${at.name}`);
+    attrs.push(`${isDecl ? XMLNS_NS : at.namespaceURI ?? ''}|${at.name}=${JSON.stringify(at.value)}`);
+  }
+  attrs.sort();
+  return `<${el.namespaceURI ?? ''}|${prefix}|${el.localName ?? el.tagName} ${attrs.join(' ')}>`;
+}
+
+/**
+ * Canonical string of an element, built bottom-up. In an ordered container the listed children are sorted among
+ * themselves while every other child (unlisted element, whitespace, text, comment, processing instruction) is kept
+ * in its slot, which is exactly what the repair moves. A container that holds non-whitespace text, a comment or a
+ * processing instruction is not treated as reorderable: its children stay in sequence, so a reorder there is
+ * refused as ambiguous.
+ */
+function canonical(el: Element): string {
+  const head = elementHead(el);
+  const listed = el.namespaceURI === WML_NS ? ORDERED_CONTAINERS.get(el.localName ?? '') : undefined;
+  const parts: Array<string | null> = [];
+  const movable: string[] = [];
+  let ambiguous = false;
+  for (let node = el.firstChild; node; node = node.nextSibling) {
+    if (node.nodeType === 1) {
+      const child = node as Element;
+      const key = canonical(child);
+      if (listed && listed.has(child.tagName)) {
+        parts.push(null);
+        movable.push(key);
+      } else parts.push(key);
+    } else {
+      const key = nodeKey(node);
+      if (key === null) throw new Error(`unsupported node type ${node.nodeType}`);
+      if (!isWhitespaceText(node)) ambiguous = true;
+      parts.push(key);
+    }
+  }
+  if (!listed || ambiguous) {
+    // Not reorderable: every child, listed or not, stays in sequence.
+    const inSeq: string[] = [];
+    let m = 0;
+    for (const p of parts) inSeq.push(p === null ? movable[m++] : p);
+    return `${head}${inSeq.join('\u0001')}</>`;
+  }
+  movable.sort();
+  let m = 0;
+  const slots = parts.map((p) => (p === null ? `\u0002${movable[m++]}` : p));
+  return `${head}${slots.join('\u0001')}</>`;
+}
+
+/** Everything outside the root element, with whitespace-only runs removed (the serializer drops a trailing newline). */
+function outsideRoot(xml: string): string | null {
+  let i = 0;
+  const out: string[] = [];
+  const skipTo = (end: string): boolean => {
+    const j = xml.indexOf(end, i);
+    if (j < 0) return false;
+    out.push(xml.slice(i, j + end.length));
+    i = j + end.length;
+    return true;
+  };
+  const text = xml;
+  if (text.charCodeAt(0) === 0xfeff) {
+    out.push('\uFEFF');
+    i = 1;
+  }
+  for (;;) {
+    while (i < text.length && /[ \t\r\n]/.test(text[i])) i++;
+    if (text.startsWith('<?', i)) { if (!skipTo('?>')) return null; }
+    else if (text.startsWith('<!--', i)) { if (!skipTo('-->')) return null; }
+    else break;
+  }
+  const rootStart = i;
+  let end = text.length;
+  const tail: string[] = [];
+  for (;;) {
+    let e = end;
+    while (e > rootStart && /[ \t\r\n]/.test(text[e - 1])) e--;
+    if (text.slice(0, e).endsWith('-->')) {
+      const k = text.lastIndexOf('<!--', e);
+      if (k <= rootStart) break;
+      tail.unshift(text.slice(k, e)); end = k;
+    } else if (text.slice(0, e).endsWith('?>')) {
+      const k = text.lastIndexOf('<?', e);
+      if (k <= rootStart) break;
+      tail.unshift(text.slice(k, e)); end = k;
+    } else break;
+  }
+  return `${out.join('')}|${tail.join('')}`;
+}
+
+/**
+ * Independent proof that `repairedXml` differs from `originalXml` only in the order of listed children inside
+ * the ordered containers. It does not use the sort code and does not read the list the repair reported. Both
+ * parts are parsed strictly and reduced to canonical strings (see `canonical`): names compare by namespace URI,
+ * prefix and local name, attributes by namespace URI, name and value, with namespace declarations compared as
+ * attributes; text, comments and processing instructions take part; the XML declaration, comments and processing
+ * instructions outside the root must be equal. Any difference, any parse failure and any case where equivalence
+ * cannot be shown returns false.
+ */
+export function verifyOrderOnlyRepair(partName: string, originalXml: string, repairedXml: string): boolean {
+  try {
+    const original = parsePartStrict(partName, originalXml);
+    const repaired = parsePartStrict(partName, repairedXml);
+    if (!original || !repaired || !original.documentElement || !repaired.documentElement) return false;
+    const outA = outsideRoot(originalXml);
+    const outB = outsideRoot(repairedXml);
+    if (outA === null || outB === null || outA !== outB) return false;
+    return canonical(original.documentElement) === canonical(repaired.documentElement);
+  } catch {
+    return false;
+  }
 }
 
 export interface NormalizePackageResult {
