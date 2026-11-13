@@ -247,7 +247,10 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'editorial page budget (layout-weighted by words, tables, images, and explicit page breaks) in a single small envelope. ' +
       'Counters are the exact engine counters behind CLI stats, so both surfaces always agree. Physical pagination is finalized ' +
       'when exporting to PDF via LibreOffice. Read-only: never mutates, never bumps the revision. ' +
-      'Returns {ok:true,sessionId,revision,dirty,words,paragraphs,tables,callouts,images,pages}. ' +
+      'Returns {ok:true,sessionId,revision,dirty,words,paragraphs,tables,callouts,images,pages,pageTerms}. ' +
+      'pages is a rough estimate, max(1, ceil(words/450 + 0.45 per table or callout + 0.5 per image + 1 per page break)); pageTerms ' +
+      'gives those four terms in pages, so a caller can see how much of it is counted from images, tables and page breaks, which the ' +
+      'estimate cannot size. Use visual_inspect for the renderer\'s page count. ' +
       'A callout (a "> [!NOTE]" alert or a callout op: a one-cell table with a fill) is counted in callouts and not in tables. ' +
       'Use instead of inspect_document when only counts are needed (a full TOON dump costs thousands of tokens ' +
       'for the same question). Example {"sessionId":"sess_abc"} -> {"ok":true,"words":42,"paragraphs":5}. '

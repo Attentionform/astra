@@ -2,7 +2,7 @@ import { DocxParser } from '@attentionform/astra-engine';
 import { EXIT_OK, type GlobalOpts, print, printJson } from './output';
 import { failHuman } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
-import { computeDocStats, macroFlagsUsageError, macroOptsFromFlags, readDocx } from './io';
+import { computeDocStats, describePageEstimate, macroFlagsUsageError, macroOptsFromFlags, PAGE_ESTIMATE_RECIPE, readDocx, roundedPageTerms } from './io';
 
 export async function cmdStats(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'stats');
@@ -30,10 +30,12 @@ export async function cmdStats(out: GlobalOpts, args: string[]): Promise<number>
     const parser = new DocxParser(buf, macroOptsFromFlags({ allowMacros, stripMacros }));
     const ast = await parser.getAST();
     const stats = computeDocStats(ast);
-    print(out, `STATS ${file}: words=${stats.words} paragraphs=${stats.paragraphs} pages~${stats.pages} (est, 500 wpp)`);
+    print(out, `STATS ${file}: words=${stats.words} paragraphs=${stats.paragraphs} pages~${stats.pages} (rough estimate)`);
     print(out, `tables=${stats.tables} callouts=${stats.callouts} images=${stats.images} (a callout is a one-cell filled table and is not counted in tables)`);
-    print(out, `recipe: body paragraphs + table cells; excludes headers/footers/footnotes/comments; pages~P rough estimate = max(1, ceil(words/500))`);
-    printJson(out, { ok: true, file, words: stats.words, paragraphs: stats.paragraphs, pages: stats.pages, tables: stats.tables, callouts: stats.callouts, images: stats.images });
+    print(out, `recipe: body paragraphs + table cells; excludes headers/footers/footnotes/comments; ${PAGE_ESTIMATE_RECIPE}`);
+    const breakdown = describePageEstimate(stats);
+    if (breakdown) print(out, `pages~ ${breakdown}`);
+    printJson(out, { ok: true, file, words: stats.words, paragraphs: stats.paragraphs, pages: stats.pages, pageTerms: roundedPageTerms(stats.pageTerms), tables: stats.tables, callouts: stats.callouts, images: stats.images });
     return EXIT_OK;
   } catch (err: unknown) {
     return failHuman(out, err, { file, fallbackCode: 'E_VALIDATION' });

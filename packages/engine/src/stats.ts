@@ -140,10 +140,25 @@ export function countExplicitPageBreaks(node: { type?: string; metadata?: { text
   return count;
 }
 
+/**
+ * What the page estimate is made of, each term in pages, before the ceiling. The terms add up to the budget
+ * that `pages` rounds up. Only `words` is measured from text; the other three are fixed weights per table or
+ * callout (0.45), per image (0.50) and per explicit page break (1), because the estimate cannot size them.
+ */
+export interface PageTerms {
+  words: number;
+  tables: number;
+  images: number;
+  pageBreaks: number;
+}
+
 export interface DocStats {
   words: number;
   paragraphs: number;
+  /** A rough estimate: `max(1, ceil(sum of pageTerms))`. Not the renderer's page count. */
   pages: number;
+  /** The terms of the page estimate, in pages. */
+  pageTerms: PageTerms;
   /** Data tables. A callout (one filled cell) is counted in `callouts`, not here. */
   tables: number;
   /** Callouts: one-cell filled tables, such as a `> [!NOTE]` alert or a callout op. */
@@ -157,7 +172,8 @@ export interface DocStats {
  *  filled tables (see isCalloutTable); a table that only lives in a textbox/shape
  *  in a plain body paragraph has no AST node and is not counted, so this can
  *  trail a raw document.xml w:tbl census.
- *  pages is an estimated editorial budget: max(1, ceil(words/450 + tables*0.45 + images*0.50 + pageBreaks)). */
+ *  pages is an estimated editorial budget: max(1, ceil(words/450 + tables*0.45 + images*0.50 + pageBreaks)).
+ *  pageTerms holds the four terms of that sum, in pages. */
 export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: string; metadata: { text?: string; hasImage?: boolean }; xml?: unknown }> }> }): DocStats {
   let words = 0;
   let paragraphs = 0;
@@ -192,6 +208,33 @@ export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: st
   // - Tables and callouts: +0.45 page budget each.
   // - Images: +0.50 page budget per embedded image figure.
   // - Page breaks: +1 page budget per explicit page break.
-  const pageBudget = (words / 450) + ((tables + callouts) * 0.45) + (images * 0.50) + pageBreaks;
-  return { words, paragraphs, pages: Math.max(1, Math.ceil(pageBudget)), tables, callouts, images };
+  const pageTerms: PageTerms = {
+    words: words / 450,
+    tables: (tables + callouts) * 0.45,
+    images: images * 0.50,
+    pageBreaks,
+  };
+  const pageBudget = pageTerms.words + pageTerms.tables + pageTerms.images + pageTerms.pageBreaks;
+  return { words, paragraphs, pages: Math.max(1, Math.ceil(pageBudget)), pageTerms, tables, callouts, images };
+}
+
+/** `pageTerms` rounded to two decimals, for output that people and agents read (the exact terms stay in `computeDocStats`). */
+export function roundedPageTerms(terms: PageTerms): PageTerms {
+  const r = (n: number): number => Math.round(n * 100) / 100;
+  return { words: r(terms.words), tables: r(terms.tables), images: r(terms.images), pageBreaks: r(terms.pageBreaks) };
+}
+
+/** The recipe of the page estimate, as printed by the CLI. */
+export const PAGE_ESTIMATE_RECIPE = 'pages~ = max(1, ceil(words/450 + 0.45 per table + 0.5 per image + 1 per page break))';
+
+/**
+ * The sentence that says how much of the estimate is not counted from words, or '' when none of it is. It gives
+ * no accuracy figure: the estimate cannot see spacing, page size, columns, anchored images or table size.
+ */
+export function describePageEstimate(stats: Pick<DocStats, 'pages' | 'pageTerms'>): string {
+  const t = stats.pageTerms;
+  const other = t.tables + t.images + t.pageBreaks;
+  if (other <= 0) return '';
+  const rounded = Math.round(other * 100) / 100;
+  return `of which ~${rounded} pages are counted from images, tables and page breaks, which the estimate cannot size; "astra visual" gives the renderer's count`;
 }

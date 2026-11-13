@@ -805,13 +805,15 @@ describe('heading, stats and clear round-trips', () => {
 });
 
 describe('stats wordcount recipe', () => {
-  it('stats --help documents body+tables recipe and rough 500-wpp estimate', async () => {
+  it('stats --help documents body+tables recipe and the rough 450-words-per-page estimate with its terms', async () => {
     tmpDir('dx-stats-help');
     const r = (await runCli(['stats', '--help']));
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/table cell/i);
     expect(r.stdout).toMatch(/Headers.*footers.*footnotes/i);
-    expect(r.stdout).toMatch(/500/);
+    expect(r.stdout).toMatch(/words\/450/);
+    expect(r.stdout).not.toMatch(/500/);
+    expect(r.stdout).toMatch(/pageTerms/);
     expect(r.stdout).toMatch(/rough estimate/i);
   });
   it('stats counts table cells with spacing, excludes footers, labels pages estimate', async () => {
@@ -820,9 +822,10 @@ describe('stats wordcount recipe', () => {
     const r = (await runCli(['stats', file]));
     expect(r.status).toBe(0);
     // pages labeled as rough estimate with method
-    expect(r.stdout).toMatch(/pages~\d+ \(est, 500 wpp\)/);
+    expect(r.stdout).toMatch(/pages~\d+ \(rough estimate/);
     expect(r.stdout).toMatch(/recipe: body paragraphs \+ table cells/);
-    expect(r.stdout).toMatch(/rough estimate = max\(1, ceil\(words\/500\)\)/);
+    expect(r.stdout).toMatch(/pages~ = max\(1, ceil\(words\/450 \+ 0\.45 per table \+ 0\.5 per image \+ 1 per page break\)\)/);
+    expect(r.stdout).not.toMatch(/500 wpp|words\/500/);
     const m = /words=(\d+) paragraphs=(\d+) pages~(\d+)/.exec(r.stdout);
     expect(m, 'stats line parses').toBeTruthy();
     const words = Number(m![1]);
@@ -890,6 +893,6 @@ describe('stats wordcount recipe', () => {
     const file = copyGallery(dir);
     const r = (await runCli(['inspect', file]));
     expect(r.status).toBe(0);
-    expect(r.stdout).toMatch(/pages~\d+ \(est, 500 wpp\)/);
+    expect(r.stdout).toMatch(/pages~\d+ \(rough estimate/);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeDocStats } from '../src/stats';
+import { computeDocStats, describePageEstimate } from '../src/stats';
 
 describe('Layout-Weighted Pagination Heuristic (AS-05)', () => {
   it('estimates pages for pure prose based on 450 words per page', () => {
@@ -130,5 +130,59 @@ describe('Layout-Weighted Pagination Heuristic (AS-05)', () => {
     }
     const elapsedMs = performance.now() - start;
     expect(elapsedMs).toBeLessThan(50); // Less than 0.05ms per call
+  });
+
+  describe('pageTerms: what the estimate is made of', () => {
+    const words = (n: number) => Array(n).fill('word').join(' ');
+    const sum = (t: { words: number; tables: number; images: number; pageBreaks: number }) => t.words + t.tables + t.images + t.pageBreaks;
+
+    it('sums to the budget that pages rounds up', () => {
+      const stats = computeDocStats({
+        sections: [{ nodes: [
+          { type: 'paragraph', metadata: { text: words(450) } },
+          { type: 'table', metadata: { text: 'Cell 1 Cell 2' } },
+          { type: 'image', metadata: { text: '' } },
+        ] }],
+      });
+      expect(stats.pageTerms.words).toBeCloseTo(1.0 + 4 / 450, 5);
+      expect(stats.pageTerms.tables).toBeCloseTo(0.45, 5);
+      expect(stats.pageTerms.images).toBeCloseTo(0.5, 5);
+      expect(stats.pageTerms.pageBreaks).toBe(0);
+      expect(stats.pages).toBe(Math.max(1, Math.ceil(sum(stats.pageTerms))));
+    });
+
+    it('41 words and 3 images give about 0.09 and 1.5, which the ceiling turns into 2 pages', () => {
+      const stats = computeDocStats({
+        sections: [{ nodes: [
+          { type: 'paragraph', metadata: { text: words(41) } },
+          { type: 'image', metadata: { text: '' } },
+          { type: 'image', metadata: { text: '' } },
+          { type: 'image', metadata: { text: '' } },
+        ] }],
+      });
+      expect(stats.pageTerms.words).toBeCloseTo(0.0911, 3);
+      expect(stats.pageTerms.images).toBeCloseTo(1.5, 5);
+      expect(stats.pages).toBe(2);
+    });
+
+    it('for pure prose the non-word terms are 0 and no breakdown sentence is produced', () => {
+      const stats = computeDocStats({ sections: [{ nodes: [{ type: 'paragraph', metadata: { text: words(900) } }] }] });
+      expect(stats.pageTerms).toEqual({ words: 2, tables: 0, images: 0, pageBreaks: 0 });
+      expect(describePageEstimate(stats)).toBe('');
+    });
+
+    it('the breakdown sentence names the pages that are not counted from words and gives no accuracy figure', () => {
+      const stats = computeDocStats({
+        sections: [{ nodes: [
+          { type: 'paragraph', metadata: { text: words(41) } },
+          { type: 'image', metadata: { text: '' } },
+        ] }],
+      });
+      const sentence = describePageEstimate(stats);
+      expect(sentence).toContain('~0.5 pages');
+      expect(sentence).toContain('images, tables and page breaks');
+      expect(sentence).toContain('astra visual');
+      expect(sentence).not.toMatch(/accura|confiden|%|within/i);
+    });
   });
 });

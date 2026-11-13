@@ -2,7 +2,7 @@ import { DocxParser, ToonGenerator, VISUAL_PROMPT_LAW } from '@attentionform/ast
 import { CLI_NAME, EXIT_OK, type Fidelity, type GlobalOpts, print, printJson, printStderr, resolveInspectWidth } from './output';
 import { cleanCliMessage, failHuman, rewriteMcpRemedies } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
-import { computeDocStats, macroFlagsUsageError, macroOptsFromFlags, parseMaxRatioFlag, parseMaxUncompressedBytesFlag, readDocx, withZipCeilingEnv, type ZipCeilingOverrides } from './io';
+import { computeDocStats, describePageEstimate, macroFlagsUsageError, macroOptsFromFlags, parseMaxRatioFlag, parseMaxUncompressedBytesFlag, readDocx, withZipCeilingEnv, type ZipCeilingOverrides } from './io';
 import { printCliVisualTelemetry, renderCliVisualPage } from './visual-cmd';
 
 export function parseFidelity(raw: string | undefined): Fidelity | undefined {
@@ -146,7 +146,7 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
       sectionIds.slice(0, SECTION_IDS_SHOWN).join(', ') +
       (sectionIds.length > SECTION_IDS_SHOWN ? `, +${sectionIds.length - SECTION_IDS_SHOWN} more` : '');
     print(out, `rows=${table.rows.length} sections=${ast.sections.length} [${sectionIdsShown}] nodes=${summary.nodes.length}`);
-    print(out, `words=${stats.words} paragraphs=${stats.paragraphs} pages~${stats.pages} (est, 500 wpp)`);
+    print(out, `words=${stats.words} paragraphs=${stats.paragraphs} pages~${stats.pages} (rough estimate${describePageEstimate(stats) ? `, ${describePageEstimate(stats)}` : ''})`);
     // Would-be normalizations: the allowlist healing a save would apply
     // (dry-run preview over a DOM clone, nothing written). Clean documents
     // print nothing here; the --json envelope always carries the array.
