@@ -116,6 +116,12 @@ jobs:
         run: |
           echo "soffice on PATH:  $(command -v soffice || echo none)"
           echo "pdftoppm on PATH: $(command -v pdftoppm || echo none)"
+          case "$RUNNER_OS" in
+            Linux)   dpkg -l libreoffice-writer poppler-utils | grep '^ii' ;;
+            macOS)   ls -d /Applications/LibreOffice.app && brew list --versions poppler ;;
+            Windows) choco list --local-only libreoffice-fresh poppler
+                     ls "/c/Program Files/LibreOffice/program/soffice.exe" ;;
+          esac
       - name: Render a page and export a PDF
         run: node scripts/visual-render-smoke.mjs
 

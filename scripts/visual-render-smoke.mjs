@@ -8,6 +8,7 @@
  *
  * Used by the `visual-render` job of ci.yml on Linux, macOS and Windows.
  */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -30,6 +31,22 @@ console.log(`platform: ${process.platform}-${process.arch}`);
 console.log(`soffice:  ${status.sofficePath ?? 'NOT FOUND'}`);
 console.log(`pdftoppm: ${status.pdftoppmPath ?? 'NOT FOUND'}`);
 if (!status.available) fail(`backend not found (missing: ${status.missing.join(', ')})`);
+
+// Prove the tools are really installed and run: print their own version output.
+function versionLine(bin, args) {
+  // pdftoppm prints its version on stderr, so read both streams.
+  const run = spawnSync(bin, args, { encoding: 'utf8', timeout: 120000 });
+  if (run.error) return fail(`could not run ${bin} ${args.join(' ')}: ${run.error.message}`);
+  const text = `${run.stdout ?? ''}${run.stderr ?? ''}`.trim();
+  if (!text) return fail(`${bin} ${args.join(' ')} printed nothing (exit ${run.status})`);
+  return text.split(/\r?\n/)[0];
+}
+const sofficeVersion = versionLine(status.sofficePath, ['--version']);
+const pdftoppmVersion = versionLine(status.pdftoppmPath, ['-v']);
+console.log(`soffice version:  ${sofficeVersion}`);
+console.log(`pdftoppm version: ${pdftoppmVersion}`);
+if (!/libreoffice/i.test(sofficeVersion)) fail(`unexpected soffice version output: ${sofficeVersion}`);
+if (!/pdftoppm/i.test(pdftoppmVersion)) fail(`unexpected pdftoppm version output: ${pdftoppmVersion}`);
 
 const docx = engine.DocxParser.createNewDocument('blank').rezip();
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-visual-smoke-'));
