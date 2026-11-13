@@ -1,0 +1,52 @@
+phase A done
+B raw-xml x01 jc=middle                  blocked-at-save E_VALIDATION
+B raw-xml x02 unknown element            blocked-at-save E_VALIDATION
+B raw-xml x03 sz=abc                     blocked-at-save E_VALIDATION
+B raw-xml x04 table without rows         rejected-at-edit E_VALIDATION
+B raw-xml x05 malformed xml              rejected-at-edit E_VALIDATION
+B raw-xml x06 empty drawing              rejected-at-edit E_VALIDATION
+B raw-xml x07 bookmark without id        blocked-at-save E_VALIDATION
+B raw-xml x08 pPr order                  saved 
+B raw-xml x09 color=ZZZZZZ               blocked-at-save E_VALIDATION
+B raw-xml x10 tc without p               rejected-at-edit E_VALIDATION
+B raw-xml x11 ins without author         blocked-at-save E_VALIDATION
+B raw-xml x12 foreign namespace          rejected-at-edit E_VALIDATION
+B raw-xml x13 xml:space=bad              blocked-at-save E_VALIDATION
+B raw-xml x14 text outside p             blocked-at-save E_VALIDATION
+B raw-xml x15 VALID paragraph            saved 
+B raw-xml x16 VALID centred              saved 
+B typed t01 color=banana               blocked-at-save E_VALIDATION
+B typed t02 fontSize=-1                rejected-at-edit TOOL_INPUT_SCHEMA
+B typed t03 fontSize=0                 saved 
+B typed t04 fontSize=99999             saved 
+B typed t05 alignment=middle           rejected-at-edit TOOL_INPUT_SCHEMA
+B typed t06 highlight=purple           blocked-at-save E_VALIDATION
+B typed t07 mergeCells out of range    rejected-at-edit E_VALIDATION
+B typed t08 image not base64           rejected-at-edit E_VALIDATION
+B typed t09 image bytes not an image   rejected-at-edit E_VALIDATION
+B typed t10 chart non-numeric values   rejected-at-edit TOOL_INPUT_SCHEMA
+B typed t11 chart no series            saved 
+B typed t12 hyperlink javascript:      rejected-at-edit E_VALIDATION
+B typed t13 bookmark name with spaces  saved 
+B typed t14 unknown named style        saved 
+B typed t15 NUL in text                blocked-at-save E_VALIDATION
+B typed t16 negative margin            saved 
+B typed t17 columns=99                 rejected-at-edit TOOL_INPUT_SCHEMA
+B typed t18 empty comment              rejected-at-edit TOOL_INPUT_SCHEMA
+B typed t19 ragged table rows          saved 
+B typed t20 VALID bold                 saved 
+node:fs:440
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '/home/runner/work/astra/astra/harness/benchmarks/results/0.4.2/e3_gate.jsonl'
+    at Object.readFileSync (node:fs:440:20)
+    at file:///home/runner/work/astra/astra/harness/benchmarks/run/e3_gate.mjs:131:20
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/runner/work/astra/astra/harness/benchmarks/results/0.4.2/e3_gate.jsonl'
+}
+
+Node.js v22.23.4

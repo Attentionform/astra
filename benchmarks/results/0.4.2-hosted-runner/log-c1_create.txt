@@ -1,0 +1,38 @@
+md-00-1p compose true 142ms save true fid 12/12 ratio 15.9
+md-01-1p compose true 48ms save true fid 6/6 ratio 17.8
+md-02-2p compose true 52ms save true fid 27/27 ratio 9.9
+md-03-2p compose true 50ms save true fid 13/13 ratio 14.7
+md-04-3p compose true 51ms save true fid 29/29 ratio 11.3
+md-05-5p compose true 129ms save true fid 47/47 ratio 15.1
+md-06-5p compose true 68ms save true fid 49/49 ratio 12.1
+md-07-8p compose true 96ms save true fid 68/68 ratio 12.9
+md-08-10p compose true 140ms save true fid 97/97 ratio 14.2
+md-09-10p compose true 111ms save true fid 101/101 ratio 12.0
+md-10-15p compose true 168ms save true fid 146/146 ratio 11.5
+md-11-20p compose true 273ms save true fid 224/224 ratio 12.6
+md-12-25p compose true 310ms save true fid 283/283 ratio 11.1
+md-13-25p compose true 396ms save true fid 286/286 ratio 14.1
+md-14-30p compose true 403ms save true fid 283/283 ratio 12.8
+md-15-40p compose true 706ms save true fid 417/417 ratio 12.8
+md-16-50p compose true 775ms save true fid 523/523 ratio 11.4
+md-17-50p compose true 1051ms save true fid 496/496 ratio 13.7
+md-18-60p compose true 1153ms save true fid 626/626 ratio 12.3
+md-19-75p compose true 1700ms save true fid 760/760 ratio 12.8
+md-20-100p compose true 2338ms save true fid 978/978 ratio 12.3
+md-21-100p compose true 2423ms save true fid 1030/1030 ratio 12.4
+md-22-2p compose true 35ms save true fid 17/17 ratio 12.7
+md-23-5p compose true 58ms save true fid 50/50 ratio 13.1
+tpl-report compose true 39ms save true fid 17/17 ratio 14.8
+tpl-memo compose true 39ms save true fid 17/17 ratio 14.8
+oos heading-level-4 E_VALIDATION unchanged true
+oos nested-list E_VALIDATION unchanged true
+oos task-list E_VALIDATION unchanged true
+oos raw-html E_VALIDATION unchanged true
+oos nested-table-in-quote E_VALIDATION unchanged true
+oos heading-in-quote E_VALIDATION unchanged true
+oos remote-image E_VALIDATION unchanged true
+oos image-without-allowedDir E_VALIDATION unchanged true
+oos table-without-separator ACCEPTED unchanged false
+oos html-comment-script E_VALIDATION unchanged true
+oos deep-nested-quote ACCEPTED unchanged false
+oos custom-style-block E_VALIDATION unchanged true
