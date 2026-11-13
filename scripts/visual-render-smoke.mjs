@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { countInk } from './lib/png-ink.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -32,6 +33,25 @@ console.log(`soffice:  ${status.sofficePath ?? 'NOT FOUND'}`);
 console.log(`pdftoppm: ${status.pdftoppmPath ?? 'NOT FOUND'}`);
 if (!status.available) fail(`backend not found (missing: ${status.missing.join(', ')})`);
 
+// Say where each tool came from: found on PATH, or only in a standard install folder.
+// `--expect-source path|fallback` makes the run fail when a tool came from the other place, so a job
+// can prove the install-folder lookup was the one used (run it with a PATH that has no LibreOffice).
+function sourceOf(name) {
+  const onPath = engine.findOnPath(name, process.env.PATH ?? '', { fallbackDirs: false });
+  return onPath ? 'path' : 'fallback';
+}
+const sofficeSource = sourceOf(path.basename(status.sofficePath).replace(/\.(exe|com)$/i, ''));
+const pdftoppmSource = sourceOf('pdftoppm');
+console.log(`soffice found via:  ${sofficeSource}`);
+console.log(`pdftoppm found via: ${pdftoppmSource}`);
+const expectAt = process.argv.indexOf('--expect-source');
+if (expectAt >= 0) {
+  const expected = process.argv[expectAt + 1];
+  if (sofficeSource !== expected || pdftoppmSource !== expected) {
+    fail(`expected both tools via ${expected}, got soffice via ${sofficeSource} and pdftoppm via ${pdftoppmSource}`);
+  }
+}
+
 // Prove the tools are really installed and run: print their own version output.
 function versionLine(bin, args) {
   // pdftoppm prints its version on stderr, so read both streams.
@@ -49,7 +69,8 @@ if (!/libreoffice/i.test(sofficeVersion)) fail(`unexpected soffice version outpu
 if (!/pdftoppm/i.test(pdftoppmVersion)) fail(`unexpected pdftoppm version output: ${pdftoppmVersion}`);
 
 const docx = engine.DocxParser.createNewDocument('blank').rezip();
-const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-visual-smoke-'));
+// realpath: on macOS the temp folder sits behind the /var symlink, which the write sandbox refuses.
+const workDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'astra-visual-smoke-')));
 
 try {
   const render = await engine.renderDocxToImages(docx, { format: 'png', dpi: 72, maxPages: 1 });
@@ -58,8 +79,7 @@ try {
   const bytes = fs.readFileSync(image.path);
   if (bytes.length < 200) fail(`page image is only ${bytes.length} bytes`);
   if (!bytes.subarray(0, 8).equals(PNG_SIGNATURE)) fail('page image is not a PNG');
-  const width = bytes.readUInt32BE(16);
-  const height = bytes.readUInt32BE(20);
+  const { width, height } = countInk(bytes);
   if (width < 100 || height < 100) fail(`page image is ${width}x${height}`);
   console.log(`render:   ok, page 1 is ${width}x${height} PNG, ${bytes.length} bytes, ${render.totalPages} page(s)`);
 

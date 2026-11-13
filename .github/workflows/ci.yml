@@ -91,10 +91,12 @@ jobs:
         with:
           dotnet-version: '10.0.403'
       - run: npm run build:native --workspace=@attentionform/ooxml-validator
-      - name: Build the engine
+      - name: Build the engine, command line and MCP server
         run: |
           npm run build --workspace=@attentionform/ooxml-validator
           npm run build --workspace=@attentionform/astra-engine
+          npm run build --workspace=@attentionform/astra
+          npm run build --workspace=@attentionform/astra-mcp-server
       - name: Install LibreOffice and Poppler (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -119,11 +121,24 @@ jobs:
           case "$RUNNER_OS" in
             Linux)   dpkg -l libreoffice-writer poppler-utils | grep '^ii' ;;
             macOS)   ls -d /Applications/LibreOffice.app && brew list --versions poppler ;;
-            Windows) choco list --local-only libreoffice-fresh poppler
+            Windows) choco list libreoffice-fresh poppler
                      ls "/c/Program Files/LibreOffice/program/soffice.exe" ;;
           esac
-      - name: Render a page and export a PDF
+      - name: Engine render and PDF export (tools found as a user's PATH finds them)
         run: node scripts/visual-render-smoke.mjs
+      # PATH cut down to Node and the system folders, so a tool found now was found in a standard
+      # install folder and not on PATH. Proves the install-folder lookup on the real machine.
+      - name: Engine render with install-folder lookup only (macOS)
+        if: runner.os == 'macOS'
+        run: PATH="$(dirname "$(command -v node)"):/usr/bin:/bin" node scripts/visual-render-smoke.mjs --expect-source fallback
+      - name: Engine render with install-folder lookup only (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$(Split-Path (Get-Command node).Source);$env:SystemRoot\System32;$env:SystemRoot"
+          node scripts/visual-render-smoke.mjs --expect-source fallback
+      - name: Command line and MCP server render (astra visual, inspect --visual, export pdf, visual_inspect)
+        run: node scripts/visual-e2e-smoke.mjs
 
   original-recovery-filesystem:
     name: Original recovery (${{ matrix.os }})
