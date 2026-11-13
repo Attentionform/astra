@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E6/E7 timing experiments, alone on one VM. Baseline (published package) and build alternate for PERF_ROUNDS
+# E6/E7 timing experiments and the E8 open-latency experiment (first open, reopen, 20 MB), alone on one VM. Baseline (published package) and build alternate for PERF_ROUNDS
 # rounds, so a slow or fast moment on the VM hits both sides. Results: results/perf-<label>-r<round>/.
 set -u
 ROUNDS=${PERF_ROUNDS:-2}
@@ -16,6 +16,7 @@ measure() { # label, server-bin ("" = published)
     node run/env.mjs > /dev/null
     node run/smoke.mjs || exit 1
     node run/e6_performance.mjs > "results/${BENCH_LABEL}/log-e6_e7_performance.txt" 2>&1
+    node run/e8_open.mjs > "results/${BENCH_LABEL}/log-e8_open.txt" 2>&1
   ) && stamp "END $label ok" || stamp "END $label FAILED"
 }
 for r in $(seq 1 "$ROUNDS"); do
