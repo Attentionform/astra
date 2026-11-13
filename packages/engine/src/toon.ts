@@ -858,6 +858,25 @@ export function resolveSectionScope(sections: readonly Section[], sectionId: str
 const OUTLINE_HEADERS = ['ID', 'L', 'Style', 'Text', 'Section'] as const;
 /** The `outline` tier cuts a heading's text here unless the caller sets `maxTextLength`. */
 export const OUTLINE_DEFAULT_TEXT_LENGTH = 80;
+/**
+ * A heading's text can hold the column separator, a backslash or a line break. In the outline's cells (`Text`,
+ * `Style`, `Section`) a backslash is written `\\`, a pipe `\|`, a line break `\n` (and a return `\r`, a tab `\t`), so a
+ * reader can split a row on ` | ` and decode each cell.
+ */
+export function escapeOutlineCell(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+}
+
+/** One ancestor heading in a `Section` cell: escaped like a cell, and a `>` is written `\>` because ` > ` joins the parts. */
+function escapeOutlinePathPart(value: string): string {
+  return escapeOutlineCell(value).replace(/>/g, '\\>');
+}
+
 /** A breadcrumb part (one ancestor heading) is cut here. */
 const OUTLINE_PATH_PART_LENGTH = 60;
 
@@ -1223,7 +1242,7 @@ export class ToonGenerator {
           rows.push({
             id: node.id,
             version: node.version,
-            path: stack.map((h) => cut(h.text, OUTLINE_PATH_PART_LENGTH)).join(' > '),
+            path: stack.map((h) => escapeOutlinePathPart(cut(h.text, OUTLINE_PATH_PART_LENGTH))).join(' > '),
             header: '',
             style,
             text: cut(text, maxLen),
@@ -1424,7 +1443,8 @@ export class ToonGenerator {
       if (options?.maxTextLength && options.maxTextLength > 0 && text.length > options.maxTextLength) {
         text = `${text.substring(0, options.maxTextLength)}...`;
       }
-      output += `${[row.id, String(row.level ?? ''), row.style, text, row.path].join(sep)}\n`;
+      // row.path is already escaped part by part (see escapeOutlinePathPart); the other cells are escaped here.
+      output += `${[row.id, String(row.level ?? ''), escapeOutlineCell(row.style), escapeOutlineCell(text), row.path].join(sep)}\n`;
     }
     return output;
   }

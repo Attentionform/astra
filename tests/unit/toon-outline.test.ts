@@ -118,6 +118,56 @@ describe('outline tier (engine)', () => {
   });
 });
 
+describe('outline cells: separators, backslashes and line breaks in a heading', () => {
+  const decodeCell = (cell: string): string => cell.replace(/\\(\\|\||n|r|t)/g, (_m, c: string) => (c === 'n' ? '\n' : c === 'r' ? '\r' : c === 't' ? '\t' : c));
+  const NAMES = ['Revenue | 2025', 'back\\slash', 'ends with\\', 'a\\| both', 'line\nbreak', '| leading pipe', 'tab\there', 'a > b'];
+  const body = NAMES.map((n, i) => para(n.replace(/&/g, '&amp;').replace(/</g, '&lt;'), i === 0 ? 'Heading1' : 'Heading2')).join('') + para('Child of last', 'Heading3');
+
+  it('each row has exactly five cells and the cells decode to the heading text', async () => {
+    const { ast, toon } = await load(body);
+    const text = toon.renderToonText(toon.toon(ast, { fidelity: 'outline', maxTextLength: 200 }));
+    const lines = text.split(/\n(?=[0-9A-F]{8} \| )/).slice(1).map((l) => l.replace(/\n$/, ''));
+    expect(lines).toHaveLength(NAMES.length + 1);
+    lines.slice(0, NAMES.length).forEach((line, i) => {
+      const cells = line.split(' | ');
+      expect(cells, line).toHaveLength(5);
+      expect(decodeCell(cells[3])).toBe(NAMES[i]);
+    });
+    expect(text.split('\n').every((l) => !l.includes('\r'))).toBe(true);
+  });
+
+  it('a heading with a pipe does not break the Section of the heading under it', async () => {
+    const { ast, toon } = await load(para('Revenue | 2025', 'Heading1') + para('Q1', 'Heading2'));
+    const line = toon.renderToonText(toon.toon(ast, { fidelity: 'outline' })).split('\n').find((l) => l.includes('| Q1 |'))!;
+    const cells = line.split(' | ');
+    expect(cells).toHaveLength(5);
+    expect(cells[4]).toBe('Revenue \\| 2025');
+  });
+
+  it('a > inside an ancestor heading is escaped so the parts can be told apart', async () => {
+    const { ast, toon } = await load(para('A > B', 'Heading1') + para('C', 'Heading2') + para('D', 'Heading3'));
+    const rows = toon.toon(ast, { fidelity: 'outline' }).rows;
+    expect(rows[2].path).toBe('A \\> B > C');
+  });
+
+  it('the CLI prints the same escaped cells', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'astra-outline-esc-'));
+    const file = path.join(dir, 'doc.docx');
+    fs.writeFileSync(file, docWith(para('Revenue | 2025', 'Heading1') + para('Q1', 'Heading2')));
+    const seen: string[] = [];
+    const log = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => void seen.push(a.join(' ')));
+    try {
+      expect(await run(['inspect', file, '--outline'])).toBe(0);
+    } finally {
+      log.mockRestore();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    const out = seen.join('\n');
+    expect(out).toContain('| Heading1 | Revenue \\| 2025 | ');
+    expect(out).toContain('| Heading2 | Q1 | Revenue \\| 2025');
+  });
+});
+
 describe('outline tier through inspect_document', () => {
   async function open(body = SAMPLE) {
     const store = createMcpSessionStore();
