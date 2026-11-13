@@ -36,4 +36,25 @@ describe('WorkerClient.close', () => {
     (client as unknown as { liveChildren: Set<unknown> }).liveChildren.add(child);
     await client.close();
   });
+
+  it('waits for a worker that killWorker() just signalled (timeout, fatal or write error path)', async () => {
+    const client = new WorkerClient();
+    const child = signalledButAliveChild();
+    child.killed = false;
+    child.kill = () => { child.killed = true; return true; };
+    const internals = client as unknown as { liveChildren: Set<unknown>; child: unknown; killWorker(): void };
+    internals.liveChildren.add(child);
+    internals.child = child;
+    internals.killWorker();
+    expect(child.killed).toBe(true);
+    let closed = false;
+    const closing = client.close().then(() => { closed = true; });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(closed).toBe(false);
+    child.exitCode = null;
+    child.signalCode = 'SIGKILL';
+    child.emit('exit', null, 'SIGKILL');
+    await closing;
+    expect(closed).toBe(true);
+  });
 });

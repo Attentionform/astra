@@ -19,7 +19,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ### Fixed
 
-- `WorkerClient.close()` in the validator package no longer returns while a worker process that was already sent a signal is still running. It treated "a signal was sent" as "the process has exited", so on Windows the process could outlive `close()` for a short time (it made one platform test fail now and then).
+- `WorkerClient.close()` in the validator package no longer returns while a worker process it started and sent a signal to (a recycle, a timeout, a fatal reply or a failed write) is still running. It treated "a signal was sent" as "the process has exited", and a killed worker was dropped from its list at once, so on Windows the process could outlive `close()` for a short time (it made one platform test fail now and then).
 
 ### Known limits
 

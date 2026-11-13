@@ -321,7 +321,7 @@ export class WorkerClient {
     if (this.child) {
       const c = this.child;
       this.child = null;
-      this.liveChildren.delete(c);
+      // Stays in liveChildren until its 'exit' event, so a close() right after the kill still waits for the process.
       try {
         c.kill('SIGKILL');
       } catch {
