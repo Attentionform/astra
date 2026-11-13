@@ -55,17 +55,28 @@ if (expectAt >= 0) {
 // Prove the tools are really installed and run: print their own version output.
 function versionLine(bin, args) {
   // pdftoppm prints its version on stderr, so read both streams.
-  const run = spawnSync(bin, args, { encoding: 'utf8', timeout: 120000 });
+  const run = spawnSync(bin, args, { encoding: 'utf8', timeout: 60000 });
   if (run.error) return fail(`could not run ${bin} ${args.join(' ')}: ${run.error.message}`);
   const text = `${run.stdout ?? ''}${run.stderr ?? ''}`.trim();
   if (!text) return fail(`${bin} ${args.join(' ')} printed nothing (exit ${run.status})`);
   return text.split(/\r?\n/)[0];
 }
-const sofficeVersion = versionLine(status.sofficePath, ['--version']);
+// On Windows soffice.exe is a GUI launcher that does not print --version and can hang; its console
+// wrapper soffice.com does print it. Probe that one, and skip the probe if it is not installed.
+let sofficeVersion = 'not probed (no soffice.com next to soffice.exe)';
+if (process.platform !== 'win32') {
+  sofficeVersion = versionLine(status.sofficePath, ['--version']);
+  if (!/libreoffice/i.test(sofficeVersion)) fail(`unexpected soffice version output: ${sofficeVersion}`);
+} else {
+  const wrapper = status.sofficePath.replace(/\.exe$/i, '.com');
+  if (fs.existsSync(wrapper)) {
+    sofficeVersion = versionLine(wrapper, ['--version']);
+    if (!/libreoffice/i.test(sofficeVersion)) fail(`unexpected soffice.com version output: ${sofficeVersion}`);
+  }
+}
 const pdftoppmVersion = versionLine(status.pdftoppmPath, ['-v']);
 console.log(`soffice version:  ${sofficeVersion}`);
 console.log(`pdftoppm version: ${pdftoppmVersion}`);
-if (!/libreoffice/i.test(sofficeVersion)) fail(`unexpected soffice version output: ${sofficeVersion}`);
 if (!/pdftoppm/i.test(pdftoppmVersion)) fail(`unexpected pdftoppm version output: ${pdftoppmVersion}`);
 
 const docx = engine.DocxParser.createNewDocument('blank').rezip();
