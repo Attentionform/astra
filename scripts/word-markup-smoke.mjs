@@ -27,6 +27,9 @@
  *   R14 the default is unchanged: no option and `showMarkup:false` give the same page count and page text, no comments
  *   R15 isolation: with the user's own interactive Word open (only started here, only when no Word runs), it keeps its
  *       process and window through a markup render
+ *   R17 a long comment (60 words) with two comments close below it: every word is in the PDF text
+ *   R17b a very long comment (300 words): recorded, never a failure. Word's balloon has a maximum height and ends with an
+ *       ellipsis (about 150 words on 16.0.14334.20974); WORD_LONG_COMMENT_WARNING says so
  *   R16 the tested Word build
  * Page images for the owner to look at are written under the output folder. Exit code 1 if a machine check fails.
  */
@@ -59,7 +62,8 @@ const info = (m) => console.log(`     ${m}`);
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const upper = (a) => a.toUpperCase();
-const LONG = Array.from({ length: 60 }, (_, i) => `LONGTOKEN${String(i + 1).padStart(3, '0')}`);
+const longTokens = (n) => Array.from({ length: n }, (_, i) => `LONGTOKEN${String(i + 1).padStart(3, '0')}`);
+const LONG = longTokens(60);
 
 /** A DOCX with tracked changes and comments built from raw parts (a real review document, not the engine's own markup). */
 function reviewDocx({ authors = ['Alice', 'Bob', 'Carol'], longComment = false, spanning = false, pageFill = 0, plain = false } = {}) {
@@ -76,7 +80,7 @@ function reviewDocx({ authors = ['Alice', 'Bob', 'Carol'], longComment = false, 
     const del = `<w:del w:id="${10 + i}" w:author="${a}" w:date="${date}"><w:r><w:delText>DELETED-BY-${upper(a)}</w:delText></w:r></w:del>`;
     const ins = `<w:ins w:id="${20 + i}" w:author="${a}" w:date="${date}"><w:r><w:t>INSERTED-BY-${upper(a)}</w:t></w:r></w:ins>`;
     const id = cid++;
-    const text = longComment && i === 0 ? LONG.join(' ') : `COMMENT-BY-${upper(a)}`;
+    const text = longComment && i === 0 ? longTokens(typeof longComment === 'number' ? longComment : 60).join(' ') : `COMMENT-BY-${upper(a)}`;
     comments.push(`<w:comment w:id="${id}" w:author="${a}" w:date="${date}" w:initials="${a[0]}"><w:p><w:r><w:t>${esc(text)}</w:t></w:r></w:p></w:comment>`);
     const start = `<w:commentRangeStart w:id="${id}"/>`;
     const end = `<w:commentRangeEnd w:id="${id}"/><w:r><w:commentReference w:id="${id}"/></w:r>`;
@@ -270,6 +274,25 @@ async function wordChecks() {
     info(`page images (markup, Word): ${r.outDir}`);
   } catch (e) {
     record('R2', false, e instanceof Error ? e.message : String(e));
+  }
+
+  // R17: what Word does with a long comment is measured, not assumed (the warning text depends on it).
+  for (const [id, n] of [['R17', 60], ['R17b', 300]]) {
+    try {
+      const f = path.join(dir, `${id}.docx`);
+      fs.writeFileSync(f, reviewDocx({ longComment: n }));
+      const out = path.join(dir, `${id}.pdf`);
+      const o = await engine.wordDocxToPdf(f, out, { markup: true, tagged: false });
+      const t = pdfText(out);
+      const missing = longTokens(n).filter((tok) => !has(t, tok));
+      const detail = `${n}-word comment with two comments below it: ${missing.length === 0 ? 'every word is in the PDF' : `${missing.length} of ${n} words missing, first ${missing[0]}`}`;
+      if (id === 'R17') record(id, missing.length === 0 && o.markup?.mode === 2, detail, 'the long balloon');
+      else info(`${id}: ${detail} (recorded)`);
+      const r = await engine.renderDocxToImages(fs.readFileSync(f), { renderer: 'word', showMarkup: true });
+      info(`page images (${id}, Word): ${r.outDir}`);
+    } catch (e) {
+      record(id, false, e instanceof Error ? e.message : String(e));
+    }
   }
 
   try {

@@ -110,7 +110,20 @@ export const MIN_LIBREOFFICE_FOR_MARKUP = '7.6.7';
  * neighbours, so every LibreOffice markup render carries this warning.
  */
 export const LIBREOFFICE_LONG_COMMENT_WARNING =
-  'LibreOffice can show a long comment cut short in the margin (at the page edge on some versions, or at its end when other comments follow close below). Word on Windows shows comments in full balloons.';
+  'LibreOffice can show a long comment cut short in the margin (at the page edge on some versions, or at its end when other comments follow close below).';
+
+/**
+ * Word 16.0.14334.20974 (check R17, scripts/word-markup-smoke.mjs): a 60-word comment with two comments close below it
+ * was complete; a 300-word one ended after 152 words with an ellipsis button at the foot of the balloon (R17b). The
+ * balloon has a maximum height. So a long comment can be cut short in Word as well, and the cut is marked.
+ */
+export const WORD_LONG_COMMENT_WARNING =
+  'Word can also cut a very long comment short: its balloon has a maximum height and ends with an ellipsis (a 60-word comment was complete; a 300-word one ended after about 150 words).';
+
+/** Warnings that every Word markup render carries (the view settings Word did not take are added to these). */
+export function wordMarkupWarnings(): string[] {
+  return [WORD_LONG_COMMENT_WARNING];
+}
 
 /** Warnings for a markup render by LibreOffice. */
 export function libreOfficeMarkupWarnings(): string[] {

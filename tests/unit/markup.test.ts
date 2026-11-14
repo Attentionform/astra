@@ -11,6 +11,7 @@ import {
   DocxParser,
   MIN_LIBREOFFICE_FOR_MARKUP,
   LIBREOFFICE_LONG_COMMENT_WARNING,
+  WORD_LONG_COMMENT_WARNING,
   MARKUP_CONTRACT_NOTE,
   MARKUP_PRIVACY_NOTE,
   SHOW_MARKUP_ENV,
@@ -31,6 +32,7 @@ import {
   compareVersion,
   libreOfficeFilterSpec,
   libreOfficeMarkupWarnings,
+  wordMarkupWarnings,
   markupFailureError,
   parseLibreOfficeVersion,
   probeLibreOfficeVersion,
@@ -265,7 +267,13 @@ describe('LibreOffice version', () => {
     it('every LibreOffice markup render carries the long-comment warning, whatever the version', () => {
       expect(libreOfficeMarkupWarnings()).toEqual([LIBREOFFICE_LONG_COMMENT_WARNING]);
       expect(LIBREOFFICE_LONG_COMMENT_WARNING).toMatch(/cut short in the margin/);
-      expect(LIBREOFFICE_LONG_COMMENT_WARNING).toMatch(/Word on Windows/);
+      expect(LIBREOFFICE_LONG_COMMENT_WARNING).not.toMatch(/Word/);
+    });
+    it('every Word markup render carries the long-comment warning too, and it does not claim full balloons', () => {
+      expect(wordMarkupWarnings()).toEqual([WORD_LONG_COMMENT_WARNING]);
+      expect(WORD_LONG_COMMENT_WARNING).toMatch(/cut a very long comment short/);
+      expect(WORD_LONG_COMMENT_WARNING).toMatch(/ellipsis/);
+      expect(`${LIBREOFFICE_LONG_COMMENT_WARNING} ${WORD_LONG_COMMENT_WARNING}`).not.toMatch(/full balloons|in full/);
     });
     it('an unreadable version says it could not be determined, and never says too old or cannot show', () => {
       let err: unknown;
@@ -664,7 +672,8 @@ describe.skipIf(!POSIX)('the visual render path with stand-in programs', () => {
     const r = await renderDocxToImages(blank(), { renderer: 'word', pdfToImage: 'poppler', pdftoppmBin: pdftoppm, showMarkup: true, testHooks: winHooks });
     expect(logRows(process.env.FAKE_PS_LOG)[0].markup).toBe('1');
     expect(r.markup).toMatchObject({ requested: true, renderer: 'word', mode: 'export-with-markup' });
-    expect(r.markup?.warnings[0]).toMatch(/RevisionsView/);
+    expect(r.markup?.warnings[0]).toBe(WORD_LONG_COMMENT_WARNING);
+    expect(r.markup?.warnings.join(' ')).toMatch(/RevisionsView/);
   });
 
   it('explicit word with a view failure: fails, never switches to LibreOffice, no breaker', async () => {
