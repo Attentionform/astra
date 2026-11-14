@@ -84,10 +84,14 @@ describe('MCP numbering forks', () => {
     let rendered: Buffer | undefined;
     if (tool === 'pdf') {
       vi.spyOn(engine, 'hasPdfBackend').mockReturnValue(true);
-      vi.spyOn(engine, 'convertDocxToPdf').mockImplementation(async (bytes, out) => {
+      vi.spyOn(engine, 'convertDocxToPdfDetailed').mockImplementation(async (bytes, out) => {
         rendered = bytes;
         fs.writeFileSync(out, '%PDF-1.4\n');
-        return out;
+        return {
+          path: out,
+          renderer: { requested: 'auto', used: 'libreoffice' },
+          references: { networkReferencesAllowed: false, omissions: false, omittedCount: 0, omittedReferences: [], localCount: 0, notInspectedCount: 0 },
+        };
       });
     } else {
       vi.spyOn(engine, 'renderDocxToImages').mockImplementation(async bytes => {

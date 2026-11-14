@@ -7,8 +7,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import { DocxParser, renderDocxToImages, resetRendererBreakersForTesting, convertDocxToPdfDetailed, type VisualTestHooks } from '@attentionform/astra-engine';
-import { buildDocx, complexField, readPart } from '../helpers/docx-refs';
+import { AdmZip, DocxParser, renderDocxToImages, resetRendererBreakersForTesting, convertDocxToPdfDetailed, type VisualTestHooks } from '@attentionform/astra-engine';
+import { buildDocx, complexField, documentXml, readPart } from '../helpers/docx-refs';
 import { fakePsHooks, withFakePsEnv } from '../helpers/fake-ps';
 import { makeFakePdftoppm, makeFakeSoffice } from '../helpers/fake-bins';
 
@@ -320,6 +320,24 @@ describe.skipIf(!POSIX)('network references through the render path', () => {
     expect(leftovers()).toEqual([]);
     const r = await renderDocxToImages(bad, { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm, allowNetworkReferences: true });
     expect(r.references).toMatchObject({ networkReferencesAllowed: true, scanFailed: true });
+  });
+
+  it('a valid document with UTF-16 XML parts renders by default, and its network field is still neutralised', async () => {
+    setup();
+    const utf16 = (t: string) => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(t, 'utf16le')]);
+    const sources = '<?xml version="1.0" encoding="UTF-16"?><b:Sources xmlns:b="http://schemas.openxmlformats.org/officeDocument/2006/bibliography"/>';
+    const clean = buildDocx({ extra: { 'customXml/item1.xml': utf16(sources) } });
+    const r = await renderDocxToImages(clean, { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm });
+    expect(r.references).toMatchObject({ omissions: false, omittedCount: 0 });
+    expect(sha(seen(0))).toBe(sha(clean));
+    process.env.FAKE_COPY_SEQ = '1';
+    const header = documentXml(`<w:p>${complexField([' INCLUDEPICTURE "http://evil.example/f.png"'])}</w:p>`);
+    const evilDoc = buildDocx({ extra: { 'customXml/item1.xml': utf16(sources), 'word/header1.xml': utf16(header) } });
+    const r2 = await renderDocxToImages(evilDoc, { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm });
+    expect(r2.references).toMatchObject({ omissions: true, omittedCount: 1 });
+    const part = new AdmZip(seen(1)).getEntry('word/header1.xml')!.getData();
+    expect(part.subarray(0, 2).equals(Buffer.from([0xff, 0xfe]))).toBe(true);
+    expect(part.toString('utf16le')).not.toContain('evil.example');
   });
 
   it('a bad ASTRA_ALLOW_NETWORK_REFERENCES value is a loud E_VALIDATION', async () => {

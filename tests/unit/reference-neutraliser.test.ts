@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser } from '@attentionform/astra-engine';
+import { AdmZip, DocxParser } from '@attentionform/astra-engine';
 import {
   INERT_TARGET,
   REFERENCE_LIST_CAP,
@@ -14,7 +14,20 @@ import {
 } from '../../packages/engine/src/visual/references';
 import { REL_NS, buildDocx, complexField, documentXml, listParts, rawZip, readPart, relsXml } from '../helpers/docx-refs';
 import { createHash, randomBytes } from 'crypto';
+import { DOMParser as DOMParserForTest } from '@xmldom/xmldom';
 
+/** XML text as UTF-16 bytes, the way a tool that saves "Unicode" XML writes it. */
+function utf16(text: string, endian: 'le' | 'be', bom: boolean): Buffer {
+  const b = Buffer.from((bom ? '\ufeff' : '') + text, 'utf16le');
+  if (endian === 'be') b.swap16();
+  return b;
+}
+function fromUtf16(b: Buffer): string {
+  const copy = Buffer.from(b);
+  if (copy[0] === 0xfe || (copy[0] === 0x00 && copy[1] === 0x3c)) copy.swap16();
+  return copy.toString('utf16le').replace(/^\ufeff/, '');
+}
+const rawPart = (docx: Buffer, name: string) => new AdmZip(docx).getEntry(name)!.getData();
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 
 describe('classifyTarget', () => {
@@ -387,11 +400,11 @@ describe('fail closed', () => {
     const doctype = '<?xml version="1.0"?><!DOCTYPE d [<!ENTITY e "x">]><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>';
     expect(() => neutraliseReferences(buildDocx({ extra: { 'word/_rels/document.xml.rels': doctype } }))).toThrow(/DOCTYPE/);
   });
-  it('a UTF-16 part', () => {
-    const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(documentXml('<w:p/>'), 'utf16le')]);
-    expect(() => neutraliseReferences(buildDocx({ extra: { 'word/header1.xml': utf16 } }))).toThrow(/not UTF-8/);
-    const noBom = Buffer.from(documentXml('<w:p/>'), 'utf16le');
-    expect(() => neutraliseReferences(buildDocx({ extra: { 'word/footer1.xml': noBom } }))).toThrow(/not UTF-8/);
+  it('a UTF-16 part that cannot be decoded', () => {
+    const odd = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('<w:p/>', 'utf16le'), Buffer.from([0x20])]);
+    expect(() => neutraliseReferences(buildDocx({ extra: { 'word/header1.xml': odd } }))).toThrow(/E_SECURITY.*not valid UTF-16/);
+    const broken = utf16(documentXml(`<w:p>${complexField([' INCLUDEPICTURE "http://evil.example/x.png"'])}</w:p>`).replace('</w:body>', ''), 'le', true);
+    expect(() => neutraliseReferences(buildDocx({ extra: { 'word/header1.xml': broken } }))).toThrow(/E_SECURITY.*not well-formed/);
   });
   it('two parts with the same name (the renderer could read the one we did not)', () => {
     const entry = (name: string, text: string) => ({ name, data: Buffer.from(text) });
@@ -448,6 +461,71 @@ describe('redaction: no unusual target reaches a report', () => {
     const text = JSON.stringify([a.found, buildReferenceReport(false, a), describeReferenceReport(buildReferenceReport(false, a))]);
     for (const leak of ['secret', 'Host', 'host', 'U:P', 'x=1', '%2e', 'xn--', 'bcher', 'share', 'a b']) {
       expect(text).not.toContain(leak);
+    }
+  });
+});
+
+describe('UTF-16 parts (valid documents that Word and other tools write)', () => {
+  const custom = '<?xml version="1.0" encoding="UTF-16"?><b:Sources xmlns:b="http://schemas.openxmlformats.org/officeDocument/2006/bibliography"><b:Source><b:Title>Grüße</b:Title></b:Source></b:Sources>';
+  const variants: Array<['le' | 'be', boolean]> = [
+    ['le', true],
+    ['be', true],
+    ['le', false],
+    ['be', false],
+  ];
+
+  it.each(variants)('a UTF-16 %s (BOM: %s) part with no reference leaves the package untouched', (endian, bom) => {
+    const docx = buildDocx({ extra: { 'customXml/item1.xml': utf16(custom, endian, bom), 'word/header1.xml': utf16(documentXml('<w:p/>'), endian, bom) } });
+    const a = neutraliseReferences(docx);
+    expect(a.docx).toBe(docx);
+    expect(a.found).toHaveLength(0);
+  });
+
+  it.each(variants)('a UTF-16 %s (BOM: %s) part with a network field is neutralised and stays UTF-16', (endian, bom) => {
+    const header = documentXml(`<w:p>${complexField([' INCLUDEPICTURE "http://evil.example/x.png"'])}<w:r><w:t>Grüße</w:t></w:r></w:p>`);
+    const docx = buildDocx({ extra: { 'word/header1.xml': utf16(header, endian, bom) } });
+    const a = neutraliseReferences(docx);
+    expect(a.found).toHaveLength(1);
+    const out = rawPart(a.docx, 'word/header1.xml');
+    expect(out.subarray(0, 2).equals(Buffer.from(bom ? (endian === 'le' ? [0xff, 0xfe] : [0xfe, 0xff]) : endian === 'le' ? [0x3c, 0x00] : [0x00, 0x3c]))).toBe(true);
+    const text = fromUtf16(out);
+    expect(text).not.toContain('evil.example');
+    expect(text).toContain('Grüße');
+    const problems: string[] = [];
+    new DOMParserForTest({ errorHandler: { warning: (m: string) => problems.push(m), error: (m: string) => problems.push(m), fatalError: (m: string) => problems.push(m) } }).parseFromString(text, 'text/xml');
+    expect(problems).toEqual([]);
+  });
+
+  it.each(variants)('a UTF-16 %s (BOM: %s) relationships part with an external target is retargeted', (endian, bom) => {
+    const rels = relsXml([{ id: 'rId1', type: 'image', target: 'http://evil.example/p.png', mode: 'External' }]).replace('encoding="UTF-8"', 'encoding="UTF-16"');
+    const docx = buildDocx({ extra: { 'word/_rels/header1.xml.rels': utf16(rels, endian, bom) } });
+    const a = neutraliseReferences(docx);
+    expect(a.found).toHaveLength(1);
+    const text = fromUtf16(rawPart(a.docx, 'word/_rels/header1.xml.rels'));
+    expect(text).not.toContain('evil.example');
+    expect(text).toContain(INERT_TARGET);
+  });
+
+  it('a binary part that only starts with a UTF-16 byte order mark is left alone', () => {
+    const docx = buildDocx({ extra: { 'word/embeddings/o.bin': Buffer.from([0xff, 0xfe, 0x01, 0x02, 0x03]), 'word/fonts/f.odttf': Buffer.from([0xfe, 0xff, 0x00]) } });
+    expect(neutraliseReferences(docx).docx).toBe(docx);
+  });
+});
+
+describe('size limits', () => {
+  it('a highly compressible part (a blank bitmap) is not a reason to refuse: the ratio is an opening policy, not a scan limit', () => {
+    const blank = Buffer.alloc(2 * 1024 * 1024, 0);
+    const docx = buildDocx({ extra: { 'word/media/image1.bmp': blank } });
+    expect(() => neutraliseReferences(docx)).not.toThrow();
+  });
+  it('the total uncompressed ceiling still applies', () => {
+    const prev = process.env.ASTRA_MAX_UNCOMPRESSED_BYTES;
+    process.env.ASTRA_MAX_UNCOMPRESSED_BYTES = '1000';
+    try {
+      expect(() => neutraliseReferences(buildDocx({ extra: { 'word/media/image1.bmp': Buffer.alloc(4096, 1) } }))).toThrow(/E_LIMIT/);
+    } finally {
+      if (prev === undefined) delete process.env.ASTRA_MAX_UNCOMPRESSED_BYTES;
+      else process.env.ASTRA_MAX_UNCOMPRESSED_BYTES = prev;
     }
   });
 });

@@ -329,16 +329,25 @@ function parseXml(name: string, xml: string): Document {
   return doc as unknown as Document;
 }
 
-/** UTF-16 XML (with or without a BOM): it cannot be searched or rewritten as UTF-8 text. */
-function isUtf16Xml(data: Buffer): boolean {
-  if (data.length < 4) return false;
+/** How a part's bytes map to text, kept so a rewritten part goes back out in the encoding it came in. */
+interface PartEncoding {
+  utf16?: 'le' | 'be';
+  /** The bytes started with a byte order mark (UTF-8 BOM or UTF-16 BOM). */
+  bom: boolean;
+}
+
+/**
+ * UTF-16 XML: a BOM (FF FE or FE FF) or none, then `<` as the first character, which shows as `3C 00` (LE)
+ * or `00 3C` (BE). A binary part that merely starts with FF FE is not text and is left alone.
+ */
+function utf16Endianness(data: Buffer): 'le' | 'be' | undefined {
+  if (data.length < 4) return undefined;
   const [a, b, c, d] = [data[0], data[1], data[2], data[3]];
-  return (
-    (a === 0xff && b === 0xfe && c === 0x3c && d === 0x00) ||
-    (a === 0xfe && b === 0xff && c === 0x00 && d === 0x3c) ||
-    (a === 0x3c && b === 0x00 && c === 0x3f && d === 0x00) ||
-    (a === 0x00 && b === 0x3c && c === 0x00 && d === 0x3f)
-  );
+  if (a === 0xff && b === 0xfe && c === 0x3c && d === 0x00) return 'le';
+  if (a === 0xfe && b === 0xff && c === 0x00 && d === 0x3c) return 'be';
+  if (a === 0x3c && b === 0x00 && d === 0x00) return 'le';
+  if (a === 0x00 && b === 0x3c && c === 0x00) return 'be';
+  return undefined;
 }
 
 /** Does the part start like an XML document (after a UTF-8 BOM and white space)? */
@@ -349,24 +358,41 @@ function looksLikeXml(data: Buffer): boolean {
   return data[i] === 0x3c;
 }
 
-function assertUtf8(name: string, data: Buffer): void {
-  if (isUtf16Xml(data)) throw failClosed(`part "${name}" is not UTF-8 encoded`);
+function decodePart(name: string, data: Buffer): { text: string; enc: PartEncoding } {
+  if (data.length > MAX_PART_BYTES) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+  const utf16 = utf16Endianness(data);
+  if (utf16) {
+    if (data.length % 2 !== 0) throw failClosed(`part "${name}" is not valid UTF-16`);
+    let bytes = data;
+    if (utf16 === 'be') {
+      bytes = Buffer.from(data); // swap on a copy, the zip entry stays as it was
+      bytes.swap16();
+    }
+    let text = bytes.toString('utf16le');
+    const bom = text.charCodeAt(0) === 0xfeff;
+    if (bom) text = text.slice(1);
+    return { text, enc: { utf16, bom } };
+  }
+  let text = data.toString('utf8');
+  const bom = text.charCodeAt(0) === 0xfeff;
+  if (bom) text = text.slice(1);
+  return { text, enc: { bom } };
 }
 
-function decodePart(name: string, data: Buffer): string {
-  if (data.length > MAX_PART_BYTES) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
-  assertUtf8(name, data);
-  let text = data.toString('utf8');
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-  return text;
+function encodePart(xml: string, enc: PartEncoding): Buffer {
+  if (!enc.utf16) return Buffer.from(xml, 'utf8');
+  const bytes = Buffer.from((enc.bom ? '\ufeff' : '') + xml, 'utf16le');
+  if (enc.utf16 === 'be') bytes.swap16();
+  return bytes;
 }
 
 function serialise(doc: Document): string {
   return new XMLSerializer().serializeToString(doc as never);
 }
 
-function processRels(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis): string | null {
-  const doc = parseXml(name, decodePart(name, data));
+function processRels(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis): Buffer | null {
+  const { text, enc } = decodePart(name, data);
+  const doc = parseXml(name, text);
   const rels = (doc as unknown as { getElementsByTagNameNS(ns: string, ln: string): ArrayLike<Element> }).getElementsByTagNameNS('*', 'Relationship');
   let changed = false;
   for (let i = 0; i < rels.length; i++) {
@@ -393,7 +419,7 @@ function processRels(name: string, data: Buffer, mutate: boolean, out: Reference
       changed = true;
     }
   }
-  return changed ? serialise(doc) : null;
+  return changed ? encodePart(serialise(doc), enc) : null;
 }
 
 interface FieldFrame {
@@ -426,13 +452,20 @@ function setFldSimpleInstruction(el: Element, text: string): void {
   }
 }
 
-function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis): string | null {
-  // The encoding is checked BEFORE the byte pre-filter: a UTF-16 part would never match a UTF-8 search string.
-  assertUtf8(name, data);
-  if (!looksLikeXml(data)) return null;
+function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis): Buffer | null {
+  const utf16 = utf16Endianness(data) !== undefined;
+  if (!utf16 && !looksLikeXml(data)) return null;
   // Cheap pre-filter on the raw bytes: most parts hold no field at all. `InstrText` also matches `delInstrText`.
-  if (!data.includes('nstrText') && !data.includes('fldSimple')) return null;
-  const doc = parseXml(name, decodePart(name, data));
+  // A UTF-16 part is decoded first (it is rare), because its bytes never match a UTF-8 search string.
+  let decoded: { text: string; enc: PartEncoding } | undefined;
+  if (utf16) {
+    decoded = decodePart(name, data);
+    if (!decoded.text.includes('nstrText') && !decoded.text.includes('fldSimple')) return null;
+  } else if (!data.includes('nstrText') && !data.includes('fldSimple')) {
+    return null;
+  }
+  const { text, enc } = decoded ?? decodePart(name, data);
+  const doc = parseXml(name, text);
   let ordinal = 0;
   let changed = false;
 
@@ -495,7 +528,7 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
   }
   // A field that was begun and never ended is still judged (fail closed).
   while (stack.length > 0) finalizeComplex((stack.pop() as FieldFrame).nodes);
-  return changed ? serialise(doc) : null;
+  return changed ? encodePart(serialise(doc), enc) : null;
 }
 
 /**
@@ -507,7 +540,9 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
   let zip: InstanceType<typeof AdmZip>;
   try {
     zip = new AdmZip(docx);
-    checkZipBombCeilings(zip as never, { sourceCompressedBytes: docx.length });
+    // Only the total size bounds the work here. The per-entry ratio is a policy for opening a file; a document the
+    // engine itself wrote (a blank bitmap compresses 1000:1) must still be exportable.
+    checkZipBombCeilings(zip as never, { sourceCompressedBytes: docx.length, maxRatio: Number.MAX_SAFE_INTEGER });
   } catch (err: unknown) {
     if ((err as { code?: string })?.code === 'E_LIMIT' || /\[E_LIMIT\]/.test(String((err as Error)?.message))) throw err;
     // A password-protected document is not a zip package, and its content cannot be read without the password,
@@ -522,7 +557,7 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     if (seen.has(key)) throw failClosed('the package contains two parts with the same name');
     seen.add(key);
   }
-  const updates = new Map<string, string>();
+  const updates = new Map<string, Buffer>();
   for (const e of entries) {
     if (e.isDirectory) continue;
     const name = e.entryName.replace(/\\/g, '/');
@@ -542,7 +577,7 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     }
   }
   if (opts.mutate && updates.size > 0) {
-    for (const [entryName, xml] of updates) zip.updateFile(entryName, Buffer.from(xml, 'utf8'));
+    for (const [entryName, bytes] of updates) zip.updateFile(entryName, bytes);
     out.docx = zip.toBuffer();
     out.changed = true;
   }
