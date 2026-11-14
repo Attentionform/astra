@@ -13,16 +13,39 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  effectiveRasterizerPreference,
+  effectiveRendererPreference,
+  planRasterizers,
+  planRenderers,
+  type RasterizerId,
+  type RendererId,
+} from './renderer-preference';
+import { findWord } from './word';
+import { windowsRendererAvailable } from './windows-pdf';
 
-export type VisualPdfBackend = 'libreoffice' | 'none';
+export type VisualPdfBackend = 'word' | 'libreoffice' | 'none';
 
 export interface VisualBackendStatus {
+  /** A renderer and a rasterizer can both run under the effective preferences (flag-less: environment, then auto). */
   available: boolean;
+  /** The renderer a default call would use first, or `none`. */
   backend: VisualPdfBackend;
   sofficePath?: string;
   pdftoppmPath?: string;
   /** Binary names that could not be resolved (for remedies). */
   missing: string[];
+  /** What was found, independent of the preferences. */
+  renderers?: {
+    word: { available: boolean; exe?: string; version?: number };
+    libreoffice: { available: boolean; path?: string };
+  };
+  rasterizers?: {
+    windows: { available: boolean };
+    poppler: { available: boolean; path?: string };
+  };
+  /** Engines a default call may use, in order. */
+  plan?: { renderers: RendererId[]; rasterizers: RasterizerId[] };
 }
 
 export interface VisualBackendOverride {
@@ -49,8 +72,9 @@ export const VISUAL_DEPENDENCY_REMEDY =
   'PDF render backend missing. Install LibreOffice and poppler-utils (pdftoppm): ' +
   'Linux: sudo apt install libreoffice poppler-utils; ' +
   'macOS: brew install --cask libreoffice && brew install poppler; ' +
-  'Windows: winget install TheDocumentFoundation.LibreOffice, then install Poppler for Windows ' +
-  '(for example scoop install poppler, or choco install poppler) and make sure pdftoppm.exe is on PATH. ' +
+  'Windows: winget install TheDocumentFoundation.LibreOffice (Microsoft Word can render instead with --renderer word, ' +
+  'and Windows draws the page images itself; Poppler is only needed as a fallback: scoop install poppler, or choco install poppler, ' +
+  'with pdftoppm.exe on PATH). ' +
   'Alternatively inspect the XML/DOM without images (telemetry-only mode).';
 
 export function createDependencyError(missing: string[]): Error & { code: string; remedy: string } {
@@ -177,7 +201,7 @@ export function findOnPath(name: string, pathEnv?: string, options: ResolveOptio
   }
 }
 
-function resolveSoffice(override?: string, pathEnv?: string): string | null {
+export function resolveSoffice(override?: string, pathEnv?: string): string | null {
   if (override && override.trim()) {
     const direct = findOnPath(override.trim(), pathEnv);
     if (direct) return direct;
@@ -188,26 +212,84 @@ function resolveSoffice(override?: string, pathEnv?: string): string | null {
   return findOnPath('soffice', pathEnv) ?? findOnPath('libreoffice', pathEnv);
 }
 
+/** Resolve Poppler's `pdftoppm` (explicit override, else PATH and standard folders). */
+export function resolvePoppler(override?: VisualBackendOverride): string | null {
+  const pathEnv = override?.pathEnv;
+  if (override?.pdftoppmBin && override.pdftoppmBin.trim()) {
+    return findOnPath(override.pdftoppmBin.trim(), pathEnv);
+  }
+  return findOnPath('pdftoppm', pathEnv);
+}
+
 /**
- * Capability probe. Never throws — returns `{available:false}` when any
- * binary is missing. Call `assertPdfBackend` for the throwing gate.
+ * Capability probe. Never throws. `available` means a renderer AND a rasterizer can both run under the
+ * effective preferences (`ASTRA_RENDERER`, `ASTRA_PDF_TO_IMAGE`, else auto); an invalid environment value is
+ * ignored here (the render call reports it loudly). `sofficePath` / `pdftoppmPath` are what was found.
  */
 export function hasPdfBackend(override?: VisualBackendOverride): VisualBackendStatus {
   const pathEnv = override?.pathEnv;
   const sofficePath = resolveSoffice(override?.sofficeBin, pathEnv);
-  let pdftoppmPath: string | null = null;
-  if (override?.pdftoppmBin && override.pdftoppmBin.trim()) {
-    pdftoppmPath = findOnPath(override.pdftoppmBin.trim(), pathEnv);
-  } else {
-    pdftoppmPath = findOnPath('pdftoppm', pathEnv);
+  const pdftoppmPath = resolvePoppler(override);
+  const platform = process.platform;
+  const word = platform === 'win32' ? findWord() : null;
+  // An explicit pdftoppm binary means "use that Poppler"; the Windows renderer is then not a substitute.
+  const windowsRenderer = !(override?.pdftoppmBin && override.pdftoppmBin.trim()) && windowsRendererAvailable();
+  let rendererPref: ReturnType<typeof effectiveRendererPreference> = 'auto';
+  let rasterPref: ReturnType<typeof effectiveRasterizerPreference> = 'auto';
+  try {
+    rendererPref = effectiveRendererPreference(undefined);
+  } catch {
+    rendererPref = 'auto';
+  }
+  try {
+    rasterPref = effectiveRasterizerPreference(undefined);
+  } catch {
+    rasterPref = 'auto';
+  }
+  let renderers: RendererId[] = [];
+  let rasterizers: RasterizerId[] = [];
+  try {
+    renderers = planRenderers(rendererPref, { platform, word: word !== null, libreoffice: sofficePath !== null }).engines;
+  } catch {
+    renderers = [];
+  }
+  try {
+    rasterizers = planRasterizers(rasterPref, { platform, windowsRenderer, poppler: pdftoppmPath !== null }).engines;
+  } catch {
+    rasterizers = [];
   }
   const missing: string[] = [];
-  if (!sofficePath) missing.push('soffice');
-  if (!pdftoppmPath) missing.push('pdftoppm');
+  if (renderers.length === 0) missing.push('soffice');
+  if (rasterizers.length === 0) missing.push('pdftoppm');
+  const detail = {
+    renderers: {
+      word: { available: word !== null, ...(word ? { exe: word.exe, version: word.version } : {}) },
+      libreoffice: { available: sofficePath !== null, ...(sofficePath ? { path: sofficePath } : {}) },
+    },
+    rasterizers: {
+      windows: { available: windowsRenderer },
+      poppler: { available: pdftoppmPath !== null, ...(pdftoppmPath ? { path: pdftoppmPath } : {}) },
+    },
+    plan: { renderers, rasterizers },
+  };
   if (missing.length === 0) {
-    return { available: true, backend: 'libreoffice', sofficePath: sofficePath as string, pdftoppmPath: pdftoppmPath as string, missing: [] };
+    return {
+      available: true,
+      backend: renderers[0],
+      ...(sofficePath ? { sofficePath } : {}),
+      ...(pdftoppmPath ? { pdftoppmPath } : {}),
+      missing: [],
+      ...detail,
+    };
   }
-  return { available: false, backend: 'none', missing };
+  return {
+    available: false,
+    backend: 'none',
+    ...(sofficePath ? { sofficePath } : {}),
+    ...(pdftoppmPath ? { pdftoppmPath } : {}),
+    missing,
+    ...detail,
+  };
 }
 
 export const hasVisualPdfBackend = hasPdfBackend;
@@ -218,17 +300,19 @@ export function hasLibreOffice(override?: VisualBackendOverride): boolean {
 }
 
 export function hasPoppler(override?: VisualBackendOverride): boolean {
-  const pathEnv = override?.pathEnv;
-  if (override?.pdftoppmBin && override.pdftoppmBin.trim()) {
-    return Boolean(findOnPath(override.pdftoppmBin.trim(), pathEnv));
-  }
-  return Boolean(findOnPath('pdftoppm', pathEnv));
+  return Boolean(resolvePoppler(override));
 }
 
+/**
+ * Throwing gate kept for callers that need the two binaries themselves (LibreOffice and Poppler). The render
+ * paths use the renderer and rasterizer plans instead, which also allow Word and the Windows PDF renderer.
+ */
 export function assertPdfBackend(override?: VisualBackendOverride): { sofficePath: string; pdftoppmPath: string } {
-  const status = hasPdfBackend(override);
-  if (!status.available) {
-    throw createDependencyError(status.missing);
-  }
-  return { sofficePath: status.sofficePath as string, pdftoppmPath: status.pdftoppmPath as string };
+  const sofficePath = resolveSoffice(override?.sofficeBin, override?.pathEnv);
+  const pdftoppmPath = resolvePoppler(override);
+  const missing: string[] = [];
+  if (!sofficePath) missing.push('soffice');
+  if (!pdftoppmPath) missing.push('pdftoppm');
+  if (missing.length > 0 || !sofficePath || !pdftoppmPath) throw createDependencyError(missing);
+  return { sofficePath, pdftoppmPath };
 }

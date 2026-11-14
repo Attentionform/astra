@@ -72,6 +72,48 @@ export * from './visual/renderer';
 export * from './visual/telemetry';
 export * from './visual/prompt';
 export * from './visual/provider';
+export {
+  AUTO_PREFERS_WORD,
+  PDF_TO_IMAGE_ENV,
+  RASTERIZER_PREFERENCES,
+  RENDERER_ENV,
+  RENDERER_PREFERENCES,
+  effectiveRasterizerPreference,
+  effectiveRendererPreference,
+  parseRasterizerPreference,
+  parseRendererPreference,
+  planRasterizers,
+  planRenderers,
+  resetRendererBreakersForTesting,
+  type FailureClass,
+  type RasterizerId,
+  type RasterizerPlan,
+  type RasterizerPreference,
+  type RasterizerReport,
+  type RendererId,
+  type RendererPreference,
+  type RendererReport,
+  type RenderPlan,
+} from './visual/renderer-preference';
+export {
+  INERT_TARGET,
+  NETWORK_REFERENCES_ENV,
+  REFERENCE_LIST_CAP,
+  analyseReferences,
+  buildReferenceReport,
+  classifyTarget,
+  describeReferenceReport,
+  effectiveAllowNetworkReferences,
+  inspectFieldInstruction,
+  neutraliseReferences,
+  parseAllowNetworkReferences,
+  type ReferenceAnalysis,
+  type ReferenceClass,
+  type ReferenceEntry,
+  type ReferenceReport,
+} from './visual/references';
+export { MIN_WORD_VERSION, WordRenderError, findWord, resetWordProbeCache, wordDocxToPdf, type WordInstall } from './visual/word';
+export { WINDOWS_PDF_MAX_WIDTH, WindowsPdfError, windowsPdfToImages, windowsRendererAvailable } from './visual/windows-pdf';
 
 // Hardened in-memory ZIP adapter and hardening utilities
 export { default as AdmZip } from './adm-zip-safe';

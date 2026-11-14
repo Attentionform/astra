@@ -7,6 +7,10 @@
  * (`./renderer.ts`) is the default production provider.
  */
 
+import type { RasterizerPreference, RasterizerReport, RendererPreference, RendererReport } from './renderer-preference';
+import type { ReferenceReport } from './references';
+import type { WordInstall } from './word';
+
 export type VisualImageFormat = 'png' | 'jpeg';
 
 export interface VisualPageImage {
@@ -42,6 +46,30 @@ export interface VisualRenderOptions {
   timeoutMs?: number;
   /** Max pages returned. Default 4 (matches visual_review cap). */
   maxPages?: number;
+  /** DOCX -> PDF program: auto (default), word (Windows only) or libreoffice. Falls back to ASTRA_RENDERER, then auto. */
+  renderer?: RendererPreference;
+  /** PDF -> image program: auto (default), windows (Windows only) or poppler. Falls back to ASTRA_PDF_TO_IMAGE, then auto. */
+  pdfToImage?: RasterizerPreference;
+  /**
+   * Let the renderer load network locations the document names (default false: such references are
+   * retargeted on the temporary copy). An explicit value, including `false`, beats ASTRA_ALLOW_NETWORK_REFERENCES.
+   */
+  allowNetworkReferences?: boolean;
+  /** Tests only: replace what the machine would report (platform, Word, Windows renderer) and the PowerShell host. */
+  testHooks?: VisualTestHooks;
+}
+
+export interface VisualTestHooks {
+  platform?: NodeJS.Platform;
+  /** `null` = Word not installed. */
+  word?: WordInstall | null;
+  windowsRenderer?: boolean;
+  powershellBin?: string;
+  powershellArgs?: string[];
+  /** Pause range between Word retries (ms). */
+  wordRetryPauseMs?: [number, number];
+  /** Plan `auto` as Word-first (the behaviour a later release may turn on). */
+  autoPrefersWord?: boolean;
 }
 
 export interface VisualRenderResult {
@@ -50,7 +78,12 @@ export interface VisualRenderResult {
   totalPages: number;
   outDir: string;
   format: VisualImageFormat;
-  backend: 'libreoffice';
+  /** The program that produced the PDF (same as `renderer.used`). */
+  backend: 'libreoffice' | 'word';
+  renderer?: RendererReport;
+  rasterizer?: RasterizerReport;
+  /** What the render did about network references in the document. */
+  references?: ReferenceReport;
 }
 
 /**
