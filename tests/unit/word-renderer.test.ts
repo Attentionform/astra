@@ -89,7 +89,7 @@ describe('the Word script', () => {
     expect(script).not.toMatch(/\.Visible\s*=/); // never made visible
     expect(script).toContain('$word.DisplayAlerts = 0');
     expect(script).toContain('$word.AutomationSecurity = 3'); // macros force-disabled
-    expect(script).toMatch(/Documents\.Open\(\$in, \$false, \$true, \$false\)/); // no conversion prompt, read-only, not in recent files
+    expect(script).toMatch(/Documents\.Open\(\$in, \$false, \$true, \$false, \$pw, \$m, \$m, \$pw\)/); // no conversion prompt, read-only, not in recent files, made-up passwords
     expect(script).not.toMatch(/\.Options\./); // no persistent user options
     expect(script).not.toMatch(/Documents\.Add|Stop-Process|taskkill|\.Kill\(|TerminateProcess/i);
     expect(script).not.toMatch(/ExecutionPolicy|Set-ItemProperty|New-ItemProperty|reg add/i);
@@ -199,6 +199,30 @@ describe('wordDocxToPdf with a fake PowerShell', () => {
     expect(e.code).toBe('E_VALIDATION');
     expect(e.message).toMatch(/password-protected documents cannot be rendered/);
     expect(e.hresult).toBe('0x800A13E9');
+  });
+  it('the made-up password being refused (0x800A1520) is reported as a password, not a corrupt file', async () => {
+    const e = await fail('password-refused');
+    expect(e.failureClass).toBe('document');
+    expect(e.code).toBe('E_VALIDATION');
+    expect(e.message).toMatch(/password-protected documents cannot be rendered/);
+    expect(e.hresult).toBe('0x800A1520');
+  });
+  it('a password-protected package is refused before Word or PowerShell is started', async () => {
+    const d = tmp();
+    const inDocx = path.join(d, 'locked.docx');
+    fs.copyFileSync(path.join(__dirname, '..', 'fixtures', 'encrypted-password-astra-test.docx'), inDocx);
+    const log = path.join(d, 'pslog');
+    const err = await withFakePsEnv({ FAKE_PS_MODE: 'ok', FAKE_PS_LOG: log }, () =>
+      wordDocxToPdf(inDocx, path.join(d, 'o.pdf'), { ...fakePsHooks, timeoutMs: 20000 }).then(() => null, (e) => e as WordRenderError)
+    );
+    expect(err).toBeInstanceOf(WordRenderError);
+    expect(err?.code).toBe('E_VALIDATION');
+    expect(err?.failureClass).toBe('document');
+    expect(err?.message).toMatch(/protected with a password/);
+    expect(fs.existsSync(log)).toBe(false); // the fake PowerShell was never started
+  });
+  it('the script opens with made-up passwords so Word never shows a password prompt', () => {
+    expect(buildWordScript()).toMatch(/\$pw = \[Guid\]::NewGuid\(\)/);
   });
   it('a corrupt document is a document failure', async () => {
     const e = await fail('corrupt');

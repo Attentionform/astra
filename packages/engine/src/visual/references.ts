@@ -27,6 +27,7 @@
  * itself (host, path, query, credentials) is never put into a result, a log or an error.
  */
 
+import { isEncryptedOoxmlPackage } from './cfb';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import AdmZip from '../adm-zip-safe';
 import { checkZipBombCeilings } from '../zip-hardening';
@@ -509,6 +510,9 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     checkZipBombCeilings(zip as never, { sourceCompressedBytes: docx.length });
   } catch (err: unknown) {
     if ((err as { code?: string })?.code === 'E_LIMIT' || /\[E_LIMIT\]/.test(String((err as Error)?.message))) throw err;
+    // A password-protected document is not a zip package, and its content cannot be read without the password,
+    // so no renderer can follow a reference in it. The renderer reports the password itself.
+    if (isEncryptedOoxmlPackage(docx)) return out;
     throw failClosed('the file is not a readable zip package');
   }
   const entries = zip.getEntries();

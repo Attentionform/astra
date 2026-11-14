@@ -26,6 +26,7 @@ import {
   type PowerShellRunOptions,
 } from './ps-runner';
 import { codedError, type FailureClass } from './renderer-preference';
+import { isEncryptedOoxmlPackage } from './cfb';
 
 export interface WordInstall {
   exe: string;
@@ -149,7 +150,10 @@ try {
   try { Say ('VERSION {0}' -f $word.Version) } catch {}
   $origAlerts = $word.DisplayAlerts; $origSec = $word.AutomationSecurity
   $word.DisplayAlerts = 0; $word.AutomationSecurity = 3; $changed = $true
-  try { $doc = $word.Documents.Open($in, $false, $true, $false) } catch { Die 20 $_ }
+  # A password question is a visible dialog that never closes, even for a hidden Word. A made-up password (to open, and
+  # to write) makes Word answer "the password is incorrect" at once instead of asking.
+  $m = [Type]::Missing; $pw = [Guid]::NewGuid().ToString('N')
+  try { $doc = $word.Documents.Open($in, $false, $true, $false, $pw, $m, $m, $pw) } catch { Die 20 $_ }
   $p = 0; [void][N.U]::GetWindowThreadProcessId([IntPtr]$doc.ActiveWindow.Hwnd, [ref]$p)
   if ($p -ne $cand) { $mismatch = $true; Say 'ERR 14 0x00000000 window process differs from candidate'; exit 14 }
   $crossChecked = $true
@@ -257,7 +261,8 @@ function classifyFailure(p: WordProtocol, exitCode: number | null, stderr: strin
         common
       );
     case 20: {
-      const password = /0X800A13E9/i.test(e.hresult);
+      // 0x800A1520: the made-up password was refused. 0x800A13E9: the older form of the same error.
+      const password = /0X800A(?:1520|13E9)/i.test(e.hresult);
       return new WordRenderError(
         'E_VALIDATION',
         'document',
@@ -333,6 +338,21 @@ export function wordDocxToPdf(inDocx: string, outPdf: string, options: WordRende
         'E_RENDER: the temporary path is too long for Word (over 240 characters).',
         'Set ASTRA_TMPDIR to a shorter folder, or use --renderer libreoffice.'
       );
+    }
+    // A password-protected package is known before Word is started: say so at once instead of starting Word.
+    try {
+      const head = fs.readFileSync(inDocx);
+      if (isEncryptedOoxmlPackage(head)) {
+        throw new WordRenderError(
+          'E_VALIDATION',
+          'document',
+          'E_VALIDATION: the document is protected with a password, so it cannot be rendered.',
+          'Remove the password in Word (File > Info > Protect Document), then retry.'
+        );
+      }
+    } catch (err: unknown) {
+      if (err instanceof WordRenderError) throw err;
+      /* an unreadable input is reported by the run below */
     }
     const timeoutMs = options.timeoutMs ?? 60000;
     const deadline = Date.now() + timeoutMs;
