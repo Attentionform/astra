@@ -12,7 +12,7 @@ import {
   neutraliseReferences,
   parseAllowNetworkReferences,
 } from '../../packages/engine/src/visual/references';
-import { R_NS, REL_NS, buildDocx, complexField, documentXml, listParts, rawZip, readPart, relsXml } from '../helpers/docx-refs';
+import { REL_NS, buildDocx, complexField, documentXml, listParts, rawZip, readPart, relsXml } from '../helpers/docx-refs';
 import { createHash, randomBytes } from 'crypto';
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
@@ -375,6 +375,14 @@ describe('fail closed', () => {
     expect(() => neutraliseReferences(buildDocx({ extra: { 'word/_rels/document.xml.rels': '<Relationships><Relationship' } }))).toThrow(/not well-formed/);
     expect(() => neutraliseReferences(buildDocx({ document: '<w:document xmlns:w="x"><w:body><w:instrText>' }))).toThrow(/E_SECURITY/);
   });
+  it.each([
+    ['an unquoted attribute value (a parser warning)', '<Relationships><Relationship Target=http://evil.example/x/></Relationships>'],
+    ['an attribute that is never closed', '<Relationships><Relationship Target="http://evil.example/x /></Relationships>'],
+    ['a repeated attribute', '<Relationships><Relationship Target="a" Target="http://evil.example/x"/></Relationships>'],
+    ['a second root element after the first', '<Relationships><Relationship Target="a"/></Relationships><Relationship Target="http://evil.example/x"/>'],
+  ])('a rels part with %s is refused, not partly read', (_name, xml) => {
+    expect(() => neutraliseReferences(buildDocx({ extra: { 'word/_rels/document.xml.rels': xml } }))).toThrow(/E_SECURITY.*not well-formed/);
+  });
   it('a DOCTYPE or entity declaration', () => {
     const doctype = '<?xml version="1.0"?><!DOCTYPE d [<!ENTITY e "x">]><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>';
     expect(() => neutraliseReferences(buildDocx({ extra: { 'word/_rels/document.xml.rels': doctype } }))).toThrow(/DOCTYPE/);
@@ -434,6 +442,7 @@ describe('redaction: no unusual target reaches a report', () => {
     '\\\\?\\GLOBALROOT\\secret-device',
   ];
   it.each(targets)('does not print %j anywhere', (t) => {
+    // eslint-disable-next-line no-control-regex -- the test strips control characters on purpose
     const escaped = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/[\u0000-\u0008]/g, '');
     const a = neutraliseReferences(buildDocx({ rels: [{ id: 'rId1', type: 'image', target: escaped, mode: 'External' }] }));
     const text = JSON.stringify([a.found, buildReferenceReport(false, a), describeReferenceReport(buildReferenceReport(false, a))]);

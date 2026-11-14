@@ -91,6 +91,7 @@ export interface TargetClassification {
   scheme?: ReferenceScheme;
 }
 
+// eslint-disable-next-line no-control-regex -- the point is to detect control characters in a target
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 const MAX_TARGET_LENGTH = 4096;
 const KNOWN_NETWORK_SCHEMES: Record<string, ReferenceScheme> = {
@@ -318,7 +319,7 @@ function parseXml(name: string, xml: string): Document {
   const problems: string[] = [];
   const doc = new DOMParser({
     errorHandler: {
-      warning: () => undefined,
+      warning: (m: string) => problems.push(String(m)),
       error: (m: string) => problems.push(String(m)),
       fatalError: (m: string) => problems.push(String(m)),
     },

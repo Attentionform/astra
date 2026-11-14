@@ -8,11 +8,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
 import { DocxParser, renderDocxToImages, resetRendererBreakersForTesting, convertDocxToPdfDetailed, type VisualTestHooks } from '@attentionform/astra-engine';
-import { buildDocx, complexField } from '../helpers/docx-refs';
+import { buildDocx, complexField, readPart } from '../helpers/docx-refs';
 import { fakePsHooks, withFakePsEnv } from '../helpers/fake-ps';
 import { makeFakePdftoppm, makeFakeSoffice } from '../helpers/fake-bins';
 
 const POSIX = process.platform !== 'win32';
+/** Does this package still name the evil location, in its relationships or its body? (Parts are deflated: read them.) */
+const leaks = (b: Buffer) => ['word/_rels/document.xml.rels', 'word/document.xml'].some((p) => readPart(b, p).includes('evil.example'));
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const blank = () => DocxParser.createNewDocument('blank').rezip();
 
@@ -265,7 +267,8 @@ describe.skipIf(!POSIX)('network references through the render path', () => {
     const before = sha(doc);
     const r = await renderDocxToImages(doc, { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm });
     const copy = seen(0);
-    expect(copy.includes('evil.example')).toBe(false);
+    expect(leaks(doc)).toBe(true); // control: the original does name it
+    expect(leaks(copy)).toBe(false);
     expect(sha(doc)).toBe(before);
     expect(r.references).toMatchObject({ networkReferencesAllowed: false, omissions: true, omittedCount: 2 });
     expect(JSON.stringify(r.references)).not.toContain('evil');
@@ -288,7 +291,7 @@ describe.skipIf(!POSIX)('network references through the render path', () => {
     process.env.FAKE_COPY_SEQ = '1';
     const explicit = await renderDocxToImages(doc, { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm, allowNetworkReferences: false });
     expect(explicit.references?.networkReferencesAllowed).toBe(false);
-    expect(seen(1).includes('evil.example')).toBe(false);
+    expect(leaks(seen(1))).toBe(false);
   });
 
   it('a clean document is rendered from the very same bytes and reports nothing omitted', async () => {
@@ -305,7 +308,7 @@ describe.skipIf(!POSIX)('network references through the render path', () => {
     const doc = evil();
     const r = await renderDocxToImages(doc, { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm, testHooks: { ...winHooks, autoPrefersWord: true, windowsRenderer: false } });
     expect(r.renderer?.fallbackFrom).toBe('word');
-    expect(seen(0).includes('evil.example')).toBe(false);
+    expect(leaks(seen(0))).toBe(false);
     expect(r.references?.networkReferencesAllowed).toBe(false);
   });
 
@@ -388,7 +391,7 @@ describe.skipIf(!POSIX)('PDF export through convertDocxToPdfDetailed', () => {
     const soffice = makeFakeSoffice(tmpBase);
     const a = await convertDocxToPdfDetailed(doc, out(), { binary: soffice });
     expect(a.references).toMatchObject({ omissions: true, omittedCount: 1 });
-    expect(fs.readFileSync(`${path.join(tmpBase, 'seen')}.0`).includes('evil.example')).toBe(false);
+    expect(leaks(fs.readFileSync(`${path.join(tmpBase, 'seen')}.0`))).toBe(false);
     process.env.FAKE_COPY_SEQ = '1';
     const b = await convertDocxToPdfDetailed(doc, out(), { binary: soffice, allowNetworkReferences: true });
     expect(b.references).toMatchObject({ networkReferencesAllowed: true, recognisedCount: 1 });

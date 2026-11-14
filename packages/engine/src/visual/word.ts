@@ -72,6 +72,27 @@ function expandEnv(value: string, env: NodeJS.ProcessEnv): string {
  * such as a leftover `Office15` are never used: the registry is the truth.
  */
 export function findWord(o: WordProbeOptions = {}): WordInstall | null {
+  // The default probe starts up to three `reg.exe` processes per registry key, and long-lived callers (the MCP
+  // server) ask on every render, so the answer is remembered briefly. An injected probe is never cached.
+  const cacheable = o.platform === undefined && o.regQuery === undefined && o.exists === undefined && o.env === undefined;
+  if (cacheable && process.platform === 'win32') {
+    const now = Date.now();
+    if (wordProbeCache && now - wordProbeCache.at < WORD_PROBE_TTL_MS) return wordProbeCache.value;
+    const value = probeWord(o);
+    wordProbeCache = { at: now, value };
+    return value;
+  }
+  return probeWord(o);
+}
+
+const WORD_PROBE_TTL_MS = 30_000;
+let wordProbeCache: { at: number; value: WordInstall | null } | undefined;
+/** Forget the remembered probe result (tests, and callers that just installed or removed Word). */
+export function resetWordProbeCache(): void {
+  wordProbeCache = undefined;
+}
+
+function probeWord(o: WordProbeOptions): WordInstall | null {
   try {
     if ((o.platform ?? process.platform) !== 'win32') return null;
     const env = o.env ?? process.env;

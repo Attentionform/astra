@@ -5,12 +5,13 @@ import { CLI_NAME, EXIT_OK, type GlobalOpts, formatCliOutput, print, printJson, 
 import { failHuman } from './errors';
 import { usage } from './usage';
 import { macroFlagsUsageError, macroOptsFromFlags } from './io';
+import { printRenderNotes, readRenderFlag, renderOptionsFromFlags, type RenderFlags } from './render-flags';
 
 export async function cmdExport(out: GlobalOpts, args: string[]): Promise<number> {
   if (args.length === 0) return usage(out, 'export requires a <docx> argument');
   if (args.includes('--help') || args.includes('-h')) {
     const text = [
-      `Usage: ${CLI_NAME} export <docx> [--format|-f <html|markdown|md|pdf>] [--output|--out|-o <path>] [--force] [--image-mode <embed|file>] [--asset-prefix <dir>] [--allow-macros] [--strip-macros]`,
+      `Usage: ${CLI_NAME} export <docx> [--format|-f <html|markdown|md|pdf>] [--output|--out|-o <path>] [--force] [--image-mode <embed|file>] [--asset-prefix <dir>] [--allow-macros] [--strip-macros] [--renderer <auto|word|libreoffice>] [--allow-network-references]`,
       '',
       'Exports a .docx document to HTML, Markdown, or PDF.',
       '  --force                                 allow --out to overwrite an existing file (without it, an existing --out target refuses with exit 2)',
@@ -26,7 +27,11 @@ export async function cmdExport(out: GlobalOpts, args: string[]): Promise<number
       '  --strict                            PDF only: fail closed on preflight blockers (default warns and continues)',
       '  --allow-macros                      HTML and Markdown: preserve macro/active-content parts (default refuses E_VALIDATION naming the parts); a PDF export never opens them',
       '  --strip-macros                      HTML and Markdown: remove macro/active-content parts and continue (never with --allow-macros)',
-      'Headless PDF export uses LibreOffice and requires it in PATH.',
+      '  --renderer <auto|word|libreoffice>   PDF only: which program renders (default auto = LibreOffice; word is Windows only and must be asked for; env ASTRA_RENDERER)',
+      '  --renderer=<v>                      same, equals form',
+      '  --allow-network-references          PDF only: let the renderer load images and files the document names at network locations (default: not loaded; env ASTRA_ALLOW_NETWORK_REFERENCES=1)',
+      '  --no-allow-network-references       PDF only: keep them unloaded even when the environment variable allows them',
+      'Headless PDF export uses LibreOffice (in PATH) or, with --renderer word on Windows, Microsoft Word.',
       'A ~11s first-render LibreOffice cold start is expected behavior, not a bug (later renders reuse the warm backend).',
     ].join('\n');
     if (!out.json) console.log(formatCliOutput(text, 'stdout'));
@@ -44,9 +49,16 @@ export async function cmdExport(out: GlobalOpts, args: string[]): Promise<number
   let assetPrefix: string | undefined;
   let allowMacros = false;
   let stripMacros = false;
+  const renderFlags: RenderFlags = {};
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
+    const rf = readRenderFlag('export', args, i, renderFlags, { pdfToImage: false });
+    if (rf.matched) {
+      if ('error' in rf) return usage(out, rf.error);
+      i = rf.next;
+      continue;
+    }
     if (a === '--format' || a === '-f') {
       const next = args[++i];
       if (!next) return usage(out, '--format requires an argument (html, markdown, or pdf)');
@@ -109,6 +121,9 @@ export async function cmdExport(out: GlobalOpts, args: string[]): Promise<number
   if (!['html', 'markdown', 'md', 'pdf'].includes(normalizedFormat)) {
     return usage(out, `unsupported format "${format}". Choose from: html, markdown, md, pdf`);
   }
+  if (normalizedFormat !== 'pdf' && (renderFlags.renderer !== undefined || renderFlags.allowNetworkReferences !== undefined)) {
+    return usage(out, 'export: --renderer and --allow-network-references apply to PDF export only (use --format pdf)');
+  }
   if (imageMode !== undefined) {
     const normMode = imageMode.toLowerCase();
     if (normMode !== 'embed' && normMode !== 'file') {
@@ -132,9 +147,11 @@ export async function cmdExport(out: GlobalOpts, args: string[]): Promise<number
       ...(macroOpts !== undefined ? { macroOpts } : {}),
       ...(imageMode !== undefined ? { imageMode: imageMode as 'embed' | 'file' } : {}),
       ...(assetPrefix !== undefined ? { assetPrefix } : {}),
+      ...renderOptionsFromFlags(renderFlags),
     });
     print(out, `EXPORT OK ${docxPath} -> ${result.path} (${result.format.toUpperCase()}, ${result.bytes} bytes)`);
     if (result.note) print(out, `note: ${result.note}`);
+    printRenderNotes(result);
     printJson(out, { command: 'export', ...result });
     return EXIT_OK;
   } catch (err: unknown) {

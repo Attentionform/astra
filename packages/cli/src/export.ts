@@ -7,8 +7,10 @@ import {
   convertAstToMarkdown,
   collectMarkdownImageAssets,
   prepareDocxForPdfExport,
-  convertDocxToPdf,
+  convertDocxToPdfDetailed,
   DocxParser,
+  type ReferenceReport,
+  type RendererReport,
 } from '@attentionform/astra-engine';
 import { canonicalizeForAsset, isPathInsideDir } from '@attentionform/astra-engine';
 
@@ -20,6 +22,10 @@ export interface ExportResult {
   assets?: string[];
   /** Set when the PDF was made from a corrected temporary copy of the source. */
   note?: string;
+  /** PDF only: which program made the PDF, and whether `auto` had to fall back. */
+  renderer?: RendererReport;
+  /** PDF only: what happened to references the document makes to network locations. */
+  references?: ReferenceReport;
 }
 
 export interface ExportOptions {
@@ -33,6 +39,10 @@ export interface ExportOptions {
   assetPrefix?: string;
   /** Macro choice for the HTML and Markdown paths (the PDF path never opens the package for editing). */
   macroOpts?: { allowMacros: true } | { stripMacros: true };
+  /** PDF only: which program renders (`auto`, `word` on Windows, `libreoffice`). The environment's ASTRA_RENDERER applies when omitted. */
+  renderer?: 'auto' | 'word' | 'libreoffice';
+  /** PDF only: let the renderer contact network locations the document references (default off). */
+  allowNetworkReferences?: boolean;
 }
 
 // Q0a: jail primitives live in @attentionform/astra-engine sandbox/paths (imported above).
@@ -202,9 +212,11 @@ export async function executeExport(
     await fsp.mkdir(path.dirname(destination), { recursive: true });
     const { canonicalDest: pdfDestDir } = assertDestinationJailed(destination);
     assertPreWriteDestination(destination, path.dirname(destination), pdfDestDir);
-    await convertDocxToPdf(prepared.buffer, destination, {
+    const converted = await convertDocxToPdfDetailed(prepared.buffer, destination, {
       tagged: !(options?.untagged ?? false),
       strict: options?.strict ?? false,
+      ...(options?.renderer !== undefined ? { renderer: options.renderer } : {}),
+      ...(options?.allowNetworkReferences !== undefined ? { allowNetworkReferences: options.allowNetworkReferences } : {}),
     });
     await assertDestinationPostWrite(destination, pdfDestDir);
     const stat = await fsp.stat(destination);
@@ -213,6 +225,8 @@ export async function executeExport(
       path: destination,
       format,
       bytes: stat.size,
+      renderer: converted.renderer,
+      references: converted.references,
       ...(prepared.repaired
         ? {
             note:

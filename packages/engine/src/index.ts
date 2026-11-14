@@ -112,7 +112,7 @@ export {
   type ReferenceEntry,
   type ReferenceReport,
 } from './visual/references';
-export { MIN_WORD_VERSION, WordRenderError, findWord, wordDocxToPdf, type WordInstall } from './visual/word';
+export { MIN_WORD_VERSION, WordRenderError, findWord, resetWordProbeCache, wordDocxToPdf, type WordInstall } from './visual/word';
 export { WINDOWS_PDF_MAX_WIDTH, WindowsPdfError, windowsPdfToImages, windowsRendererAvailable } from './visual/windows-pdf';
 
 // Hardened in-memory ZIP adapter and hardening utilities

@@ -158,7 +158,7 @@ describe('runPlan', () => {
     expect(r).toEqual({ value: 'a', used: 'a' });
   });
   it('falls through on failure with a reason, and trips an infrastructure breaker only in auto', async () => {
-    let now = 0;
+    const now = 0;
     const breaker = new CircuitBreaker(1000, () => now);
     const r = await runPlan(
       ['a', 'b'] as const,
