@@ -86,7 +86,11 @@ describe('findWord', () => {
 describe('the Word script', () => {
   const script = buildWordScript();
   it('keeps every promise the plan makes about not disturbing the user', () => {
-    expect(script).not.toMatch(/\.Visible\s*=/); // never made visible
+    // Word itself is never made visible. (A reviewer's `Visible` in the review view, set only for a markup request, is a
+    // different property on a different object: it is the only other `.Visible =` allowed, and only by index.)
+    expect(script).not.toMatch(/\$word\.Visible\s*=/);
+    const others = script.match(/[A-Za-z$_.()]+\.Visible\s*=/g) ?? [];
+    expect(others.every((m) => /^\$view\.Reviewers\.Item\(/.test(m))).toBe(true);
     expect(script).toContain('$word.DisplayAlerts = 0');
     expect(script).toContain('$word.AutomationSecurity = 3'); // macros force-disabled
     expect(script).toMatch(/Documents\.Open\(\$in, \$false, \$true, \$false, \$pw, \$m, \$m, \$pw\)/); // no conversion prompt, read-only, not in recent files, made-up passwords
@@ -122,7 +126,7 @@ describe('the Word script', () => {
 
 describe('protocol parser', () => {
   it('reads a full success', () => {
-    expect(parseWordProtocol(['CANDIDATE 12', 'VERSION 16.0', 'PAGES 3', 'OK'])).toEqual({ candidatePid: 12, version: '16.0', pages: 3, ok: true });
+    expect(parseWordProtocol(['CANDIDATE 12', 'VERSION 16.0', 'PAGES 3', 'OK'])).toEqual({ candidatePid: 12, version: '16.0', pages: 3, ok: true, warnings: [] });
   });
   it('reads an error with its hex HRESULT and message', () => {
     expect(parseWordProtocol(['ERR 20 0x800a13e9 The password is wrong']).err).toEqual({ code: 20, hresult: '0x800A13E9', message: 'The password is wrong' });

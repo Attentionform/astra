@@ -36,6 +36,15 @@ import {
   type ReferenceReport,
 } from './references';
 import { findWord, wordDocxToPdf, type WordInstall } from './word';
+import {
+  assertLibreOfficeMarkupSupport,
+  buildMarkupReport,
+  effectiveShowMarkup,
+  libreOfficeFilterSpec,
+  libreOfficeMarkupWarnings,
+  markupFailureError,
+  type PlainRunOutcome,
+} from './markup';
 import { windowsPdfToImages, windowsRendererAvailable } from './windows-pdf';
 import { canonicalizeForAsset as canonicalizeVisualPath, isPathInsideDir as isVisualInsideDir } from '../sandbox/paths';
 import { keepForForensics, removeDirBestEffort, resolveAstraTmpBase, secureDir, secureFile, secureMkdtemp } from '../tmp';
@@ -190,6 +199,8 @@ interface PdfStep {
   pdfPath: string;
   /** Word major version when Word rendered. */
   wordVersion?: number;
+  /** Best-effort Word view settings that could not be set (markup only). */
+  markupWarnings?: string[];
 }
 
 interface RasterStep {
@@ -200,12 +211,16 @@ interface RasterStep {
 }
 
 /** DOCX -> PDF with LibreOffice headless (retry for profile lock contention). */
-async function renderWithLibreOffice(sofficePath: string, workDir: string, inputDocx: string, timeoutMs: number): Promise<PdfStep> {
+async function renderWithLibreOffice(sofficePath: string, workDir: string, inputDocx: string, timeoutMs: number, markup: boolean): Promise<PdfStep> {
+  // The margin-comments option is only sent to a version that was tested: LibreOffice ignores an unknown option.
+  const markupWarnings = markup ? (assertLibreOfficeMarkupSupport(sofficePath), libreOfficeMarkupWarnings()) : [];
+  // With markup off the literal `pdf` is kept, so the default command line is the one from before.
+  const filter = markup ? libreOfficeFilterSpec(true, true) : 'pdf';
   let lastErr: unknown;
   let converted = false;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      await execFileAsync(sofficePath, [`-env:UserInstallation=${pathToFileURL(path.join(workDir, 'lo_profile')).href}`, '--headless', '--convert-to', 'pdf', '--outdir', workDir, inputDocx], {
+      await execFileAsync(sofficePath, [`-env:UserInstallation=${pathToFileURL(path.join(workDir, 'lo_profile')).href}`, '--headless', '--convert-to', filter, '--outdir', workDir, inputDocx], {
         timeout: timeoutMs,
       });
       converted = true;
@@ -216,6 +231,12 @@ async function renderWithLibreOffice(sofficePath: string, workDir: string, input
         await new Promise((r) => setTimeout(r, 250 * attempt));
       }
     }
+  }
+  if (!converted && markup) {
+    // No silent retry without the option. One diagnostic conversion without it, into its own folder and discarded,
+    // lets the message say what this call showed.
+    const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    throw markupFailureError(msg, await diagnosticPlainRun(sofficePath, workDir, inputDocx, timeoutMs));
   }
   if (!converted) {
     const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
@@ -233,10 +254,25 @@ async function renderWithLibreOffice(sofficePath: string, workDir: string, input
   if (!pdfPath || !fs.existsSync(pdfPath)) {
     throw validationError('E_VALIDATION: libreoffice produced no PDF output.', 'Verify the .docx opens in Word/LibreOffice and retry.');
   }
-  return { pdfPath };
+  return { pdfPath, ...(markup ? { markupWarnings } : {}) };
 }
 
 const WORD_PDF_NAME = 'word-output.pdf';
+
+/** One conversion without the markup option, for the failure message only. Its output is removed. */
+async function diagnosticPlainRun(sofficePath: string, workDir: string, inputDocx: string, timeoutMs: number): Promise<PlainRunOutcome> {
+  const dir = path.join(workDir, 'markup-diagnostic');
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    await execFileAsync(sofficePath, [`-env:UserInstallation=${pathToFileURL(path.join(dir, 'lo_profile')).href}`, '--headless', '--convert-to', 'pdf', '--outdir', dir, inputDocx], { timeout: timeoutMs });
+    const made = fs.readdirSync(dir).some((n) => n.toLowerCase().endsWith('.pdf'));
+    return made ? { ok: true } : { ok: false, error: 'LibreOffice produced no PDF output' };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    removeDirBestEffort(dir);
+  }
+}
 
 /** DOCX -> PDF with Word (Windows). A failed attempt leaves no partial PDF behind for the fallback to trip over. */
 async function renderWithWord(
@@ -244,19 +280,21 @@ async function renderWithWord(
   workDir: string,
   inputDocx: string,
   timeoutMs: number,
-  hooks: VisualTestHooks
+  hooks: VisualTestHooks,
+  markup: boolean
 ): Promise<PdfStep> {
   const out = path.join(workDir, WORD_PDF_NAME);
   try {
     // Page images do not need a tagged (accessible) PDF; skipping the structure tree is faster and smaller.
-    await wordDocxToPdf(inputDocx, out, {
+    const outcome = await wordDocxToPdf(inputDocx, out, {
       tagged: false,
       timeoutMs,
+      ...(markup ? { markup: true, ...(hooks.wordStartState ? { startState: hooks.wordStartState } : {}) } : {}),
       powershellBin: hooks.powershellBin,
       powershellArgs: hooks.powershellArgs,
       ...(hooks.wordRetryPauseMs ? { retryPauseMs: hooks.wordRetryPauseMs } : {}),
     });
-    return { pdfPath: out, wordVersion: word.version };
+    return { pdfPath: out, wordVersion: word.version, ...(outcome.markup ? { markupWarnings: outcome.markup.warnings } : {}) };
   } catch (err: unknown) {
     try {
       fs.rmSync(out, { force: true });
@@ -356,6 +394,7 @@ export async function renderDocxToImages(
   const rasterFromEnvOrParam = effectiveRasterizerPreference(opts.pdfToImage);
   const rasterPref = opts.pdfToImage === undefined && opts.pdftoppmBin && opts.pdftoppmBin.trim() ? 'poppler' : rasterFromEnvOrParam;
   const allowRefs = effectiveAllowNetworkReferences(opts.allowNetworkReferences);
+  const showMarkup = effectiveShowMarkup(opts.showMarkup);
 
   // Capability gate (fail-closed E_DEPENDENCY before any temp I/O).
   const sofficePath = resolveSoffice(opts.sofficeBin);
@@ -435,8 +474,8 @@ export async function renderDocxToImages(
       { canFallBack: rendererPlan.canFallBack, auto: rendererPlan.requested === 'auto' },
       (engine) =>
         engine === 'word'
-          ? renderWithWord(word as WordInstall, workDir, inputDocx, timeoutMs, hooks)
-          : renderWithLibreOffice(sofficePath as string, workDir, inputDocx, timeoutMs),
+          ? renderWithWord(word as WordInstall, workDir, inputDocx, timeoutMs, hooks, showMarkup)
+          : renderWithLibreOffice(sofficePath as string, workDir, inputDocx, timeoutMs, showMarkup),
       { word: wordBreaker }
     );
     const pdfPath = pdfRun.value.pdfPath;
@@ -514,7 +553,8 @@ export async function renderDocxToImages(
       used: rasterRun.used,
       ...(rasterRun.fallbackFrom ? { fallbackFrom: rasterRun.fallbackFrom, fallbackReason: rasterRun.fallbackReason } : {}),
     };
-    const result = { ok: true as const, images, totalPages, outDir, format, backend: pdfRun.used, renderer, rasterizer, references };
+    const markup = showMarkup ? buildMarkupReport(pdfRun.used, pdfRun.value.markupWarnings) : undefined;
+    const result = { ok: true as const, images, totalPages, outDir, format, backend: pdfRun.used, renderer, rasterizer, references, ...(markup ? { markup } : {}) };
     succeeded = true;
     return result;
   } finally {

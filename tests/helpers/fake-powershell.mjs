@@ -37,7 +37,7 @@ function bump(counterFile) {
 }
 
 const log = process.env.FAKE_PS_LOG;
-if (log) fs.appendFileSync(log, `${JSON.stringify({ mode, word: !!process.env.ASTRA_WORD_IN, pdf: !!process.env.ASTRA_PDF_IN, tagged: process.env.ASTRA_WORD_TAGGED, argv: process.argv.slice(2) })}\n`);
+if (log) fs.appendFileSync(log, `${JSON.stringify({ mode, word: !!process.env.ASTRA_WORD_IN, pdf: !!process.env.ASTRA_PDF_IN, tagged: process.env.ASTRA_WORD_TAGGED, markup: process.env.ASTRA_WORD_MARKUP, argv: process.argv.slice(2) })}\n`);
 
 if (process.env.ASTRA_WORD_IN) {
   const out = process.env.ASTRA_WORD_OUT;
@@ -45,7 +45,15 @@ if (process.env.ASTRA_WORD_IN) {
   const writePdf = () => fs.writeFileSync(out, minimalPdf(Number(process.env.FAKE_PDF_PAGES || 1)));
   switch (mode) {
     case 'ok':
-      say('CANDIDATE 4321'); say('VERSION 16.0'); say('PAGES 1'); writePdf(); say('OK'); break;
+      say('CANDIDATE 4321'); say('VERSION 16.0'); say('PAGES 1');
+      if (process.env.ASTRA_WORD_MARKUP === '1') { say('MARKUP 2'); for (const w of (process.env.FAKE_PS_WARN || '').split(',').filter(Boolean)) say(`WARN ${w}`); }
+      writePdf();
+      if (process.env.ASTRA_WORD_MARKUP === '1') say(process.env.FAKE_PS_RESTORE_FAIL ? `VIEWRESTORE failed ${process.env.FAKE_PS_RESTORE_FAIL}` : 'VIEWRESTORE ok');
+      say('OK'); break;
+    case 'markup-view-fail':
+      say('CANDIDATE 4321'); say('ERR 23 0x00000000 MarkupMode (inline marks with comment balloons)'); process.exit(23); break;
+    case 'markup-no-confirm':
+      say('CANDIDATE 4321'); say('PAGES 1'); writePdf(); say('OK'); break;
     case 'ok-no-pdf':
       say('CANDIDATE 4321'); say('OK'); break;
     case 'ok-bad-pdf':

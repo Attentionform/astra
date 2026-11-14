@@ -112,7 +112,28 @@ export {
   type ReferenceEntry,
   type ReferenceReport,
 } from './visual/references';
-export { MIN_WORD_VERSION, WordRenderError, findWord, resetWordProbeCache, wordDocxToPdf, type WordInstall } from './visual/word';
+export {
+  MIN_WORD_VERSION,
+  WordRenderError,
+  findWord,
+  resetWordProbeCache,
+  wordDocxToPdf,
+  type WordInstall,
+  type WordStartState,
+} from './visual/word';
+export {
+  MARKUP_CONTRACT_NOTE,
+  LIBREOFFICE_LONG_COMMENT_WARNING,
+  MARKUP_PRIVACY_NOTE,
+  MIN_LIBREOFFICE_FOR_MARKUP,
+  SHOW_MARKUP_ENV,
+  buildMarkupReport,
+  effectiveShowMarkup,
+  markupNotes,
+  parseShowMarkup,
+  type MarkupMode,
+  type MarkupReport,
+} from './visual/markup';
 export { WINDOWS_PDF_MAX_WIDTH, WindowsPdfError, windowsPdfToImages, windowsRendererAvailable } from './visual/windows-pdf';
 
 // Hardened in-memory ZIP adapter and hardening utilities
