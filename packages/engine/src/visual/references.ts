@@ -675,7 +675,8 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
  * Word asks "update the fields in this document?" when the settings part holds `w:updateFields`. For a hidden Word
  * that is a visible dialog nobody can answer: the render waits until its timeout and a hidden Word stays behind.
  * The render copy never asks: the setting is removed from it (the user's file is not changed). Returns the same
- * buffer when there is nothing to remove, or when a part cannot be read as XML (it is then left as it is).
+ * buffer when there is nothing to remove, or when a part cannot be read as XML (it is then left as it is). A part
+ * too large to inspect (an XML part over the part ceiling) refuses the render with E_SECURITY, as the scan does.
  */
 export function removeUpdateFields(docx: Buffer): Buffer {
   let zip: InstanceType<typeof AdmZip>;
@@ -686,7 +687,16 @@ export function removeUpdateFields(docx: Buffer): Buffer {
   }
   const updates = new Map<string, Buffer>();
   for (const e of zip.getEntries()) {
-    if (e.isDirectory || e.entryName.toLowerCase().endsWith('.rels') || e.header.size > SNIFF_LIMIT_BYTES) continue;
+    const lower = e.entryName.toLowerCase();
+    if (e.isDirectory || lower.endsWith('.rels')) continue;
+    // The same limits as the reference scan: only a media-looking part over 16 MiB is skipped (an XML part is never
+    // named like media), and an XML part over the part ceiling cannot be inspected, so the render is refused
+    // instead of going ahead with a settings part that may still hold the setting.
+    if (e.header.size > MAX_PART_BYTES) {
+      if (lower.endsWith('.xml')) throw failClosed(`part "${e.entryName}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+      continue;
+    }
+    if (e.header.size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lower)) continue;
     try {
       const data = e.getData();
       if (utf16Endianness(data) === undefined && !data.includes('updateFields')) continue;

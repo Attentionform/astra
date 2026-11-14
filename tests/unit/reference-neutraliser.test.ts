@@ -761,6 +761,19 @@ describe('removeUpdateFields (Word asks a question nobody can answer when the se
     const junk = Buffer.from('not a zip');
     expect(removeUpdateFields(junk)).toBe(junk);
   });
+  it('handles a settings part larger than 16 MiB (only media-looking parts are skipped above that size)', () => {
+    const pad = `<!--${'x'.repeat(17 * 1024 * 1024)}-->`;
+    const docx = buildDocx({ extra: { 'word/settings.xml': settings(`${pad}<w:updateFields w:val="true"/>`) } });
+    const out = removeUpdateFields(docx);
+    expect(out).not.toBe(docx);
+    expect(readPart(out, 'word/settings.xml')).not.toContain('updateFields');
+  });
+  it('an XML part over the part ceiling refuses the render (E_SECURITY); a large non-XML part is skipped', () => {
+    const big = Buffer.alloc(129 * 1024 * 1024, 0x61);
+    expect(() => removeUpdateFields(buildDocx({ extra: { 'word/settings.xml': big } }))).toThrow(/E_SECURITY/);
+    const skipped = buildDocx({ extra: { 'word/media/blob.bin': big } });
+    expect(removeUpdateFields(skipped)).toBe(skipped);
+  });
   it('does not touch an element of another namespace with the same name', () => {
     const other = '<?xml version="1.0"?><x:root xmlns:x="urn:other"><x:updateFields/></x:root>';
     const docx = buildDocx({ extra: { 'customXml/item1.xml': other } });
