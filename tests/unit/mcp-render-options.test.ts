@@ -278,6 +278,16 @@ describe.skipIf(!POSIX)('export_document pdf', () => {
     expect(res.message).not.toMatch(/requires LibreOffice/);
   });
 
+  it('an explicit renderer:"auto" beats ASTRA_RENDERER in the pre-check as well as in the engine', async () => {
+    for (const env of ['word', 'libreoffice']) {
+      process.env.ASTRA_RENDERER = env;
+      const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), `p-${env}.docx`);
+      const res = await handleExportDocument(store, { sessionId, format: 'pdf', renderer: 'auto', outPath: path.join(docs, `p-${env}.pdf`) });
+      expect(res.ok).toBe(true);
+      if (res.ok) expect(res.renderer).toEqual({ requested: 'auto', used: 'libreoffice' });
+    }
+  });
+
   it('a bad ASTRA_RENDERER is reported by the engine as E_VALIDATION naming the variable', async () => {
     process.env.ASTRA_RENDERER = 'bogus';
     const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'm.docx');

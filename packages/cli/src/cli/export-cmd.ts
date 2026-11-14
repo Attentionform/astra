@@ -27,13 +27,13 @@ export async function cmdExport(out: GlobalOpts, args: string[]): Promise<number
       '  --strict                            PDF only: fail closed on preflight blockers (default warns and continues)',
       '  --allow-macros                      HTML and Markdown: preserve macro/active-content parts (default refuses E_VALIDATION naming the parts); a PDF export never opens them',
       '  --strip-macros                      HTML and Markdown: remove macro/active-content parts and continue (never with --allow-macros)',
-      '  --renderer <auto|word|libreoffice>   PDF only: which program renders (default auto = LibreOffice; word is Windows only and must be asked for; env ASTRA_RENDERER)',
+      '  --renderer <auto|word|libreoffice>   PDF only: which program renders (default auto = Word on Windows when installed, else LibreOffice, and LibreOffice again if Word fails; word is Windows only and never falls back; env ASTRA_RENDERER)',
       '  --renderer=<v>                      same, equals form',
       '  --allow-network-references          PDF only: let the renderer load images and files the document names at network locations (default: not loaded; env ASTRA_ALLOW_NETWORK_REFERENCES=1)',
       '  --no-allow-network-references       PDF only: keep them unloaded even when the environment variable allows them',
       '  --show-markup                      PDF only: draw tracked changes and comments: Word shows inline marks and balloons, LibreOffice shows comments in the margin; pages can be scaled and page numbers refer to this render; the output shows reviewer names, deleted text and comments (env ASTRA_SHOW_MARKUP=1)',
       '  --no-show-markup                   keep the default render even when the environment variable turns markup on',
-      'Headless PDF export uses LibreOffice (in PATH) or, with --renderer word on Windows, Microsoft Word.',
+      'Headless PDF export uses Microsoft Word on Windows when it is installed, else LibreOffice (in PATH); --renderer word or libreoffice picks one.',
       'A ~11s first-render LibreOffice cold start is expected behavior, not a bug (later renders reuse the warm backend).',
     ].join('\n');
     if (!out.json) console.log(formatCliOutput(text, 'stdout'));

@@ -16,7 +16,9 @@ import {
   DocxParser,
   getEngineErrorCode,
   effectiveRendererPreference,
-  getVisualBackendStatus,
+  hasPdfBackend,
+  findWord,
+  planRenderers,
   runPreflightChecks,
   type DocumentAST,
   type PreflightIssue,
@@ -363,8 +365,14 @@ export async function handleExportDocument(
     } catch {
       renderer = 'invalid';
     }
-    // `auto` can use Word on Windows, so only a machine with neither program stops here.
-    if (renderer === 'auto' && (getVisualBackendStatus().plan?.renderers.length ?? 0) === 0) {
+    // `auto` can use Word on Windows, so only a machine with neither program stops here. The plan is for `auto`
+    // itself, because that is what this call resolved to; ASTRA_RENDERER must not change it a second time.
+    const autoPlan = planRenderers('auto', {
+      platform: process.platform,
+      word: process.platform === 'win32' && findWord() !== null,
+      libreoffice: hasPdfBackend(),
+    });
+    if (renderer === 'auto' && autoPlan.engines.length === 0) {
       return {
         ok: false,
         code: 'E_DEPENDENCY',

@@ -191,8 +191,8 @@ export const VisualInspectSchema = z
      */
     outputDir: z.string().min(1).max(1024).optional(),
     /**
-     * DOCX-to-PDF program for withVisual renders: "auto" (default, LibreOffice), "word" (Windows only, must be asked
-     * for) or "libreoffice". An explicit choice is never replaced; "auto" falls back and reports it.
+     * DOCX-to-PDF program for withVisual renders: "auto" (default: Word on Windows when installed, else LibreOffice), "word" (Windows only) or
+     * "libreoffice". An explicit choice is never replaced; "auto" falls back and reports it.
      */
     renderer: z.enum(['auto', 'word', 'libreoffice']).optional(),
     /** PDF-to-image program: "auto" (Windows tries its built-in renderer, then Poppler), "windows" or "poppler". */
