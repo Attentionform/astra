@@ -780,3 +780,50 @@ describe('removeUpdateFields (Word asks a question nobody can answer when the se
     expect(removeUpdateFields(docx)).toBe(docx);
   });
 });
+
+describe('a large XML part with a media-looking name is still inspected (parts are identified by content type, not by name)', () => {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const MAIN = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+  const SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+  const pad = `<!--${'x'.repeat(17 * 1024 * 1024)}-->`;
+  /** Rename a part and say what it is: an Override for the new name, and the relationship that points at it. */
+  function rename(docx: Buffer, from: string, to: string, contentType: string | null, relFile?: string): Buffer {
+    const zip = new AdmZip(docx);
+    zip.updateFile(from, Buffer.from(zip.getEntry(from)!.getData()));
+    const data = zip.getEntry(from)!.getData();
+    zip.deleteFile(from);
+    zip.addFile(to, data);
+    const ct = zip.getEntry('[Content_Types].xml')!.getData().toString('utf8');
+    const add = contentType ? `<Override PartName="/${to}" ContentType="${contentType}"/>` : '';
+    zip.updateFile('[Content_Types].xml', Buffer.from(ct.replace('</Types>', `${add}</Types>`).replace(new RegExp(`<Override PartName="/${from}"[^>]*/>`), '')));
+    if (relFile) {
+      const rels = zip.getEntry(relFile)!.getData().toString('utf8');
+      zip.updateFile(relFile, Buffer.from(rels.split(from.replace(/^word\//, '')).join(to.replace(/^word\//, '')).split(`"${from}"`).join(`"${to}"`)));
+    }
+    return zip.toBuffer();
+  }
+
+  it('removeUpdateFields: a 17 MiB settings part named settings.bin, declared as settings, is changed', () => {
+    const base = buildDocx({ extra: { 'word/settings.xml': `<?xml version="1.0"?><w:settings ${W}>${pad}<w:updateFields w:val="true"/></w:settings>` } });
+    const docx = rename(base, 'word/settings.xml', 'word/settings.bin', SETTINGS);
+    const out = removeUpdateFields(docx);
+    expect(out).not.toBe(docx);
+    expect(readPart(out, 'word/settings.bin')).not.toContain('updateFields');
+  });
+  it('the reference scan: a 17 MiB main part named document.bin, declared as the main part, is scanned and neutralised', () => {
+    const body = `<w:p>${complexField([' INCLUDEPICTURE "http://evil.example/big.png"'])}</w:p>`;
+    const base = buildDocx({ document: `<?xml version="1.0"?><w:document ${W}><w:body>${body}${pad}</w:body></w:document>` });
+    const docx = rename(base, 'word/document.xml', 'word/document.bin', MAIN, '_rels/.rels');
+    const a = neutraliseReferences(docx);
+    expect(a.found.map((f) => f.type)).toEqual(['INCLUDEPICTURE']);
+    expect(readPart(a.docx, 'word/document.bin')).not.toContain('evil.example');
+  });
+  it('a genuine large media part is still skipped, and so is a large part declared as binary', () => {
+    const big = Buffer.alloc(17 * 1024 * 1024, 0x61);
+    const png = rename(buildDocx({ extra: { 'word/media/p.png': big } }), 'word/media/p.png', 'word/media/p.png', 'image/png');
+    expect(removeUpdateFields(png)).toBe(png);
+    const bin = rename(buildDocx({ extra: { 'word/embeddings/o.bin': big } }), 'word/embeddings/o.bin', 'word/embeddings/o.bin', 'application/vnd.openxmlformats-officedocument.oleObject');
+    expect(removeUpdateFields(bin)).toBe(bin);
+    expect(neutraliseReferences(bin).changed).toBe(false);
+  });
+});

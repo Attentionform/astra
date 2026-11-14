@@ -20,8 +20,9 @@
  *     address): the whole instruction is replaced, the nested field is judged on its own, and an instruction whose
  *     field type is itself built by a nested field is refused with E_SECURITY.
  * Every part is looked at by content, not by name or extension (a renderer reads a part according to its
- * declared content type, so a main document part could be hidden under any name), except media-looking parts
- * over 16 MB, which are skipped.
+ * declared content type, so a main document part could be hidden under any name), except parts over 16 MB that
+ * have a media-looking name and that the package declares as something other than XML, which are skipped. A part
+ * the package declares as XML, or does not declare, is read whatever it is called.
  * Not inspected: VML `o:href` attributes, mail-merge data-source connection strings, DATABASE fields, content
  * inside embedded objects and imported chunks (altChunk), and anything a renderer does that is not driven by
  * the structures above.
@@ -292,6 +293,45 @@ const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 const SNIFF_LIMIT_BYTES = 16 * 1024 * 1024;
 const MEDIA_NAME = /\.(?:png|jpe?g|gif|bmp|tiff?|emf|wmf|wdp|svg|ico|mp3|mp4|m4a|wav|avi|mov|mpe?g|wmv|webm|ogg|ttf|otf|odttf|fntdata|bin|pdf|zip|docx|xlsx|pptx)$/i;
 const MAX_PART_BYTES = 128 * 1024 * 1024;
+
+/**
+ * What the package says each part is. A part is identified by its content type (an Override for its name, else the
+ * Default for its extension), not by its name: a settings or main document part can carry any name, `.bin` included.
+ * A package whose content types cannot be read gives `undefined` for every part, and such parts are inspected.
+ */
+function contentTypeResolver(zip: InstanceType<typeof AdmZip>): (partName: string) => string | undefined {
+  const overrides = new Map<string, string>();
+  const defaults = new Map<string, string>();
+  try {
+    const entry = zip.getEntry('[Content_Types].xml');
+    if (entry && entry.header.size <= SNIFF_LIMIT_BYTES) {
+      const { text } = decodePart('[Content_Types].xml', entry.getData());
+      const doc = parseXml('[Content_Types].xml', text) as unknown as { getElementsByTagNameNS(ns: string, ln: string): ArrayLike<Element> };
+      const defs = doc.getElementsByTagNameNS('*', 'Default');
+      for (let i = 0; i < defs.length; i++) defaults.set((defs[i].getAttribute('Extension') ?? '').toLowerCase(), defs[i].getAttribute('ContentType') ?? '');
+      const ovs = doc.getElementsByTagNameNS('*', 'Override');
+      for (let i = 0; i < ovs.length; i++) overrides.set((ovs[i].getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase(), ovs[i].getAttribute('ContentType') ?? '');
+    }
+  } catch {
+    overrides.clear();
+    defaults.clear();
+  }
+  return (partName: string): string | undefined => {
+    const lower = partName.replace(/\\/g, '/').toLowerCase();
+    const o = overrides.get(lower);
+    if (o !== undefined) return o;
+    const ext = lower.includes('.') ? lower.slice(lower.lastIndexOf('.') + 1) : '';
+    return defaults.get(ext);
+  };
+}
+
+/**
+ * Large parts that look like media by name are not read (a 100 MB video is not an XML part). A part that the package
+ * declares as XML, or does not declare at all, is read whatever it is called.
+ */
+function isLargeMedia(lowerName: string, size: number, contentType: string | undefined): boolean {
+  return size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lowerName) && contentType !== undefined && !/xml/i.test(contentType);
+}
 
 export interface ReferenceAnalysis {
   /** The bytes to render: the input itself when nothing had to change. */
@@ -638,6 +678,7 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     throw failClosed('the file is not a readable zip package');
   }
   const entries = zip.getEntries();
+  const contentTypeOf = contentTypeResolver(zip);
   const seen = new Set<string>();
   for (const e of entries) {
     const key = e.entryName.replace(/\\/g, '/').toLowerCase();
@@ -654,7 +695,7 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
       if (next !== null) updates.set(e.entryName, next);
     } else {
       const size = e.header.size;
-      if (size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lower)) continue;
+      if (isLargeMedia(lower, size, contentTypeOf(name))) continue;
       if (size > MAX_PART_BYTES) {
         if (lower.endsWith('.xml')) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
         continue;
@@ -686,17 +727,18 @@ export function removeUpdateFields(docx: Buffer): Buffer {
     return docx;
   }
   const updates = new Map<string, Buffer>();
+  const contentTypeOf = contentTypeResolver(zip);
   for (const e of zip.getEntries()) {
     const lower = e.entryName.toLowerCase();
     if (e.isDirectory || lower.endsWith('.rels')) continue;
-    // The same limits as the reference scan: only a media-looking part over 16 MiB is skipped (an XML part is never
-    // named like media), and an XML part over the part ceiling cannot be inspected, so the render is refused
+    // The same limits as the reference scan: only a part over 16 MiB with a media-looking name that the package does not
+    // declare as XML is skipped, and an XML part over the part ceiling cannot be inspected, so the render is refused
     // instead of going ahead with a settings part that may still hold the setting.
     if (e.header.size > MAX_PART_BYTES) {
       if (lower.endsWith('.xml')) throw failClosed(`part "${e.entryName}" is larger than ${MAX_PART_BYTES >> 20} MB`);
       continue;
     }
-    if (e.header.size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lower)) continue;
+    if (isLargeMedia(lower, e.header.size, contentTypeOf(e.entryName))) continue;
     try {
       const data = e.getData();
       if (utf16Endianness(data) === undefined && !data.includes('updateFields')) continue;
