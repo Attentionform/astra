@@ -154,7 +154,7 @@ astra visual report.docx --page 2 --out page2.png
 - **`.docx` only.** `.doc`, `.odt` and other formats are not edited.
 - **Checked automatically with the Open XML SDK and LibreOffice, not with Word.** Fifteen sample documents covering sections, headers and footers, lists, a chart and other content were also opened by hand in desktop Word and opened without a repair prompt; the chart stayed editable. Equations and comments were not confirmed separately.
 - **PDF export and page images need LibreOffice and Poppler** installed on the machine. On Windows, `--renderer word` (Word 2010 or later) and `--pdf-to-image windows` (built in) can stand in. Word and LibreOffice lay a page out differently, so page breaks can differ between the two renderers; the wireframe's page count follows the renderer that drew the page.
-- **Tracked changes and comments in renders are opt-in** (`--show-markup`, MCP `showMarkup`). The review view uses a different layout mode: pages can be scaled and pagination can change, so page numbers in a markup render refer to that render. Word shows comments in balloons and LibreOffice shows them in the margin. LibreOffice cuts a long comment short on every version that was tried: on 24.8, 25.2 and 25.8 the margin box runs past the page's right edge, and on 7.6, 26.2 and 26.8 it wraps but is shortened when other comments follow close below. A markup render by LibreOffice always carries a warning for this. Comment icons and the exact balloon layout are not controlled. ASTra needs LibreOffice 7.6.7 or later for markup, because older versions were not tried and LibreOffice silently ignores an export option it does not know. The check is a guard on the version number, not a guarantee that every later build behaves the same. The evidence is in the table below.
+- **Tracked changes and comments in renders are opt-in** (`--show-markup`, MCP `showMarkup`). The review view uses a different layout mode: pages can be scaled and pagination can change, so page numbers in a markup render refer to that render. Word shows comments in balloons and LibreOffice shows them in the margin. LibreOffice cuts a long comment short on every version that was tried: on 24.8, 25.2 and 25.8 the margin box runs past the page's right edge, and on 7.6, 26.2 and 26.8 it wraps but is shortened when other comments follow close below. Word cuts a very long comment too: its balloon has a maximum height and ends with an ellipsis (a 60-word comment was complete, a 300-word one ended after about 150 words on Word 16.0.14334.20974). A markup render always carries a warning for the program that drew it. A comment anchored in a header, footer or footnote is not drawn by Word, and LibreOffice cannot open such a file. Comment icons and the exact balloon layout are not controlled. ASTra needs LibreOffice 7.6.7 or later for markup, because older versions were not tried and LibreOffice silently ignores an export option it does not know. The check is a guard on the version number, not a guarantee that every later build behaves the same. The evidence is in the table below.
 - **Version 0.x.** Interfaces may change before 1.0.
 - **Node.js 22.19 or later.**
 - **Node IDs last for one session.** Read them again after you reopen a file.
@@ -179,4 +179,24 @@ astra visual report.docx --page 2 --out page2.png
 
 Versions older than 7.6.7 were not tried. Windows was tried with one LibreOffice version only.
 
-Microsoft Word 16.0.14334.20974 on Windows passed the checks for the default view, for Word starting in "No Markup", with one reviewer hidden and with comments off (the view comes back after each), for three reviewers, and for a user's own open Word keeping its process and window. Other Word builds were not tried.
+Microsoft Word 16.0.14334.20974 on Windows passed the checks for the default view, for Word starting in "No Markup", with one reviewer hidden and with comments off (the view comes back after each), for three reviewers, and for a user's own open Word keeping its process and window. It also showed a 60-word comment complete beside two other comments, and cut a 300-word comment after about 150 words with an ellipsis (checks R17 and R17b). Other Word builds were not tried.
+
+### Review marks: other documents that were tried
+
+The same script (`--cases`) renders these documents with and without markup and prints what it found. These are recorded, not pass or fail: they show what each program does. The documents are made by the script from raw OOXML, not by Word. Tried on Word 16.0.14334.20974, LibreOffice 25.2.7.2 (Linux) and LibreOffice 26.8.0.3 (Linux). Other versions were not tried for these.
+
+| Case | Word | LibreOffice 25.2.7.2 and 26.8.0.3 |
+|---|---|---|
+| R5 a reply thread and a resolved comment | root, reply and resolved comment all drawn | all three drawn |
+| R6a, R6b, R6c comment anchored in a header, a footer, a footnote | the file opens, the comment is not drawn, the header, footer and footnote text is | the file does not open, with or without markup (25.2.7.2: "source file could not be loaded"; 26.8.0.3: the program exits with an error) |
+| R6d comment in a table cell | drawn | drawn |
+| R7 15 comments on one page | all 15 drawn, one page | all 15 drawn, one page |
+| R8 formatting change, move, inserted table row | the "Formatted" note, the moved text in both places and the inserted row | moved text in both places and the inserted row; no "Formatted" note |
+| R9 right-to-left paragraph with a comment | comment and Hebrew text drawn | comment and Hebrew text drawn |
+| R10 30-page document, comments on pages 3, 12 and 25 | all three drawn, 30 pages with and without markup | all three drawn, 30 pages with and without markup |
+| R11 the document asks for a view that hides markup (`w:revisionView`) | comment and deleted text drawn, because ASTra sets the view itself | comment drawn, deleted text not drawn |
+| R12 comment in the middle of a sentence | comment drawn, sentence intact | comment drawn, sentence intact |
+| R13 plain document | same text and pages with and without markup | same text and pages with and without markup |
+
+Two limits follow from this table. A comment anchored in a header, a footer or a footnote is not drawn by Word, and LibreOffice cannot open such a file at all, with or without markup; this is the same in a render that has no markup. When `auto` is used and LibreOffice cannot open the file, ASTra tries Word where it is installed. With LibreOffice, a document whose `w:revisionView` hides markup also hides the deleted text in a markup render. Word 16.0.14334.20974 was also run with three renders at the same time in separate processes (all three produced the same PDF and no Word process was left), and with another process holding the Word launch lock (the render failed after 30 seconds with `E_RENDER` and started no Word).
+
