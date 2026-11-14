@@ -142,7 +142,9 @@ export function planRenderers(pref: RendererPreference, probe: RendererProbe): R
     return { requested: pref, engines: probe.libreoffice ? ['libreoffice'] : [], canFallBack: false };
   }
   const engines: RendererId[] = [];
-  if ((probe.autoPrefersWord ?? AUTO_PREFERS_WORD) && win && probe.word && probe.wordUsable !== false) engines.push('word');
+  // The breaker only skips an engine that has a fallback: when it is the only one, it stays eligible, so a
+  // recovered Word is used again at once instead of the render reporting a missing program for minutes.
+  if ((probe.autoPrefersWord ?? AUTO_PREFERS_WORD) && win && probe.word && (probe.wordUsable !== false || !probe.libreoffice)) engines.push('word');
   if (probe.libreoffice) engines.push('libreoffice');
   return { requested: pref, engines, canFallBack: engines.length > 1 };
 }
@@ -183,7 +185,9 @@ export function planRasterizers(pref: RasterizerPreference, probe: RasterizerPro
     return { requested: pref, engines: probe.poppler ? ['poppler'] : [], canFallBack: false };
   }
   const engines: RasterizerId[] = [];
-  if (win && probe.windowsRenderer && probe.windowsUsable !== false) engines.push('windows');
+  // The breaker only skips an engine that has a fallback: when it is the only one, it stays eligible, so a
+  // recovered Windows renderer is used again at once instead of the render reporting a missing pdftoppm.
+  if (win && probe.windowsRenderer && (probe.windowsUsable !== false || !probe.poppler)) engines.push('windows');
   if (probe.poppler) engines.push('poppler');
   return { requested: pref, engines, canFallBack: engines.length > 1 };
 }

@@ -69,6 +69,11 @@ describe('planRenderers', () => {
     expect(planRenderers('auto', { platform: win, word: true, libreoffice: true }).engines).toEqual(['libreoffice']);
     expect(planRenderers('auto', { platform: win, word: true, libreoffice: false }).engines).toEqual([]);
   });
+  it('a Word-first plan: an open breaker skips Word only when LibreOffice can take over', () => {
+    const probe = { platform: win, word: true, autoPrefersWord: true, wordUsable: false };
+    expect(planRenderers('auto', { ...probe, libreoffice: true }).engines).toEqual(['libreoffice']);
+    expect(planRenderers('auto', { ...probe, libreoffice: false }).engines).toEqual(['word']);
+  });
   it('explicit word on Windows with Word installed uses only Word and never falls back', () => {
     const p = planRenderers('word', { platform: win, word: true, libreoffice: true });
     expect(p).toEqual({ requested: 'word', engines: ['word'], canFallBack: false });
@@ -129,6 +134,11 @@ describe('planRasterizers', () => {
   it('an open breaker removes the Windows renderer from auto only', () => {
     expect(planRasterizers('auto', { platform: win, windowsRenderer: true, poppler: true, windowsUsable: false }).engines).toEqual(['poppler']);
     expect(planRasterizers('windows', { platform: win, windowsRenderer: true, poppler: true, windowsUsable: false }).engines).toEqual(['windows']);
+  });
+  it('an open breaker does not remove the only rasterizer: without Poppler the Windows renderer stays eligible', () => {
+    const p = planRasterizers('auto', { platform: win, windowsRenderer: true, poppler: false, windowsUsable: false });
+    expect(p.engines).toEqual(['windows']);
+    expect(p.canFallBack).toBe(false);
   });
 });
 

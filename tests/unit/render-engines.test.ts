@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import { AdmZip, DocxParser, renderDocxToImages, resetRendererBreakersForTesting, convertDocxToPdfDetailed, type VisualTestHooks } from '@attentionform/astra-engine';
+import { AdmZip, DocxParser, renderDocxToImages, resetPdfBackendCache, resetRendererBreakersForTesting, convertDocxToPdfDetailed, type VisualTestHooks } from '@attentionform/astra-engine';
 import { buildDocx, complexField, documentXml, readPart } from '../helpers/docx-refs';
 import { fakePsHooks, withFakePsEnv } from '../helpers/fake-ps';
 import { makeFakePdftoppm, makeFakeSoffice } from '../helpers/fake-bins';
@@ -196,6 +196,23 @@ describe.skipIf(!POSIX)('rasterizer choice', () => {
     const b = await renderDocxToImages(blank(), o);
     expect(b.rasterizer).toEqual({ requested: 'auto', used: 'poppler' });
     expect(logRows(process.env.FAKE_PS_LOG).filter((r) => r.pdf)).toHaveLength(1);
+  });
+
+  it('without Poppler, the Windows renderer is used again at once after a transient failure', async () => {
+    const savedPath = process.env.PATH;
+    process.env.PATH = path.join(tmpBase, 'tmp'); // an empty folder: no pdftoppm anywhere
+    resetPdfBackendCache();
+    try {
+      const o = { sofficeBin: bins.soffice, pdfToImage: 'auto' as const, testHooks: winHooks };
+      process.env.FAKE_PS_MODE = 'err41';
+      await expect(renderDocxToImages(blank(), o)).rejects.toThrow();
+      process.env.FAKE_PS_MODE = 'ok';
+      const r = await renderDocxToImages(blank(), o);
+      expect(r.rasterizer).toEqual({ requested: 'auto', used: 'windows' });
+    } finally {
+      process.env.PATH = savedPath;
+      resetPdfBackendCache();
+    }
   });
 
   it('a damaged PDF falls back too (Poppler may read it) without opening the breaker', async () => {
