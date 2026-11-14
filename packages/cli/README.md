@@ -62,7 +62,7 @@ astra sanitize proposal.docx proposal_clean.docx
 | `sanitize` | Scrubs metadata, comments, revision history, and PII | `astra sanitize doc.docx clean.docx` |
 | `normalize` | Canonicalizes XML namespaces and fixes element ordering | `astra normalize doc.docx` |
 | `stats` | Reports word count, paragraph count, and estimated pages | `astra stats doc.docx` |
-| `visual` | Renders one saved-file page to PNG/JPEG via headless LibreOffice | `astra visual doc.docx --out render.png` |
+| `visual` | Renders one saved-file page to PNG/JPEG via a headless renderer (LibreOffice; Word on Windows with `--renderer word`) | `astra visual doc.docx --out render.png` |
 | `history` | Lists recorded sidecar commits, newest first (read-only) | `astra history doc.docx` |
 | `revert` | Restores the package state recorded N commits back, as a new commit | `astra revert doc.docx --steps 1` |
 | `redo` | Re-applies the state replaced by the most recent revert | `astra redo doc.docx` |
@@ -104,7 +104,13 @@ Compiles a Markdown file into a `.docx`.
 Word, paragraph, and page counts (deterministic estimate).
 
 ### 11. Visual Page Rendering (`astra visual`)
-Renders one saved-file page to PNG/JPEG via headless LibreOffice (same renderer as `inspect --visual`).
+Renders one saved-file page to PNG/JPEG via a headless renderer (same renderer as `inspect --visual`).
+
+- `--renderer auto|word|libreoffice` picks the DOCX-to-PDF program. `auto` is LibreOffice. `word` is Windows only and never falls back. Env `ASTRA_RENDERER`.
+- `--pdf-to-image auto|windows|poppler` picks the page-image program. On Windows `auto` tries the built-in renderer, then Poppler. Env `ASTRA_PDF_TO_IMAGE`.
+- `--allow-network-references` lets the renderer load content from network locations the document names. Default: not loaded (the references are changed on a copy). Env `ASTRA_ALLOW_NETWORK_REFERENCES=1`.
+
+`export --format pdf` takes `--renderer` and the network flag too.
 
 ### 12. Document History (`astra history`)
 Lists recorded sidecar commits newest first; read-only; `--init` (alias `--track`) records the current file as the baseline when no sidecar exists yet.

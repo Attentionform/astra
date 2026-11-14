@@ -84,15 +84,22 @@ const docx = engine.DocxParser.createNewDocument('blank').rezip();
 const workDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'astra-visual-smoke-')));
 
 try {
-  const render = await engine.renderDocxToImages(docx, { format: 'png', dpi: 72, maxPages: 1 });
-  if (render.images.length < 1) fail('render returned no page image');
-  const image = render.images[0];
-  const bytes = fs.readFileSync(image.path);
-  if (bytes.length < 200) fail(`page image is only ${bytes.length} bytes`);
-  if (!bytes.subarray(0, 8).equals(PNG_SIGNATURE)) fail('page image is not a PNG');
-  const { width, height } = countInk(bytes);
-  if (width < 100 || height < 100) fail(`page image is ${width}x${height}`);
-  console.log(`render:   ok, page 1 is ${width}x${height} PNG, ${bytes.length} bytes, ${render.totalPages} page(s)`);
+  // `auto` picks the page-image program for this machine (Windows: its built-in renderer first, Poppler as the
+  // fallback; elsewhere Poppler), and `poppler` forces Poppler. Both must produce a real page.
+  for (const pdfToImage of ['auto', 'poppler']) {
+    const render = await engine.renderDocxToImages(docx, { format: 'png', dpi: 72, maxPages: 1, pdfToImage });
+    if (render.images.length < 1) fail(`render (${pdfToImage}) returned no page image`);
+    if (render.renderer.used !== 'libreoffice') fail(`render (${pdfToImage}) used ${render.renderer.used}, not LibreOffice (auto never picks Word in this release)`);
+    if (pdfToImage === 'poppler' && render.rasterizer.used !== 'poppler') fail(`pdfToImage poppler used ${render.rasterizer.used}`);
+    if (render.rasterizer.fallbackFrom) console.log(`note: ${render.rasterizer.fallbackFrom} could not draw the page (${render.rasterizer.fallbackReason}); ${render.rasterizer.used} did`);
+    const image = render.images[0];
+    const bytes = fs.readFileSync(image.path);
+    if (bytes.length < 200) fail(`page image (${pdfToImage}) is only ${bytes.length} bytes`);
+    if (!bytes.subarray(0, 8).equals(PNG_SIGNATURE)) fail(`page image (${pdfToImage}) is not a PNG`);
+    const { width, height } = countInk(bytes);
+    if (width < 100 || height < 100) fail(`page image (${pdfToImage}) is ${width}x${height}`);
+    console.log(`render:   ok (${pdfToImage} -> ${render.rasterizer.used}), page 1 is ${width}x${height} PNG, ${bytes.length} bytes, ${render.totalPages} page(s)`);
+  }
 
   const pdfPath = path.join(workDir, 'export.pdf');
   await engine.convertDocxToPdf(docx, pdfPath);

@@ -153,7 +153,7 @@ astra visual report.docx --page 2 --out page2.png
 
 - **`.docx` only.** `.doc`, `.odt` and other formats are not edited.
 - **Checked automatically with the Open XML SDK and LibreOffice, not with Word.** Fifteen sample documents covering sections, headers and footers, lists, a chart and other content were also opened by hand in desktop Word and opened without a repair prompt; the chart stayed editable. Equations and comments were not confirmed separately.
-- **PDF export and page images need LibreOffice and Poppler** installed on the machine.
+- **PDF export and page images need LibreOffice and Poppler** installed on the machine. On Windows, `--renderer word` (Word 2010 or later) and `--pdf-to-image windows` (built in) can stand in. Word and LibreOffice lay a page out differently, so page breaks can differ between the two renderers; the wireframe's page count follows the renderer that drew the page.
 - **Version 0.x.** Interfaces may change before 1.0.
 - **Node.js 22.19 or later.**
 - **Node IDs last for one session.** Read them again after you reopen a file.

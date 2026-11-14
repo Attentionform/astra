@@ -4,6 +4,7 @@ import { cleanCliMessage, failHuman, rewriteMcpRemedies } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { computeDocStats, describePageEstimate, macroFlagsUsageError, macroOptsFromFlags, parseMaxRatioFlag, parseMaxUncompressedBytesFlag, readDocx, withZipCeilingEnv, type ZipCeilingOverrides } from './io';
 import { printCliVisualTelemetry, renderCliVisualPage } from './visual-cmd';
+import { printRenderNotes, readRenderFlag, rendererLabel, type RenderFlags } from './render-flags';
 
 export function parseFidelity(raw: string | undefined): Fidelity | undefined {
   if (raw === undefined) return undefined;
@@ -27,8 +28,15 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
   let maxBytesRaw: string | undefined;
   let allowMacros = false;
   let stripMacros = false;
+  const renderFlags: RenderFlags = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
+    const rf = readRenderFlag('inspect', args, i, renderFlags, { pdfToImage: true });
+    if (rf.matched) {
+      if ('error' in rf) return usage(out, rf.error);
+      i = rf.next;
+      continue;
+    }
     if (a === '--fidelity') fidelityRaw = args[++i];
     else if (a === '--outline') outlineFlag = true;
     else if (a === '--section') {
@@ -186,9 +194,10 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
         // yields byte-identical images. Telemetry names the EFFECTIVE
         // (clamped) page and the renderer's own page count, matching
         // `visual` exactly.
-        const rendered = await renderCliVisualPage(buf, visualPage, visualFormat);
+        const rendered = await renderCliVisualPage(buf, visualPage, visualFormat, renderFlags);
         const picked = rendered.images.find((img) => img.page === visualPage) ?? rendered.images[0];
-        const telemetry = printCliVisualTelemetry(out, ast, summary, picked?.page ?? visualPage, rendered.totalPages);
+        const telemetry = printCliVisualTelemetry(out, ast, summary, picked?.page ?? visualPage, rendered.totalPages, rendererLabel(rendered.renderer));
+        printRenderNotes(rendered);
         for (const img of rendered.images) {
           print(out, `visual: page-${img.page} ${img.path} (${img.bytes}B ${img.format})`);
         }
@@ -201,19 +210,33 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
           // violated.
           totalPages: rendered.totalPages >= 1 ? Math.floor(rendered.totalPages) : telemetry.totalPages,
           outDir: rendered.outDir,
+          ...(rendered.renderer ? { renderer: rendered.renderer } : {}),
+          ...(rendered.rasterizer ? { rasterizer: rendered.rasterizer } : {}),
+          ...(rendered.references ? { references: rendered.references } : {}),
         };
       } catch (err: unknown) {
         const code = (err as { code?: unknown })?.code;
         const msg = err instanceof Error ? err.message : String(err);
-        if (code === 'E_DEPENDENCY') {
+        // A missing renderer (E_DEPENDENCY) and a package whose references cannot be checked (E_SECURITY) leave the
+        // text inspection intact: telemetry prints, the render is skipped, and the stderr line says what to do.
+        if (code === 'E_DEPENDENCY' || code === 'E_SECURITY') {
           const clean = cleanCliMessage(rewriteMcpRemedies(msg));
           // Degrade path still describes the requested page (nothing was
           // rendered, so there is no clamped pick and no renderer page
           // count to name: the marker stays word-layout-based, which is
           // honest here because no image contradicts it).
           const telemetry = printCliVisualTelemetry(out, ast, summary, visualPage);
-          printStderr(`${CLI_NAME}: error: [E_DEPENDENCY] ${clean}. Remedy: install LibreOffice (soffice in PATH) and retry; telemetry above still applies`);
-          visual = { telemetry, promptLaw: VISUAL_PROMPT_LAW, images: [], skipped: 'E_DEPENDENCY' };
+          const propRemedy = (err as { remedy?: unknown }).remedy;
+          const msgRemedy = /Remedy:\s*(.*)$/.exec(clean)?.[1];
+          const remedy =
+            typeof propRemedy === 'string' && propRemedy.trim() !== ''
+              ? cleanCliMessage(rewriteMcpRemedies(propRemedy))
+              : msgRemedy && msgRemedy.trim() !== ''
+                ? msgRemedy
+                : 'install LibreOffice (soffice in PATH) and retry';
+          const bare = clean.replace(/^\[?E_[A-Z_]+\]?:?\s*/, '').replace(/\s*Remedy:.*$/, '');
+          printStderr(`${CLI_NAME}: error: [${String(code)}] ${bare}. Remedy: ${remedy.replace(/\.$/, '')}; telemetry above still applies`);
+          visual = { telemetry, promptLaw: VISUAL_PROMPT_LAW, images: [], skipped: String(code) };
         } else {
           return failHuman(out, err, { file, fallbackCode: 'E_VALIDATION' });
         }

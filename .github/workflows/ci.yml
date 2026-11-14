@@ -139,6 +139,15 @@ jobs:
           node scripts/visual-render-smoke.mjs --expect-source fallback
       - name: Command line and MCP server render (astra visual, inspect --visual, export pdf, visual_inspect)
         run: node scripts/visual-e2e-smoke.mjs
+      # Windows only: the built-in PDF renderer against Poppler (page count, pixel size within 1 px, rotation,
+      # page selection, a damaged PDF), then the real-machine render with every program that is installed. The
+      # runner has no Word, so the Word steps of the script report themselves as skipped.
+      - name: Windows PDF renderer against Poppler
+        if: runner.os == 'Windows'
+        run: node scripts/windows-pdf-parity.mjs
+      - name: Windows render pairs and network references (no Word on the runner)
+        if: runner.os == 'Windows'
+        run: node scripts/word-render-smoke.mjs --no-listener
 
   original-recovery-filesystem:
     name: Original recovery (${{ matrix.os }})

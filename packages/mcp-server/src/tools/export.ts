@@ -12,15 +12,19 @@ import {
   convertAstToHtml,
   htmlDocumentTitle,
   convertAstToMarkdown,
-  convertDocxToPdf,
+  convertDocxToPdfDetailed,
   DocxParser,
   getEngineErrorCode,
+  effectiveRendererPreference,
   hasPdfBackend,
   runPreflightChecks,
   type DocumentAST,
   type PreflightIssue,
+  type ReferenceReport,
+  type RendererReport,
   writeFileNoFollow,
 } from '@attentionform/astra-engine';
+import { NETWORK_REFERENCES_PARAM_NOTE, mcpFlagNames, renderNotes } from '../lib/mcp/render-notes';
 
 export const ExportDocumentSchema = z.object({
   sessionId: z.string().describe('Active document session ID returned by open_document'),
@@ -31,6 +35,8 @@ export const ExportDocumentSchema = z.object({
   tagged_pdf: z.boolean().optional().describe('PDF only: tagged (accessible) render (default true)'),
   tagged: z.boolean().optional().describe('Alias of tagged_pdf'),
   strict: z.boolean().optional().describe('PDF only: fail closed on preflight blockers (default false, warn-only)'),
+  renderer: z.enum(['auto', 'word', 'libreoffice']).optional().describe('PDF only: which program renders. auto (default) is LibreOffice; word is Windows only and must be asked for; an explicit choice is never replaced'),
+  allowNetworkReferences: z.boolean().optional().describe(`PDF only. ${NETWORK_REFERENCES_PARAM_NOTE.replace(/^allowNetworkReferences: /, '')}`),
 });
 
 export type ExportDocumentArgs = z.infer<typeof ExportDocumentSchema>;
@@ -40,7 +46,7 @@ export const EXPORT_DOCUMENT_DESCRIPTION =
   'Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); ' +
   'success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). ' +
   'For Markdown exports, images default to extracted files in a unique generation within a sibling <doc_basename>_assets/ directory when outPath is specified; in-memory exports default to embedded base64 data URIs. ' +
-  'PDF renders via headless LibreOffice: a ~11s first-render cold start is expected behavior, not a bug. ' +
+  'PDF renders via headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug) or, with renderer:"word" on Windows, Microsoft Word; the result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). ' +
   'Failures return {ok:false,code,message,remedy}.';
 
 /**
@@ -65,8 +71,8 @@ export function mapExportError(err: unknown): { code: string; message: string; r
   }
   return {
     code,
-    message: `Export failed: ${msg}`,
-    remedy: (err as { remedy?: string })?.remedy || 'Check disk space, file permissions, and backend availability.',
+    message: mcpFlagNames(`Export failed: ${msg}`),
+    remedy: mcpFlagNames((err as { remedy?: string })?.remedy || 'Check disk space, file permissions, and backend availability.'),
   };
 }
 
@@ -256,6 +262,10 @@ export async function handleExportDocument(
   assetPrefix?: string;
   assets?: string[];
   assetCount?: number;
+  /** PDF only: which program rendered, what happened to network references, and plain-language notes about both. */
+  renderer?: RendererReport;
+  references?: ReferenceReport;
+  notes?: string[];
   warnings?: PreflightIssue[];
   blockers?: PreflightIssue[];
   message?: string;
@@ -333,12 +343,21 @@ export async function handleExportDocument(
 
   let validatedPdfPath: string | undefined;
   if (format === 'pdf') {
-    if (!hasPdfBackend()) {
+    // A named renderer, from the parameter or ASTRA_RENDERER, is checked by the engine itself (it names what is
+    // missing); with `auto`, the usual pre-check reports a missing LibreOffice before any path work. A value the
+    // engine will refuse (a bad ASTRA_RENDERER) is left to the engine, which reports it.
+    let renderer: string = 'auto';
+    try {
+      renderer = effectiveRendererPreference(parsed.data.renderer);
+    } catch {
+      renderer = 'invalid';
+    }
+    if (renderer === 'auto' && !hasPdfBackend()) {
       return {
         ok: false,
         code: 'E_DEPENDENCY',
         message: `[E_DEPENDENCY] Headless PDF export requires LibreOffice ('libreoffice' or 'soffice') which is not found in PATH.`,
-        remedy: 'Install LibreOffice on the host system: sudo apt install libreoffice (Linux) or brew install --cask libreoffice (macOS).',
+        remedy: 'Install LibreOffice on the host system: sudo apt install libreoffice (Linux) or brew install --cask libreoffice (macOS). On Windows, Microsoft Word can be used with renderer:"word".',
       };
     }
     const defaultPdf = targetPath || path.join(path.dirname(session.filePath), `${path.basename(session.filePath, path.extname(session.filePath))}.pdf`);
@@ -368,10 +387,13 @@ export async function handleExportDocument(
       } catch {
         preflight = undefined;
       }
+      let converted: Awaited<ReturnType<typeof convertDocxToPdfDetailed>>;
       try {
-        await convertDocxToPdf(buf, validatedPdfPath!, {
+        converted = await convertDocxToPdfDetailed(buf, validatedPdfPath!, {
           tagged: parsed.data.tagged_pdf ?? parsed.data.tagged ?? true,
           strict: parsed.data.strict ?? false,
+          ...(parsed.data.renderer !== undefined ? { renderer: parsed.data.renderer } : {}),
+          ...(parsed.data.allowNetworkReferences !== undefined ? { allowNetworkReferences: parsed.data.allowNetworkReferences } : {}),
         });
       } catch (err: unknown) {
         // Carry preflight diagnostics on the original error (additive: the
@@ -394,6 +416,9 @@ export async function handleExportDocument(
         revision,
         warnings: preflight?.warnings ?? [],
         blockers: preflight?.blockers ?? [],
+        renderer: converted.renderer,
+        references: converted.references,
+        ...(renderNotes(converted).length > 0 ? { notes: renderNotes(converted) } : {}),
       };
     }
 

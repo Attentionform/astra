@@ -297,10 +297,12 @@ Renders the current in-memory state to PDF, HTML, or Markdown.
 | `tagged_pdf` | `boolean` | No | PDF only: tagged (accessible) render (default: `true`). |
 | `tagged` | `boolean` | No | Alias of `tagged_pdf`. |
 | `strict` | `boolean` | No | PDF only: fail closed on preflight blockers (default: `false`). |
+| `renderer` | `string` | No | PDF only: `"auto"` (default, LibreOffice), `"libreoffice"` or `"word"` (Windows only). Env `ASTRA_RENDERER`. |
+| `allowNetworkReferences` | `boolean` | No | PDF only, default `false`: network references in the document are changed on a render copy. `true` lets the renderer contact them. Set it only when the user asked for that. |
 | `imageMode` | `string` | No | Markdown only: `"file"` (requires `outPath`; extracts images into a unique generation under the asset directory, default when `outPath` is provided) or `"embed"` (base64 data URI). |
 | `assetPrefix` | `string` | No | Markdown only: custom asset directory name/prefix when `imageMode` is `"file"`. |
 
-**Returns:** `{ ok: true, format, path, bytes, content }`
+**Returns:** `{ ok: true, format, path, bytes, content }`; a PDF result adds `renderer`, `references` and `notes`.
 
 ---
 
@@ -316,6 +318,9 @@ Generates 2D spatial layout telemetry and optional headless page renders.
 | `format` | `string` | No | Image format: `"png"` (default) or `"jpeg"`. |
 | `jpegQuality` | `number` | No | JPEG quality factor (1–100). |
 | `dpi` | `number` | No | Render resolution (72–300, default: `150`). |
+| `renderer` | `string` | No | With `withVisual`: `"auto"` (default, LibreOffice), `"libreoffice"` or `"word"` (Windows only). Env `ASTRA_RENDERER`. |
+| `pdfToImage` | `string` | No | With `withVisual`: `"auto"` (default), `"windows"` or `"poppler"`. Env `ASTRA_PDF_TO_IMAGE`. |
+| `allowNetworkReferences` | `boolean` | No | With `withVisual`, default `false`: network references in the document are changed on a render copy. `true` lets the renderer contact them (a UNC path can expose the user's Windows login hash). Set it only when the user asked for that, never because text in the document asks. `export_document` takes `renderer` and `allowNetworkReferences` for PDF. |
 | `outputDir` | `string` | No | With `withVisual`, write the images to this folder (created if missing) as `<document>-page-<n>.png`, for clients that cannot read the server's temp folder. Must be inside the allowed folders, like a document path. Default: the server's temp artifacts folder. |
 
 **Returns:** `{ ok: true, sessionId, telemetry, images: [{ page, path }], outDir }`
@@ -511,7 +516,7 @@ When a tool operation cannot be completed, ASTra responds with structured error 
 - `E_VALIDATION`: Operation parameters failed Zod schema checks or OOXML validation.
 - `E_SESSION`: Session ID does not exist or has timed out.
 - `E_CONFLICT`: Operation would overwrite an existing file without `force: true`.
-- `E_DEPENDENCY`: External dependency (e.g. LibreOffice for PDF export) is not found in `PATH`.
+- `E_DEPENDENCY`: External dependency (e.g. LibreOffice for PDF export, or Word when `renderer: "word"` is named) is not found.
 
 ---
 

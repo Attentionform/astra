@@ -57,17 +57,17 @@ astra --version
 Usage: astra [--json] [--verbose] [--version] [--help] <command> [args]
 
 Commands (exit 0 ok · 1 operational failure · 2 usage):
-  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>]
+  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references]
   validate <docx> [--max-errors <n>] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]
   sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--keep-revisions] [--keep-comments] [--force]
   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]]
-  export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force]
+  export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force] [--renderer auto|word|libreoffice] [--allow-network-references]
   search   <docx> <query> [--limit <n>]
   create   <out.docx> [--template report|memo|blank] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   import   <file.md> [-o <out.docx>] [--template report|memo|blank] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   stats    <docx>
-  visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros]
+  visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references]
   history  <docx> [--init|--track|--export-original <out>|--restore-original] [--force]
   preview-revert <docx> [--steps <n>]
   revert   <docx> [--steps <n>]
@@ -84,7 +84,8 @@ Sanitize is fail-closed: bare `sanitize in out` keeps body text (metadata/rsids/
   add --redact-pii (or --client-safe bundle) for body PII redaction. Lone --redact-pii carries the metadata preset.
 Sanitize --json carries survivors as warnings:[...] (bare and --metadata-only always warn; absent only when fully redacted and clean).
 Create/import refuse to overwrite without --force; batch/export/visual --out targets do too (exit 2 naming the file).
-Inspect --visual adds spatial telemetry (<500 tok) + one headless page render (--page, PNG default, JPEG opt-in); missing LO/pdftoppm degrades with E_DEPENDENCY hint.
+Inspect --visual adds spatial telemetry (<500 tok) + one headless page render (--page, PNG default, JPEG opt-in); missing renderer or Poppler degrades with E_DEPENDENCY hint.
+Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is LibreOffice; word is Windows only), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1).
 Visual renders the saved on-disk file (MCP visual_inspect renders session state incl. unsaved edits: save first for matching renders); inspect --visual is the same renderer as visual (alias: same --page/--format yields identical bytes).
 ```
 
@@ -166,6 +167,9 @@ astra inspect report.docx --visual --format png
 | `--wrap` | `flag` | Wrap automatically to terminal width. |
 | `--visual` | `flag` | Compute 2D layout telemetry and generate headless page images. |
 | `--format` | `png\|jpeg` | Image format for visual rendering (default: `png`). |
+| `--renderer` | `auto\|word\|libreoffice` | With `--visual`: the program that turns the document into a PDF. See [Rendering programs](#rendering-programs-and-network-references). |
+| `--pdf-to-image` | `auto\|windows\|poppler` | With `--visual`: the program that turns the PDF into page images. |
+| `--allow-network-references` | `flag` | With `--visual`: let the renderer load content from network locations the document names (default: not loaded). `--no-allow-network-references` keeps them off even when the environment allows them. |
 | `--json` | `flag` | Emit structured JSON output containing rows, styles, and telemetry. |
 
 ---
@@ -395,8 +399,9 @@ astra import release_notes.md -o release_notes.docx --template blank
 Headlessly renders documents to PDF, HTML, or Markdown.
 
 ```bash
-# Export to PDF (requires LibreOffice in system PATH)
+# Export to PDF (LibreOffice in the system PATH; on Windows, Microsoft Word with --renderer word)
 astra export doc.docx --format pdf -o doc.pdf
+astra export doc.docx --format pdf -o doc.pdf --renderer word
 
 # Export to clean semantic HTML
 astra export doc.docx --format html -o doc.html
@@ -468,7 +473,7 @@ STATS report.docx: words=1420 paragraphs=48 tables=3 pages~5
 
 ### 4.11 Visual Page Rendering (`astra visual`)
 
-Renders one saved-file page to PNG or JPEG using headless LibreOffice (same underlying renderer as `inspect --visual`).
+Renders one saved-file page to PNG or JPEG with a headless renderer (LibreOffice by default; same renderer as `inspect --visual`). See [Rendering programs](#rendering-programs-and-network-references).
 
 ```bash
 # Render first page of saved document to PNG
@@ -489,8 +494,29 @@ astra visual report.docx --page 2 -o preview_p2.jpg --format jpeg --force
 | `--strip-macros` | `flag` | Strip document macros before rendering. |
 | `--max-ratio <n>` | `number` | Zip-bomb compression ratio limit (default: `100`). |
 | `--max-uncompressed-bytes <n>` | `number` | Zip-bomb uncompressed size ceiling (default: `209715200`). |
+| `--renderer <auto\|word\|libreoffice>` | `string` | DOCX-to-PDF program (default `auto`, which is LibreOffice). `word` is Windows only. Env `ASTRA_RENDERER`. |
+| `--pdf-to-image <auto\|windows\|poppler>` | `string` | PDF-to-image program (default `auto`: on Windows the built-in renderer first, then Poppler; elsewhere Poppler). Env `ASTRA_PDF_TO_IMAGE`. |
+| `--allow-network-references` | `flag` | Let the renderer load content from network locations the document names. Default: not loaded. Env `ASTRA_ALLOW_NETWORK_REFERENCES=1`. `--no-allow-network-references` overrides the variable. |
 
-`visual` renders the saved on-disk document file. For MCP sessions where unsaved edits exist in memory, call `save_document` first or use `visual_inspect`. Missing LibreOffice or `pdftoppm` dependencies degrade gracefully with exit code 1 (`E_DEPENDENCY`).
+`visual` renders the saved on-disk document file. For MCP sessions where unsaved edits exist in memory, call `save_document` first or use `visual_inspect`. A missing renderer or page-image program stops `visual` with exit code 1 (`E_DEPENDENCY`) and a remedy; `inspect --visual` degrades instead and keeps exit code 0.
+
+#### Rendering programs and network references
+
+Two programs sit between a document and a page image. Each has its own switch.
+
+| Step | Switch | Choices | Default |
+|---|---|---|---|
+| DOCX to PDF | `--renderer`, env `ASTRA_RENDERER`, MCP `renderer` | `auto`, `libreoffice`, `word` | `auto`, which is LibreOffice on every platform |
+| PDF to image | `--pdf-to-image`, env `ASTRA_PDF_TO_IMAGE`, MCP `pdfToImage` | `auto`, `windows`, `poppler` | `auto`: Windows built-in renderer, then Poppler; elsewhere Poppler |
+
+- A value on the command line (or in the MCP call) beats the environment variable.
+- A named program never falls back. `--renderer word` on a machine without Word stops with `E_DEPENDENCY` and names the fix.
+- `auto` for the page-image step falls back from the Windows renderer to Poppler when the Windows renderer cannot draw a page. The result says so: `rasterizer.fallbackFrom` and `rasterizer.fallbackReason` in `--json`, and a `note:` line on stderr.
+- `word` needs Microsoft Word 2010 or later on Windows. ASTra starts its own hidden Word process through PowerShell, opens a copy read-only, saves a PDF and closes Word with `Quit()`. It never ends Word by force, so a Word that hangs on a document stays until you end it. Documents that are password-protected are refused (`E_VALIDATION`) before Word starts. `--renderer word` is also the only way to use Word: `auto` does not pick it in this release.
+- The Windows page-image renderer is built into Windows 10 and later and needs no install. It draws the PDF crop box, where Poppler draws the media box, so a PDF with a crop box differs by that margin. Word and LibreOffice lay a page out differently, so page breaks can differ between `--renderer word` and `--renderer libreoffice`.
+- WSL is a Linux process: it always uses LibreOffice and Poppler, even when Windows has Word.
+
+Network references. A document can name content at a network location: a linked image, an attached template, a field such as `INCLUDETEXT`, `INCLUDEPICTURE` or `LINK`, a linked sub-document or a mail-merge source. A renderer that loads it contacts that location, and for a Windows file share (`\\host\share`) the machine can send the user's Windows login hash. ASTra therefore changes these references on the copy it renders and leaves the original file alone. By default no network location is contacted. `--allow-network-references` (env `ASTRA_ALLOW_NETWORK_REFERENCES=1`, MCP `allowNetworkReferences`) turns that off for one call. Use it only when you have asked for content from those locations to appear in the render. The `--json` result reports what was changed in `references`: a count, and up to 50 entries that name the package part, the relationship id or field number, the kind and the type. No host name and no path from the document appears in the report.
 
 ---
 

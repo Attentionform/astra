@@ -22,6 +22,7 @@ import {
   withZipCeilingEnv,
   type ZipCeilingOverrides,
 } from './io';
+import { printRenderNotes, readRenderFlag, renderOptionsFromFlags, rendererLabel, type RenderFlags } from './render-flags';
 
 /**
  * Single CLI visual-telemetry builder (two entry points: `visual` below and
@@ -58,8 +59,9 @@ export async function renderCliVisualPage(
   buf: Buffer,
   page: number,
   format: VisualImageFormat,
+  renderFlags: RenderFlags = {},
 ): Promise<Awaited<ReturnType<typeof renderDocxToImages>>> {
-  const args = buildCliVisualRenderArgs(page, format);
+  const args = { ...buildCliVisualRenderArgs(page, format), ...renderOptionsFromFlags(renderFlags) };
   return renderDocxToImages(buf, args);
 }
 
@@ -79,6 +81,7 @@ export function printCliVisualTelemetry(
   summary: unknown,
   page: number,
   renderTotalPages?: number,
+  rendererName = 'LibreOffice',
 ): VisualTelemetry {
   const telemetry = buildCliVisualTelemetry(ast, summary, page, renderTotalPages);
   print(out, telemetry.wireframe);
@@ -98,7 +101,7 @@ export function printCliVisualTelemetry(
         ? `, wireframe nodes beyond page ${telemetry.wordLayoutTotalPages} are unmapped`
         : '';
     printStderr(
-      `visual: pagination mismatch: renderer (LibreOffice) produced ${pageCountLabel(telemetry.totalPages)}; word-layout page map totals ${telemetry.wordLayoutTotalPages} — [PAGE n OF m] uses the renderer count${beyondMapClause}`,
+      `visual: pagination mismatch: renderer (${rendererName}) produced ${pageCountLabel(telemetry.totalPages)}; word-layout page map totals ${telemetry.wordLayoutTotalPages} — [PAGE n OF m] uses the renderer count${beyondMapClause}`,
     );
   }
   const wordTotal = wordLayoutTotalFromSummary(summary);
@@ -137,8 +140,15 @@ export async function cmdVisual(out: GlobalOpts, args: string[]): Promise<number
   let allowMacros = false;
   let stripMacros = false;
   let force = false;
+  const renderFlags: RenderFlags = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
+    const rf = readRenderFlag('visual', args, i, renderFlags, { pdfToImage: true });
+    if (rf.matched) {
+      if ('error' in rf) return usage(out, rf.error);
+      i = rf.next;
+      continue;
+    }
     if (a === '--page') {
       const value = args[++i];
       if (value === undefined) return usage(out, 'visual --page requires a value (integer >= 1)');
@@ -221,7 +231,7 @@ export async function cmdVisual(out: GlobalOpts, args: string[]): Promise<number
     // real docs, and the printer warns on stderr when it does.
     let rendered: Awaited<ReturnType<typeof renderDocxToImages>>;
     try {
-      rendered = await renderCliVisualPage(buf, page, format);
+      rendered = await renderCliVisualPage(buf, page, format, renderFlags);
     } catch (err: unknown) {
       return failHuman(out, err, { file, fallbackCode: 'E_DEPENDENCY' });
     }
@@ -229,7 +239,8 @@ export async function cmdVisual(out: GlobalOpts, args: string[]): Promise<number
     if (!picked) {
       return failHuman(out, 'visual: renderer produced no page images', { file, fallbackCode: 'E_VALIDATION' });
     }
-    const telemetry = printCliVisualTelemetry(out, ast, summary, picked.page, rendered.totalPages);
+    const telemetry = printCliVisualTelemetry(out, ast, summary, picked.page, rendered.totalPages, rendererLabel(rendered.renderer));
+    printRenderNotes(rendered);
     try {
       await fsp.mkdir(path.dirname(path.resolve(outPath)), { recursive: true });
       if (!force && fs.existsSync(outPath)) {
@@ -259,6 +270,9 @@ export async function cmdVisual(out: GlobalOpts, args: string[]): Promise<number
       totalPages: rendered.totalPages >= 1 ? Math.floor(rendered.totalPages) : telemetry.totalPages,
       telemetry,
       promptLaw: VISUAL_PROMPT_LAW,
+      ...(rendered.renderer ? { renderer: rendered.renderer } : {}),
+      ...(rendered.rasterizer ? { rasterizer: rendered.rasterizer } : {}),
+      ...(rendered.references ? { references: rendered.references } : {}),
     });
     return EXIT_OK;
   } catch (err: unknown) {
