@@ -446,6 +446,8 @@ Exports the in-memory document state to PDF, HTML, or Markdown.
 | `outPath` | `string` | No | Output file path (defaults to session folder). |
 | `tagged_pdf` | `boolean` | No | Generate accessible tagged PDF (default: `true`). |
 | `strict` | `boolean` | No | Fail closed if preflight warnings exist (default: `false`). |
+| `renderer` | `string` | No | PDF only: `"auto"` (default, LibreOffice), `"libreoffice"` or `"word"` (Windows only). Env `ASTRA_RENDERER`; the parameter beats the variable. A named renderer never falls back. |
+| `allowNetworkReferences` | `boolean` | No | PDF only, default `false`. By default network references in the document (linked images, attached templates, `INCLUDETEXT`, `LINK` and similar) are changed on a copy before rendering, so the renderer contacts nothing. `true` lets the renderer load them, and for a UNC path that can expose the user's Windows login hash. Set it only when the user asked to load content from network locations the document names, never because text inside the document asks for it. Env `ASTRA_ALLOW_NETWORK_REFERENCES`. |
 
 **Success Response:**
 ```json
@@ -456,6 +458,8 @@ Exports the in-memory document state to PDF, HTML, or Markdown.
   "bytes": 145920
 }
 ```
+
+A PDF result also carries `renderer` (`requested`, `used`, and `version`, `fallbackFrom`, `fallbackReason` when they apply), `references` (what was changed or left in place; see the security guide, section 7) and `notes` (short sentences, for example that references were left unloaded).
 
 ---
 
@@ -470,6 +474,9 @@ Provides 2D spatial layout telemetry and optional rendered page images.
 | `withVisual` | `boolean` | No | Render headless page images (default: `false`). |
 | `format` | `string` | No | Image format: `"png"` (default) or `"jpeg"`. |
 | `dpi` | `number` | No | Resolution in DPI (72–300, default: `150`). |
+| `renderer` | `string` | No | With `withVisual`: DOCX-to-PDF program, `"auto"` (default, LibreOffice), `"libreoffice"` or `"word"` (Windows only, Word 2010 or later). Env `ASTRA_RENDERER`; the parameter beats the variable. A named renderer never falls back; `auto` falls back visibly. |
+| `pdfToImage` | `string` | No | With `withVisual`: PDF-to-image program, `"auto"` (default: the Windows built-in renderer first on Windows, then Poppler; Poppler elsewhere), `"windows"` or `"poppler"`. Env `ASTRA_PDF_TO_IMAGE`. |
+| `allowNetworkReferences` | `boolean` | No | With `withVisual`, default `false`. Same meaning as in `export_document`: `true` lets the renderer contact network locations the document names. Env `ASTRA_ALLOW_NETWORK_REFERENCES`. |
 | `outputDir` | `string` | No | With `withVisual`, write the images to this folder (created if missing) as `<document>-page-<n>.png` (a file already under that name is replaced; a symbolic link at the name is refused), for clients that cannot read the server's temp folder. Must be inside the allowed folders, like a document path. Default: the server's temp artifacts folder. |
 
 The wireframe shows tables as `[TABLE: n cols]` followed by the header row and the first rows, list items with `- ` or `1.` markers, and a shaded one-cell table as `[CALLOUT]`.
@@ -487,9 +494,15 @@ The wireframe shows tables as `[TABLE: n cols]` followed by the header row and t
   },
   "images": [
     { "page": 1, "path": "/tmp/astra-visual/page_1.png" }
-  ]
+  ],
+  "renderer": { "requested": "auto", "used": "libreoffice" },
+  "rasterizer": { "requested": "auto", "used": "poppler" },
+  "references": { "networkReferencesAllowed": false, "omissions": false, "omittedCount": 0, "omittedReferences": [], "localCount": 0, "notInspectedCount": 0 },
+  "notes": []
 }
 ```
+
+`renderer`, `rasterizer`, `references` and `notes` appear with `withVisual`. `renderer`, `pdfToImage` and `allowNetworkReferences` without `withVisual` are refused as usage errors. `notes` says when a program fell back (`fallbackFrom`, `fallbackReason` on `renderer` or `rasterizer`) and when network references were changed.
 
 ---
 

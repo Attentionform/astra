@@ -215,7 +215,8 @@ The `sanitizer` module provides an automated cleaning engine that removes identi
 
 ### 8.1 Headless Export Pipeline
 ASTra supports direct export to PDF, HTML, and Markdown:
-- **PDF Export**: Executes headless LibreOffice (`libreoffice` / `soffice`) in an isolated temporary environment. Includes an automated preflight check that validates note presentations and falls back gracefully to accessible tagged PDF generation.
+- **PDF Export**: Executes headless LibreOffice (`libreoffice` / `soffice`) in an isolated temporary environment, or, on Windows with `--renderer word`, Microsoft Word through a PowerShell script (`visual/word.ts`). Includes an automated preflight check that validates note presentations and falls back gracefully to accessible tagged PDF generation.
+- **Render pipeline** (`packages/engine/src/visual`): `renderer-preference.ts` turns the `renderer` and `pdfToImage` choices (parameter, then environment variable, then default) into a plan of programs to try and decides when a failure may fall back (only for `auto`, and only for a failure that says nothing about the document). `references.ts` neutralises network references on a copy of the package before any renderer sees it (parse, then allowlist; fail closed). `word.ts` drives Word, `windows-pdf.ts` drives the Windows PDF renderer (`Windows.Data.Pdf`) and `backend.ts` finds LibreOffice and Poppler. `renderer.ts` runs the plan and reports `renderer`, `rasterizer` and `references` in the result.
 - **HTML Export**: Emits clean semantic HTML5 with styled table grids, embedded SVG vector charts, and responsive typography.
 - **Markdown Export**: Generates GitHub Flavored Markdown (GFM) with table alignments, math blocks, and alert callouts (`> [!NOTE]`).
 

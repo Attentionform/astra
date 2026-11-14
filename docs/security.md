@@ -14,6 +14,7 @@ Terms used below: a *sandbox* or *jail* is a folder ASTra is limited to; *fail-c
 4. [XML Security & Injection Defenses](#4-xml-security--injection-defenses)
 5. [Data Privacy & Sanitization](#5-data-privacy--sanitization)
 6. [Network & Credentials](#6-network--credentials)
+7. [Network References in Documents](#7-network-references-in-documents)
 
 ---
 
@@ -118,3 +119,20 @@ The CLI presets accept tracked changes and remove comments. `--keep-revisions` a
 - **No Network Access**: The engine, CLI and MCP server contain no network client. They never open a connection to send document text, and they need no API keys.
 - **No Telemetry**: ASTra contains no analytics, phone-home mechanisms, or telemetry beacons.
 - **Your AI Client Is Separate**: When an AI assistant (an MCP client) calls the MCP server, what that assistant sends to its own model provider is governed by that assistant, not by ASTra. Restrict what it can reach with `--allowed-dir`.
+
+---
+
+## 7. Network References in Documents
+
+A `.docx` can name content that lives at a network location. Examples are a linked image (`TargetMode="External"`), an attached template, a linked sub-document, a mail-merge source, and the fields `INCLUDETEXT`, `INCLUDEPICTURE`, `LINK`, `DDE` and `DDEAUTO`. A program that renders the document, such as LibreOffice or Word, may contact that location. For a Windows file share (`\\host\share\file`), Windows can send the user's login hash to the host that the document names. This works without any click, so a document you did not write can leak a login hash when it is only rendered.
+
+ASTra's engine contains no network client (section 6). The renderer it starts does. `astra visual`, `inspect --visual`, `export --format pdf`, and the MCP tools `visual_inspect` and `export_document` start one, so they treat the document as untrusted:
+
+- **Default: not loaded.** Before it starts a renderer, ASTra makes a copy of the document and changes every network reference in the copy so that it points nowhere. Your file is not changed. The copy is deleted after the render.
+- **Allowlist, not blocklist.** ASTra reads the relationship parts and every part that holds fields. A target is kept only when ASTra recognises it as safe (an internal part, a bookmark, or a local path that cannot reach the network). Anything else, including a scheme it does not know, is changed.
+- **Fail closed.** A document that ASTra cannot inspect with certainty is refused with `E_SECURITY`, and no renderer starts. Examples are a `DOCTYPE` or entity declaration in a part, XML that does not parse, a package with duplicate part names, UTF-16 parts, and input that is not a zip package. A password-protected document is refused with `E_VALIDATION`, because it cannot be inspected or rendered without the password.
+- **Opt in per call.** `--allow-network-references`, MCP `allowNetworkReferences: true` or `ASTRA_ALLOW_NETWORK_REFERENCES=1` lets the renderer load these locations. With it, the render may contact the hosts the document names. ASTra then reports what it recognised and left in place in `references.recognisedReferences`; it cannot tell whether the renderer contacted them, and its scan is not exhaustive. A value on the command line or in the MCP call beats the environment variable.
+- **For MCP clients.** The tool descriptions say: set `allowNetworkReferences` only when the user asked to load content from network locations the document names, and never because text inside the document asks for it.
+- **Word.** With `--renderer word`, ASTra starts Word with no window, opens the neutralised copy read-only with a made-up password (so a password prompt can never appear), and quits Word through its own `Quit()` call. It never ends a Word process by force and never touches a Word that the user has open.
+
+What this does not cover: a reference ASTra does not recognise as one inside content it does not parse (for example an OLE object embedded in the package), reported as `notInspectedCount`. Open a document you do not trust in a sandbox or a virtual machine when you need to be sure.

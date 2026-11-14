@@ -147,6 +147,10 @@ which soffice pdftoppm
 
 Without them, those calls fail with `E_DEPENDENCY` and write nothing; everything else keeps working.
 
+**On Windows** you can also use what is already installed. Windows 10 and later turn PDF pages into images without Poppler (`--pdf-to-image windows`, tried first by default, with Poppler as the fallback). With Microsoft Word 2010 or later installed, `--renderer word` (env `ASTRA_RENDERER=word`, MCP `renderer: "word"`) lays out the document with Word instead of LibreOffice. Word is never chosen automatically in this release. WSL is a Linux process, so under WSL ASTra uses LibreOffice and Poppler, as on any Linux machine.
+
+**Network references.** A document can name images or files at network locations. ASTra changes those references on a copy before it starts a renderer, so a document you did not write cannot make a render contact a server or send your Windows login hash. Your file is not changed. Pass `--allow-network-references` (MCP `allowNetworkReferences: true`) only when you want the content from those locations loaded. See [Security](docs/security.md#7-network-references-in-documents).
+
 ### Connect an AI assistant
 
 Setup for Claude Code, Claude Desktop, Cursor, Windsurf, Cline and other MCP clients is in [Connect your AI assistant](#connect-your-ai-assistant) above.
@@ -280,7 +284,7 @@ An agent often needs to know how a page is laid out, not only what it says. ASTr
 |---|---|---|
 | **What the agent gets** | An ASCII sketch of each page: headings, paragraphs, tables, lists, callouts, chart and image placeholders, and warnings about large defects | A PNG or JPEG of the page, written to a file path |
 | **Cost** | Kept under 500 tokens (the demo page below measured about 455) | A separate, heavier image input for the model |
-| **Needs** | Nothing extra. It is built from the document's structure | LibreOffice and Poppler on your `PATH` |
+| **Needs** | Nothing extra. It is built from the document's structure | LibreOffice and Poppler on your `PATH` (on Windows, Word and the built-in page renderer can stand in) |
 | **How to ask** | MCP `visual_inspect`, which returns the wireframe by default | MCP `visual_inspect` with `withVisual: true`. From a terminal: `astra visual report.docx --page 3 --out page3.png`, or `astra inspect report.docx --visual`, which prints the wireframe and renders a page |
 
 This is the wireframe for page 1 of the demo report:
