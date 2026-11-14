@@ -458,6 +458,15 @@ describe('Word through the fake PowerShell host', () => {
     expect(logRows(process.env.FAKE_PS_LOG)[0].markup).toBe('0');
   });
 
+  it('a direct wordDocxToPdf call with markup carries the long-comment warning, first, before any setting warning', async () => {
+    process.env.FAKE_PS_MODE = 'ok';
+    process.env.FAKE_PS_LOG = path.join(tmpBase, 'ps');
+    process.env.FAKE_PS_WARN = 'RevisionsView';
+    const r = await run({ markup: true });
+    expect(r.markup?.warnings[0]).toBe(WORD_LONG_COMMENT_WARNING);
+    expect(r.markup?.warnings.join(' ')).toMatch(/RevisionsView/);
+  });
+
   it('exit 15 is E_RENDER class request, never retried in place, and leaves no candidate to warn about', async () => {
     process.env.FAKE_PS_MODE = 'lock-busy';
     process.env.FAKE_PS_LOG = path.join(tmpBase, 'ps');
@@ -491,7 +500,7 @@ describe('Word through the fake PowerShell host', () => {
     process.env.FAKE_PS_LOG = path.join(tmpBase, 'ps');
     const r = await run({ markup: true });
     expect(logRows(process.env.FAKE_PS_LOG)[0].markup).toBe('1');
-    expect(r.markup).toMatchObject({ mode: 2, warnings: [] });
+    expect(r.markup).toMatchObject({ mode: 2, warnings: [WORD_LONG_COMMENT_WARNING] });
   });
 
   it('best-effort settings and a failed restore become warnings; the render still succeeds', async () => {
@@ -499,9 +508,10 @@ describe('Word through the fake PowerShell host', () => {
     process.env.FAKE_PS_WARN = 'RevisionsFilter.Markup,RevisionsView';
     process.env.FAKE_PS_RESTORE_FAIL = 'MarkupMode';
     const r = await run({ markup: true });
-    expect(r.markup?.warnings).toHaveLength(3);
-    expect(r.markup?.warnings[0]).toMatch(/RevisionsFilter\.Markup could not be set/);
-    expect(r.markup?.warnings[2]).toMatch(/could not be fully restored \(MarkupMode\)/);
+    expect(r.markup?.warnings).toHaveLength(4);
+    expect(r.markup?.warnings[0]).toBe(WORD_LONG_COMMENT_WARNING);
+    expect(r.markup?.warnings[1]).toMatch(/RevisionsFilter\.Markup could not be set/);
+    expect(r.markup?.warnings[3]).toMatch(/could not be fully restored \(MarkupMode\)/);
     expect(r.markup?.restore).toEqual({ ok: false, failed: ['MarkupMode'] });
   });
 
@@ -754,6 +764,7 @@ describe.skipIf(!POSIX)('the PDF export path with stand-in programs', () => {
     process.env.FAKE_PS_MODE = 'ok';
     const ok = await convertDocxToPdfDetailed(blank(), out(), { renderer: 'word', showMarkup: true, testHooks: winHooks });
     expect(ok.markup).toMatchObject({ renderer: 'word', mode: 'export-with-markup' });
+    expect(ok.markup?.warnings[0]).toBe(WORD_LONG_COMMENT_WARNING);
     process.env.FAKE_PS_MODE = 'markup-view-fail';
     await expect(convertDocxToPdfDetailed(blank(), out(), { renderer: 'word', binary: soffice, showMarkup: true, testHooks: winHooks })).rejects.toMatchObject({ failureClass: 'request' });
     expect(converts()).toEqual([]);

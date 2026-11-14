@@ -26,6 +26,7 @@ import {
   type PowerShellRunOptions,
 } from './ps-runner';
 import { codedError, type FailureClass } from './renderer-preference';
+import { wordMarkupWarnings } from './markup';
 import { isEncryptedOoxmlPackage } from './cfb';
 
 export interface WordInstall {
@@ -568,7 +569,8 @@ export function wordDocxToPdf(inDocx: string, outPdf: string, options: WordRende
             { candidatePid: proto.candidatePid }
           );
         }
-        const warnings = proto.warnings.map((w) => `Word setting ${w} could not be set (the export did not need it on the tested Word).`);
+        // The long-comment warning is added here, where Word's outcome is built, so every caller of wordDocxToPdf gets it.
+        const warnings = [...wordMarkupWarnings(), ...proto.warnings.map((w) => `Word setting ${w} could not be set (the export did not need it on the tested Word).`)];
         if (proto.restore && !proto.restore.ok) {
           warnings.push(`Word's review view could not be fully restored (${proto.restore.failed.join(', ') || 'unknown setting'}); it applied to the render's own Word window only.`);
         }

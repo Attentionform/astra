@@ -849,6 +849,27 @@ describe('a large XML part with a media-looking name is still inspected (parts a
     z.updateFile('word/settings.bin', utf32);
     expect(() => neutraliseReferences(z.toBuffer())).toThrow(/E_SECURITY/);
   });
+  it('a part named .rels that the package declares as the main part is field-scanned (the declared type wins, the name is not trusted)', () => {
+    const body = `<w:p>${complexField([' INCLUDEPICTURE "http://evil.example/p.png"'])}</w:p>`;
+    const base = buildDocx({ document: `<?xml version="1.0"?><w:document ${W}><w:body>${body}</w:body></w:document>` });
+    const docx = rename(base, 'word/document.xml', 'word/document.rels', MAIN, '_rels/.rels');
+    const a = neutraliseReferences(docx);
+    expect(a.found.map((f) => f.type)).toEqual(['INCLUDEPICTURE']);
+    expect(readPart(a.docx, 'word/document.rels')).not.toContain('evil.example');
+  });
+  it('removeUpdateFields: a part named settings.rels that the package declares as settings is changed', () => {
+    const base = buildDocx({ extra: { 'word/settings.xml': `<?xml version="1.0"?><w:settings ${W}><w:updateFields w:val="true"/></w:settings>` } });
+    const docx = rename(base, 'word/settings.xml', 'word/settings.rels', SETTINGS);
+    const out = removeUpdateFields(docx);
+    expect(out).not.toBe(docx);
+    expect(readPart(out, 'word/settings.rels')).not.toContain('updateFields');
+  });
+  it('an oversized media part with an +xml type (image/svg+xml) is media, not XML: it is skipped, not refused', () => {
+    const huge = Buffer.alloc(129 * 1024 * 1024, 0x20);
+    const docx = rename(buildDocx({ extra: { 'word/media/tmp.svg': huge } }), 'word/media/tmp.svg', 'word/media/big.svg', 'image/svg+xml');
+    expect(() => removeUpdateFields(docx)).not.toThrow();
+    expect(() => neutraliseReferences(docx)).not.toThrow();
+  });
   it('a genuine large media part is still skipped, and so is a large part declared as binary', () => {
     const big = Buffer.alloc(17 * 1024 * 1024, 0x61);
     const png = rename(buildDocx({ extra: { 'word/media/p.png': big } }), 'word/media/p.png', 'word/media/p.png', 'image/png');

@@ -118,7 +118,7 @@ export const LIBREOFFICE_LONG_COMMENT_WARNING =
  * balloon has a maximum height. So a long comment can be cut short in Word as well, and the cut is marked.
  */
 export const WORD_LONG_COMMENT_WARNING =
-  'Word can also cut a very long comment short: its balloon has a maximum height and ends with an ellipsis (a 60-word comment was complete; a 300-word one ended after about 150 words).';
+  'Word can also cut a very long comment short: its balloon has a maximum height and ends with an ellipsis (on the one Word build that was tried, 16.0.14334.20974, a 60-word comment was complete and a 300-word one ended after about 150 words).';
 
 /** Warnings that every Word markup render carries (the view settings Word did not take are added to these). */
 export function wordMarkupWarnings(): string[] {

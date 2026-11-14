@@ -43,7 +43,6 @@ import {
   effectiveShowMarkup,
   libreOfficeFilterSpec,
   libreOfficeMarkupWarnings,
-  wordMarkupWarnings,
   markupFailureError,
   type PlainRunOutcome,
 } from './markup';
@@ -296,7 +295,7 @@ async function renderWithWord(
       powershellArgs: hooks.powershellArgs,
       ...(hooks.wordRetryPauseMs ? { retryPauseMs: hooks.wordRetryPauseMs } : {}),
     });
-    return { pdfPath: out, wordVersion: word.version, ...(outcome.markup ? { markupWarnings: [...wordMarkupWarnings(), ...outcome.markup.warnings] } : {}) };
+    return { pdfPath: out, wordVersion: word.version, ...(outcome.markup ? { markupWarnings: outcome.markup.warnings } : {}) };
   } catch (err: unknown) {
     try {
       fs.rmSync(out, { force: true });

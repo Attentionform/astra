@@ -33,7 +33,6 @@ import {
   effectiveShowMarkup,
   libreOfficeFilterSpec,
   libreOfficeMarkupWarnings,
-  wordMarkupWarnings,
   markupFailureError,
   type MarkupReport,
 } from '../visual/markup';
@@ -400,7 +399,7 @@ async function convertWithWord(
     });
     const out = await copyOutPdf(generated, outPdfPath);
     succeeded = true;
-    return { path: out, ...(outcome.markup ? { markupWarnings: [...wordMarkupWarnings(), ...outcome.markup.warnings] } : {}) };
+    return { path: out, ...(outcome.markup ? { markupWarnings: outcome.markup.warnings } : {}) };
   } finally {
     if (succeeded) {
       try {

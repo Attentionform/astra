@@ -325,17 +325,22 @@ function contentTypeResolver(zip: InstanceType<typeof AdmZip>): (partName: strin
   };
 }
 
+/** True for a declared XML content type (`application/xml`, `text/xml`, `application/...+xml`); `image/svg+xml` is media, not XML. */
+function isXmlContentType(contentType: string | undefined): boolean {
+  return contentType !== undefined && /^(?:application|text)\/(?:[\w.+-]+\+)?xml\s*(?:;|$)/i.test(contentType.trim());
+}
+
+/** A part over the part ceiling that is XML by name or by the package's own declaration: it cannot be inspected. */
+function isOversizedXml(lowerName: string, size: number, contentType: string | undefined): boolean {
+  return size > MAX_PART_BYTES && (lowerName.endsWith('.xml') || isXmlContentType(contentType));
+}
+
 /**
  * Large parts that look like media by name are not read (a 100 MB video is not an XML part). A part that the package
  * declares as XML, or does not declare at all, is read whatever it is called.
  */
-/** A part over the part ceiling that is XML by name or by the package's own declaration: it cannot be inspected. */
-function isOversizedXml(lowerName: string, size: number, contentType: string | undefined): boolean {
-  return size > MAX_PART_BYTES && (lowerName.endsWith('.xml') || (contentType !== undefined && /xml/i.test(contentType)));
-}
-
 function isLargeMedia(lowerName: string, size: number, contentType: string | undefined): boolean {
-  return size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lowerName) && contentType !== undefined && !/xml/i.test(contentType);
+  return size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lowerName) && contentType !== undefined && !isXmlContentType(contentType);
 }
 
 export interface ReferenceAnalysis {
@@ -697,16 +702,27 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     const name = e.entryName.replace(/\\/g, '/');
     const lower = name.toLowerCase();
     const declared = contentTypeOf(name);
-    // A relationships part is known by its content type as well as by its name.
-    if (lower.endsWith('.rels') || (declared !== undefined && /relationships\+xml/i.test(declared))) {
-      const next = processRels(name, e.getData(), opts.mutate, out);
-      if (next !== null) updates.set(e.entryName, next);
+    const size = e.header.size;
+    const isRelsType = declared !== undefined && /relationships\+xml/i.test(declared);
+    const isRelsName = lower.endsWith('.rels');
+    // A relationships part is known by its content type as well as by its name. A part named `.rels` that the package
+    // declares as some other XML type is read both ways, because Word decides by the type and other readers by the name.
+    const alsoFields = isRelsName && declared !== undefined && !isRelsType;
+    if (isRelsName || isRelsType) {
+      if (alsoFields && size > MAX_PART_BYTES) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+      const data = e.getData();
+      const next = processRels(name, data, opts.mutate, out);
+      let bytes: Buffer | null = next;
+      if (alsoFields) {
+        const more = processFieldsPart(name, next ?? data, opts.mutate, out, isXmlContentType(declared));
+        if (more !== null) bytes = more;
+      }
+      if (bytes !== null) updates.set(e.entryName, bytes);
     } else {
-      const size = e.header.size;
       if (isLargeMedia(lower, size, declared)) continue;
       if (isOversizedXml(lower, size, declared)) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
       if (size > MAX_PART_BYTES) continue;
-      const next = processFieldsPart(name, e.getData(), opts.mutate, out, declared !== undefined && /xml/i.test(declared));
+      const next = processFieldsPart(name, e.getData(), opts.mutate, out, isXmlContentType(declared));
       if (next !== null) updates.set(e.entryName, next);
     }
   }
@@ -735,14 +751,16 @@ export function removeUpdateFields(docx: Buffer): Buffer {
   const updates = new Map<string, Buffer>();
   const contentTypeOf = contentTypeResolver(zip);
   for (const e of zip.getEntries()) {
-    const lower = e.entryName.toLowerCase();
-    if (e.isDirectory || lower.endsWith('.rels')) continue;
+    if (e.isDirectory) continue;
+    const name = e.entryName.replace(/\\/g, '/');
+    const lower = name.toLowerCase();
+    const declared = contentTypeOf(name);
     // The same limits as the reference scan: only a part over 16 MiB with a media-looking name that the package does not
     // declare as XML is skipped, and an XML part over the part ceiling cannot be inspected, so the render is refused
     // instead of going ahead with a settings part that may still hold the setting.
-    if (isOversizedXml(lower, e.header.size, contentTypeOf(e.entryName))) throw failClosed(`part "${e.entryName}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+    if (isOversizedXml(lower, e.header.size, declared)) throw failClosed(`part "${e.entryName}" is larger than ${MAX_PART_BYTES >> 20} MB`);
     if (e.header.size > MAX_PART_BYTES) continue;
-    if (isLargeMedia(lower, e.header.size, contentTypeOf(e.entryName))) continue;
+    if (isLargeMedia(lower, e.header.size, declared)) continue;
     try {
       const data = e.getData();
       if (utf16Endianness(data) === undefined && !data.includes('updateFields')) continue;
