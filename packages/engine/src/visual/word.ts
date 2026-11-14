@@ -170,7 +170,7 @@ export function parseWordProtocol(lines: string[]): WordProtocol {
     else if ((m = /^VERSION (\S+)$/.exec(line))) p.version = m[1];
     else if ((m = /^PAGES (\d+)$/.exec(line))) p.pages = Number(m[1]);
     else if (line === 'OK') p.ok = true;
-    else if ((m = /^ERR (\d+) (0x[0-9A-Fa-f]{8}) ?(.*)$/.exec(line))) p.err = { code: Number(m[1]), hresult: m[2].toUpperCase(), message: sanitiseDetail(m[3]) };
+    else if ((m = /^ERR (\d+) (0x[0-9A-Fa-f]{8}) ?(.*)$/.exec(line))) p.err = { code: Number(m[1]), hresult: `0x${m[2].slice(2).toUpperCase()}`, message: sanitiseDetail(m[3]) };
   }
   return p;
 }

@@ -352,19 +352,22 @@ export async function renderDocxToImages(
   // Choices first: an invalid flag, parameter or environment value fails loudly before any temp I/O.
   const rendererPref = effectiveRendererPreference(opts.renderer);
   // An explicit pdftoppm binary means "use that Poppler" unless the caller chose a rasterizer.
-  const rasterPref = effectiveRasterizerPreference(opts.pdfToImage ?? (opts.pdftoppmBin && opts.pdftoppmBin.trim() ? 'poppler' : undefined));
+  // The environment value is validated even when the binary override makes it moot: a typo must not hide.
+  const rasterFromEnvOrParam = effectiveRasterizerPreference(opts.pdfToImage);
+  const rasterPref = opts.pdfToImage === undefined && opts.pdftoppmBin && opts.pdftoppmBin.trim() ? 'poppler' : rasterFromEnvOrParam;
   const allowRefs = effectiveAllowNetworkReferences(opts.allowNetworkReferences);
 
   // Capability gate (fail-closed E_DEPENDENCY before any temp I/O).
   const sofficePath = resolveSoffice(opts.sofficeBin);
   const pdftoppmPath = resolvePoppler({ pdftoppmBin: opts.pdftoppmBin });
-  const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && AUTO_PREFERS_WORD);
+  const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && (hooks.autoPrefersWord ?? AUTO_PREFERS_WORD));
   const word: WordInstall | null = wordMayRun && platform === 'win32' ? (hooks.word !== undefined ? hooks.word : findWord()) : null;
   const rendererPlan = planRenderers(rendererPref, {
     platform,
     word: word !== null,
     libreoffice: sofficePath !== null,
     wordUsable: !wordBreaker.isOpen(),
+    autoPrefersWord: hooks.autoPrefersWord,
   });
   const rasterizerPlan = planRasterizers(rasterPref, {
     platform,

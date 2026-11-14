@@ -102,7 +102,7 @@ export function parseWindowsPdfProtocol(lines: string[]): WindowsPdfProtocol {
     if ((m = /^TOTAL (\d+)$/.exec(line))) p.total = Number(m[1]);
     else if ((m = /^PAGE (\d+)$/.exec(line))) p.pages.push(Number(m[1]));
     else if (line === 'OK') p.ok = true;
-    else if ((m = /^ERR (\d+) (0x[0-9A-Fa-f]{8}) ?(.*)$/.exec(line))) p.err = { code: Number(m[1]), hresult: m[2].toUpperCase(), message: sanitiseDetail(m[3]) };
+    else if ((m = /^ERR (\d+) (0x[0-9A-Fa-f]{8}) ?(.*)$/.exec(line))) p.err = { code: Number(m[1]), hresult: `0x${m[2].slice(2).toUpperCase()}`, message: sanitiseDetail(m[3]) };
   }
   return p;
 }
@@ -145,7 +145,12 @@ const windowsPdfQueue = new RunQueue();
 export function windowsPdfToImages(pdfPath: string, outDir: string, o: WindowsPdfOptions): Promise<WindowsPdfOutcome> {
   return windowsPdfQueue.run(async () => {
     const ext = o.format === 'jpeg' ? 'jpg' : 'png';
-    const pages = (o.pages ?? []).filter((n) => Number.isInteger(n) && n >= 1 && n <= 1_000_000);
+    // Same normalisation the Poppler path applies (finite numbers only, floored, at least 1); the script
+    // clamps to the real page count, which only it knows.
+    const pages = (o.pages ?? [])
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n))
+      .map((n) => Math.min(1_000_000, Math.max(1, Math.floor(n))));
     const res = await runPowerShell({
       script: buildWindowsPdfScript(),
       env: {

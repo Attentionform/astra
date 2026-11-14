@@ -68,6 +68,8 @@ export interface VisualTestHooks {
   powershellArgs?: string[];
   /** Pause range between Word retries (ms). */
   wordRetryPauseMs?: [number, number];
+  /** Plan `auto` as Word-first (the behaviour a later release may turn on). */
+  autoPrefersWord?: boolean;
 }
 
 export interface VisualRenderResult {

@@ -108,6 +108,8 @@ export interface RendererProbe {
   libreoffice: boolean;
   /** `auto` may start with Word (the circuit breaker clears this for a while after an infrastructure failure). */
   wordUsable?: boolean;
+  /** Overrides AUTO_PREFERS_WORD (tests exercise the Word-first plan without waiting for the release that flips it). */
+  autoPrefersWord?: boolean;
 }
 
 export interface RenderPlan {
@@ -140,7 +142,7 @@ export function planRenderers(pref: RendererPreference, probe: RendererProbe): R
     return { requested: pref, engines: probe.libreoffice ? ['libreoffice'] : [], canFallBack: false };
   }
   const engines: RendererId[] = [];
-  if (AUTO_PREFERS_WORD && win && probe.word && probe.wordUsable !== false) engines.push('word');
+  if ((probe.autoPrefersWord ?? AUTO_PREFERS_WORD) && win && probe.word && probe.wordUsable !== false) engines.push('word');
   if (probe.libreoffice) engines.push('libreoffice');
   return { requested: pref, engines, canFallBack: engines.length > 1 };
 }

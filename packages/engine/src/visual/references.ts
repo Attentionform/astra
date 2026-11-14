@@ -16,6 +16,9 @@
  *   - the instruction of fields that load external content (INCLUDEPICTURE, INCLUDETEXT, LINK, IMPORT) when
  *     the file argument is not a plain local path, including instructions split across several runs and
  *     `w:fldSimple`; DDE and DDEAUTO fields are always neutralised (they can start programs).
+ * Every part is looked at by content, not by name or extension (a renderer reads a part according to its
+ * declared content type, so a main document part could be hidden under any name), except media-looking parts
+ * over 16 MB, which are skipped.
  * Not inspected: VML `o:href` attributes, mail-merge data-source connection strings, DATABASE fields, content
  * inside embedded objects and imported chunks (altChunk), and anything a renderer does that is not driven by
  * the structures above.
@@ -269,8 +272,9 @@ const W_NAMESPACES = new Set([
   'http://purl.oclc.org/ooxml/wordprocessingml/main',
 ]);
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
-/** Parts that cannot hold fields; skipping them saves decompressing media-heavy or large non-document XML. */
-const NON_FIELD_PART = /^(?:\[content_types\]\.xml|word\/(?:theme|media|embeddings|fonts|charts|diagrams|customxml|activex|ink|printersettings)\/|word\/(?:styles|stylesWithEffects|settings|numbering|fontTable|webSettings)\.xml$|docprops\/|customxml\/)/i;
+/** Parts bigger than this that carry a media-like name are not read (inflating them to look inside is not worth it). */
+const SNIFF_LIMIT_BYTES = 16 * 1024 * 1024;
+const MEDIA_NAME = /\.(?:png|jpe?g|gif|bmp|tiff?|emf|wmf|wdp|svg|ico|mp3|mp4|m4a|wav|avi|mov|mpe?g|wmv|webm|ogg|ttf|otf|odttf|fntdata|bin|pdf|zip|docx|xlsx|pptx)$/i;
 const MAX_PART_BYTES = 128 * 1024 * 1024;
 
 export interface ReferenceAnalysis {
@@ -323,13 +327,33 @@ function parseXml(name: string, xml: string): Document {
   return doc as unknown as Document;
 }
 
+/** UTF-16 XML (with or without a BOM): it cannot be searched or rewritten as UTF-8 text. */
+function isUtf16Xml(data: Buffer): boolean {
+  if (data.length < 4) return false;
+  const [a, b, c, d] = [data[0], data[1], data[2], data[3]];
+  return (
+    (a === 0xff && b === 0xfe && c === 0x3c && d === 0x00) ||
+    (a === 0xfe && b === 0xff && c === 0x00 && d === 0x3c) ||
+    (a === 0x3c && b === 0x00 && c === 0x3f && d === 0x00) ||
+    (a === 0x00 && b === 0x3c && c === 0x00 && d === 0x3f)
+  );
+}
+
+/** Does the part start like an XML document (after a UTF-8 BOM and white space)? */
+function looksLikeXml(data: Buffer): boolean {
+  let i = 0;
+  if (data[0] === 0xef && data[1] === 0xbb && data[2] === 0xbf) i = 3;
+  while (i < data.length && i < 64 && (data[i] === 0x20 || data[i] === 0x09 || data[i] === 0x0a || data[i] === 0x0d)) i++;
+  return data[i] === 0x3c;
+}
+
+function assertUtf8(name: string, data: Buffer): void {
+  if (isUtf16Xml(data)) throw failClosed(`part "${name}" is not UTF-8 encoded`);
+}
+
 function decodePart(name: string, data: Buffer): string {
   if (data.length > MAX_PART_BYTES) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
-  const b0 = data[0];
-  const b1 = data[1];
-  if ((b0 === 0xff && b1 === 0xfe) || (b0 === 0xfe && b1 === 0xff) || (b0 === 0 && b1 !== undefined && b1 !== 0) || (b1 === 0 && b0 !== undefined && b0 !== 0)) {
-    throw failClosed(`part "${name}" is not UTF-8 encoded`);
-  }
+  assertUtf8(name, data);
   let text = data.toString('utf8');
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   return text;
@@ -401,8 +425,11 @@ function setFldSimpleInstruction(el: Element, text: string): void {
 }
 
 function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis): string | null {
-  // Cheap pre-filter on the raw bytes: most parts hold no field at all.
-  if (!data.includes('instrText') && !data.includes('fldSimple')) return null;
+  // The encoding is checked BEFORE the byte pre-filter: a UTF-16 part would never match a UTF-8 search string.
+  assertUtf8(name, data);
+  if (!looksLikeXml(data)) return null;
+  // Cheap pre-filter on the raw bytes: most parts hold no field at all. `InstrText` also matches `delInstrText`.
+  if (!data.includes('nstrText') && !data.includes('fldSimple')) return null;
   const doc = parseXml(name, decodePart(name, data));
   let ordinal = 0;
   let changed = false;
@@ -498,7 +525,13 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     if (lower.endsWith('.rels')) {
       const next = processRels(name, e.getData(), opts.mutate, out);
       if (next !== null) updates.set(e.entryName, next);
-    } else if (lower.endsWith('.xml') && !NON_FIELD_PART.test(name)) {
+    } else {
+      const size = e.header.size;
+      if (size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lower)) continue;
+      if (size > MAX_PART_BYTES) {
+        if (lower.endsWith('.xml')) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+        continue;
+      }
       const next = processFieldsPart(name, e.getData(), opts.mutate, out);
       if (next !== null) updates.set(e.entryName, next);
     }

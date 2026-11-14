@@ -190,13 +190,14 @@ export async function convertDocxToPdfDetailed(
   const allowRefs = effectiveAllowNetworkReferences(options?.allowNetworkReferences);
 
   const binary = options?.binary || getPdfBackendBinary();
-  const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && AUTO_PREFERS_WORD);
+  const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && (hooks.autoPrefersWord ?? AUTO_PREFERS_WORD));
   const word: WordInstall | null = wordMayRun && platform === 'win32' ? (hooks.word !== undefined ? hooks.word : findWord()) : null;
   const plan = planRenderers(rendererPref, {
     platform,
     word: word !== null,
     libreoffice: Boolean(binary),
     wordUsable: !wordBreaker.isOpen(),
+    autoPrefersWord: hooks.autoPrefersWord,
   });
   if (plan.engines.length === 0) {
     throw new DependencyError(
