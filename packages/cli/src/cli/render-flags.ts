@@ -1,7 +1,9 @@
 import {
   describeReferenceReport,
+  markupNotes,
   parseRasterizerPreference,
   parseRendererPreference,
+  type MarkupReport,
   type ReferenceReport,
   type RasterizerReport,
   type RendererReport,
@@ -14,12 +16,14 @@ import { printStderr } from './output';
  *   --renderer auto|word|libreoffice      (env ASTRA_RENDERER)
  *   --pdf-to-image auto|windows|poppler   (env ASTRA_PDF_TO_IMAGE; page images only)
  *   --allow-network-references | --no-allow-network-references   (env ASTRA_ALLOW_NETWORK_REFERENCES)
- * Each value flag takes `--flag value` or `--flag=value`. The last of the two network flags wins.
+ *   --show-markup | --no-show-markup                             (env ASTRA_SHOW_MARKUP)
+ * Each value flag takes `--flag value` or `--flag=value`. The last flag of a pair wins.
  */
 export interface RenderFlags {
   renderer?: string;
   pdfToImage?: string;
   allowNetworkReferences?: boolean;
+  showMarkup?: boolean;
 }
 
 export type RenderFlagResult =
@@ -45,6 +49,14 @@ export function readRenderFlag(
   }
   if (a === '--no-allow-network-references') {
     flags.allowNetworkReferences = false;
+    return { matched: true, next: i };
+  }
+  if (a === '--show-markup') {
+    flags.showMarkup = true;
+    return { matched: true, next: i };
+  }
+  if (a === '--no-show-markup') {
+    flags.showMarkup = false;
     return { matched: true, next: i };
   }
   for (const name of opts.pdfToImage ? (['renderer', 'pdf-to-image'] as const) : (['renderer'] as const)) {
@@ -85,11 +97,13 @@ export function renderOptionsFromFlags(flags: RenderFlags): {
   renderer?: 'auto' | 'word' | 'libreoffice';
   pdfToImage?: 'auto' | 'windows' | 'poppler';
   allowNetworkReferences?: boolean;
+  showMarkup?: boolean;
 } {
   return {
     ...(flags.renderer !== undefined ? { renderer: flags.renderer as 'auto' | 'word' | 'libreoffice' } : {}),
     ...(flags.pdfToImage !== undefined ? { pdfToImage: flags.pdfToImage as 'auto' | 'windows' | 'poppler' } : {}),
     ...(flags.allowNetworkReferences !== undefined ? { allowNetworkReferences: flags.allowNetworkReferences } : {}),
+    ...(flags.showMarkup !== undefined ? { showMarkup: flags.showMarkup } : {}),
   };
 }
 
@@ -97,11 +111,13 @@ export interface RenderFacts {
   renderer?: RendererReport;
   rasterizer?: RasterizerReport;
   references?: ReferenceReport;
+  markup?: MarkupReport;
 }
 
 /**
  * `note:` lines on stderr (never stdout, so `--json` output stays pure) for what the caller should know:
- * a fallback to another engine, and network references that were not loaded or may be loaded.
+ * a fallback to another engine, network references that were not loaded or may be loaded, and (markup only) the
+ * contract and privacy sentences with any warnings.
  */
 export function printRenderNotes(facts: RenderFacts): string[] {
   const notes: string[] = [];
@@ -111,6 +127,8 @@ export function printRenderNotes(facts: RenderFacts): string[] {
   if (p?.fallbackFrom) notes.push(`pdf-to-image: ${p.fallbackFrom} could not draw the pages (${p.fallbackReason ?? 'no reason given'}); used ${p.used} instead`);
   const ref = facts.references ? describeReferenceReport(facts.references) : null;
   if (ref) notes.push(ref);
+  // Every markup render says what the view is and that the output shows reviewer names, deleted text and comments.
+  if (facts.markup) notes.push(...markupNotes(facts.markup));
   for (const n of notes) printStderr(`note: ${n}`);
   return notes;
 }

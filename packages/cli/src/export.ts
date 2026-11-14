@@ -9,6 +9,7 @@ import {
   prepareDocxForPdfExport,
   convertDocxToPdfDetailed,
   DocxParser,
+  type MarkupReport,
   type ReferenceReport,
   type RendererReport,
 } from '@attentionform/astra-engine';
@@ -26,6 +27,8 @@ export interface ExportResult {
   renderer?: RendererReport;
   /** PDF only: what happened to references the document makes to network locations. */
   references?: ReferenceReport;
+  /** PDF only, and only when markup was requested: what was asked and what the renderer was told to do. */
+  markup?: MarkupReport;
 }
 
 export interface ExportOptions {
@@ -43,6 +46,8 @@ export interface ExportOptions {
   renderer?: 'auto' | 'word' | 'libreoffice';
   /** PDF only: let the renderer contact network locations the document references (default off). */
   allowNetworkReferences?: boolean;
+  /** PDF only: draw tracked changes and comments (default off; env ASTRA_SHOW_MARKUP). */
+  showMarkup?: boolean;
 }
 
 // Q0a: jail primitives live in @attentionform/astra-engine sandbox/paths (imported above).
@@ -217,6 +222,7 @@ export async function executeExport(
       strict: options?.strict ?? false,
       ...(options?.renderer !== undefined ? { renderer: options.renderer } : {}),
       ...(options?.allowNetworkReferences !== undefined ? { allowNetworkReferences: options.allowNetworkReferences } : {}),
+      ...(options?.showMarkup !== undefined ? { showMarkup: options.showMarkup } : {}),
     });
     await assertDestinationPostWrite(destination, pdfDestDir);
     const stat = await fsp.stat(destination);
@@ -227,6 +233,7 @@ export async function executeExport(
       bytes: stat.size,
       renderer: converted.renderer,
       references: converted.references,
+      ...(converted.markup ? { markup: converted.markup } : {}),
       ...(prepared.repaired
         ? {
             note:

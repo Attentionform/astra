@@ -57,17 +57,17 @@ astra --version
 Usage: astra [--json] [--verbose] [--version] [--help] <command> [args]
 
 Commands (exit 0 ok · 1 operational failure · 2 usage):
-  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references]
+  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references] [--show-markup]
   validate <docx> [--max-errors <n>] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]
   sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--keep-revisions] [--keep-comments] [--force]
   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]]
-  export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force] [--renderer auto|word|libreoffice] [--allow-network-references]
+  export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force] [--renderer auto|word|libreoffice] [--allow-network-references] [--show-markup]
   search   <docx> <query> [--limit <n>]
   create   <out.docx> [--template report|memo|blank] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   import   <file.md> [-o <out.docx>] [--template report|memo|blank] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   stats    <docx>
-  visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references]
+  visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references] [--show-markup]
   history  <docx> [--init|--track|--export-original <out>|--restore-original] [--force]
   preview-revert <docx> [--steps <n>]
   revert   <docx> [--steps <n>]
@@ -85,7 +85,7 @@ Sanitize is fail-closed: bare `sanitize in out` keeps body text (metadata/rsids/
 Sanitize --json carries survivors as warnings:[...] (bare and --metadata-only always warn; absent only when fully redacted and clean).
 Create/import refuse to overwrite without --force; batch/export/visual --out targets do too (exit 2 naming the file).
 Inspect --visual adds spatial telemetry (<500 tok) + one headless page render (--page, PNG default, JPEG opt-in); missing renderer or Poppler degrades with E_DEPENDENCY hint.
-Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is LibreOffice; word is Windows only), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1).
+Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is LibreOffice; word is Windows only), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1). Tracked changes and comments are drawn only with --show-markup (env ASTRA_SHOW_MARKUP=1); that view scales pages, and the output shows reviewer names, deleted text and comments.
 Visual renders the saved on-disk file (MCP visual_inspect renders session state incl. unsaved edits: save first for matching renders); inspect --visual is the same renderer as visual (alias: same --page/--format yields identical bytes).
 ```
 

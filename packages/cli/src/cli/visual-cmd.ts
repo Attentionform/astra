@@ -273,6 +273,7 @@ export async function cmdVisual(out: GlobalOpts, args: string[]): Promise<number
       ...(rendered.renderer ? { renderer: rendered.renderer } : {}),
       ...(rendered.rasterizer ? { rasterizer: rendered.rasterizer } : {}),
       ...(rendered.references ? { references: rendered.references } : {}),
+      ...(rendered.markup ? { markup: rendered.markup } : {}),
     });
     return EXIT_OK;
   } catch (err: unknown) {

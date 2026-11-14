@@ -213,6 +213,7 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
           ...(rendered.renderer ? { renderer: rendered.renderer } : {}),
           ...(rendered.rasterizer ? { rasterizer: rendered.rasterizer } : {}),
           ...(rendered.references ? { references: rendered.references } : {}),
+          ...(rendered.markup ? { markup: rendered.markup } : {}),
         };
       } catch (err: unknown) {
         const code = (err as { code?: unknown })?.code;

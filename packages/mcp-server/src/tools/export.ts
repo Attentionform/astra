@@ -20,11 +20,12 @@ import {
   runPreflightChecks,
   type DocumentAST,
   type PreflightIssue,
+  type MarkupReport,
   type ReferenceReport,
   type RendererReport,
   writeFileNoFollow,
 } from '@attentionform/astra-engine';
-import { NETWORK_REFERENCES_PARAM_NOTE, mcpFlagNames, renderNotes } from '../lib/mcp/render-notes';
+import { NETWORK_REFERENCES_PARAM_NOTE, SHOW_MARKUP_PARAM_NOTE, mcpFlagNames, renderNotes } from '../lib/mcp/render-notes';
 
 export const ExportDocumentSchema = z.object({
   sessionId: z.string().describe('Active document session ID returned by open_document'),
@@ -37,6 +38,7 @@ export const ExportDocumentSchema = z.object({
   strict: z.boolean().optional().describe('PDF only: fail closed on preflight blockers (default false, warn-only)'),
   renderer: z.enum(['auto', 'word', 'libreoffice']).optional().describe('PDF only: which program renders. auto (default) is LibreOffice; word is Windows only and must be asked for; an explicit choice is never replaced'),
   allowNetworkReferences: z.boolean().optional().describe(`PDF only. ${NETWORK_REFERENCES_PARAM_NOTE.replace(/^allowNetworkReferences: /, '')}`),
+  showMarkup: z.boolean().optional().describe(`PDF only. ${SHOW_MARKUP_PARAM_NOTE.replace(/^showMarkup: /, '')}`),
 });
 
 export type ExportDocumentArgs = z.infer<typeof ExportDocumentSchema>;
@@ -46,7 +48,7 @@ export const EXPORT_DOCUMENT_DESCRIPTION =
   'Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); ' +
   'success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). ' +
   'For Markdown exports, images default to extracted files in a unique generation within a sibling <doc_basename>_assets/ directory when outPath is specified; in-memory exports default to embedded base64 data URIs. ' +
-  'PDF renders via headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug) or, with renderer:"word" on Windows, Microsoft Word; the result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). ' +
+  'PDF renders via headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug) or, with renderer:"word" on Windows, Microsoft Word; the result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). Tracked changes and comments are drawn only when showMarkup is set (PDF only; see that parameter: the output shows reviewer names, deleted text and comments). ' +
   'Failures return {ok:false,code,message,remedy}.';
 
 /**
@@ -265,6 +267,7 @@ export async function handleExportDocument(
   /** PDF only: which program rendered, what happened to network references, and plain-language notes about both. */
   renderer?: RendererReport;
   references?: ReferenceReport;
+  markup?: MarkupReport;
   notes?: string[];
   warnings?: PreflightIssue[];
   blockers?: PreflightIssue[];
@@ -285,6 +288,14 @@ export async function handleExportDocument(
   const { sessionId, format: rawFormat, outPath } = parsed.data;
   const format: 'html' | 'markdown' | 'pdf' = rawFormat === 'md' ? 'markdown' : rawFormat;
 
+  if (format !== 'pdf' && parsed.data.showMarkup !== undefined) {
+    return {
+      ok: false,
+      code: 'E_VALIDATION',
+      message: 'showMarkup applies to PDF export only.',
+      remedy: 'Omit showMarkup or export with format "pdf".',
+    };
+  }
   if (format !== 'markdown') {
     if (parsed.data.imageMode !== undefined && parsed.data.imageMode !== 'embed') {
       return {
@@ -394,6 +405,7 @@ export async function handleExportDocument(
           strict: parsed.data.strict ?? false,
           ...(parsed.data.renderer !== undefined ? { renderer: parsed.data.renderer } : {}),
           ...(parsed.data.allowNetworkReferences !== undefined ? { allowNetworkReferences: parsed.data.allowNetworkReferences } : {}),
+          ...(parsed.data.showMarkup !== undefined ? { showMarkup: parsed.data.showMarkup } : {}),
         });
       } catch (err: unknown) {
         // Carry preflight diagnostics on the original error (additive: the
@@ -418,6 +430,7 @@ export async function handleExportDocument(
         blockers: preflight?.blockers ?? [],
         renderer: converted.renderer,
         references: converted.references,
+        ...(converted.markup ? { markup: converted.markup } : {}),
         ...(renderNotes(converted).length > 0 ? { notes: renderNotes(converted) } : {}),
       };
     }

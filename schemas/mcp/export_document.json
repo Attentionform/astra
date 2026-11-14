@@ -1,6 +1,6 @@
 {
   "name": "export_document",
-  "description": "Export the active document to HTML, Markdown, or PDF format with sandbox security gating. Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). For Markdown exports, images default to extracted files in a unique generation within a sibling <doc_basename>_assets/ directory when outPath is specified; in-memory exports default to embedded base64 data URIs. PDF renders via headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug) or, with renderer:\"word\" on Windows, Microsoft Word; the result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). Failures return {ok:false,code,message,remedy}.",
+  "description": "Export the active document to HTML, Markdown, or PDF format with sandbox security gating. Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). For Markdown exports, images default to extracted files in a unique generation within a sibling <doc_basename>_assets/ directory when outPath is specified; in-memory exports default to embedded base64 data URIs. PDF renders via headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug) or, with renderer:\"word\" on Windows, Microsoft Word; the result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). Tracked changes and comments are drawn only when showMarkup is set (PDF only; see that parameter: the output shows reviewer names, deleted text and comments). Failures return {ok:false,code,message,remedy}.",
   "parameters": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
@@ -82,6 +82,14 @@
             "$ref": "#/definitions/__schema7"
           }
         ]
+      },
+      "showMarkup": {
+        "description": "PDF only. default false. Set true to draw tracked changes and comments (Word: inline marks and comment balloons; LibreOffice: comments in the margin). It uses a different layout mode: pages can be scaled and pagination can change, so page numbers refer to the render that was produced. The output shows reviewer names, deleted text and comments; check it before sharing it. The result reports markup:{requested,renderer,mode,warnings} (what was asked and which mode the renderer was told to use; it does not check the image), and a LibreOffice below the tested minimum fails with E_DEPENDENCY.",
+        "allOf": [
+          {
+            "$ref": "#/definitions/__schema8"
+          }
+        ]
       }
     },
     "required": [
@@ -120,6 +128,9 @@
         ]
       },
       "__schema7": {
+        "type": "boolean"
+      },
+      "__schema8": {
         "type": "boolean"
       }
     }
