@@ -15,6 +15,7 @@ Terms used below: a *sandbox* or *jail* is a folder ASTra is limited to; *fail-c
 5. [Data Privacy & Sanitization](#5-data-privacy--sanitization)
 6. [Network & Credentials](#6-network--credentials)
 7. [Network References in Documents](#7-network-references-in-documents)
+8. [Review Marks in Renders](#8-review-marks-in-renders)
 
 ---
 
@@ -136,3 +137,17 @@ ASTra's engine contains no network client (section 6). The renderer it starts do
 - **Word.** With `--renderer word`, ASTra starts Word with no window, opens the neutralised copy read-only with a made-up password (so a password prompt can never appear), and quits Word through its own `Quit()` call. It never ends a Word process by force and never touches a Word that the user has open.
 
 What this does not cover: a reference ASTra does not recognise as one inside content it does not parse (for example an OLE object embedded in the package), reported as `notInspectedCount`. Open a document you do not trust in a sandbox or a virtual machine when you need to be sure.
+
+---
+
+## 8. Review Marks in Renders
+
+A document can carry tracked changes and comments that a reader of the final text does not see: who edited it, text that was deleted and notes that reviewers wrote. A render can show them, and the image or PDF then holds that content.
+
+- **Default: content only.** What the default render shows depends on the program. Word draws the content only, with tracked changes as if accepted and no comments. LibreOffice draws tracked changes with their marks even without `--show-markup`, and draws no comments. Check a LibreOffice render of a document with tracked changes before you share it, with or without the switch.
+- **Opt in per call.** `--show-markup`, MCP `showMarkup: true` or `ASTRA_SHOW_MARKUP=1` draws tracked changes and comments. The output then shows reviewer names, deleted text and comments. A value on the command line or in the MCP call beats the environment variable.
+- **A notice with every markup render.** The command line prints a `note:` line on stderr and the MCP tools return `notes`. Both say that the output shows reviewer names, deleted text and comments and must be checked before it is shared.
+- **For MCP clients.** The tool descriptions carry the same sentence. Set `showMarkup` when the user asked to see tracked changes or comments, and tell the user to check the output before it is shared.
+- **Word.** To draw the review view, ASTra changes the view settings of its own hidden Word (markup mode, comment display, reviewer visibility) and restores them before it closes the document. It never touches a Word the user has open. The result lists a setting that Word did not take in `markup.warnings`.
+
+ASTra does not remove reviewer names or comments from the file. To share a document without them, accept or reject the changes and delete the comments in the document first.
