@@ -671,6 +671,43 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
   return out;
 }
 
+/**
+ * Word asks "update the fields in this document?" when the settings part holds `w:updateFields`. For a hidden Word
+ * that is a visible dialog nobody can answer: the render waits until its timeout and a hidden Word stays behind.
+ * The render copy never asks: the setting is removed from it (the user's file is not changed). Returns the same
+ * buffer when there is nothing to remove, or when a part cannot be read as XML (it is then left as it is).
+ */
+export function removeUpdateFields(docx: Buffer): Buffer {
+  let zip: InstanceType<typeof AdmZip>;
+  try {
+    zip = new AdmZip(docx);
+  } catch {
+    return docx;
+  }
+  const updates = new Map<string, Buffer>();
+  for (const e of zip.getEntries()) {
+    if (e.isDirectory || e.entryName.toLowerCase().endsWith('.rels') || e.header.size > SNIFF_LIMIT_BYTES) continue;
+    try {
+      const data = e.getData();
+      if (utf16Endianness(data) === undefined && !data.includes('updateFields')) continue;
+      const { text, enc } = decodePart(e.entryName, data);
+      if (!text.includes('updateFields')) continue;
+      const doc = parseXml(e.entryName, text);
+      const found = (doc as unknown as { getElementsByTagNameNS(ns: string, ln: string): ArrayLike<Element> }).getElementsByTagNameNS('*', 'updateFields');
+      const hits: Element[] = [];
+      for (let i = 0; i < found.length; i++) if (found[i].namespaceURI !== null && W_NAMESPACES.has(found[i].namespaceURI as string)) hits.push(found[i]);
+      if (hits.length === 0) continue;
+      for (const el of hits) el.parentNode?.removeChild(el);
+      updates.set(e.entryName, encodePart(serialise(doc), enc));
+    } catch {
+      /* not readable as XML here: the part is left as it is */
+    }
+  }
+  if (updates.size === 0) return docx;
+  for (const [entryName, bytes] of updates) zip.updateFile(entryName, bytes);
+  return zip.toBuffer();
+}
+
 /** Retarget every network reference on a copy. See the file header for the exact coverage. */
 export function neutraliseReferences(docx: Buffer): ReferenceAnalysis {
   return analyseReferences(docx, { mutate: true });

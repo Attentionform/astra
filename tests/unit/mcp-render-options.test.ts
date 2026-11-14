@@ -193,6 +193,20 @@ describe.skipIf(!POSIX)('visual_inspect', () => {
     expect(namesEvil(`${path.join(base, 'seen')}.1`)).toBe(false);
   });
 
+  it('the render copy has w:updateFields removed, with network references allowed or not; the file on disk is not changed', async () => {
+    process.env.FAKE_COPY_INPUT = path.join(base, 'seen');
+    const settings = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:updateFields w:val="true"/></w:settings>';
+    const buf = buildDocx({ extra: { 'word/settings.xml': settings } });
+    const { store, sessionId } = await open(buf, 'uf.docx');
+    for (const [seq, allow] of [['0', false], ['1', true]] as const) {
+      process.env.FAKE_COPY_SEQ = seq;
+      const res = await handleVisualInspect(store, { sessionId, withVisual: true, allowNetworkReferences: allow });
+      expect(res.ok, JSON.stringify(res)).toBe(true);
+      expect(readPart(fs.readFileSync(`${path.join(base, 'seen')}.${seq}`), 'word/settings.xml'), `allow=${allow}`).not.toContain('updateFields');
+    }
+    expect(readPart(fs.readFileSync(path.join(docs, 'uf.docx')), 'word/settings.xml')).toContain('updateFields');
+  });
+
   it('word off Windows is E_DEPENDENCY and the remedy names parameters, not CLI flags', async () => {
     const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'e.docx');
     const res = await handleVisualInspect(store, { sessionId, withVisual: true, renderer: 'word' });

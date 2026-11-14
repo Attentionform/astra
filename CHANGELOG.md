@@ -20,6 +20,7 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 - The environment variables, the command line flags and the MCP parameters follow one rule: a value given for the call beats the variable. An invalid variable value is an error that names the variable.
 - `inspect --visual` and `visual_inspect` now say `a missing renderer or Poppler` where they said `LibreOffice or pdftoppm`, because the missing program depends on the choice.
+- The render copy no longer carries the setting `w:updateFields`. With it, Word asks "update the fields in this document?" in a dialog that a hidden Word cannot answer, so the render waited for its 60 second timeout and a hidden Word was left running. The setting is removed from the copy that is rendered, whether or not network references are allowed; the file on disk is not changed.
 - `astra export` takes `--renderer` and the network flags only for PDF; for HTML and Markdown they are a usage error.
 
 ## [0.5.1] - 2026-11-14

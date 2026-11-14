@@ -11,6 +11,7 @@ import {
   inspectFieldInstruction,
   neutraliseReferences,
   parseAllowNetworkReferences,
+  removeUpdateFields,
 } from '../../packages/engine/src/visual/references';
 import { REL_NS, buildDocx, complexField, documentXml, listParts, rawZip, readPart, relsXml } from '../helpers/docx-refs';
 import { createHash, randomBytes } from 'crypto';
@@ -729,5 +730,40 @@ describe('field switches that take an argument', () => {
     const a = neutraliseReferences(buildDocx({ body }));
     expect(a.found).toHaveLength(1);
     expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
+  });
+});
+
+describe('removeUpdateFields (Word asks a question nobody can answer when the setting is on)', () => {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const settings = (inner: string) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings ${W}><w:zoom w:percent="100"/>${inner}<w:defaultTabStop w:val="720"/></w:settings>`;
+  it('removes w:updateFields from the settings part and keeps everything else', () => {
+    const docx = buildDocx({ extra: { 'word/settings.xml': settings('<w:updateFields w:val="true"/>') } });
+    const out = removeUpdateFields(docx);
+    const xml = readPart(out, 'word/settings.xml');
+    expect(xml).not.toContain('updateFields');
+    expect(xml).toContain('<w:zoom w:percent="100"/>');
+    expect(xml).toContain('<w:defaultTabStop w:val="720"/>');
+    expect(readPart(out, 'word/document.xml')).toBe(readPart(docx, 'word/document.xml'));
+  });
+  it('returns the same buffer when there is nothing to remove', () => {
+    const docx = buildDocx({ extra: { 'word/settings.xml': settings('') } });
+    expect(removeUpdateFields(docx)).toBe(docx);
+    expect(removeUpdateFields(buildDocx())).not.toBeNull();
+  });
+  it('reads a UTF-16 settings part and writes it back in UTF-16', () => {
+    const docx = buildDocx({ extra: { 'word/settings.xml': utf16(settings('<w:updateFields w:val="1"/>'), 'le', true) } });
+    const out = removeUpdateFields(docx);
+    expect(fromUtf16(rawPart(out, 'word/settings.xml'), 'le')).not.toContain('updateFields');
+  });
+  it('leaves a part it cannot parse, and a non-package, as they are', () => {
+    const bad = buildDocx({ extra: { 'word/settings.xml': '<w:settings updateFields' } });
+    expect(removeUpdateFields(bad)).toBe(bad);
+    const junk = Buffer.from('not a zip');
+    expect(removeUpdateFields(junk)).toBe(junk);
+  });
+  it('does not touch an element of another namespace with the same name', () => {
+    const other = '<?xml version="1.0"?><x:root xmlns:x="urn:other"><x:updateFields/></x:root>';
+    const docx = buildDocx({ extra: { 'customXml/item1.xml': other } });
+    expect(removeUpdateFields(docx)).toBe(docx);
   });
 });
