@@ -44,6 +44,7 @@ export function buildWindowsPdfScript(): string {
   return `${POWERSHELL_PRELUDE}
 $pdf = $env:ASTRA_PDF_IN; $dir = $env:ASTRA_IMG_DIR; $fmt = $env:ASTRA_IMG_FORMAT; $dpi = [double]$env:ASTRA_IMG_DPI
 $q = [int]$env:ASTRA_IMG_QUALITY; $max = [int]$env:ASTRA_IMG_MAX; $maxW = [double]$env:ASTRA_IMG_MAXWIDTH
+$scale = 1.0
 $raw = @($env:ASTRA_IMG_PAGES -split ',' | Where-Object { $_ } | ForEach-Object { [int]$_ })
 try {
   Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -66,11 +67,23 @@ foreach ($n in $sel) {
   try {
     $page = $doc.GetPage($n - 1)
     $o = New-Object Windows.Data.Pdf.PdfPageRenderOptions
-    $o.DestinationWidth = [uint32][Math]::Max(1, [Math]::Min($maxW, [Math]::Round($page.Size.Width * $dpi / 96)))
-    $ms = New-Object Windows.Storage.Streams.InMemoryRandomAccessStream
-    $t = $act.Invoke($null, @($page.RenderToStreamAsync($ms, $o))); $t.Wait(-1) | Out-Null
-    $bytes = New-Object byte[] $ms.Size; $ms.Seek(0)
-    $r = New-Object Windows.Storage.Streams.DataReader($ms); $null = Await ($r.LoadAsync([uint32]$ms.Size)) ([uint32]); $r.ReadBytes($bytes)
+    # The pixel width that Poppler would give: the page width in points times dpi / 72 (Size is in 1/96 inch).
+    $want = [Math]::Max(1, [Math]::Min($maxW, [Math]::Round($page.Size.Width * $dpi / 96)))
+    # Windows.Data.Pdf multiplies the requested width by the system display scale (125 percent on a 120 dpi
+    # display), so the first render is measured and, when it is off, requested again with the factor removed.
+    # The factor is the same for every page of the run.
+    for ($try = 0; $try -lt 3; $try++) {
+      $o.DestinationWidth = [uint32][Math]::Max(1, [Math]::Round($want / $scale))
+      $ms = New-Object Windows.Storage.Streams.InMemoryRandomAccessStream
+      $t = $act.Invoke($null, @($page.RenderToStreamAsync($ms, $o))); $t.Wait(-1) | Out-Null
+      $bytes = New-Object byte[] $ms.Size; $ms.Seek(0)
+      $r = New-Object Windows.Storage.Streams.DataReader($ms); $null = Await ($r.LoadAsync([uint32]$ms.Size)) ([uint32]); $r.ReadBytes($bytes)
+      $got = ([int]$bytes[16] -shl 24) -bor ([int]$bytes[17] -shl 16) -bor ([int]$bytes[18] -shl 8) -bor [int]$bytes[19]
+      if ([Math]::Abs($got - $want) -le 1 -or $got -lt 1) { break }
+      $measured = $got / [double]$o.DestinationWidth
+      if ($measured -lt 0.2 -or $measured -gt 8) { break }
+      $scale = $measured
+    }
     $out = Join-Path $dir ("page-{0}.{1}" -f $n, $(if ($fmt -eq 'jpeg') { 'jpg' } else { 'png' }))
     if ($fmt -eq 'jpeg') {
       Add-Type -AssemblyName System.Drawing
