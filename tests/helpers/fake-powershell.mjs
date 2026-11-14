@@ -64,6 +64,7 @@ if (process.env.ASTRA_WORD_IN) {
       say('CANDIDATE 4321'); writePdf(); say('OK'); break;
     }
     case 'always-busy': bump(counter); say('ERR 13 0x00000000 instance in use'); process.exit(13); break;
+    case 'lock-busy': say('ERR 15 0x00000000 another render held the Word launch lock for 30 seconds'); process.exit(15); break;
     case 'ambiguous': bump(counter); say('ERR 14 0x00000000 several new Word processes'); process.exit(14); break;
     case 'password': say('CANDIDATE 4321'); say('ERR 20 0x800A13E9 password'); process.exit(20); break;
     case 'password-refused': say('CANDIDATE 4321'); say('ERR 20 0x800A1520 The password is incorrect. Word cannot open the document.'); process.exit(20); break;

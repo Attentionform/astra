@@ -172,7 +172,8 @@ function startStateFragment(state: WordStartState, label: 'STARTSTATE' | 'ENDSTA
 /**
  * Exit codes: 0 ok, 11 Word could not be started, 12 constrained language, 13 instance in use or older than
  * this call (refused, untouched), 14 ambiguous instance or window/process mismatch (refused), 20 document
- * could not be opened, 22 PDF export failed, 23 the review view could not be set up (markup requested only).
+ * could not be opened, 15 the launch lock was held by another render for 30 s (nothing started), 22 PDF export failed,
+ * 23 the review view could not be set up (markup requested only).
  *
  * `startState` is for tests only. It is a validated description, never script text, and it is not reachable
  * from an environment variable: the production call passes nothing, so the production script has no such step.
@@ -190,13 +191,19 @@ $view = $null; $viewOrig = $null; $viewTouched = $false; $best = @()
 $mutex = New-Object Threading.Mutex($false, 'Local\\AstraWordLaunch'); $held = $false
 $word = $null; $doc = $null; $cand = 0; $crossChecked = $false; $mismatch = $false; $alone = $false; $origAlerts = $null; $origSec = $null; $changed = $false
 try {
-  $held = $mutex.WaitOne(30000)
+  # An owner that was ended without releasing leaves an abandoned lock; the wait then still gives this process the lock.
+  try { $held = $mutex.WaitOne(30000) } catch [System.Threading.AbandonedMutexException] { $held = $true }
+  # Without the lock the launches could overlap and neither process could tell which new Word is its own. Nothing is
+  # started, so nothing is left running, and the caller can retry.
+  if (-not $held) { Say 'ERR 15 0x00000000 another render held the Word launch lock for 30 seconds'; exit 15 }
   $before = @(Get-Process WINWORD -ErrorAction SilentlyContinue | ForEach-Object Id)
   $alone = -not ($before | Where-Object { AutomationWord $_ })
   try { $word = New-Object -ComObject Word.Application } catch { Die 11 $_ }
-  if ($held) { $mutex.ReleaseMutex(); $held = $false }
+  # The lock stays held until the new process is identified below. Released earlier, a second ASTra process could start
+  # its own Word in between and this one would see two new processes and could not tell which is its own.
   $fresh = @(Get-Process WINWORD -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id } | Where-Object {
       (AutomationWord $_.Id) -and (Get-Process -Id (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)").ParentProcessId -ErrorAction SilentlyContinue).ProcessName -eq 'svchost' } | ForEach-Object Id)
+  if ($held) { $mutex.ReleaseMutex(); $held = $false }
   $quiet = $false; try { $quiet = (-not $word.Visible) -and ($word.Documents.Count -eq 0) } catch {}
   if (-not $quiet)         { $word = $null; Say 'ERR 13 0x00000000 instance in use'; exit 13 }
   if ($fresh.Count -eq 0)  { $word = $null; Say 'ERR 13 0x00000000 instance predates this call'; exit 13 }
@@ -382,6 +389,15 @@ function classifyFailure(p: WordProtocol, exitCode: number | null, stderr: strin
         'infrastructure',
         `E_RENDER: Word was not used because the Word instance Windows provided could not be confirmed as private to this render (${e.message}). Nothing was changed or closed.`,
         'Close other programs that automate Word and retry, or use --renderer libreoffice.',
+        common
+      );
+    case 15:
+      // Word was never started: the other render is still running. Healthy engine, busy for now, so not a breaker failure.
+      return new WordRenderError(
+        'E_RENDER',
+        'request',
+        `E_RENDER: Word was not started because another ASTra render held the Word launch lock for 30 seconds. Nothing was started or changed.`,
+        'Retry in a moment, or use --renderer libreoffice.',
         common
       );
     case 20: {

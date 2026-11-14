@@ -362,6 +362,27 @@ describe('the Word script', () => {
     expect(s).not.toMatch(/ASTRA_WORD_TEST/);
     expect(s).not.toMatch(/START_STATE/);
   });
+  it('stops with a retryable error, before Word starts, when the launch lock cannot be had; an abandoned lock is taken over', () => {
+    const s = buildWordScript();
+    const wait = s.indexOf('$mutex.WaitOne(30000)');
+    const stop = s.indexOf("if (-not $held) { Say 'ERR 15");
+    expect(wait).toBeGreaterThan(-1);
+    expect(stop).toBeGreaterThan(wait);
+    expect(stop).toBeLessThan(s.indexOf('New-Object -ComObject Word.Application'));
+    expect(s).toContain('catch [System.Threading.AbandonedMutexException] { $held = $true }');
+  });
+
+  it('holds the launch lock until the new Word process is identified', () => {
+    const s = buildWordScript();
+    const start = s.indexOf('New-Object -ComObject Word.Application');
+    const identified = s.indexOf('$fresh = @(');
+    const released = s.indexOf('$mutex.ReleaseMutex(); $held = $false');
+    expect(start).toBeGreaterThan(-1);
+    expect(identified).toBeGreaterThan(start);
+    // the one release on the normal path comes after the enumeration of new processes
+    expect(released).toBeGreaterThan(identified);
+    expect(s.split('$mutex.ReleaseMutex(); $held = $false')).toHaveLength(2);
+  });
   it('pins the view only when markup is requested, with Item 7, and restores before the document is closed', () => {
     const s = buildWordScript();
     expect(s).toContain("$markup = ($env:ASTRA_WORD_MARKUP -eq '1')");
@@ -427,6 +448,18 @@ describe('Word through the fake PowerShell host', () => {
     const r = await run({});
     expect(r.markup).toBeUndefined();
     expect(logRows(process.env.FAKE_PS_LOG)[0].markup).toBe('0');
+  });
+
+  it('exit 15 is E_RENDER class request, never retried in place, and leaves no candidate to warn about', async () => {
+    process.env.FAKE_PS_MODE = 'lock-busy';
+    process.env.FAKE_PS_LOG = path.join(tmpBase, 'ps');
+    const err = (await run({}).catch((e: unknown) => e)) as WordRenderError;
+    expect(err).toBeInstanceOf(WordRenderError);
+    expect(err).toMatchObject({ code: 'E_RENDER', failureClass: 'request', exitCode: 15 });
+    expect(err.message).toMatch(/another ASTra render held the Word launch lock for 30 seconds/);
+    expect(err.message).not.toMatch(/hidden Word process/);
+    expect(err.remedy).toMatch(/Retry in a moment/);
+    expect(logRows(process.env.FAKE_PS_LOG)).toHaveLength(1);
   });
 
   it('an inherited ASTRA_WORD_MARKUP=1 cannot turn the review view on when markup is off', async () => {
