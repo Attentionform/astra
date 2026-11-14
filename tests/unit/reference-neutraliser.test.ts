@@ -296,6 +296,53 @@ describe('fields in the document body', () => {
         expect(() => analyseReferences(buildDocx({ body }), { mutate: false })).toThrow(/E_SECURITY/);
       }
     });
+    describe('a simple field (w:fldSimple) inside a complex field instruction', () => {
+      const simple = (url: string) => `<w:fldSimple w:instr=" QUOTE &quot;${url}&quot; "><w:r><w:t>x</w:t></w:r></w:fldSimple>`;
+      const outer = (type: string, inner: string, tail = '') =>
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${type} </w:instrText></w:r>${inner}${tail}<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>r</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+      it.each(['INCLUDETEXT', 'INCLUDEPICTURE', 'LINK', 'IMPORT'])('%s: the outer instruction is neutralised, in scan-only mode it is reported', (type) => {
+        const docx = buildDocx({ body: outer(type, simple('http://evil.example/s')) });
+        const scan = analyseReferences(docx, { mutate: false });
+        expect(scan.changed).toBe(false);
+        expect(scan.found.map((f) => f.type)).toEqual([type]);
+        expect(scan.local).toEqual([]);
+        const a = neutraliseReferences(docx);
+        const xml = readPart(a.docx, 'word/document.xml');
+        expect(a.changed).toBe(true);
+        expect(xml).toContain('QUOTE ""');
+        expect(xml).not.toMatch(new RegExp(`>\\s*${type}\\s*<`));
+      });
+      it('outer text after the simple field is dropped as well', () => {
+        const tail = '<w:r><w:instrText xml:space="preserve"> \\c HTML</w:instrText></w:r>';
+        const a = neutraliseReferences(buildDocx({ body: outer('INCLUDETEXT', simple('\\\\host\\share\\f'), tail) }));
+        expect(readPart(a.docx, 'word/document.xml')).not.toContain('HTML');
+      });
+      it('the simple field comes first or finishes the type word: refused (E_SECURITY), also in scan-only mode', () => {
+        const run = (t: string) => `<w:r><w:instrText xml:space="preserve">${t}</w:instrText></w:r>`;
+        const begin = '<w:r><w:fldChar w:fldCharType="begin"/></w:r>';
+        const end = '<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>';
+        const cases = [
+          `<w:p>${begin}${simple('INCLUDETEXT http://evil.example/n')}${run(' \\* MERGEFORMAT')}${end}</w:p>`,
+          `<w:p>${begin}${run(' INCLUDE')}${simple('TEXT http://evil.example/n')}${end}</w:p>`,
+          `<w:p>${begin}${simple('INCLUDETEXT http://evil.example/n')}${end}</w:p>`,
+        ];
+        for (const body of cases) {
+          expect(() => neutraliseReferences(buildDocx({ body }))).toThrow(/E_SECURITY/);
+          expect(() => analyseReferences(buildDocx({ body }), { mutate: false })).toThrow(/E_SECURITY/);
+        }
+      });
+      it('a simple field in the result part, or in a field of another type, changes nothing', () => {
+        const result = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> INCLUDETEXT "local.docx" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${simple('shown')}<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+        expect(neutraliseReferences(buildDocx({ body: result })).changed).toBe(false);
+        expect(neutraliseReferences(buildDocx({ body: outer('IF 1 = 1 "', simple('plain'), '<w:r><w:instrText xml:space="preserve">" ""</w:instrText></w:r>') })).changed).toBe(false);
+      });
+      it('a simple field with a network INCLUDEPICTURE inside is still judged on its own', () => {
+        const inner = `<w:fldSimple w:instr=" INCLUDEPICTURE &quot;http://evil.example/in.png&quot; "><w:r><w:t>x</w:t></w:r></w:fldSimple>`;
+        const a = neutraliseReferences(buildDocx({ body: outer('INCLUDETEXT', inner) }));
+        expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
+        expect(a.found.map((f) => f.type).sort()).toEqual(['INCLUDEPICTURE', 'INCLUDETEXT']);
+      });
+    });
     it('a nested field in the result part of a field is not an argument', () => {
       const body = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> INCLUDETEXT "local.docx" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${quote('shown')}<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
       const a = neutraliseReferences(buildDocx({ body }));

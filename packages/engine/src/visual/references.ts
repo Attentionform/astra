@@ -561,6 +561,14 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
   };
 
   const stack: FieldFrame[] = [];
+  /** A field starts here: if it is inside the instruction part of an open complex field, that field is nested-into. */
+  const markNested = (): void => {
+    const parent = stack.length > 0 ? stack[stack.length - 1] : undefined;
+    if (parent && !parent.separated) {
+      if (!parent.nested) parent.prefix = parent.nodes.map(textOf).join('');
+      parent.nested = true;
+    }
+  };
   const todo: Node[] = [doc.documentElement];
   while (todo.length > 0) {
     const node = todo.pop() as Node;
@@ -571,11 +579,7 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
         if (ln === 'fldChar') {
           const kind = getAttr(el, 'fldCharType');
           if (kind === 'begin') {
-            const parent = stack.length > 0 ? stack[stack.length - 1] : undefined;
-            if (parent && !parent.separated) {
-              if (!parent.nested) parent.prefix = parent.nodes.map(textOf).join('');
-              parent.nested = true;
-            }
+            markNested();
             stack.push({ nodes: [], separated: false, nested: false, prefix: '' });
           }
           else if (kind === 'separate') {
@@ -589,6 +593,7 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
           if (top && !top.separated) top.nodes.push(el);
           else finalizeComplex([el]); // an instruction outside a begin..separate span: judged on its own
         } else if (ln === 'fldSimple') {
+          markNested(); // a simple field inside a complex field's instruction supplies part of it just the same
           const instr = getAttr(el, 'instr');
           if (instr !== null) {
             const v = inspectFieldInstruction(instr);
