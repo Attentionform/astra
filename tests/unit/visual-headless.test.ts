@@ -171,10 +171,13 @@ describe('hasPdfBackend capability gate', () => {
     if (status.available) {
       // The first program a default call would use: Word on a Windows machine that has it, LibreOffice elsewhere.
       expect(['word', 'libreoffice']).toContain(status.backend);
-      expect(status.sofficePath).toBeTruthy();
-      expect(status.pdftoppmPath).toBeTruthy();
-      expect(fs.existsSync(status.sofficePath as string)).toBe(true);
-      expect(fs.existsSync(status.pdftoppmPath as string)).toBe(true);
+      // On Linux and macOS both programs are needed. On Windows, Word and the built-in page renderer are enough, so a
+      // path is required only for an engine the plan actually lists; any path that is reported must exist.
+      const plan = status.plan ?? { renderers: [], rasterizers: [] };
+      if (process.platform !== 'win32' || plan.renderers.includes('libreoffice')) expect(status.sofficePath).toBeTruthy();
+      if (process.platform !== 'win32' || plan.rasterizers.includes('poppler')) expect(status.pdftoppmPath).toBeTruthy();
+      if (status.sofficePath) expect(fs.existsSync(status.sofficePath)).toBe(true);
+      if (status.pdftoppmPath) expect(fs.existsSync(status.pdftoppmPath)).toBe(true);
     } else {
       expect(status.backend).toBe('none');
       expect(status.missing.length).toBeGreaterThan(0);
