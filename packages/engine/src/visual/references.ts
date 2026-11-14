@@ -15,7 +15,10 @@
  *     path: retargeted in place, so relationship ids stay valid;
  *   - the instruction of fields that load external content (INCLUDEPICTURE, INCLUDETEXT, LINK, IMPORT) when
  *     the file argument is not a plain local path, including instructions split across several runs and
- *     `w:fldSimple`; DDE and DDEAUTO fields are always neutralised (they can start programs).
+ *     `w:fldSimple`; DDE and DDEAUTO fields are always neutralised (they can start programs);
+ *   - a field of those types whose instruction holds another field (a nested QUOTE, REF or similar can supply the
+ *     address): the whole instruction is replaced, the nested field is judged on its own, and an instruction whose
+ *     field type is itself built by a nested field is refused with E_SECURITY.
  * Every part is looked at by content, not by name or extension (a renderer reads a part according to its
  * declared content type, so a main document part could be hidden under any name), except media-looking parts
  * over 16 MB, which are skipped.
@@ -461,6 +464,13 @@ function processRels(name: string, data: Buffer, mutate: boolean, out: Reference
 interface FieldFrame {
   nodes: Element[];
   separated: boolean;
+  /**
+   * Another field begins inside this field's instruction (before the separator). Its result becomes part of this
+   * instruction, so this frame's own text is not the whole instruction.
+   */
+  nested: boolean;
+  /** The frame's own instruction text before the first nested field began. */
+  prefix: string;
 }
 
 function textOf(el: Element): string {
@@ -518,7 +528,27 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
     else out.found.push(entry);
   };
 
-  const finalizeComplex = (nodes: Element[]): void => {
+  const finalizeComplex = (nodes: Element[], frame?: FieldFrame): void => {
+    if (frame?.nested) {
+      // A nested field can supply any part of this instruction, so the frame's own text proves nothing: a QUOTE field
+      // can hand INCLUDETEXT a network address that neither frame shows as one. The field type must stand complete in
+      // this frame's own text before the nested field ("INCLUDETEXT" then white space, or a formula "="); if it
+      // does not, the instruction cannot be judged and the document is refused. Otherwise an external-content field
+      // is rewritten as a whole: its nested field stays, and is judged on its own, but becomes an argument of QUOTE.
+      const own = /^\s*(?:([A-Za-z]+)\s|=)/.exec(frame.prefix);
+      if (!own) throw failClosed('a field instruction that is partly built by another field cannot be checked');
+      const type = (own[1] ?? '').toUpperCase();
+      if (DDE_FIELDS.has(type) || FILE_FIELDS.has(type)) {
+        const own2 = inspectFieldInstruction(frame.prefix + ' ');
+        const keep = own2 !== null && own2.class !== 'local' ? own2 : undefined;
+        record({ type, rewritten: ' QUOTE "" ', class: DDE_FIELDS.has(type) ? 'dde' : keep ? keep.class : 'unparseable', ...(keep?.scheme ? { scheme: keep.scheme } : {}) });
+        if (mutate && nodes.length > 0) {
+          setInstructionText(nodes[0], nodes.slice(1), ' QUOTE "" ');
+          changed = true;
+        }
+      }
+      return;
+    }
     if (nodes.length === 0) return;
     const instruction = nodes.map(textOf).join('');
     const v = inspectFieldInstruction(instruction);
@@ -540,12 +570,19 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
         const ln = el.localName;
         if (ln === 'fldChar') {
           const kind = getAttr(el, 'fldCharType');
-          if (kind === 'begin') stack.push({ nodes: [], separated: false });
+          if (kind === 'begin') {
+            const parent = stack.length > 0 ? stack[stack.length - 1] : undefined;
+            if (parent && !parent.separated) {
+              if (!parent.nested) parent.prefix = parent.nodes.map(textOf).join('');
+              parent.nested = true;
+            }
+            stack.push({ nodes: [], separated: false, nested: false, prefix: '' });
+          }
           else if (kind === 'separate') {
             if (stack.length > 0) stack[stack.length - 1].separated = true;
           } else if (kind === 'end') {
             const frame = stack.pop();
-            if (frame) finalizeComplex(frame.nodes);
+            if (frame) finalizeComplex(frame.nodes, frame);
           }
         } else if (ln === 'instrText' || ln === 'delInstrText') {
           const top = stack.length > 0 ? stack[stack.length - 1] : undefined;
@@ -569,7 +606,10 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
     }
   }
   // A field that was begun and never ended is still judged (fail closed).
-  while (stack.length > 0) finalizeComplex((stack.pop() as FieldFrame).nodes);
+  while (stack.length > 0) {
+    const frame = stack.pop() as FieldFrame;
+    finalizeComplex(frame.nodes, frame);
+  }
   return changed ? encodePart(serialise(doc), enc) : null;
 }
 

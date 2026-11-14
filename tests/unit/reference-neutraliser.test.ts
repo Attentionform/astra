@@ -253,6 +253,66 @@ describe('fields in the document body', () => {
     expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
     expect(a.found.map((f) => f.type)).toEqual(['INCLUDEPICTURE']);
   });
+  describe('a nested field supplies the arguments', () => {
+    const quote = (url: string) => complexField([` QUOTE "${url}"`], url);
+    const nestedBody = (type: string, inner: string, tail = '') =>
+      `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${type} </w:instrText></w:r>${inner}${tail}<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>r</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+    it.each(['INCLUDETEXT', 'INCLUDEPICTURE', 'LINK', 'IMPORT', 'includetext'])('%s with a nested QUOTE that holds a network address is neutralised', (type) => {
+      const a = neutraliseReferences(buildDocx({ body: nestedBody(type, quote('http://evil.example/n')) }));
+      const xml = readPart(a.docx, 'word/document.xml');
+      // the address sits in the nested field's own text; the outer field no longer reads it as its argument
+      expect(a.found.some((f) => f.type === type.toUpperCase() && f.kind === 'field')).toBe(true);
+      expect(xml).toContain('QUOTE ""');
+      expect(xml).not.toMatch(new RegExp(`>\\s*${type}\\s*<`));
+    });
+    it('the outer instruction text after the nested field is dropped as well', () => {
+      const tail = '<w:r><w:instrText xml:space="preserve"> \\c HTML</w:instrText></w:r>';
+      const a = neutraliseReferences(buildDocx({ body: nestedBody('INCLUDETEXT', quote('\\\\host\\share\\f'), tail) }));
+      const xml = readPart(a.docx, 'word/document.xml');
+      expect(xml).not.toContain('INCLUDETEXT');
+      expect(xml).not.toContain('HTML');
+    });
+    it('a field of another type with a nested field is left alone', () => {
+      const a = neutraliseReferences(buildDocx({ body: nestedBody('IF 1 = 1 "', quote('plain text'), '<w:r><w:instrText xml:space="preserve">" ""</w:instrText></w:r>') }));
+      expect(a.found).toEqual([]);
+      expect(a.changed).toBe(false);
+    });
+    it('a formula that starts with = and holds a nested field is left alone', () => {
+      const body = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> = </w:instrText></w:r>${complexField([' SUM(ABOVE)'], '3')}<w:r><w:instrText xml:space="preserve"> * 2</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>6</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+      const a = neutraliseReferences(buildDocx({ body }));
+      expect(a.changed).toBe(false);
+    });
+    it('the field type built by a nested field cannot be judged: the document is refused (E_SECURITY)', () => {
+      const cases = [
+        // the nested field is the whole instruction
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>${quote('INCLUDETEXT http://evil.example/n')}<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`,
+        // the nested field comes first and the outer text follows
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>${quote('INCLUDETEXT http://evil.example/n')}<w:r><w:instrText xml:space="preserve"> \\* MERGEFORMAT</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`,
+        // the type word is finished by the nested field
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> INCLUDE</w:instrText></w:r>${quote('TEXT http://evil.example/n')}<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`,
+      ];
+      for (const body of cases) {
+        expect(() => neutraliseReferences(buildDocx({ body }))).toThrow(/E_SECURITY/);
+        expect(() => analyseReferences(buildDocx({ body }), { mutate: false })).toThrow(/E_SECURITY/);
+      }
+    });
+    it('a nested field in the result part of a field is not an argument', () => {
+      const body = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> INCLUDETEXT "local.docx" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${quote('shown')}<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+      const a = neutraliseReferences(buildDocx({ body }));
+      expect(a.changed).toBe(false);
+      expect(a.local).toHaveLength(1);
+    });
+    it('the nested field is still judged on its own', () => {
+      const inner = complexField([' INCLUDEPICTURE "http://evil.example/in.png"']);
+      const a = neutraliseReferences(buildDocx({ body: nestedBody('INCLUDETEXT', inner) }));
+      expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
+      expect(a.found.map((f) => f.type).sort()).toEqual(['INCLUDEPICTURE', 'INCLUDETEXT']);
+    });
+    it('a DDE field with a nested field is neutralised as dde', () => {
+      const a = neutraliseReferences(buildDocx({ body: nestedBody('DDEAUTO', quote('cmd')) }));
+      expect(a.found.map((f) => f.class)).toContain('dde');
+    });
+  });
   it('neutralises w:fldSimple', () => {
     const body = '<w:p><w:fldSimple w:instr=" INCLUDEPICTURE &quot;http://evil.example/s.png&quot; \\d"><w:r><w:t>x</w:t></w:r></w:fldSimple></w:p>';
     const a = neutraliseReferences(buildDocx({ body }));
