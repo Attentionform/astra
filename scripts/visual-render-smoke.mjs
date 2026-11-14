@@ -89,7 +89,9 @@ try {
   for (const pdfToImage of ['auto', 'poppler']) {
     const render = await engine.renderDocxToImages(docx, { format: 'png', dpi: 72, maxPages: 1, pdfToImage });
     if (render.images.length < 1) fail(`render (${pdfToImage}) returned no page image`);
-    if (render.renderer.used !== 'libreoffice') fail(`render (${pdfToImage}) used ${render.renderer.used}, not LibreOffice (auto never picks Word in this release)`);
+    // `auto` uses Word first on a Windows machine that has it, and LibreOffice everywhere else: the engine's own plan says which.
+    const expectedRenderer = engine.getVisualBackendStatus().plan?.renderers?.[0] ?? 'libreoffice';
+    if (render.renderer.used !== expectedRenderer) fail(`render (${pdfToImage}) used ${render.renderer.used}, expected ${expectedRenderer}`);
     if (pdfToImage === 'poppler' && render.rasterizer.used !== 'poppler') fail(`pdfToImage poppler used ${render.rasterizer.used}`);
     if (render.rasterizer.fallbackFrom) console.log(`note: ${render.rasterizer.fallbackFrom} could not draw the page (${render.rasterizer.fallbackReason}); ${render.rasterizer.used} did`);
     const image = render.images[0];

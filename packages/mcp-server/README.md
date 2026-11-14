@@ -518,7 +518,7 @@ When a tool operation cannot be completed, ASTra responds with structured error 
 - `E_VALIDATION`: Operation parameters failed Zod schema checks or OOXML validation.
 - `E_SESSION`: Session ID does not exist or has timed out.
 - `E_CONFLICT`: Operation would overwrite an existing file without `force: true`.
-- `E_DEPENDENCY`: External dependency (e.g. LibreOffice for PDF export, or Word when `renderer: "word"` is named) is not found.
+- `E_DEPENDENCY`: External dependency (e.g. neither Word on Windows nor LibreOffice for PDF export, or Word when `renderer: "word"` is named) is not found.
 
 ---
 

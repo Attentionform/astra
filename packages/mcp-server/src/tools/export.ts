@@ -16,9 +16,7 @@ import {
   DocxParser,
   getEngineErrorCode,
   effectiveRendererPreference,
-  hasPdfBackend,
-  findWord,
-  planRenderers,
+  planPdfRenderers,
   runPreflightChecks,
   type DocumentAST,
   type PreflightIssue,
@@ -50,7 +48,7 @@ export const EXPORT_DOCUMENT_DESCRIPTION =
   'Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); ' +
   'success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). ' +
   'For Markdown exports, images default to extracted files in a unique generation within a sibling <doc_basename>_assets/ directory when outPath is specified; in-memory exports default to embedded base64 data URIs. ' +
-  'PDF renders via headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug) or, with renderer:"word" on Windows, Microsoft Word; the result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). Without showMarkup, Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments; showMarkup (PDF only) draws tracked changes and comments in both, and the output then shows reviewer names, deleted text and comments. ' +
+  'PDF renders with Microsoft Word on Windows when it is installed, else with headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug), and with LibreOffice again if Word fails; renderer:"word" or renderer:"libreoffice" names one and never falls back. The result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). Without showMarkup, Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments; showMarkup (PDF only) draws tracked changes and comments in both, and the output then shows reviewer names, deleted text and comments. ' +
   'Failures return {ok:false,code,message,remedy}.';
 
 /**
@@ -367,17 +365,12 @@ export async function handleExportDocument(
     }
     // `auto` can use Word on Windows, so only a machine with neither program stops here. The plan is for `auto`
     // itself, because that is what this call resolved to; ASTRA_RENDERER must not change it a second time.
-    const autoPlan = planRenderers('auto', {
-      platform: process.platform,
-      word: process.platform === 'win32' && findWord() !== null,
-      libreoffice: hasPdfBackend(),
-    });
-    if (renderer === 'auto' && autoPlan.engines.length === 0) {
+    if (renderer === 'auto' && planPdfRenderers('auto').plan.engines.length === 0) {
       return {
         ok: false,
         code: 'E_DEPENDENCY',
-        message: `[E_DEPENDENCY] Headless PDF export requires LibreOffice ('libreoffice' or 'soffice') which is not found in PATH.`,
-        remedy: 'Install LibreOffice on the host system: sudo apt install libreoffice (Linux) or brew install --cask libreoffice (macOS). On Windows, Microsoft Word can be used with renderer:"word".',
+        message: `[E_DEPENDENCY] Headless PDF export needs Microsoft Word (Windows) or LibreOffice ('libreoffice' or 'soffice'), and neither was found.`,
+        remedy: 'Install LibreOffice on the host system: sudo apt install libreoffice (Linux) or brew install --cask libreoffice (macOS). On Windows, install Microsoft Word 2010 or later or LibreOffice.',
       };
     }
     const defaultPdf = targetPath || path.join(path.dirname(session.filePath), `${path.basename(session.filePath, path.extname(session.filePath))}.pdf`);

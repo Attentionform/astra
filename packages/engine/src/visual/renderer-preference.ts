@@ -108,7 +108,7 @@ export interface RendererProbe {
   libreoffice: boolean;
   /** `auto` may start with Word (the circuit breaker clears this for a while after an infrastructure failure). */
   wordUsable?: boolean;
-  /** Overrides AUTO_PREFERS_WORD (tests exercise the Word-first plan without waiting for the release that flips it). */
+  /** Overrides AUTO_PREFERS_WORD (tests set it to exercise either plan whatever the shipped default is). */
   autoPrefersWord?: boolean;
 }
 

@@ -400,7 +400,7 @@ astra import release_notes.md -o release_notes.docx --template blank
 Headlessly renders documents to PDF, HTML, or Markdown.
 
 ```bash
-# Export to PDF (LibreOffice in the system PATH; on Windows, Microsoft Word with --renderer word)
+# Export to PDF (Word on Windows when installed, else LibreOffice in the system PATH; --renderer word|libreoffice names one)
 astra export doc.docx --format pdf -o doc.pdf
 astra export doc.docx --format pdf -o doc.pdf --renderer word
 
@@ -474,7 +474,7 @@ STATS report.docx: words=1420 paragraphs=48 tables=3 pages~5
 
 ### 4.11 Visual Page Rendering (`astra visual`)
 
-Renders one saved-file page to PNG or JPEG with a headless renderer (LibreOffice by default; same renderer as `inspect --visual`). See [Rendering programs](#rendering-programs-and-network-references).
+Renders one saved-file page to PNG or JPEG with a headless renderer (Word on Windows when installed, else LibreOffice; same renderer as `inspect --visual`). See [Rendering programs](#rendering-programs-and-network-references).
 
 ```bash
 # Render first page of saved document to PNG

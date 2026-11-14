@@ -169,7 +169,8 @@ describe('hasPdfBackend capability gate', () => {
     // the gate — so assert shape, then branch.
     expect(Array.isArray(status.missing)).toBe(true);
     if (status.available) {
-      expect(status.backend).toBe('libreoffice');
+      // The first program a default call would use: Word on a Windows machine that has it, LibreOffice elsewhere.
+      expect(['word', 'libreoffice']).toContain(status.backend);
       expect(status.sofficePath).toBeTruthy();
       expect(status.pdftoppmPath).toBeTruthy();
       expect(fs.existsSync(status.sofficePath as string)).toBe(true);
@@ -223,7 +224,7 @@ describe('headless renderer ok path (LO -> PDF -> pdftoppm)', () => {
     const res = await withLoSlot(() => renderDocxToImages(blankDocx(), { format: 'png', outDir }));
     expect(res.ok).toBe(true);
     expect(res.format).toBe('png');
-    expect(res.backend).toBe('libreoffice');
+    expect(res.backend).toBe(hasPdfBackend().plan?.renderers[0]);
     expect(res.totalPages).toBeGreaterThanOrEqual(1);
     expect(res.images.length).toBeGreaterThanOrEqual(1);
     expect(res.outDir).toBe(path.resolve(outDir));

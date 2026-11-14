@@ -151,7 +151,7 @@ export function toCliError(
             : code === 'E_LIMIT'
               ? 'raise ASTRA_MAX_RATIO / --max-ratio or ASTRA_MAX_UNCOMPRESSED_BYTES / --max-uncompressed-bytes above the observed value, or use a smaller document'
               : code === 'E_DEPENDENCY'
-                ? 'install the missing backend (LibreOffice for PDF/visual) and retry'
+                ? 'install the missing backend (LibreOffice, or Word on Windows, for PDF/visual) and retry'
                 : code === 'E_AUTH'
                   ? 'provide a valid key via --key and retry'
                   : 're-inspect ids via `astra inspect` and retry');

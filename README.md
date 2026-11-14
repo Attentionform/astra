@@ -286,7 +286,7 @@ An agent often needs to know how a page is laid out, not only what it says. ASTr
 |---|---|---|
 | **What the agent gets** | An ASCII sketch of each page: headings, paragraphs, tables, lists, callouts, chart and image placeholders, and warnings about large defects | A PNG or JPEG of the page, written to a file path |
 | **Cost** | Kept under 500 tokens (the demo page below measured about 455) | A separate, heavier image input for the model |
-| **Needs** | Nothing extra. It is built from the document's structure | LibreOffice and Poppler on your `PATH` (on Windows, Word and the built-in page renderer can stand in) |
+| **Needs** | Nothing extra. It is built from the document's structure | LibreOffice and Poppler on your `PATH` (on Windows, Word is used first when it is installed, and the built-in page renderer replaces Poppler) |
 | **How to ask** | MCP `visual_inspect`, which returns the wireframe by default | MCP `visual_inspect` with `withVisual: true`. From a terminal: `astra visual report.docx --page 3 --out page3.png`, or `astra inspect report.docx --visual`, which prints the wireframe and renders a page |
 
 This is the wireframe for page 1 of the demo report:

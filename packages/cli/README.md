@@ -62,7 +62,7 @@ astra sanitize proposal.docx proposal_clean.docx
 | `sanitize` | Scrubs metadata, comments, revision history, and PII | `astra sanitize doc.docx clean.docx` |
 | `normalize` | Canonicalizes XML namespaces and fixes element ordering | `astra normalize doc.docx` |
 | `stats` | Reports word count, paragraph count, and estimated pages | `astra stats doc.docx` |
-| `visual` | Renders one saved-file page to PNG/JPEG via a headless renderer (LibreOffice; Word on Windows with `--renderer word`) | `astra visual doc.docx --out render.png` |
+| `visual` | Renders one saved-file page to PNG/JPEG via a headless renderer (Word on Windows when installed, else LibreOffice) | `astra visual doc.docx --out render.png` |
 | `history` | Lists recorded sidecar commits, newest first (read-only) | `astra history doc.docx` |
 | `revert` | Restores the package state recorded N commits back, as a new commit | `astra revert doc.docx --steps 1` |
 | `redo` | Re-applies the state replaced by the most recent revert | `astra redo doc.docx` |

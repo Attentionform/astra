@@ -72,9 +72,9 @@ export const VISUAL_DEPENDENCY_REMEDY =
   'PDF render backend missing. Install LibreOffice and poppler-utils (pdftoppm): ' +
   'Linux: sudo apt install libreoffice poppler-utils; ' +
   'macOS: brew install --cask libreoffice && brew install poppler; ' +
-  'Windows: winget install TheDocumentFoundation.LibreOffice (Microsoft Word can render instead with --renderer word, ' +
-  'and Windows draws the page images itself; Poppler is only needed as a fallback: scoop install poppler, or choco install poppler, ' +
-  'with pdftoppm.exe on PATH). ' +
+  'Windows: winget install TheDocumentFoundation.LibreOffice, or install Microsoft Word 2010 or later (ASTra uses it by default ' +
+  'when it is installed); Windows draws the page images itself, so Poppler is only needed as a fallback: scoop install poppler, ' +
+  'or choco install poppler, with pdftoppm.exe on PATH). ' +
   'Alternatively inspect the XML/DOM without images (telemetry-only mode).';
 
 export function createDependencyError(missing: string[]): Error & { code: string; remedy: string } {

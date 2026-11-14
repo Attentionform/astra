@@ -366,7 +366,7 @@ export function commandHelpText(cmd: string): string | undefined {
     visual: [
       `Usage: ${CLI_NAME} visual <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros]`,
       '',
-      'Render one saved-file page to a PNG/JPEG image via headless LibreOffice or, on request, Microsoft Word (first-class visual inspection).',
+      'Render one saved-file page to a PNG/JPEG image via Microsoft Word on Windows when it is installed, else headless LibreOffice (first-class visual inspection).',
       '  --page <n>     1-indexed page to render (default 1; past the end clamps to the last rendered page)',
       '                 [PAGE n OF m] in the telemetry wireframe uses the renderer page count;',
       '                 when the word-layout page map totals differently, a stderr warning names both counts',
@@ -388,7 +388,7 @@ export function commandHelpText(cmd: string): string | undefined {
       '  (including unsaved edits): save first for matching renders. `inspect --visual` is the same',
       '  renderer (alias: same --page/--format yields identical bytes).',
       'Tmp: visual work dir is 0700 under $ASTRA_TMPDIR (default os.tmpdir()), removed on success, kept + path logged on failure; rendered page images are 0600 in outDir (retained, path printed).',
-      'Exit 0 ok · 1 unreadable/corrupt docx or render failure (no usable renderer or Poppler fails E_DEPENDENCY: install LibreOffice + poppler-utils, or on Windows use --renderer word / the built-in page renderer) · 2 bad args.',
+      'Exit 0 ok · 1 unreadable/corrupt docx or render failure (no usable renderer or Poppler fails E_DEPENDENCY: install LibreOffice + poppler-utils, or on Windows install Word or use the built-in page renderer) · 2 bad args.',
     ].join('\n'),
     history: [
       `Usage: ${CLI_NAME} history <docx> [--init|--track|--export-original <out>|--restore-original] [--force] [--allow-macros] [--strip-macros]`,
