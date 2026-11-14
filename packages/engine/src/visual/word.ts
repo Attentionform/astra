@@ -194,9 +194,11 @@ try {
   $before = @(Get-Process WINWORD -ErrorAction SilentlyContinue | ForEach-Object Id)
   $alone = -not ($before | Where-Object { AutomationWord $_ })
   try { $word = New-Object -ComObject Word.Application } catch { Die 11 $_ }
-  if ($held) { $mutex.ReleaseMutex(); $held = $false }
+  # The lock stays held until the new process is identified below. Released earlier, a second ASTra process could start
+  # its own Word in between and this one would see two new processes and could not tell which is its own.
   $fresh = @(Get-Process WINWORD -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id } | Where-Object {
       (AutomationWord $_.Id) -and (Get-Process -Id (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)").ParentProcessId -ErrorAction SilentlyContinue).ProcessName -eq 'svchost' } | ForEach-Object Id)
+  if ($held) { $mutex.ReleaseMutex(); $held = $false }
   $quiet = $false; try { $quiet = (-not $word.Visible) -and ($word.Documents.Count -eq 0) } catch {}
   if (-not $quiet)         { $word = $null; Say 'ERR 13 0x00000000 instance in use'; exit 13 }
   if ($fresh.Count -eq 0)  { $word = $null; Say 'ERR 13 0x00000000 instance predates this call'; exit 13 }

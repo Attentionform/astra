@@ -362,6 +362,17 @@ describe('the Word script', () => {
     expect(s).not.toMatch(/ASTRA_WORD_TEST/);
     expect(s).not.toMatch(/START_STATE/);
   });
+  it('holds the launch lock until the new Word process is identified', () => {
+    const s = buildWordScript();
+    const start = s.indexOf('New-Object -ComObject Word.Application');
+    const identified = s.indexOf('$fresh = @(');
+    const released = s.indexOf('$mutex.ReleaseMutex(); $held = $false');
+    expect(start).toBeGreaterThan(-1);
+    expect(identified).toBeGreaterThan(start);
+    // the one release on the normal path comes after the enumeration of new processes
+    expect(released).toBeGreaterThan(identified);
+    expect(s.split('$mutex.ReleaseMutex(); $held = $false')).toHaveLength(2);
+  });
   it('pins the view only when markup is requested, with Item 7, and restores before the document is closed', () => {
     const s = buildWordScript();
     expect(s).toContain("$markup = ($env:ASTRA_WORD_MARKUP -eq '1')");
