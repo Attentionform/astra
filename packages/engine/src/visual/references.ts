@@ -329,6 +329,11 @@ function contentTypeResolver(zip: InstanceType<typeof AdmZip>): (partName: strin
  * Large parts that look like media by name are not read (a 100 MB video is not an XML part). A part that the package
  * declares as XML, or does not declare at all, is read whatever it is called.
  */
+/** A part over the part ceiling that is XML by name or by the package's own declaration: it cannot be inspected. */
+function isOversizedXml(lowerName: string, size: number, contentType: string | undefined): boolean {
+  return size > MAX_PART_BYTES && (lowerName.endsWith('.xml') || (contentType !== undefined && /xml/i.test(contentType)));
+}
+
 function isLargeMedia(lowerName: string, size: number, contentType: string | undefined): boolean {
   return size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lowerName) && contentType !== undefined && !/xml/i.test(contentType);
 }
@@ -538,15 +543,16 @@ function setFldSimpleInstruction(el: Element, text: string): void {
   }
 }
 
-function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis): Buffer | null {
+function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis, declaredXml: boolean): Buffer | null {
+  const isXml = declaredXml || /\.xml$/i.test(name);
   const utf16 = utf16Endianness(data) !== undefined;
   if (!utf16 && !looksLikeXml(data)) {
     // An .xml part in an encoding these checks cannot read could hide a field: fail closed rather than skip it.
-    if (/\.xml$/i.test(name) && looksLikeUtf32(data)) throw failClosed(`part "${name}" is not UTF-8 or UTF-16 encoded`);
+    if (isXml && looksLikeUtf32(data)) throw failClosed(`part "${name}" is not UTF-8 or UTF-16 encoded`);
     return null;
   }
   // A binary part that happens to look like UTF-16 text but has an odd length is not XML; an .xml part is.
-  if (utf16 && data.length % 2 !== 0 && !/\.xml$/i.test(name)) return null;
+  if (utf16 && data.length % 2 !== 0 && !isXml) return null;
   // Cheap pre-filter on the raw bytes: most parts hold no field at all. `InstrText` also matches `delInstrText`.
   // A UTF-16 part is decoded first (it is rare), because its bytes never match a UTF-8 search string.
   let decoded: { text: string; enc: PartEncoding } | undefined;
@@ -690,17 +696,17 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     if (e.isDirectory) continue;
     const name = e.entryName.replace(/\\/g, '/');
     const lower = name.toLowerCase();
-    if (lower.endsWith('.rels')) {
+    const declared = contentTypeOf(name);
+    // A relationships part is known by its content type as well as by its name.
+    if (lower.endsWith('.rels') || (declared !== undefined && /relationships\+xml/i.test(declared))) {
       const next = processRels(name, e.getData(), opts.mutate, out);
       if (next !== null) updates.set(e.entryName, next);
     } else {
       const size = e.header.size;
-      if (isLargeMedia(lower, size, contentTypeOf(name))) continue;
-      if (size > MAX_PART_BYTES) {
-        if (lower.endsWith('.xml')) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
-        continue;
-      }
-      const next = processFieldsPart(name, e.getData(), opts.mutate, out);
+      if (isLargeMedia(lower, size, declared)) continue;
+      if (isOversizedXml(lower, size, declared)) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+      if (size > MAX_PART_BYTES) continue;
+      const next = processFieldsPart(name, e.getData(), opts.mutate, out, declared !== undefined && /xml/i.test(declared));
       if (next !== null) updates.set(e.entryName, next);
     }
   }
@@ -734,10 +740,8 @@ export function removeUpdateFields(docx: Buffer): Buffer {
     // The same limits as the reference scan: only a part over 16 MiB with a media-looking name that the package does not
     // declare as XML is skipped, and an XML part over the part ceiling cannot be inspected, so the render is refused
     // instead of going ahead with a settings part that may still hold the setting.
-    if (e.header.size > MAX_PART_BYTES) {
-      if (lower.endsWith('.xml')) throw failClosed(`part "${e.entryName}" is larger than ${MAX_PART_BYTES >> 20} MB`);
-      continue;
-    }
+    if (isOversizedXml(lower, e.header.size, contentTypeOf(e.entryName))) throw failClosed(`part "${e.entryName}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+    if (e.header.size > MAX_PART_BYTES) continue;
     if (isLargeMedia(lower, e.header.size, contentTypeOf(e.entryName))) continue;
     try {
       const data = e.getData();

@@ -818,6 +818,37 @@ describe('a large XML part with a media-looking name is still inspected (parts a
     expect(a.found.map((f) => f.type)).toEqual(['INCLUDEPICTURE']);
     expect(readPart(a.docx, 'word/document.bin')).not.toContain('evil.example');
   });
+  it('an XML part over the part ceiling is refused whatever its name: settings.bin declared as settings, document.bin declared as the main part', () => {
+    const huge = Buffer.alloc(129 * 1024 * 1024, 0x20);
+    const settings = rename(buildDocx({ extra: { 'word/settings.xml': `<?xml version="1.0"?><w:settings ${W}><w:updateFields w:val="true"/></w:settings>` } }), 'word/settings.xml', 'word/settings.bin', SETTINGS);
+    const z1 = new AdmZip(settings);
+    z1.updateFile('word/settings.bin', huge);
+    const bigSettings = z1.toBuffer();
+    expect(() => removeUpdateFields(bigSettings)).toThrow(/E_SECURITY/);
+    expect(() => analyseReferences(bigSettings, { mutate: false })).toThrow(/E_SECURITY/);
+    const main = rename(buildDocx(), 'word/document.xml', 'word/document.bin', MAIN, '_rels/.rels');
+    const z2 = new AdmZip(main);
+    z2.updateFile('word/document.bin', huge);
+    const bigMain = z2.toBuffer();
+    expect(() => neutraliseReferences(bigMain)).toThrow(/E_SECURITY/);
+    expect(() => removeUpdateFields(bigMain)).toThrow(/E_SECURITY/);
+  });
+  it('a relationships part is known by its content type: one not named .rels is still neutralised', () => {
+    const base = buildDocx({ rels: [{ id: 'rId9', type: 'image', target: 'http://evil.example/p.png', mode: 'External' }] });
+    const docx = rename(base, 'word/_rels/document.xml.rels', 'word/_rels/links.dat', 'application/vnd.openxmlformats-package.relationships+xml');
+    const a = neutraliseReferences(docx);
+    expect(a.found).toHaveLength(1);
+    expect(readPart(a.docx, 'word/_rels/links.dat')).not.toContain('evil.example');
+  });
+  it('a UTF-32 part declared as XML is refused even when it is not named .xml', () => {
+    const text = '\ufeff<w:settings xmlns:w="x"><w:updateFields/></w:settings>';
+    const utf32 = Buffer.alloc(text.length * 4);
+    for (let i = 0; i < text.length; i++) utf32.writeUInt32LE(text.charCodeAt(i), i * 4);
+    const docx = rename(buildDocx({ extra: { 'word/settings.xml': '<w:settings xmlns:w="x"/>' } }), 'word/settings.xml', 'word/settings.bin', SETTINGS);
+    const z = new AdmZip(docx);
+    z.updateFile('word/settings.bin', utf32);
+    expect(() => neutraliseReferences(z.toBuffer())).toThrow(/E_SECURITY/);
+  });
   it('a genuine large media part is still skipped, and so is a large part declared as binary', () => {
     const big = Buffer.alloc(17 * 1024 * 1024, 0x61);
     const png = rename(buildDocx({ extra: { 'word/media/p.png': big } }), 'word/media/p.png', 'word/media/p.png', 'image/png');
