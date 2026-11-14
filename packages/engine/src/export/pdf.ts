@@ -16,6 +16,7 @@ import {
   wordBreaker,
   type RendererPreference,
   type RendererReport,
+  type RenderPlan,
 } from '../visual/renderer-preference';
 import {
   analyseReferences,
@@ -156,6 +157,30 @@ export function getPdfBackendBinary(): string | null {
   return null;
 }
 
+/**
+ * The programs a PDF export may use, in order, for one renderer choice. The export itself and any caller that wants to
+ * refuse early (the MCP tool) use this one function, so the two cannot disagree. `word` is only looked up when Word
+ * may run at all (a named `word`, or `auto` while it prefers Word), so a LibreOffice-only call never probes the registry.
+ */
+export function planPdfRenderers(
+  rendererPref: RendererPreference,
+  options: { binary?: string | null; testHooks?: VisualTestHooks } = {}
+): { plan: RenderPlan; word: WordInstall | null } {
+  const hooks: VisualTestHooks = options.testHooks ?? {};
+  const platform = hooks.platform ?? process.platform;
+  const binary = options.binary === undefined ? getPdfBackendBinary() : options.binary;
+  const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && (hooks.autoPrefersWord ?? AUTO_PREFERS_WORD));
+  const word: WordInstall | null = wordMayRun && platform === 'win32' ? (hooks.word !== undefined ? hooks.word : findWord()) : null;
+  const plan = planRenderers(rendererPref, {
+    platform,
+    word: word !== null,
+    libreoffice: Boolean(binary),
+    wordUsable: !wordBreaker.isOpen(),
+    autoPrefersWord: hooks.autoPrefersWord,
+  });
+  return { plan, word };
+}
+
 export function hasPdfBackend(): boolean {
   return getPdfBackendBinary() !== null;
 }
@@ -184,7 +209,10 @@ export async function convertDocxToPdf(
 
 /**
  * Converts a raw .docx buffer into a PDF file on disk and says how.
- * Uses headless LibreOffice, or Word on Windows when asked (`renderer: 'word'`); `auto` is LibreOffice in 0.5.2.
+ * Uses Word or headless LibreOffice. `auto` (the default) is Word on Windows when it is installed, with LibreOffice as
+ * the fallback if Word fails, and LibreOffice everywhere else; `renderer: 'word'` or `'libreoffice'` names one and never
+ * falls back. `binary` only says where LibreOffice is; it does not choose LibreOffice, so pass `renderer: 'libreoffice'`
+ * to force it on a Windows machine that has Word.
  * Runs export preflight first: warn-only by default, fail-closed with
  * `strict: true` when blockers are present. Network references are retargeted on the render copy unless
  * `allowNetworkReferences` is true (the source bytes are never changed).
@@ -199,30 +227,23 @@ export async function convertDocxToPdfDetailed(
   options?: PdfExportOptions
 ): Promise<PdfConversionResult> {
   const hooks: VisualTestHooks = options?.testHooks ?? {};
-  const platform = hooks.platform ?? process.platform;
   // Choices first: an invalid value fails loudly before anything runs.
   const rendererPref = effectiveRendererPreference(options?.renderer);
   const allowRefs = effectiveAllowNetworkReferences(options?.allowNetworkReferences);
   const showMarkup = effectiveShowMarkup(options?.showMarkup);
 
   const binary = options?.binary || getPdfBackendBinary();
-  const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && (hooks.autoPrefersWord ?? AUTO_PREFERS_WORD));
-  const word: WordInstall | null = wordMayRun && platform === 'win32' ? (hooks.word !== undefined ? hooks.word : findWord()) : null;
-  const plan = planRenderers(rendererPref, {
-    platform,
-    word: word !== null,
-    libreoffice: Boolean(binary),
-    wordUsable: !wordBreaker.isOpen(),
-    autoPrefersWord: hooks.autoPrefersWord,
-  });
+  const { plan, word } = planPdfRenderers(rendererPref, { binary, testHooks: hooks });
   if (plan.engines.length === 0) {
     throw new DependencyError(
-      `[E_DEPENDENCY] Headless PDF export requires LibreOffice ('libreoffice' or 'soffice'). ` +
+      (rendererPref === 'libreoffice'
+        ? `[E_DEPENDENCY] Headless PDF export requires LibreOffice ('libreoffice' or 'soffice') because renderer "libreoffice" was chosen, and it was not found. `
+        : `[E_DEPENDENCY] Headless PDF export needs Microsoft Word (Windows) or LibreOffice ('libreoffice' or 'soffice'), and neither was found. `) +
       `Please install LibreOffice:\n` +
       `  Debian/Ubuntu: sudo apt install libreoffice\n` +
       `  Fedora/RHEL:   sudo dnf install libreoffice\n` +
       `  macOS:         brew install --cask libreoffice\n` +
-      `  Windows:       winget install TheDocumentFoundation.LibreOffice (or use Microsoft Word: --renderer word)\n` +
+      `  Windows:       winget install TheDocumentFoundation.LibreOffice (or install Microsoft Word 2010 or later)\n` +
       `ASTra also looks in the standard install folders (for example C:\\Program Files\\LibreOffice\\program ` +
       `and /Applications/LibreOffice.app/Contents/MacOS).`
     );

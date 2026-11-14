@@ -19,12 +19,12 @@ export const RASTERIZER_PREFERENCES: readonly RasterizerPreference[] = ['auto', 
 export const PDF_TO_IMAGE_ENV = 'ASTRA_PDF_TO_IMAGE';
 
 /**
- * 0.5.2: Word is opt-in. `auto` resolves to LibreOffice on every platform, and Word runs only when the
- * user asks for it (`--renderer word` / `ASTRA_RENDERER=word`). Flip to `true` in a later release, on
- * evidence from real use, to let `auto` prefer Word on Windows (the Word-first planning below is built
- * and tested; this constant is the only switch).
+ * `auto` prefers Word on Windows: Word when it is installed, LibreOffice when it is not, and LibreOffice
+ * again when Word fails for a reason that says nothing about the document. On Linux and macOS `auto` is
+ * LibreOffice only. A named renderer (`--renderer word` / `ASTRA_RENDERER=word`) never falls back.
+ * Setting this to `false` makes `auto` LibreOffice on every platform again; it is the only switch.
  */
-export const AUTO_PREFERS_WORD = false;
+export const AUTO_PREFERS_WORD = true;
 
 export type PreferenceSource = 'flag' | 'parameter' | typeof RENDERER_ENV | typeof PDF_TO_IMAGE_ENV;
 
@@ -108,7 +108,7 @@ export interface RendererProbe {
   libreoffice: boolean;
   /** `auto` may start with Word (the circuit breaker clears this for a while after an infrastructure failure). */
   wordUsable?: boolean;
-  /** Overrides AUTO_PREFERS_WORD (tests exercise the Word-first plan without waiting for the release that flips it). */
+  /** Overrides AUTO_PREFERS_WORD (tests set it to exercise either plan whatever the shipped default is). */
   autoPrefersWord?: boolean;
 }
 

@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import { AdmZip, DocxParser, renderDocxToImages, resetPdfBackendCache, resetRendererBreakersForTesting, convertDocxToPdfDetailed, type VisualTestHooks } from '@attentionform/astra-engine';
+import { AdmZip, DocxParser, renderDocxToImages, resetPdfBackendCache, resetRendererBreakersForTesting, convertDocxToPdfDetailed, planPdfRenderers, type VisualTestHooks } from '@attentionform/astra-engine';
 import { buildDocx, complexField, documentXml, readPart } from '../helpers/docx-refs';
 import { fakePsHooks, withFakePsEnv } from '../helpers/fake-ps';
 import { makeFakePdftoppm, makeFakeSoffice } from '../helpers/fake-bins';
@@ -55,15 +55,48 @@ function logRows(file: string): Array<Record<string, unknown>> {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
 }
 
+describe('planPdfRenderers: the one plan the PDF export and the MCP pre-check share', () => {
+  const plan = (pref: 'auto' | 'word' | 'libreoffice', binary: string | null, hooks: VisualTestHooks) => planPdfRenderers(pref, { binary, testHooks: hooks }).plan.engines;
+  it('auto on Windows: Word first, then LibreOffice; Word alone when LibreOffice is missing', () => {
+    expect(plan('auto', '/x/soffice', winHooks)).toEqual(['word', 'libreoffice']);
+    expect(plan('auto', null, winHooks)).toEqual(['word']);
+  });
+  it('auto without Word, or off Windows: LibreOffice only, and nothing when it is missing', () => {
+    expect(plan('auto', '/x/soffice', { ...winHooks, word: null })).toEqual(['libreoffice']);
+    expect(plan('auto', '/x/soffice', { ...winHooks, platform: 'linux' })).toEqual(['libreoffice']);
+    expect(plan('auto', null, { ...winHooks, word: null })).toEqual([]);
+    expect(plan('auto', null, { ...winHooks, platform: 'darwin' })).toEqual([]);
+  });
+  it('a named LibreOffice never looks for Word; a named Word never plans LibreOffice', () => {
+    let probed = false;
+    expect(planPdfRenderers('libreoffice', { binary: '/x/soffice', testHooks: { ...winHooks, get word() { probed = true; return WORD; } } }).plan.engines).toEqual(['libreoffice']);
+    expect(probed).toBe(false);
+    expect(plan('word', '/x/soffice', winHooks)).toEqual(['word']);
+  });
+});
+
 describe.skipIf(!POSIX)('renderer choice through renderDocxToImages', () => {
-  it('auto is LibreOffice even on a Windows with Word installed (0.5.2: Word is opt-in)', async () => {
+  it('auto uses Word on a Windows with Word installed', async () => {
     process.env.FAKE_LOG = path.join(tmpBase, 'log');
     process.env.FAKE_PS_MODE = 'ok';
     const r = await renderDocxToImages(blank(), { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm, testHooks: { ...winHooks, windowsRenderer: false } });
-    expect(r.backend).toBe('libreoffice');
-    expect(r.renderer).toEqual({ requested: 'auto', used: 'libreoffice' });
-    expect(logRows(process.env.FAKE_LOG).map((x) => x.bin)).toEqual(['soffice', 'pdftoppm']);
+    expect(r.backend).toBe('word');
+    expect(r.renderer).toEqual({ requested: 'auto', used: 'word', version: 16 });
     expect(leftovers()).toEqual([]);
+  });
+
+  it('auto is LibreOffice where Word is not installed, and on any platform but Windows', async () => {
+    process.env.FAKE_LOG = path.join(tmpBase, 'log');
+    for (const hooks of [
+      { ...winHooks, windowsRenderer: false, word: null },
+      { ...winHooks, windowsRenderer: false, platform: 'linux' as const },
+    ]) {
+      fs.rmSync(process.env.FAKE_LOG, { force: true });
+      const r = await renderDocxToImages(blank(), { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm, testHooks: hooks });
+      expect(r.backend).toBe('libreoffice');
+      expect(r.renderer).toEqual({ requested: 'auto', used: 'libreoffice' });
+      expect(logRows(process.env.FAKE_LOG).map((x) => x.bin)).toEqual(['soffice', 'pdftoppm']);
+    }
   });
 
   it('word renders through the PowerShell host and reports itself', async () => {
@@ -403,7 +436,7 @@ describe.skipIf(!POSIX)('PDF export through convertDocxToPdfDetailed', () => {
     await expect(convertDocxToPdfDetailed(blank(), out(), { renderer: 'word', testHooks: winHooks })).rejects.toMatchObject({ code: 'E_VALIDATION', failureClass: 'document' });
     expect(leftovers().length).toBe(1);
   });
-  it('word is E_DEPENDENCY off Windows; an invalid renderer is E_VALIDATION; missing LibreOffice keeps the old message', async () => {
+  it('word is E_DEPENDENCY off Windows; an invalid renderer is E_VALIDATION; missing LibreOffice (and Word) says neither was found', async () => {
     await expect(convertDocxToPdfDetailed(blank(), out(), { renderer: 'word', binary: makeFakeSoffice(tmpBase) })).rejects.toMatchObject({ code: 'E_DEPENDENCY' });
     await expect(convertDocxToPdfDetailed(blank(), out(), { renderer: 'x' as never })).rejects.toMatchObject({ code: 'E_VALIDATION' });
     const saved = process.env.PATH;
@@ -412,7 +445,8 @@ describe.skipIf(!POSIX)('PDF export through convertDocxToPdfDetailed', () => {
     try {
       const { resetPdfBackendCache } = await import('@attentionform/astra-engine');
       resetPdfBackendCache();
-      await expect(convertDocxToPdfDetailed(blank(), out())).rejects.toMatchObject({ code: 'E_DEPENDENCY', message: expect.stringMatching(/requires LibreOffice/) });
+      await expect(convertDocxToPdfDetailed(blank(), out())).rejects.toMatchObject({ code: 'E_DEPENDENCY', message: expect.stringMatching(/needs Microsoft Word \(Windows\) or LibreOffice.*neither was found/) });
+      await expect(convertDocxToPdfDetailed(blank(), out(), { renderer: 'libreoffice' })).rejects.toMatchObject({ code: 'E_DEPENDENCY', message: expect.stringMatching(/requires LibreOffice.*"libreoffice" was chosen/) });
     } finally {
       process.env.PATH = saved;
       delete process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS;

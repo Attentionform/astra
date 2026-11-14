@@ -94,7 +94,8 @@ describe('Sprint 6 Track A: Multi-Format Headless Exports', () => {
       try {
         const buf = await fsp.readFile(GALLERY_DOC);
         const outPdf = path.join(tempDir, 'fail.pdf');
-        await expect(convertDocxToPdf(buf, outPdf)).rejects.toThrow(/\[E_DEPENDENCY\]/);
+        // Named, so a Windows machine that has Word (found through the registry) cannot satisfy the call.
+        await expect(convertDocxToPdf(buf, outPdf, { renderer: 'libreoffice' })).rejects.toThrow(/\[E_DEPENDENCY\]/);
       } finally {
         resetPdfBackendCache();
       }

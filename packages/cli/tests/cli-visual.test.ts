@@ -393,9 +393,13 @@ describe('visual LO-absent degrades fail-closed with a remedy', () => {
   it('hidden binaries exit 1 with E_DEPENDENCY naming LibreOffice (human + json)', async () => {
     const file = writeBlankDocx('astra-visual-nodeps');
     const prevPath = process.env.PATH;
+    const prevPrefs = { r: process.env.ASTRA_RENDERER, p: process.env.ASTRA_PDF_TO_IMAGE };
     const emptyDir = tmpDir('astra-visual-empty-path');
     try {
       process.env.PATH = emptyDir;
+      // LibreOffice and Poppler are named: Word and the built-in Windows page renderer do not depend on PATH.
+      process.env.ASTRA_RENDERER = 'libreoffice';
+      process.env.ASTRA_PDF_TO_IMAGE = 'poppler';
       const png = tmpPath('astra-visual-nodeps', '.png');
       const human = await runCli(['visual', file, '--out', png]);
       expect(human.status).toBe(1);
@@ -415,6 +419,10 @@ describe('visual LO-absent degrades fail-closed with a remedy', () => {
     } finally {
       if (prevPath === undefined) delete process.env.PATH;
       else process.env.PATH = prevPath;
+      if (prevPrefs.r === undefined) delete process.env.ASTRA_RENDERER;
+      else process.env.ASTRA_RENDERER = prevPrefs.r;
+      if (prevPrefs.p === undefined) delete process.env.ASTRA_PDF_TO_IMAGE;
+      else process.env.ASTRA_PDF_TO_IMAGE = prevPrefs.p;
     }
   });
 });

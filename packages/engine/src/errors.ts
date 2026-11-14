@@ -47,7 +47,7 @@ export const ENGINE_ERROR_REMEDIES: Record<EngineErrorCode, string> = {
     'raise ASTRA_MAX_RATIO / --max-ratio or ASTRA_MAX_UNCOMPRESSED_BYTES / --max-uncompressed-bytes above the observed value, or use a smaller document',
   E_SECURITY: 'remove the blocked content or path and retry',
   E_STATE: 're-inspect live vs saved state, then retry the operation',
-  E_DEPENDENCY: 'install the missing backend (LibreOffice for PDF/visual) and retry',
+  E_DEPENDENCY: 'install the missing backend (LibreOffice, or Word on Windows, for PDF/visual) and retry',
   E_AUTH: 'provide a valid key via --key and retry',
 };
 

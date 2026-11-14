@@ -5,7 +5,7 @@
  * drives Word through COM: start a hidden Word, open the temporary copy read-only, export a PDF, close the
  * document, ask Word to quit. No window, no focus change, no recent-files entry, macros force-disabled.
  *
- * Honest limits (documented for users; `word` is opt-in in 0.5.2 for this reason):
+ * Honest limits (documented for users):
  *  - COM may hand out a Word that another automation client already owns. The script checks before it
  *    changes anything and refuses (exit 13/14, nothing changed, nothing closed) when the instance looks used
  *    or predates the call. It cannot PROVE exclusive ownership, and `Quit()` after the checks is not atomic:

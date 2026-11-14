@@ -85,7 +85,7 @@ Sanitize is fail-closed: bare `sanitize in out` keeps body text (metadata/rsids/
 Sanitize --json carries survivors as warnings:[...] (bare and --metadata-only always warn; absent only when fully redacted and clean).
 Create/import refuse to overwrite without --force; batch/export/visual --out targets do too (exit 2 naming the file).
 Inspect --visual adds spatial telemetry (<500 tok) + one headless page render (--page, PNG default, JPEG opt-in); missing renderer or Poppler degrades with E_DEPENDENCY hint.
-Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is LibreOffice; word is Windows only), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1). Without --show-markup, Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments; --show-markup (env ASTRA_SHOW_MARKUP=1) draws tracked changes and comments in both. That view scales pages, and the output shows reviewer names, deleted text and comments.
+Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is Word on Windows when it is installed, else LibreOffice, and LibreOffice again if Word fails; word is Windows only and never falls back), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1). Without --show-markup, Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments; --show-markup (env ASTRA_SHOW_MARKUP=1) draws tracked changes and comments in both. That view scales pages, and the output shows reviewer names, deleted text and comments.
 Visual renders the saved on-disk file (MCP visual_inspect renders session state incl. unsaved edits: save first for matching renders); inspect --visual is the same renderer as visual (alias: same --page/--format yields identical bytes).
 ```
 
@@ -400,7 +400,7 @@ astra import release_notes.md -o release_notes.docx --template blank
 Headlessly renders documents to PDF, HTML, or Markdown.
 
 ```bash
-# Export to PDF (LibreOffice in the system PATH; on Windows, Microsoft Word with --renderer word)
+# Export to PDF (Word on Windows when installed, else LibreOffice in the system PATH; --renderer word|libreoffice names one)
 astra export doc.docx --format pdf -o doc.pdf
 astra export doc.docx --format pdf -o doc.pdf --renderer word
 
@@ -474,7 +474,7 @@ STATS report.docx: words=1420 paragraphs=48 tables=3 pages~5
 
 ### 4.11 Visual Page Rendering (`astra visual`)
 
-Renders one saved-file page to PNG or JPEG with a headless renderer (LibreOffice by default; same renderer as `inspect --visual`). See [Rendering programs](#rendering-programs-and-network-references).
+Renders one saved-file page to PNG or JPEG with a headless renderer (Word on Windows when installed, else LibreOffice; same renderer as `inspect --visual`). See [Rendering programs](#rendering-programs-and-network-references).
 
 ```bash
 # Render first page of saved document to PNG
@@ -495,7 +495,7 @@ astra visual report.docx --page 2 -o preview_p2.jpg --format jpeg --force
 | `--strip-macros` | `flag` | Strip document macros before rendering. |
 | `--max-ratio <n>` | `number` | Zip-bomb compression ratio limit (default: `100`). |
 | `--max-uncompressed-bytes <n>` | `number` | Zip-bomb uncompressed size ceiling (default: `209715200`). |
-| `--renderer <auto\|word\|libreoffice>` | `string` | DOCX-to-PDF program (default `auto`, which is LibreOffice). `word` is Windows only. Env `ASTRA_RENDERER`. |
+| `--renderer <auto\|word\|libreoffice>` | `string` | DOCX-to-PDF program (default `auto`: Word on Windows when it is installed, else LibreOffice, and LibreOffice again if Word fails; LibreOffice on Linux and macOS). `word` is Windows only and never falls back. Env `ASTRA_RENDERER`. |
 | `--pdf-to-image <auto\|windows\|poppler>` | `string` | PDF-to-image program (default `auto`: on Windows the built-in renderer first, then Poppler; elsewhere Poppler). Env `ASTRA_PDF_TO_IMAGE`. |
 | `--allow-network-references` | `flag` | Let the renderer load content from network locations the document names. Default: not loaded. Env `ASTRA_ALLOW_NETWORK_REFERENCES=1`. `--no-allow-network-references` overrides the variable. |
 | `--show-markup` | `flag` | Draw tracked changes and comments (default: Word draws content only, LibreOffice draws tracked changes but no comments). Env `ASTRA_SHOW_MARKUP=1`. `--no-show-markup` overrides the variable. See [Tracked changes and comments in renders](#tracked-changes-and-comments-in-renders). |
@@ -508,13 +508,13 @@ Two programs sit between a document and a page image. Each has its own switch.
 
 | Step | Switch | Choices | Default |
 |---|---|---|---|
-| DOCX to PDF | `--renderer`, env `ASTRA_RENDERER`, MCP `renderer` | `auto`, `libreoffice`, `word` | `auto`, which is LibreOffice on every platform |
+| DOCX to PDF | `--renderer`, env `ASTRA_RENDERER`, MCP `renderer` | `auto`, `libreoffice`, `word` | `auto`: on Windows Word if installed, else LibreOffice, with LibreOffice as the fallback when Word fails; LibreOffice on Linux and macOS |
 | PDF to image | `--pdf-to-image`, env `ASTRA_PDF_TO_IMAGE`, MCP `pdfToImage` | `auto`, `windows`, `poppler` | `auto`: Windows built-in renderer, then Poppler; elsewhere Poppler |
 
 - A value on the command line (or in the MCP call) beats the environment variable.
 - A named program never falls back. `--renderer word` on a machine without Word stops with `E_DEPENDENCY` and names the fix.
 - `auto` for the page-image step falls back from the Windows renderer to Poppler when the Windows renderer cannot draw a page. The result says so: `rasterizer.fallbackFrom` and `rasterizer.fallbackReason` in `--json`, and a `note:` line on stderr.
-- `word` needs Microsoft Word 2010 or later on Windows. ASTra starts its own hidden Word process through PowerShell, opens a copy read-only, saves a PDF and closes Word with `Quit()`. It never ends Word by force, so a Word that hangs on a document stays until you end it. Documents that are password-protected are refused (`E_VALIDATION`) before Word starts. `--renderer word` is also the only way to use Word: `auto` does not pick it in this release.
+- `word` needs Microsoft Word 2010 or later on Windows. ASTra starts its own hidden Word process through PowerShell, opens a copy read-only, saves a PDF and closes Word with `Quit()`. It never ends Word by force, so a Word that hangs on a document stays until you end it. Windows cannot prove that a Word reached through COM is not shared with another automation client, so before it changes anything ASTra checks that the instance is its own and refuses when the instance looks used or older than the call (nothing is changed or closed; under `auto` ASTra then uses LibreOffice). A client that attaches in the moment between those checks and `Quit()` could still lose its Word. This risk applies to every Windows machine with Word now that `auto` prefers it; `--renderer libreoffice` (or `ASTRA_RENDERER=libreoffice`) avoids it. Documents that are password-protected are refused (`E_VALIDATION`) before Word starts. Under `auto` on Windows, ASTra tries Word first when it is installed and falls back to LibreOffice when Word fails (for example Word could not start, the review view could not be set up, or the launch lock was busy). The result says so: `renderer.fallbackFrom` and `renderer.fallbackReason` in `--json`, and a `note:` line on stderr. A Word that fails because of the machine (it cannot start or hangs) is skipped for a while, so later `auto` renders do not wait on it. If neither program is available, the render stops with `E_DEPENDENCY`.
 - The Windows page-image renderer is built into Windows 10 and later and needs no install. It draws the PDF crop box, where Poppler draws the media box, so a PDF with a crop box differs by that margin. Word and LibreOffice lay a page out differently, so page breaks can differ between `--renderer word` and `--renderer libreoffice`.
 - WSL is a Linux process: it always uses LibreOffice and Poppler, even when Windows has Word.
 
@@ -526,7 +526,7 @@ By default a render shows the document without review marks, and what that means
 
 `--show-markup` (env `ASTRA_SHOW_MARKUP=1`, MCP `showMarkup`) asks for the review view:
 
-- **Word (Windows).** ASTra exports with markup (Word's "Export with markup"): tracked changes appear inline and comments in balloons. ASTra sets the review view it needs on its own hidden Word, restores the settings it changed before it closes the document, and reports `markup.warnings` for a setting Word would not take. If the view cannot be set up, the render fails with `E_RENDER`, and under `auto` ASTra then tries LibreOffice.
+- **Word (Windows).** ASTra exports with markup (Word's "Export with markup"): tracked changes appear inline and comments in balloons. ASTra sets the review view it needs on its own hidden Word, restores the settings it changed before it closes the document, and reports `markup.warnings` for a setting Word would not take. If the view cannot be set up, the render fails with `E_RENDER`. Under `auto` ASTra then falls back to LibreOffice and draws the comments in the margin; a named renderer (`--renderer word`) never falls back.
 - **LibreOffice.** ASTra asks for comments in the margin. LibreOffice ignores an export option it does not know, so ASTra reads the program's version first. A version below 7.6.7 fails with `E_DEPENDENCY` ("has not been tested"), and a version that cannot be read fails the same way ("could not determine"). 7.6.7 is the oldest version checked, not a promise about every later one; see [Page layout, known limits](page-layout.md#9-known-limits).
 - **Layout changes.** The review view uses a different layout mode. Pages can be scaled and pagination can change, so page numbers in a markup render can differ from a render without markup.
 - **A very long comment can be cut short in both programs.** LibreOffice: every version that was tested cut a long comment short in the margin, either at the page edge or at the end of the box when other comments follow close below. Word: a balloon has a maximum height and ends with an ellipsis; a 60-word comment with two comments below it was complete, a 300-word one ended after about 150 words (Word 16.0.14334.20974). Every markup render carries a warning for the program that drew it.

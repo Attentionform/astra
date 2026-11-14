@@ -365,7 +365,7 @@ async function rasterizeWithWindows(
 /**
  * Render a DOCX buffer to page images.
  *
- * DOCX -> PDF uses Word (Windows, opt-in) or LibreOffice; PDF -> images uses the Windows built-in renderer or
+ * DOCX -> PDF uses Word (Windows; `auto` prefers it there) or LibreOffice; PDF -> images uses the Windows built-in renderer or
  * Poppler. `renderer`, `pdfToImage` and `allowNetworkReferences` (or their environment variables) choose.
  * Throws `E_DEPENDENCY` when no usable program exists (mock PATH in tests by clearing `process.env.PATH` or
  * passing bogus `sofficeBin`/`pdftoppmBin`).

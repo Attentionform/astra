@@ -28,14 +28,25 @@ function mkTmpDir(prefix: string): string {
   return dir;
 }
 
+let savedPrefs: { r: string | undefined; p: string | undefined } = { r: undefined, p: undefined };
+
 beforeEach(() => {
   savedPath = process.env.PATH;
+  // This file is about the LibreOffice + Poppler pipeline. Naming them keeps Word (found through the registry) and the
+  // built-in Windows page renderer, which do not depend on PATH, from satisfying a call these tests expect to fail.
+  savedPrefs = { r: process.env.ASTRA_RENDERER, p: process.env.ASTRA_PDF_TO_IMAGE };
+  process.env.ASTRA_RENDERER = 'libreoffice';
+  process.env.ASTRA_PDF_TO_IMAGE = 'poppler';
 });
 
 afterEach(() => {
   if (savedPath !== undefined) process.env.PATH = savedPath;
   else delete process.env.PATH;
   delete process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS;
+  if (savedPrefs.r === undefined) delete process.env.ASTRA_RENDERER;
+  else process.env.ASTRA_RENDERER = savedPrefs.r;
+  if (savedPrefs.p === undefined) delete process.env.ASTRA_PDF_TO_IMAGE;
+  else process.env.ASTRA_PDF_TO_IMAGE = savedPrefs.p;
   while (tmpDirs.length > 0) {
     const d = tmpDirs.pop() as string;
     try {

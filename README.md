@@ -147,7 +147,7 @@ which soffice pdftoppm
 
 Without them, those calls fail with `E_DEPENDENCY` and write nothing; everything else keeps working.
 
-**On Windows** you can also use what is already installed. Windows 10 and later turn PDF pages into images without Poppler (`--pdf-to-image windows`, tried first by default, with Poppler as the fallback). With Microsoft Word 2010 or later installed, `--renderer word` (env `ASTRA_RENDERER=word`, MCP `renderer: "word"`) lays out the document with Word instead of LibreOffice. Word is never chosen automatically in this release. WSL is a Linux process, so under WSL ASTra uses LibreOffice and Poppler, as on any Linux machine.
+**On Windows** you can also use what is already installed. Windows 10 and later turn PDF pages into images without Poppler (`--pdf-to-image windows`, tried first by default, with Poppler as the fallback). With Microsoft Word 2010 or later installed, `--renderer word` (env `ASTRA_RENDERER=word`, MCP `renderer: "word"`) lays out the document with Word and never falls back. By default (`auto`) ASTra on Windows tries Word first when it is installed and falls back to LibreOffice if Word fails. WSL is a Linux process, so under WSL ASTra uses LibreOffice and Poppler, as on any Linux machine.
 
 **Tracked changes and comments.** Without `--show-markup` a Word render draws the content only (changes as if accepted, no comments) and a LibreOffice render draws tracked changes, deleted text included, but no comments. Pass `--show-markup` (env `ASTRA_SHOW_MARKUP=1`, MCP `showMarkup: true`). With it, Word draws changes inline and comments in balloons and LibreOffice draws comments in the margin. The output shows reviewer names, deleted text and comments, so check it before you share it. LibreOffice 7.6.7 or later is needed; a very long comment can be cut short there, and in Word.
 
@@ -286,7 +286,7 @@ An agent often needs to know how a page is laid out, not only what it says. ASTr
 |---|---|---|
 | **What the agent gets** | An ASCII sketch of each page: headings, paragraphs, tables, lists, callouts, chart and image placeholders, and warnings about large defects | A PNG or JPEG of the page, written to a file path |
 | **Cost** | Kept under 500 tokens (the demo page below measured about 455) | A separate, heavier image input for the model |
-| **Needs** | Nothing extra. It is built from the document's structure | LibreOffice and Poppler on your `PATH` (on Windows, Word and the built-in page renderer can stand in) |
+| **Needs** | Nothing extra. It is built from the document's structure | LibreOffice and Poppler on your `PATH` (on Windows, Word is used first when it is installed, and the built-in page renderer replaces Poppler) |
 | **How to ask** | MCP `visual_inspect`, which returns the wireframe by default | MCP `visual_inspect` with `withVisual: true`. From a terminal: `astra visual report.docx --page 3 --out page3.png`, or `astra inspect report.docx --visual`, which prints the wireframe and renders a page |
 
 This is the wireframe for page 1 of the demo report:

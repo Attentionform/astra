@@ -78,7 +78,8 @@ describe('pdf export backend (mocked)', () => {
     setPdfBackendBinaryForTesting(null);
     try {
       const outPdf = path.join(os.tmpdir(), `astra-pdf-mock-${process.pid}-${Date.now()}.pdf`);
-      await expect(convertDocxToPdf(blankDocx(), outPdf)).rejects.toThrow(/E_DEPENDENCY/);
+      // Named, so a Windows machine that has Word (found through the registry) cannot satisfy the call.
+      await expect(convertDocxToPdf(blankDocx(), outPdf, { renderer: 'libreoffice' })).rejects.toThrow(/E_DEPENDENCY/);
       expect(fs.existsSync(outPdf)).toBe(false);
     } finally {
       resetPdfBackendCache();

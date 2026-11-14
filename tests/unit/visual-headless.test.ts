@@ -169,11 +169,15 @@ describe('hasPdfBackend capability gate', () => {
     // the gate — so assert shape, then branch.
     expect(Array.isArray(status.missing)).toBe(true);
     if (status.available) {
-      expect(status.backend).toBe('libreoffice');
-      expect(status.sofficePath).toBeTruthy();
-      expect(status.pdftoppmPath).toBeTruthy();
-      expect(fs.existsSync(status.sofficePath as string)).toBe(true);
-      expect(fs.existsSync(status.pdftoppmPath as string)).toBe(true);
+      // The first program a default call would use: Word on a Windows machine that has it, LibreOffice elsewhere.
+      expect(['word', 'libreoffice']).toContain(status.backend);
+      // On Linux and macOS both programs are needed. On Windows, Word and the built-in page renderer are enough, so a
+      // path is required only for an engine the plan actually lists; any path that is reported must exist.
+      const plan = status.plan ?? { renderers: [], rasterizers: [] };
+      if (process.platform !== 'win32' || plan.renderers.includes('libreoffice')) expect(status.sofficePath).toBeTruthy();
+      if (process.platform !== 'win32' || plan.rasterizers.includes('poppler')) expect(status.pdftoppmPath).toBeTruthy();
+      if (status.sofficePath) expect(fs.existsSync(status.sofficePath)).toBe(true);
+      if (status.pdftoppmPath) expect(fs.existsSync(status.pdftoppmPath)).toBe(true);
     } else {
       expect(status.backend).toBe('none');
       expect(status.missing.length).toBeGreaterThan(0);
@@ -184,6 +188,11 @@ describe('hasPdfBackend capability gate', () => {
     const emptyDir = mkTmpDir('astra-visual-empty-path-');
     process.env.PATH = emptyDir;
     process.env.ASTRA_VISUAL_NO_FALLBACK_DIRS = '1';
+    // Name LibreOffice and Poppler: Word (found through the registry) and the built-in Windows page renderer do not
+    // depend on PATH, so on a Windows machine that has them `auto` would still be able to render.
+    const savedPrefs = { r: process.env.ASTRA_RENDERER, p: process.env.ASTRA_PDF_TO_IMAGE };
+    process.env.ASTRA_RENDERER = 'libreoffice';
+    process.env.ASTRA_PDF_TO_IMAGE = 'poppler';
     try {
       expect(findOnPath('soffice')).toBeNull();
       expect(findOnPath('pdftoppm')).toBeNull();
@@ -197,15 +206,30 @@ describe('hasPdfBackend capability gate', () => {
       await expect(renderDocxToImages(blankDocx(), {})).rejects.toMatchObject({ code: 'E_DEPENDENCY' });
     } finally {
       process.env.PATH = savedPath;
+      for (const [k, v] of [['ASTRA_RENDERER', savedPrefs.r], ['ASTRA_PDF_TO_IMAGE', savedPrefs.p]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
     }
   });
 
   it('E_DEPENDENCY with bogus explicit bin override (no PATH mutation)', async () => {
-    await expect(
-      renderDocxToImages(blankDocx(), { sofficeBin: '/nonexistent/soffice-astra-test', pdftoppmBin: '/nonexistent/pdftoppm-astra-test' })
-    ).rejects.toMatchObject({ code: 'E_DEPENDENCY' });
-    // Canonical engine gate behaves identically.
-    expect(hasPdfBackend({ sofficeBin: '/nonexistent/x', pdftoppmBin: '/nonexistent/y' }).available).toBe(false);
+    // LibreOffice and Poppler are named, so a Windows machine with Word and the built-in page renderer cannot satisfy the call.
+    const savedPrefs = { r: process.env.ASTRA_RENDERER, p: process.env.ASTRA_PDF_TO_IMAGE };
+    process.env.ASTRA_RENDERER = 'libreoffice';
+    process.env.ASTRA_PDF_TO_IMAGE = 'poppler';
+    try {
+      await expect(
+        renderDocxToImages(blankDocx(), { sofficeBin: '/nonexistent/soffice-astra-test', pdftoppmBin: '/nonexistent/pdftoppm-astra-test' })
+      ).rejects.toMatchObject({ code: 'E_DEPENDENCY' });
+      // Canonical engine gate behaves identically.
+      expect(hasPdfBackend({ sofficeBin: '/nonexistent/x', pdftoppmBin: '/nonexistent/y' }).available).toBe(false);
+    } finally {
+      for (const [k, v] of [['ASTRA_RENDERER', savedPrefs.r], ['ASTRA_PDF_TO_IMAGE', savedPrefs.p]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   });
 });
 
@@ -223,7 +247,7 @@ describe('headless renderer ok path (LO -> PDF -> pdftoppm)', () => {
     const res = await withLoSlot(() => renderDocxToImages(blankDocx(), { format: 'png', outDir }));
     expect(res.ok).toBe(true);
     expect(res.format).toBe('png');
-    expect(res.backend).toBe('libreoffice');
+    expect(res.backend).toBe(hasPdfBackend().plan?.renderers[0]);
     expect(res.totalPages).toBeGreaterThanOrEqual(1);
     expect(res.images.length).toBeGreaterThanOrEqual(1);
     expect(res.outDir).toBe(path.resolve(outDir));
