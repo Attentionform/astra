@@ -21,7 +21,7 @@ export interface PlanOutcome<T, E extends string> {
 
 export function failureClassOf(err: unknown): FailureClass | undefined {
   const c = (err as { failureClass?: unknown } | null)?.failureClass;
-  return c === 'infrastructure' || c === 'document' ? c : undefined;
+  return c === 'infrastructure' || c === 'document' || c === 'request' ? c : undefined;
 }
 
 /** One short line for `fallbackReason`: the error's own message, without its code prefix and remedy. */

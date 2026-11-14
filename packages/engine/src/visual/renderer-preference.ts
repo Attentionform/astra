@@ -210,8 +210,12 @@ export interface RasterizerReport {
   fallbackReason?: string;
 }
 
-/** A failure that says nothing about the document: the machine, a policy or the program itself is at fault. */
-export type FailureClass = 'infrastructure' | 'document';
+/**
+ * A failure that says nothing about the document: the machine, a policy or the program itself is at fault
+ * (`infrastructure`); or the document is (`document`); or the engine is healthy but cannot honour this request,
+ * for example the review view (`request`). Only `infrastructure` opens a circuit breaker.
+ */
+export type FailureClass = 'infrastructure' | 'document' | 'request';
 
 /**
  * Short-lived memory of an infrastructure failure so a long-lived process (the MCP server) does not pay a

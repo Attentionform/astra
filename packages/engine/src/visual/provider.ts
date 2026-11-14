@@ -9,7 +9,8 @@
 
 import type { RasterizerPreference, RasterizerReport, RendererPreference, RendererReport } from './renderer-preference';
 import type { ReferenceReport } from './references';
-import type { WordInstall } from './word';
+import type { WordInstall, WordStartState } from './word';
+import type { MarkupReport } from './markup';
 
 export type VisualImageFormat = 'png' | 'jpeg';
 
@@ -55,6 +56,11 @@ export interface VisualRenderOptions {
    * retargeted on the temporary copy). An explicit value, including `false`, beats ASTRA_ALLOW_NETWORK_REFERENCES.
    */
   allowNetworkReferences?: boolean;
+  /**
+   * Draw tracked changes and comments (default false). Falls back to ASTRA_SHOW_MARKUP. A markup render is produced
+   * by a different layout mode: pages can be scaled and pagination can change, so page numbers refer to this render.
+   */
+  showMarkup?: boolean;
   /** Tests only: replace what the machine would report (platform, Word, Windows renderer) and the PowerShell host. */
   testHooks?: VisualTestHooks;
 }
@@ -68,6 +74,8 @@ export interface VisualTestHooks {
   powershellArgs?: string[];
   /** Pause range between Word retries (ms). */
   wordRetryPauseMs?: [number, number];
+  /** Word review-view starting state applied on the render's own instance before the pin (smoke tests). */
+  wordStartState?: WordStartState;
   /** Plan `auto` as Word-first (the behaviour a later release may turn on). */
   autoPrefersWord?: boolean;
 }
@@ -84,6 +92,8 @@ export interface VisualRenderResult {
   rasterizer?: RasterizerReport;
   /** What the render did about network references in the document. */
   references?: ReferenceReport;
+  /** Present only when markup was requested: what was asked and what the renderer was told to do. */
+  markup?: MarkupReport;
 }
 
 /**

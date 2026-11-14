@@ -123,15 +123,70 @@ function probeWord(o: WordProbeOptions): WordInstall | null {
 // ---------------------------------------------------------------------------------------------------------
 
 /**
+ * A starting state for the review view, applied on the SAME Word instance and document right before the view is
+ * pinned. Tests only: a smoke test needs a bad starting state ("No Markup", comments off, a reviewer hidden) that is
+ * really in effect on the instance ASTra uses, which a separate interactive Word window cannot provide.
+ */
+export interface WordStartState {
+  /** 0 balloons, 1 inline, 2 mixed. */
+  markupMode?: 0 | 1 | 2;
+  showComments?: boolean;
+  /** Hide the first reviewer, by index (no name is read). */
+  hideFirstReviewer?: boolean;
+  /** "No Markup": revisions and comments hidden in the review pane. */
+  noMarkup?: boolean;
+}
+
+/** Strict validation: only the three known keys, only their allowed values. Throws on anything else. */
+export function validateStartState(state: WordStartState): WordStartState {
+  if (state === null || typeof state !== 'object' || Array.isArray(state)) throw new TypeError('startState must be an object');
+  const out: WordStartState = {};
+  for (const [k, v] of Object.entries(state)) {
+    if (k === 'markupMode' && (v === 0 || v === 1 || v === 2)) out.markupMode = v;
+    else if (k === 'showComments' && typeof v === 'boolean') out.showComments = v;
+    else if (k === 'hideFirstReviewer' && typeof v === 'boolean') out.hideFirstReviewer = v;
+    else if (k === 'noMarkup' && typeof v === 'boolean') out.noMarkup = v;
+    else throw new TypeError(`startState: unsupported key or value (${k})`);
+  }
+  return out;
+}
+
+/** The printed form of the view state: numbers only, so no reviewer name or document content can appear. */
+function startStateReadout(label: 'STARTSTATE' | 'ENDSTATE'): string {
+  return [
+    "\n    $hid = 0; try { for ($i = 1; $i -le [int]$view.Reviewers.Count; $i++) { if (-not $view.Reviewers.Item($i).Visible) { $hid++ } } } catch {}",
+    `    try { Say ('${label} mode={0} comments={1} hidden={2} revs={3} filter={4}' -f $view.MarkupMode, [int][bool]$view.ShowComments, $hid, [int][bool]$view.ShowRevisionsAndComments, [int]$view.RevisionsFilter.Markup) } catch {}`,
+  ].join('\n');
+}
+
+/** PowerShell for a validated start state. Built only from the validated numbers and booleans. */
+function startStateFragment(state: WordStartState, label: 'STARTSTATE' | 'ENDSTATE'): string {
+  const lines: string[] = [];
+  if (state.markupMode !== undefined) lines.push(`    try { $view.MarkupMode = ${state.markupMode} } catch {}`);
+  if (state.showComments !== undefined) lines.push(`    try { $view.ShowComments = ${state.showComments ? '$true' : '$false'} } catch {}`);
+  if (state.hideFirstReviewer) lines.push('    try { $view.Reviewers.Item(1).Visible = $false } catch {}');
+  if (state.noMarkup) lines.push('    try { $view.ShowRevisionsAndComments = $false } catch {}', '    try { $view.RevisionsFilter.Markup = 0 } catch {}');
+  return `\n${lines.join('\n')}${startStateReadout(label)}`;
+}
+
+/**
  * Exit codes: 0 ok, 11 Word could not be started, 12 constrained language, 13 instance in use or older than
  * this call (refused, untouched), 14 ambiguous instance or window/process mismatch (refused), 20 document
- * could not be opened, 22 PDF export failed.
+ * could not be opened, 22 PDF export failed, 23 the review view could not be set up (markup requested only).
+ *
+ * `startState` is for tests only. It is a validated description, never script text, and it is not reachable
+ * from an environment variable: the production call passes nothing, so the production script has no such step.
  */
-export function buildWordScript(): string {
+export function buildWordScript(startState?: WordStartState): string {
+  const state = startState === undefined ? undefined : validateStartState(startState);
+  const hook = state === undefined ? '' : startStateFragment(state, 'STARTSTATE');
+  const endHook = state === undefined ? '' : startStateReadout('ENDSTATE');
   return `${POWERSHELL_PRELUDE}
 Add-Type -Namespace N -Name U -MemberDefinition '[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);'
 function AutomationWord($id) { $c = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue; [bool]($c -and $c.CommandLine -match '/Automation.*-Embedding') }
-$in = $env:ASTRA_WORD_IN; $out = $env:ASTRA_WORD_OUT; $tagged = ($env:ASTRA_WORD_TAGGED -ne '0')
+$in = $env:ASTRA_WORD_IN; $out = $env:ASTRA_WORD_OUT; $tagged = ($env:ASTRA_WORD_TAGGED -ne '0'); $markup = ($env:ASTRA_WORD_MARKUP -eq '1')
+function Fail23($what) { Say ('ERR 23 0x00000000 ' + $what); exit 23 }
+$view = $null; $viewOrig = $null; $viewTouched = $false; $best = @()
 $mutex = New-Object Threading.Mutex($false, 'Local\\AstraWordLaunch'); $held = $false
 $word = $null; $doc = $null; $cand = 0; $crossChecked = $false; $mismatch = $false; $alone = $false; $origAlerts = $null; $origSec = $null; $changed = $false
 try {
@@ -158,11 +213,65 @@ try {
   if ($p -ne $cand) { $mismatch = $true; Say 'ERR 14 0x00000000 window process differs from candidate'; exit 14 }
   $crossChecked = $true
   Say ('PAGES {0}' -f $doc.ComputeStatistics(2))
-  try { $doc.ExportAsFixedFormat($out, 17, $false, 0, 0, 1, 1, 0, $true, $true, 0, $tagged, $true, $false) } catch { Die 22 $_ }
+  $item = 0
+  if ($markup) {
+    # The review view. Every original value is recorded first and written back in the finally block. Required
+    # settings are set and read back; a failure is exit 23 and nothing is exported. Reviewers are addressed by
+    # index, so no author name is read or printed.
+    try { $view = $doc.ActiveWindow.View } catch { Fail23 'the document view is not available' }${hook}
+    $viewOrig = @{ Mode = $null; Comments = $null; Rev = @() }
+    try {
+      $viewOrig.Mode = $view.MarkupMode; $viewOrig.Comments = $view.ShowComments
+      $n = [int]$view.Reviewers.Count
+      for ($i = 1; $i -le $n; $i++) { $viewOrig.Rev += [bool]$view.Reviewers.Item($i).Visible }
+    } catch { Fail23 'the current review view could not be read' }
+    $rf = $null; try { $rf = $view.RevisionsFilter } catch {}
+    foreach ($b in @(
+        @{ O = $view; N = 'ShowRevisionsAndComments'; V = $true },
+        @{ O = $view; N = 'RevisionsView'; V = 0 },
+        @{ O = $view; N = 'ShowInsertionsAndDeletions'; V = $true },
+        @{ O = $view; N = 'ShowFormatChanges'; V = $true },
+        @{ O = $rf; N = 'Markup'; V = 2; L = 'RevisionsFilter.Markup' },
+        @{ O = $rf; N = 'View'; V = 0; L = 'RevisionsFilter.View' })) {
+      if ($null -eq $b.O) { continue }
+      if (-not $b.L) { $b.L = $b.N }
+      $b.Orig = $null; $b.Had = $false
+      try { $b.Orig = $b.O.($b.N); $b.Had = $true } catch {}
+      $best += $b
+    }
+    $viewTouched = $true
+    try { $view.MarkupMode = 2 } catch {}
+    if ($view.MarkupMode -ne 2) { Fail23 'MarkupMode (inline marks with comment balloons)' }
+    try { $view.ShowComments = $true } catch {}
+    if ($view.ShowComments -ne $true) { Fail23 'ShowComments' }
+    $n = [int]$view.Reviewers.Count
+    for ($i = 1; $i -le $n; $i++) {
+      try { $view.Reviewers.Item($i).Visible = $true } catch {}
+      if (-not $view.Reviewers.Item($i).Visible) { Fail23 'a reviewer could not be made visible' }
+    }
+    foreach ($b in $best) { try { $b.O.($b.N) = $b.V } catch { Say ('WARN ' + $b.L) } }
+    Say ('MARKUP {0}' -f $view.MarkupMode)
+    $item = 7
+  }
+  try { $doc.ExportAsFixedFormat($out, 17, $false, 0, 0, 1, 1, $item, $true, $true, 0, $tagged, $true, $false) } catch { Die 22 $_ }
   Say 'OK'
 }
 finally {
   if ($held) { try { $mutex.ReleaseMutex() } catch {} }
+  if ($viewTouched -and $doc -and $view) {
+    # Put the view back before the document is closed, then read it back. Best effort: a killed process cannot do this.
+    $bad = @()
+    try { $view.MarkupMode = $viewOrig.Mode; if ($view.MarkupMode -ne $viewOrig.Mode) { $bad += 'MarkupMode' } } catch { $bad += 'MarkupMode' }
+    try { $view.ShowComments = $viewOrig.Comments; if ($view.ShowComments -ne $viewOrig.Comments) { $bad += 'ShowComments' } } catch { $bad += 'ShowComments' }
+    try {
+      for ($i = 1; $i -le $viewOrig.Rev.Count; $i++) {
+        $view.Reviewers.Item($i).Visible = $viewOrig.Rev[$i - 1]
+        if ([bool]$view.Reviewers.Item($i).Visible -ne $viewOrig.Rev[$i - 1]) { $bad += 'reviewer visibility'; break }
+      }
+    } catch { $bad += 'reviewer visibility' }
+    foreach ($b in $best) { if ($b.Had) { try { $b.O.($b.N) = $b.Orig; if ($b.O.($b.N) -ne $b.Orig) { $bad += $b.L } } catch { $bad += $b.L } } }
+    if ($bad.Count -eq 0) { Say 'VIEWRESTORE ok' } else { Say ('VIEWRESTORE failed ' + (($bad | Select-Object -Unique) -join ',')) }${endHook}
+  }
   if ($doc) { try { $doc.Close(0) } catch {} }
   if ($word -and $cand) {
     $mayQuit = $false
@@ -183,17 +292,32 @@ export interface WordProtocol {
   candidatePid?: number;
   version?: string;
   pages?: number;
+  /** `MARKUP n`: the `MarkupMode` that was set and read back (markup requested only). */
+  markupMode?: number;
+  /** `WARN <setting>`: a best-effort view setting that could not be set. Names come from a fixed list. */
+  warnings: string[];
+  /** `VIEWRESTORE`: did the view return to what it was? `undefined` when no view was changed. */
+  restore?: { ok: boolean; failed: string[] };
+  /** `STARTSTATE ...` and `ENDSTATE ...`: numbers only, printed by the test-only step. */
+  startState?: string;
+  endState?: string;
   ok: boolean;
   err?: { code: number; hresult: string; message: string };
 }
 
 export function parseWordProtocol(lines: string[]): WordProtocol {
-  const p: WordProtocol = { ok: false };
+  const p: WordProtocol = { ok: false, warnings: [] };
   for (const line of lines) {
     let m: RegExpExecArray | null;
     if ((m = /^CANDIDATE (\d+)$/.exec(line))) p.candidatePid = Number(m[1]);
     else if ((m = /^VERSION (\S+)$/.exec(line))) p.version = m[1];
     else if ((m = /^PAGES (\d+)$/.exec(line))) p.pages = Number(m[1]);
+    else if ((m = /^MARKUP (\d)$/.exec(line))) p.markupMode = Number(m[1]);
+    else if ((m = /^WARN ([A-Za-z.]{1,40})$/.exec(line))) p.warnings.push(m[1]);
+    else if (line === 'VIEWRESTORE ok') p.restore = { ok: true, failed: [] };
+    else if ((m = /^VIEWRESTORE failed ([A-Za-z.,\s]{1,200})$/.exec(line))) p.restore = { ok: false, failed: m[1].split(',').map((x) => x.trim()).filter(Boolean) };
+    else if ((m = /^STARTSTATE ([a-z0-9= ]{1,80})$/.exec(line))) p.startState = m[1];
+    else if ((m = /^ENDSTATE ([a-z0-9= ]{1,80})$/.exec(line))) p.endState = m[1];
     else if (line === 'OK') p.ok = true;
     else if ((m = /^ERR (\d+) (0x[0-9A-Fa-f]{8}) ?(.*)$/.exec(line))) p.err = { code: Number(m[1]), hresult: `0x${m[2].slice(2).toUpperCase()}`, message: sanitiseDetail(m[3]) };
   }
@@ -273,6 +397,16 @@ function classifyFailure(p: WordProtocol, exitCode: number | null, stderr: strin
         common
       );
     }
+    case 23:
+      // The engine itself is healthy; it cannot honour the review view. `request` keeps the breaker closed and
+      // still lets `auto` fall through to an engine that can.
+      return new WordRenderError(
+        'E_RENDER',
+        'request',
+        `E_RENDER: Word could not be set to show comments and tracked changes (${e.message}).`,
+        'Render without --show-markup, or use --renderer libreoffice.',
+        common
+      );
     case 22:
       return new WordRenderError(
         'E_RENDER',
@@ -298,12 +432,26 @@ export interface WordRenderOptions {
   powershellArgs?: string[];
   /** Pause range (ms) between retries for an instance that could not be confirmed private. Tests set 0. */
   retryPauseMs?: [number, number];
+  /** Draw tracked changes and comments (the review view). Default false: content only, as before. */
+  markup?: boolean;
+  /** Tests only; see `WordStartState`. Ignored unless `markup` is true. */
+  startState?: WordStartState;
 }
 
 export interface WordRenderOutcome {
   pages?: number;
   /** Word's own version string (for example "16.0"). */
   version?: string;
+  /** Present when markup was requested. */
+  markup?: {
+    mode: number;
+    /** Best-effort view settings that could not be set, and a restore that did not complete. Fixed wording. */
+    warnings: string[];
+    /** `STARTSTATE` / `ENDSTATE` lines of the test-only step, when it ran. */
+    startState?: string;
+    endState?: string;
+    restore?: { ok: boolean; failed: string[] };
+  };
 }
 
 const wordQueue = new RunQueue();
@@ -356,7 +504,8 @@ export function wordDocxToPdf(inDocx: string, outPdf: string, options: WordRende
     }
     const timeoutMs = options.timeoutMs ?? 60000;
     const deadline = Date.now() + timeoutMs;
-    const script = buildWordScript();
+    const markup = options.markup === true;
+    const script = buildWordScript(markup ? options.startState : undefined);
     const pause = options.retryPauseMs ?? [100, 400];
     let last: WordRenderError | undefined;
     for (let attempt = 1; attempt <= MAX_WORD_ATTEMPTS; attempt++) {
@@ -364,7 +513,7 @@ export function wordDocxToPdf(inDocx: string, outPdf: string, options: WordRende
       if (remaining < 1000) break;
       const run: PowerShellRunOptions = {
         script,
-        env: { ASTRA_WORD_IN: inDocx, ASTRA_WORD_OUT: outPdf, ASTRA_WORD_TAGGED: options.tagged === false ? '0' : '1' },
+        env: { ASTRA_WORD_IN: inDocx, ASTRA_WORD_OUT: outPdf, ASTRA_WORD_TAGGED: options.tagged === false ? '0' : '1', ASTRA_WORD_MARKUP: markup ? '1' : '0' },
         timeoutMs: remaining,
         powershellBin: options.powershellBin,
         powershellArgs: options.powershellArgs,
@@ -393,7 +542,25 @@ export function wordDocxToPdf(inDocx: string, outPdf: string, options: WordRende
         if (!fs.existsSync(outPdf) || !pdfLooksValid(outPdf)) {
           throw new WordRenderError('E_RENDER', 'infrastructure', 'E_RENDER: Word reported success but produced no valid PDF.', 'Use --renderer libreoffice.', { candidatePid: proto.candidatePid });
         }
-        return { pages: proto.pages, version: proto.version };
+        if (markup && proto.markupMode !== 2) {
+          // The script prints this only after the view was set and read back. Without it the review view is unconfirmed.
+          throw new WordRenderError(
+            'E_RENDER',
+            'request',
+            'E_RENDER: Word exported a PDF but did not confirm the review view, so the result cannot be called a markup render.',
+            'Render without --show-markup, or use --renderer libreoffice.',
+            { candidatePid: proto.candidatePid }
+          );
+        }
+        const warnings = proto.warnings.map((w) => `Word setting ${w} could not be set (the export did not need it on the tested Word).`);
+        if (proto.restore && !proto.restore.ok) {
+          warnings.push(`Word's review view could not be fully restored (${proto.restore.failed.join(', ') || 'unknown setting'}); it applied to the render's own Word window only.`);
+        }
+        return {
+          pages: proto.pages,
+          version: proto.version,
+          ...(markup ? { markup: { mode: proto.markupMode as number, warnings, ...(proto.startState ? { startState: proto.startState } : {}), ...(proto.endState ? { endState: proto.endState } : {}), ...(proto.restore ? { restore: proto.restore } : {}) } } : {}),
+        };
       }
       last = classifyFailure(proto, res.exitCode, res.stderr);
       if (last.exitCode === 13 || last.exitCode === 14) {

@@ -26,6 +26,15 @@ import {
   type ReferenceReport,
 } from '../visual/references';
 import { findWord, wordDocxToPdf, type WordInstall } from '../visual/word';
+import {
+  assertLibreOfficeMarkupSupport,
+  buildMarkupReport,
+  effectiveShowMarkup,
+  libreOfficeFilterSpec,
+  libreOfficeMarkupWarnings,
+  markupFailureError,
+  type MarkupReport,
+} from '../visual/markup';
 import type { VisualTestHooks } from '../visual/provider';
 
 export class DependencyError extends Error {
@@ -96,6 +105,11 @@ export interface PdfExportOptions {
    * on the temporary copy). An explicit value, including `false`, beats ASTRA_ALLOW_NETWORK_REFERENCES.
    */
   allowNetworkReferences?: boolean;
+  /**
+   * Draw tracked changes and comments (default false). Falls back to ASTRA_SHOW_MARKUP. Word: the export with
+   * markup; LibreOffice: comments in the margin. Pages can be scaled and pagination can change.
+   */
+  showMarkup?: boolean;
   /** Tests only: replace what the machine would report and the PowerShell host. */
   testHooks?: VisualTestHooks;
 }
@@ -105,6 +119,8 @@ export interface PdfConversionResult {
   path: string;
   renderer: RendererReport;
   references: ReferenceReport;
+  /** Present only when markup was requested: what was asked and what the renderer was told to do. */
+  markup?: MarkupReport;
 }
 
 /**
@@ -114,10 +130,8 @@ export interface PdfConversionResult {
  * pass JSON filter data: LibreOffice 25.2 rejects the semicolon form
  * (`SelectPdfVersion=0;UseTaggedPDF=false`) with Unspecified Application Error.
  */
-export function pdfFilterSpec(tagged: boolean): string {
-  return tagged
-    ? 'pdf:writer_pdf_Export'
-    : 'pdf:writer_pdf_Export:{"UseTaggedPDF":{"type":"boolean","value":"false"}}';
+export function pdfFilterSpec(tagged: boolean, extra: { markup?: boolean } = {}): string {
+  return libreOfficeFilterSpec(tagged, extra.markup === true);
 }
 
 let cachedBackendBinary: string | null | undefined = undefined;
@@ -188,6 +202,7 @@ export async function convertDocxToPdfDetailed(
   // Choices first: an invalid value fails loudly before anything runs.
   const rendererPref = effectiveRendererPreference(options?.renderer);
   const allowRefs = effectiveAllowNetworkReferences(options?.allowNetworkReferences);
+  const showMarkup = effectiveShowMarkup(options?.showMarkup);
 
   const binary = options?.binary || getPdfBackendBinary();
   const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && (hooks.autoPrefersWord ?? AUTO_PREFERS_WORD));
@@ -248,8 +263,8 @@ export async function convertDocxToPdfDetailed(
       { canFallBack: plan.canFallBack, auto: plan.requested === 'auto' },
       (engine) =>
         engine === 'word'
-          ? convertWithWord(renderBytes, outPdfPath, options, staged, hooks)
-          : convertWithLibreOffice(renderBytes, outPdfPath, options, binary as string, staged),
+          ? convertWithWord(renderBytes, outPdfPath, options, staged, hooks, showMarkup)
+          : convertWithLibreOffice(renderBytes, outPdfPath, options, binary as string, staged, showMarkup),
       { word: wordBreaker }
     );
     for (const dir of staged) {
@@ -261,7 +276,7 @@ export async function convertDocxToPdfDetailed(
       ...(run.used === 'word' && word ? { version: word.version } : {}),
       ...(run.fallbackFrom ? { fallbackFrom: run.fallbackFrom, fallbackReason: run.fallbackReason } : {}),
     };
-    return { path: run.value, renderer, references };
+    return { path: run.value.path, renderer, references, ...(showMarkup ? { markup: buildMarkupReport(run.used, run.value.markupWarnings) } : {}) };
   } catch (err: unknown) {
     for (const dir of staged) {
       keepForForensics(dir, 'PDF export failed');
@@ -272,6 +287,55 @@ export async function convertDocxToPdfDetailed(
 
 /** LibreOffice: tagged render, retried once untagged; both failing is a structured RenderError. */
 async function convertWithLibreOffice(
+  docxBuffer: Buffer,
+  outPdfPath: string,
+  options: PdfExportOptions | undefined,
+  binary: string,
+  staged: string[],
+  markup: boolean
+): Promise<ExportStep> {
+  if (markup) return convertWithLibreOfficeMarkup(docxBuffer, outPdfPath, options, binary, staged);
+  return { path: await convertWithLibreOfficePlain(docxBuffer, outPdfPath, options, binary, staged) };
+}
+
+/**
+ * With markup: one render with the margin-comments option, at the requested tagging. The option is only sent to a
+ * tested LibreOffice version. A failure is never retried silently without the option; one diagnostic render without
+ * it (its output is discarded) lets the error say what this call showed.
+ */
+async function convertWithLibreOfficeMarkup(
+  docxBuffer: Buffer,
+  outPdfPath: string,
+  options: PdfExportOptions | undefined,
+  binary: string,
+  staged: string[]
+): Promise<ExportStep> {
+  const markupWarnings = (assertLibreOfficeMarkupSupport(binary), libreOfficeMarkupWarnings());
+  const tagged = options?.tagged ?? true;
+  try {
+    return { path: await convertWithFilter(docxBuffer, outPdfPath, pdfFilterSpec(tagged, { markup: true }), options, binary, staged), markupWarnings };
+  } catch (markupErr: unknown) {
+    const markupMsg = markupErr instanceof Error ? markupErr.message : String(markupErr);
+    const diagnostic = path.join(secureMkdtemp('astra-pdf-diag-'), 'diagnostic.pdf');
+    let plain: { ok: true } | { ok: false; error: string };
+    try {
+      await convertWithFilter(docxBuffer, diagnostic, pdfFilterSpec(tagged), options, binary, undefined);
+      plain = { ok: true };
+    } catch (plainErr: unknown) {
+      plain = { ok: false, error: plainErr instanceof Error ? plainErr.message : String(plainErr) };
+    } finally {
+      try {
+        await fsp.rm(path.dirname(diagnostic), { recursive: true, force: true });
+      } catch {
+        /* best effort: the diagnostic file is never returned */
+      }
+    }
+    throw markupFailureError(markupMsg, plain);
+  }
+}
+
+/** LibreOffice: tagged render, retried once untagged; both failing is a structured RenderError. */
+async function convertWithLibreOfficePlain(
   docxBuffer: Buffer,
   outPdfPath: string,
   options: PdfExportOptions | undefined,
@@ -301,14 +365,21 @@ async function convertWithLibreOffice(
   }
 }
 
+/** What one engine returns: the file it wrote, and any best-effort Word view settings that could not be set. */
+interface ExportStep {
+  path: string;
+  markupWarnings?: string[];
+}
+
 /** Word (Windows): one export; the tagged flag maps to Word's document-structure-tags switch. */
 async function convertWithWord(
   docxBuffer: Buffer,
   outPdfPath: string,
   options: PdfExportOptions | undefined,
   staged: string[],
-  hooks: VisualTestHooks
-): Promise<string> {
+  hooks: VisualTestHooks,
+  markup: boolean
+): Promise<ExportStep> {
   const tmpDir = secureMkdtemp('astra-pdf-');
   const tmpDocxPath = path.join(tmpDir, `doc_${Date.now()}.docx`);
   let succeeded = false;
@@ -316,16 +387,17 @@ async function convertWithWord(
     await fsp.writeFile(tmpDocxPath, docxBuffer);
     secureFile(tmpDocxPath);
     const generated = path.join(tmpDir, 'word-output.pdf');
-    await wordDocxToPdf(tmpDocxPath, generated, {
+    const outcome = await wordDocxToPdf(tmpDocxPath, generated, {
       tagged: options?.tagged ?? true,
       timeoutMs: options?.timeoutMs || 60000,
+      ...(markup ? { markup: true, ...(hooks.wordStartState ? { startState: hooks.wordStartState } : {}) } : {}),
       powershellBin: hooks.powershellBin,
       powershellArgs: hooks.powershellArgs,
       ...(hooks.wordRetryPauseMs ? { retryPauseMs: hooks.wordRetryPauseMs } : {}),
     });
     const out = await copyOutPdf(generated, outPdfPath);
     succeeded = true;
-    return out;
+    return { path: out, ...(outcome.markup ? { markupWarnings: outcome.markup.warnings } : {}) };
   } finally {
     if (succeeded) {
       try {
