@@ -8,6 +8,25 @@ import { assertWriteTargetNoSymlink, writeFileNoFollow } from '../sandbox/paths'
 import { keepForForensics, secureFile, secureMkdtemp } from '../tmp';
 import { PreflightError, runPreflightChecks } from './preflight';
 import { findOnPath } from '../visual/backend';
+import { runPlan } from '../visual/render-plan';
+import {
+  AUTO_PREFERS_WORD,
+  effectiveRendererPreference,
+  planRenderers,
+  wordBreaker,
+  type RendererPreference,
+  type RendererReport,
+} from '../visual/renderer-preference';
+import {
+  analyseReferences,
+  buildReferenceReport,
+  effectiveAllowNetworkReferences,
+  emptyReferenceReport,
+  neutraliseReferences,
+  type ReferenceReport,
+} from '../visual/references';
+import { findWord, wordDocxToPdf, type WordInstall } from '../visual/word';
+import type { VisualTestHooks } from '../visual/provider';
 
 export class DependencyError extends Error {
   code = 'E_DEPENDENCY';
@@ -70,6 +89,22 @@ export interface PdfExportOptions {
   tagged?: boolean;
   /** Fail closed on preflight blockers. Default false (warn-only). */
   strict?: boolean;
+  /** DOCX -> PDF program: auto (default), word (Windows only) or libreoffice. Falls back to ASTRA_RENDERER, then auto. */
+  renderer?: RendererPreference;
+  /**
+   * Let the renderer load network locations the document names (default false: such references are retargeted
+   * on the temporary copy). An explicit value, including `false`, beats ASTRA_ALLOW_NETWORK_REFERENCES.
+   */
+  allowNetworkReferences?: boolean;
+  /** Tests only: replace what the machine would report and the PowerShell host. */
+  testHooks?: VisualTestHooks;
+}
+
+/** What a PDF export did, beyond the file it wrote. */
+export interface PdfConversionResult {
+  path: string;
+  renderer: RendererReport;
+  references: ReferenceReport;
 }
 
 /**
@@ -121,28 +156,56 @@ export function setPdfBackendBinaryForTesting(bin: string | null): void {
 }
 
 /**
- * Converts a raw .docx buffer into a PDF file on disk.
- * Uses headless LibreOffice conversion (tagged render by default).
- * Runs export preflight first: warn-only by default, fail-closed with
- * `strict: true` when blockers are present.
- * A failed tagged render is retried once as an untagged render; if both
- * fail a structured RenderError (code 'E_RENDER') is thrown.
- * Throws DependencyError (code 'E_DEPENDENCY') if LibreOffice is not installed.
+ * Converts a raw .docx buffer into a PDF file on disk and returns its path.
+ * See `convertDocxToPdfDetailed` for the behaviour and for what else a conversion reports.
  */
 export async function convertDocxToPdf(
   docxBuffer: Buffer,
   outPdfPath: string,
   options?: PdfExportOptions
 ): Promise<string> {
+  return (await convertDocxToPdfDetailed(docxBuffer, outPdfPath, options)).path;
+}
+
+/**
+ * Converts a raw .docx buffer into a PDF file on disk and says how.
+ * Uses headless LibreOffice, or Word on Windows when asked (`renderer: 'word'`); `auto` is LibreOffice in 0.5.2.
+ * Runs export preflight first: warn-only by default, fail-closed with
+ * `strict: true` when blockers are present. Network references are retargeted on the render copy unless
+ * `allowNetworkReferences` is true (the source bytes are never changed).
+ * With LibreOffice, a failed tagged render is retried once as an untagged render; if both
+ * fail a structured RenderError (code 'E_RENDER') is thrown. A Word failure is thrown as a WordRenderError
+ * (`code`, `remedy` and `failureClass` set), never wrapped.
+ * Throws DependencyError (code 'E_DEPENDENCY') if no renderer is installed.
+ */
+export async function convertDocxToPdfDetailed(
+  docxBuffer: Buffer,
+  outPdfPath: string,
+  options?: PdfExportOptions
+): Promise<PdfConversionResult> {
+  const hooks: VisualTestHooks = options?.testHooks ?? {};
+  const platform = hooks.platform ?? process.platform;
+  // Choices first: an invalid value fails loudly before anything runs.
+  const rendererPref = effectiveRendererPreference(options?.renderer);
+  const allowRefs = effectiveAllowNetworkReferences(options?.allowNetworkReferences);
+
   const binary = options?.binary || getPdfBackendBinary();
-  if (!binary) {
+  const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && AUTO_PREFERS_WORD);
+  const word: WordInstall | null = wordMayRun && platform === 'win32' ? (hooks.word !== undefined ? hooks.word : findWord()) : null;
+  const plan = planRenderers(rendererPref, {
+    platform,
+    word: word !== null,
+    libreoffice: Boolean(binary),
+    wordUsable: !wordBreaker.isOpen(),
+  });
+  if (plan.engines.length === 0) {
     throw new DependencyError(
       `[E_DEPENDENCY] Headless PDF export requires LibreOffice ('libreoffice' or 'soffice'). ` +
       `Please install LibreOffice:\n` +
       `  Debian/Ubuntu: sudo apt install libreoffice\n` +
       `  Fedora/RHEL:   sudo dnf install libreoffice\n` +
       `  macOS:         brew install --cask libreoffice\n` +
-      `  Windows:       winget install TheDocumentFoundation.LibreOffice\n` +
+      `  Windows:       winget install TheDocumentFoundation.LibreOffice (or use Microsoft Word: --renderer word)\n` +
       `ASTra also looks in the standard install folders (for example C:\\Program Files\\LibreOffice\\program ` +
       `and /Applications/LibreOffice.app/Contents/MacOS).`
     );
@@ -159,35 +222,118 @@ export async function convertDocxToPdf(
     throw new PreflightError(preflight.blockers);
   }
 
+  // Network references: retargeted on the render copy unless allowed. Failing to check fails the export
+  // (fail closed); in allowed mode the scan only reports, so its failure is not fatal.
+  let renderBytes = docxBuffer;
+  let references: ReferenceReport;
+  if (allowRefs) {
+    try {
+      references = buildReferenceReport(true, analyseReferences(docxBuffer, { mutate: false }));
+    } catch {
+      references = { ...emptyReferenceReport(true), scanFailed: true };
+    }
+  } else {
+    const neutralised = neutraliseReferences(docxBuffer);
+    renderBytes = neutralised.docx;
+    references = buildReferenceReport(false, neutralised);
+  }
+
+  // Failure dirs are staged (not yet logged as forensics) so a successful render by any engine or filter
+  // leaves no temp dirs behind.
+  const staged: string[] = [];
+  try {
+    const run = await runPlan(
+      plan.engines,
+      { canFallBack: plan.canFallBack, auto: plan.requested === 'auto' },
+      (engine) =>
+        engine === 'word'
+          ? convertWithWord(renderBytes, outPdfPath, options, staged, hooks)
+          : convertWithLibreOffice(renderBytes, outPdfPath, options, binary as string, staged),
+      { word: wordBreaker }
+    );
+    for (const dir of staged) {
+      await removeStagedDir(dir);
+    }
+    const renderer: RendererReport = {
+      requested: plan.requested,
+      used: run.used,
+      ...(run.used === 'word' && word ? { version: word.version } : {}),
+      ...(run.fallbackFrom ? { fallbackFrom: run.fallbackFrom, fallbackReason: run.fallbackReason } : {}),
+    };
+    return { path: run.value, renderer, references };
+  } catch (err: unknown) {
+    for (const dir of staged) {
+      keepForForensics(dir, 'PDF export failed');
+    }
+    throw err;
+  }
+}
+
+/** LibreOffice: tagged render, retried once untagged; both failing is a structured RenderError. */
+async function convertWithLibreOffice(
+  docxBuffer: Buffer,
+  outPdfPath: string,
+  options: PdfExportOptions | undefined,
+  binary: string,
+  staged: string[]
+): Promise<string> {
   const tagged = options?.tagged ?? true;
   if (!tagged) {
     try {
-      return await convertWithFilter(docxBuffer, outPdfPath, pdfFilterSpec(false), options, binary);
+      return await convertWithFilter(docxBuffer, outPdfPath, pdfFilterSpec(false), options, binary, staged);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new RenderError('', msg, 'untagged');
     }
   }
-  // Failure dirs from the tagged stage are staged (not yet logged as
-  // forensics) so a successful untagged fallback leaves no temp dirs behind.
-  const stagedForensics: string[] = [];
   try {
-    return await convertWithFilter(docxBuffer, outPdfPath, pdfFilterSpec(true), options, binary, stagedForensics);
+    return await convertWithFilter(docxBuffer, outPdfPath, pdfFilterSpec(true), options, binary, staged);
   } catch (taggedErr: unknown) {
     const taggedMsg = taggedErr instanceof Error ? taggedErr.message : String(taggedErr);
     process.stderr.write(`[pdf] tagged render failed (${taggedMsg}); retrying with untagged render\n`);
     try {
-      const result = await convertWithFilter(docxBuffer, outPdfPath, pdfFilterSpec(false), options, binary, stagedForensics);
-      for (const dir of stagedForensics) {
-        await removeStagedDir(dir);
-      }
-      return result;
+      return await convertWithFilter(docxBuffer, outPdfPath, pdfFilterSpec(false), options, binary, staged);
     } catch (untaggedErr: unknown) {
       const untaggedMsg = untaggedErr instanceof Error ? untaggedErr.message : String(untaggedErr);
-      for (const dir of stagedForensics) {
-        keepForForensics(dir, 'PDF export failed');
-      }
       throw new RenderError(taggedMsg, untaggedMsg, 'both');
+    }
+  }
+}
+
+/** Word (Windows): one export; the tagged flag maps to Word's document-structure-tags switch. */
+async function convertWithWord(
+  docxBuffer: Buffer,
+  outPdfPath: string,
+  options: PdfExportOptions | undefined,
+  staged: string[],
+  hooks: VisualTestHooks
+): Promise<string> {
+  const tmpDir = secureMkdtemp('astra-pdf-');
+  const tmpDocxPath = path.join(tmpDir, `doc_${Date.now()}.docx`);
+  let succeeded = false;
+  try {
+    await fsp.writeFile(tmpDocxPath, docxBuffer);
+    secureFile(tmpDocxPath);
+    const generated = path.join(tmpDir, 'word-output.pdf');
+    await wordDocxToPdf(tmpDocxPath, generated, {
+      tagged: options?.tagged ?? true,
+      timeoutMs: options?.timeoutMs || 60000,
+      powershellBin: hooks.powershellBin,
+      powershellArgs: hooks.powershellArgs,
+      ...(hooks.wordRetryPauseMs ? { retryPauseMs: hooks.wordRetryPauseMs } : {}),
+    });
+    const out = await copyOutPdf(generated, outPdfPath);
+    succeeded = true;
+    return out;
+  } finally {
+    if (succeeded) {
+      try {
+        await fsp.rm(tmpDir, { recursive: true, force: true });
+      } catch {
+        keepForForensics(tmpDir, 'could not remove tmp dir after success');
+      }
+    } else {
+      staged.push(tmpDir);
     }
   }
 }
@@ -211,6 +357,23 @@ async function removeStagedDir(dir: string): Promise<void> {
     }
   }
   keepForForensics(dir, 'could not remove staged tmp dir after fallback success');
+}
+
+/** Copy a generated PDF to its destination with the hardened write (no symlink follow, 0644). */
+async function copyOutPdf(generatedPdfPath: string, outPdfPath: string): Promise<string> {
+  const targetDir = path.dirname(path.resolve(outPdfPath));
+  // M1: refuse dangling-symlink PDF targets before the copy-out lands
+  // (lstat chain + O_NOFOLLOW write closes the check-then-use window).
+  assertWriteTargetNoSymlink(path.resolve(outPdfPath));
+  await fsp.mkdir(targetDir, { recursive: true });
+  assertWriteTargetNoSymlink(path.resolve(outPdfPath));
+
+  await writeFileNoFollow(path.resolve(outPdfPath), await fsp.readFile(generatedPdfPath));
+  // Normalize the output mode with the sibling exporters (0644): the
+  // hardened write above creates 0600 (LO-temp inheritance) while
+  // docx/html/md outputs land 0644. Explicit chmod, not umask-dependent.
+  fs.chmodSync(path.resolve(outPdfPath), 0o644);
+  return path.resolve(outPdfPath);
 }
 
 async function convertWithFilter(
@@ -282,20 +445,9 @@ async function convertWithFilter(
       throw new Error(`PDF conversion failed: output file ${generatedPdfPath} was not created`);
     }
 
-    const targetDir = path.dirname(path.resolve(outPdfPath));
-    // M1: refuse dangling-symlink PDF targets before the copy-out lands
-    // (lstat chain + O_NOFOLLOW write closes the check-then-use window).
-    assertWriteTargetNoSymlink(path.resolve(outPdfPath));
-    await fsp.mkdir(targetDir, { recursive: true });
-    assertWriteTargetNoSymlink(path.resolve(outPdfPath));
-
-    await writeFileNoFollow(path.resolve(outPdfPath), await fsp.readFile(generatedPdfPath));
-    // Normalize the output mode with the sibling exporters (0644): the
-    // hardened write above creates 0600 (LO-temp inheritance) while
-    // docx/html/md outputs land 0644. Explicit chmod, not umask-dependent.
-    fs.chmodSync(path.resolve(outPdfPath), 0o644);
+    const written = await copyOutPdf(generatedPdfPath, outPdfPath);
     succeeded = true;
-    return path.resolve(outPdfPath);
+    return written;
   } finally {
     if (succeeded) {
       try {

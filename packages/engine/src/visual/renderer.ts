@@ -1,5 +1,5 @@
 /**
- * Headless document renderer: DOCX -> PDF (LibreOffice) -> PNG/JPEG (pdftoppm).
+ * Headless document renderer: DOCX -> PDF (LibreOffice, or Word on Windows) -> PNG/JPEG (Windows built-in PDF renderer or pdftoppm).
  *
  * PNG default (lossless glyph edges for vision models); JPEG opt-in via
  * `{format:'jpeg', jpegQuality}` for bandwidth-sensitive hosts.
@@ -14,7 +14,29 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { assertPdfBackend } from './backend';
+import { createDependencyError, resolvePoppler, resolveSoffice } from './backend';
+import {
+  AUTO_PREFERS_WORD,
+  effectiveRasterizerPreference,
+  effectiveRendererPreference,
+  planRasterizers,
+  planRenderers,
+  windowsRasterizerBreaker,
+  wordBreaker,
+  type RasterizerReport,
+  type RendererReport,
+} from './renderer-preference';
+import { runPlan } from './render-plan';
+import {
+  analyseReferences,
+  buildReferenceReport,
+  effectiveAllowNetworkReferences,
+  emptyReferenceReport,
+  neutraliseReferences,
+  type ReferenceReport,
+} from './references';
+import { findWord, wordDocxToPdf, type WordInstall } from './word';
+import { windowsPdfToImages, windowsRendererAvailable } from './windows-pdf';
 import { canonicalizeForAsset as canonicalizeVisualPath, isPathInsideDir as isVisualInsideDir } from '../sandbox/paths';
 import { keepForForensics, removeDirBestEffort, resolveAstraTmpBase, secureDir, secureFile, secureMkdtemp } from '../tmp';
 import type {
@@ -23,6 +45,7 @@ import type {
   VisualPageImage,
   VisualRenderOptions,
   VisualRenderResult,
+  VisualTestHooks,
 } from './provider';
 
 const execFileAsync = promisify(execFile);
@@ -163,10 +186,150 @@ export function resolveJailedVisualOutDir(rawOutDir: string): string {
   return canonical;
 }
 
+interface PdfStep {
+  pdfPath: string;
+  /** Word major version when Word rendered. */
+  wordVersion?: number;
+}
+
+interface RasterStep {
+  files: Array<{ page: number; file: string }>;
+  totalPages: number;
+  /** The rasterizer already applied the page selection (the Windows renderer does); otherwise `normalizePages` runs. */
+  selected: boolean;
+}
+
+/** DOCX -> PDF with LibreOffice headless (retry for profile lock contention). */
+async function renderWithLibreOffice(sofficePath: string, workDir: string, inputDocx: string, timeoutMs: number): Promise<PdfStep> {
+  let lastErr: unknown;
+  let converted = false;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await execFileAsync(sofficePath, [`-env:UserInstallation=${pathToFileURL(path.join(workDir, 'lo_profile')).href}`, '--headless', '--convert-to', 'pdf', '--outdir', workDir, inputDocx], {
+        timeout: timeoutMs,
+      });
+      converted = true;
+      break;
+    } catch (err: unknown) {
+      lastErr = err;
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 250 * attempt));
+      }
+    }
+  }
+  if (!converted) {
+    const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    throw validationError(`E_VALIDATION: libreoffice PDF conversion failed: ${msg.slice(0, 500)}`, 'Verify the .docx opens in Word/LibreOffice and retry.');
+  }
+  let pdfPath: string | null = null;
+  try {
+    const names = fs.readdirSync(workDir).filter((n) => n.toLowerCase().endsWith('.pdf') && n !== WORD_PDF_NAME);
+    // Prefer input.pdf; fall back to the first PDF (LO version drift).
+    names.sort((a, b) => (a === 'input.pdf' ? -1 : b === 'input.pdf' ? 1 : a.localeCompare(b)));
+    if (names.length > 0) pdfPath = path.join(workDir, names[0]);
+  } catch {
+    pdfPath = null;
+  }
+  if (!pdfPath || !fs.existsSync(pdfPath)) {
+    throw validationError('E_VALIDATION: libreoffice produced no PDF output.', 'Verify the .docx opens in Word/LibreOffice and retry.');
+  }
+  return { pdfPath };
+}
+
+const WORD_PDF_NAME = 'word-output.pdf';
+
+/** DOCX -> PDF with Word (Windows). A failed attempt leaves no partial PDF behind for the fallback to trip over. */
+async function renderWithWord(
+  word: WordInstall,
+  workDir: string,
+  inputDocx: string,
+  timeoutMs: number,
+  hooks: VisualTestHooks
+): Promise<PdfStep> {
+  const out = path.join(workDir, WORD_PDF_NAME);
+  try {
+    // Page images do not need a tagged (accessible) PDF; skipping the structure tree is faster and smaller.
+    await wordDocxToPdf(inputDocx, out, {
+      tagged: false,
+      timeoutMs,
+      powershellBin: hooks.powershellBin,
+      powershellArgs: hooks.powershellArgs,
+      ...(hooks.wordRetryPauseMs ? { retryPauseMs: hooks.wordRetryPauseMs } : {}),
+    });
+    return { pdfPath: out, wordVersion: word.version };
+  } catch (err: unknown) {
+    try {
+      fs.rmSync(out, { force: true });
+    } catch {
+      /* best-effort */
+    }
+    throw err;
+  }
+}
+
+/** PDF -> page images with Poppler's pdftoppm (renders every page; selection happens afterwards). */
+async function rasterizeWithPoppler(
+  pdftoppmPath: string,
+  workDir: string,
+  pdfPath: string,
+  format: VisualImageFormat,
+  dpi: number,
+  jpegQuality: number,
+  timeoutMs: number
+): Promise<RasterStep> {
+  const prefixBase = 'page';
+  const prefix = path.join(workDir, prefixBase);
+  const ppmArgs: string[] =
+    format === 'png'
+      ? ['-png', '-r', String(dpi), pdfPath, prefix]
+      : ['-jpeg', '-jpegopt', `quality=${jpegQuality}`, '-r', String(dpi), pdfPath, prefix];
+  try {
+    await execFileAsync(pdftoppmPath, ppmArgs, { timeout: Math.min(timeoutMs, 60000) });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw validationError(`E_VALIDATION: pdftoppm rasterization failed: ${msg.slice(0, 500)}`, 'Verify the converted PDF is readable and retry.');
+  }
+  const rendered = listRenderedPages(workDir, prefixBase);
+  if (rendered.length === 0) {
+    throw validationError('E_VALIDATION: pdftoppm produced no page images.', 'Verify the document has at least one page and retry.');
+  }
+  return { files: rendered, totalPages: rendered.length, selected: false };
+}
+
+/** PDF -> page images with the Windows built-in renderer (renders only the selected pages, into its own folder). */
+async function rasterizeWithWindows(
+  workDir: string,
+  pdfPath: string,
+  format: VisualImageFormat,
+  dpi: number,
+  jpegQuality: number,
+  pages: number[] | undefined,
+  maxPages: number,
+  timeoutMs: number,
+  hooks: VisualTestHooks
+): Promise<RasterStep> {
+  const dir = path.join(workDir, 'windows-pages');
+  fs.mkdirSync(dir, { recursive: true });
+  const out = await windowsPdfToImages(pdfPath, dir, {
+    format,
+    dpi,
+    jpegQuality,
+    pages,
+    maxPages,
+    timeoutMs: Math.min(timeoutMs, 60000),
+    powershellBin: hooks.powershellBin,
+    powershellArgs: hooks.powershellArgs,
+  });
+  return { files: out.images.sort((a, b) => a.page - b.page), totalPages: out.totalPages, selected: true };
+}
+
 /**
  * Render a DOCX buffer to page images.
- * Throws `E_DEPENDENCY` when LibreOffice/pdftoppm are missing (mock PATH in
- * tests by clearing `process.env.PATH` or passing bogus `sofficeBin`).
+ *
+ * DOCX -> PDF uses Word (Windows, opt-in) or LibreOffice; PDF -> images uses the Windows built-in renderer or
+ * Poppler. `renderer`, `pdfToImage` and `allowNetworkReferences` (or their environment variables) choose.
+ * Throws `E_DEPENDENCY` when no usable program exists (mock PATH in tests by clearing `process.env.PATH` or
+ * passing bogus `sofficeBin`/`pdftoppmBin`).
  */
 export async function renderDocxToImages(
   docxBuffer: Buffer,
@@ -183,12 +346,52 @@ export async function renderDocxToImages(
   const jpegQuality = clampInt(opts.jpegQuality ?? VISUAL_DEFAULT_JPEG_QUALITY, 1, 100, VISUAL_DEFAULT_JPEG_QUALITY);
   const maxPages = clampInt(opts.maxPages ?? VISUAL_DEFAULT_MAX_PAGES, 1, 32, VISUAL_DEFAULT_MAX_PAGES);
   const timeoutMs = clampInt(opts.timeoutMs ?? 60000, 1000, 300000, 60000);
+  const hooks: VisualTestHooks = opts.testHooks ?? {};
+  const platform = hooks.platform ?? process.platform;
 
-  // Capability gate FIRST (fail-closed E_DEPENDENCY before any temp I/O).
-  const { sofficePath, pdftoppmPath } = assertPdfBackend({
-    sofficeBin: opts.sofficeBin,
-    pdftoppmBin: opts.pdftoppmBin,
+  // Choices first: an invalid flag, parameter or environment value fails loudly before any temp I/O.
+  const rendererPref = effectiveRendererPreference(opts.renderer);
+  // An explicit pdftoppm binary means "use that Poppler" unless the caller chose a rasterizer.
+  const rasterPref = effectiveRasterizerPreference(opts.pdfToImage ?? (opts.pdftoppmBin && opts.pdftoppmBin.trim() ? 'poppler' : undefined));
+  const allowRefs = effectiveAllowNetworkReferences(opts.allowNetworkReferences);
+
+  // Capability gate (fail-closed E_DEPENDENCY before any temp I/O).
+  const sofficePath = resolveSoffice(opts.sofficeBin);
+  const pdftoppmPath = resolvePoppler({ pdftoppmBin: opts.pdftoppmBin });
+  const wordMayRun = rendererPref === 'word' || (rendererPref === 'auto' && AUTO_PREFERS_WORD);
+  const word: WordInstall | null = wordMayRun && platform === 'win32' ? (hooks.word !== undefined ? hooks.word : findWord()) : null;
+  const rendererPlan = planRenderers(rendererPref, {
+    platform,
+    word: word !== null,
+    libreoffice: sofficePath !== null,
+    wordUsable: !wordBreaker.isOpen(),
   });
+  const rasterizerPlan = planRasterizers(rasterPref, {
+    platform,
+    windowsRenderer: hooks.windowsRenderer ?? windowsRendererAvailable({ platform }),
+    poppler: pdftoppmPath !== null,
+    windowsUsable: !windowsRasterizerBreaker.isOpen(),
+  });
+  const missing: string[] = [];
+  if (rendererPlan.engines.length === 0) missing.push('soffice');
+  if (rasterizerPlan.engines.length === 0) missing.push('pdftoppm');
+  if (missing.length > 0) throw createDependencyError(missing);
+
+  // Network references: neutralised on the render copy unless the caller allowed them. A failure to check
+  // fails the render (fail closed); in allowed mode the scan only reports, so its failure is not fatal.
+  let renderBytes = docxBuffer;
+  let references: ReferenceReport;
+  if (allowRefs) {
+    try {
+      references = buildReferenceReport(true, analyseReferences(docxBuffer, { mutate: false }));
+    } catch {
+      references = { ...emptyReferenceReport(true), scanFailed: true };
+    }
+  } else {
+    const neutralised = neutraliseReferences(docxBuffer);
+    renderBytes = neutralised.docx;
+    references = buildReferenceReport(false, neutralised);
+  }
 
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   // Jail custom outDirs to the visual artifacts base dir (E_SANDBOX pre-write
@@ -220,64 +423,40 @@ export async function renderDocxToImages(
   const inputDocx = path.join(workDir, 'input.docx');
   let succeeded = false;
   try {
-    fs.writeFileSync(inputDocx, docxBuffer);
+    fs.writeFileSync(inputDocx, renderBytes);
     secureFile(inputDocx);
 
-    // 1) DOCX -> PDF via LibreOffice headless (retry for profile lock contention).
-    let lastErr: unknown;
-    let converted = false;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        await execFileAsync(sofficePath, [`-env:UserInstallation=${pathToFileURL(path.join(workDir, 'lo_profile')).href}`, '--headless', '--convert-to', 'pdf', '--outdir', workDir, inputDocx], {
-          timeout: timeoutMs,
-        });
-        converted = true;
-        break;
-      } catch (err: unknown) {
-        lastErr = err;
-        if (attempt < 3) {
-          await new Promise((r) => setTimeout(r, 250 * attempt));
-        }
-      }
-    }
-    if (!converted) {
-      const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
-      throw validationError(`E_VALIDATION: libreoffice PDF conversion failed: ${msg.slice(0, 500)}`, 'Verify the .docx opens in Word/LibreOffice and retry.');
-    }
-    let pdfPath: string | null = null;
-    try {
-      const names = fs.readdirSync(workDir).filter((n) => n.toLowerCase().endsWith('.pdf'));
-      // Prefer input.pdf; fall back to the first PDF (LO version drift).
-      names.sort((a, b) => (a === 'input.pdf' ? -1 : b === 'input.pdf' ? 1 : a.localeCompare(b)));
-      if (names.length > 0) pdfPath = path.join(workDir, names[0]);
-    } catch {
-      pdfPath = null;
-    }
-    if (!pdfPath || !fs.existsSync(pdfPath)) {
-      throw validationError('E_VALIDATION: libreoffice produced no PDF output.', 'Verify the .docx opens in Word/LibreOffice and retry.');
-    }
+    // 1) DOCX -> PDF.
+    const pdfRun = await runPlan(
+      rendererPlan.engines,
+      { canFallBack: rendererPlan.canFallBack, auto: rendererPlan.requested === 'auto' },
+      (engine) =>
+        engine === 'word'
+          ? renderWithWord(word as WordInstall, workDir, inputDocx, timeoutMs, hooks)
+          : renderWithLibreOffice(sofficePath as string, workDir, inputDocx, timeoutMs),
+      { word: wordBreaker }
+    );
+    const pdfPath = pdfRun.value.pdfPath;
 
-    // 2) PDF -> images via pdftoppm.
-    const prefixBase = 'page';
-    const prefix = path.join(workDir, prefixBase);
-    const ppmArgs: string[] =
-      format === 'png'
-        ? ['-png', '-r', String(dpi), pdfPath, prefix]
-        : ['-jpeg', '-jpegopt', `quality=${jpegQuality}`, '-r', String(dpi), pdfPath, prefix];
-    try {
-      await execFileAsync(pdftoppmPath, ppmArgs, { timeout: Math.min(timeoutMs, 60000) });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw validationError(`E_VALIDATION: pdftoppm rasterization failed: ${msg.slice(0, 500)}`, 'Verify the converted PDF is readable and retry.');
+    // 2) PDF -> images.
+    const rasterRun = await runPlan(
+      rasterizerPlan.engines,
+      { canFallBack: rasterizerPlan.canFallBack, auto: rasterizerPlan.requested === 'auto' },
+      (engine) =>
+        engine === 'windows'
+          ? rasterizeWithWindows(workDir, pdfPath, format, dpi, jpegQuality, opts.pages, maxPages, timeoutMs, hooks)
+          : rasterizeWithPoppler(pdftoppmPath as string, workDir, pdfPath, format, dpi, jpegQuality, timeoutMs),
+      { windows: windowsRasterizerBreaker }
+    );
+    const raster = rasterRun.value;
+    const totalPages = raster.totalPages;
+    let selected: Array<{ page: number; file: string }>;
+    if (raster.selected) {
+      selected = raster.files;
+    } else {
+      const keep = normalizePages(opts.pages, totalPages, maxPages);
+      selected = keep === null ? raster.files.slice(0, maxPages) : raster.files.filter((r) => keep.includes(r.page));
     }
-
-    const rendered = listRenderedPages(workDir, prefixBase);
-    if (rendered.length === 0) {
-      throw validationError('E_VALIDATION: pdftoppm produced no page images.', 'Verify the document has at least one page and retry.');
-    }
-    const totalPages = rendered.length;
-    const keep = normalizePages(opts.pages, totalPages, maxPages);
-    const selected = keep === null ? rendered.slice(0, maxPages) : rendered.filter((r) => keep.includes(r.page));
 
     const images: VisualPageImage[] = [];
     const ext = format === 'png' ? 'png' : 'jpg';
@@ -321,7 +500,18 @@ export async function renderDocxToImages(
       images.push({ page: entry.page, path: dest, format, bytes });
     }
     images.sort((a, b) => a.page - b.page);
-    const result = { ok: true as const, images, totalPages, outDir, format, backend: 'libreoffice' as const };
+    const renderer: RendererReport = {
+      requested: rendererPlan.requested,
+      used: pdfRun.used,
+      ...(pdfRun.value.wordVersion !== undefined ? { version: pdfRun.value.wordVersion } : {}),
+      ...(pdfRun.fallbackFrom ? { fallbackFrom: pdfRun.fallbackFrom, fallbackReason: pdfRun.fallbackReason } : {}),
+    };
+    const rasterizer: RasterizerReport = {
+      requested: rasterizerPlan.requested,
+      used: rasterRun.used,
+      ...(rasterRun.fallbackFrom ? { fallbackFrom: rasterRun.fallbackFrom, fallbackReason: rasterRun.fallbackReason } : {}),
+    };
+    const result = { ok: true as const, images, totalPages, outDir, format, backend: pdfRun.used, renderer, rasterizer, references };
     succeeded = true;
     return result;
   } finally {
