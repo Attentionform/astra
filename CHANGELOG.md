@@ -6,6 +6,10 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-15
+
+Ten npm packages move to 0.5.2: `@attentionform/astra-engine`, `@attentionform/astra-mcp-server`, `@attentionform/astra`, the `@attentionform/ooxml-validator` wrapper and the six native validator binaries. The validator itself did not change. This release adds a Microsoft Word renderer for Windows (the default there when Word is installed, with LibreOffice as the fallback), a Windows page-image renderer, network-reference handling for renders, and an opt-in view of tracked changes and comments in renders (`--show-markup`).
+
 ### Added
 
 - A Word renderer for Windows. `--renderer auto|word|libreoffice` (`astra visual`, `inspect --visual`, `export --format pdf`), env `ASTRA_RENDERER`, and the MCP parameter `renderer` on `visual_inspect` and `export_document` choose the program that turns the document into a PDF. `auto` is Word on Windows when Word 2010 or later is installed, LibreOffice when it is not, and LibreOffice again when Word fails (the result and a `note:` line say so); on Linux and macOS it is LibreOffice, so nothing changes there. `word` needs Microsoft Word 2010 or later on Windows. ASTra starts its own hidden Word through PowerShell, opens a copy read-only with a made-up password (a password prompt can never appear), saves a PDF and closes Word with `Quit()`. It never ends Word by force and never touches a Word the user has open. Windows cannot prove that a Word reached through COM is not shared with another automation client, so a client that attaches in the instant before `Quit()` could lose its Word; `--renderer libreoffice` avoids Word entirely. A named renderer never falls back; a missing Word stops with `E_DEPENDENCY` and a remedy. A password-protected document is refused with `E_VALIDATION` before Word starts.
@@ -326,7 +330,8 @@ First public release.
 - PDF export and page images need LibreOffice and Poppler installed on your machine.
 - Every output file is validated with the Open XML SDK before it is saved, so files are valid, uncorrupted and open in Microsoft Word.
 
-[Unreleased]: https://github.com/Attentionform/astra/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/Attentionform/astra/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/Attentionform/astra/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Attentionform/astra/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Attentionform/astra/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/Attentionform/astra/compare/v0.4.1...v0.4.2
