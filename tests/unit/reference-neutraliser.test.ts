@@ -586,3 +586,41 @@ describe('XML white space before the first tag', () => {
     expect(neutraliseReferences(docx).docx).toBe(docx);
   });
 });
+
+describe('field switches that take an argument', () => {
+  it.each([
+    ' INCLUDETEXT \\c "HTML" "http://evil.example/file"',
+    ' INCLUDETEXT \\c HTML http://evil.example/file',
+    ' INCLUDETEXT \\c "HTML" "\\\\\\\\evil.example\\\\share\\\\f.docx" bookmark',
+    ' INCLUDEPICTURE \\c "jpegfilt" "http://evil.example/a.jpg" \\d',
+    ' INCLUDEPICTURE \\x \\y \\c png "ftp://evil.example/a.png"',
+    ' LINK Excel.Sheet.12 \\f 0 \\a "http://evil.example/a.xlsx" "Sheet1!R1C1"',
+    ' IMPORT \\c GIF "http://evil.example/a.gif"',
+  ])('the network target is found wherever it sits among the arguments: %s', (instruction) => {
+    const v = inspectFieldInstruction(instruction);
+    expect(v?.class).toBe('network');
+    expect(v?.rewritten).toBeDefined();
+    expect(v?.rewritten).not.toContain('evil.example');
+    expect(v?.rewritten).toContain(INERT_TARGET);
+  });
+
+  it('a converter name and a bookmark stay as they are; only the target is retargeted', () => {
+    const v = inspectFieldInstruction(' INCLUDETEXT \\c "HTML" "http://evil.example/f" mark1');
+    expect(v?.rewritten).toContain('\\c "HTML"');
+    expect(v?.rewritten).toContain('mark1');
+    expect(inspectFieldInstruction(' INCLUDETEXT \\c "HTML" "C:\\\\docs\\\\f.html" mark1')?.class).toBe('local');
+  });
+
+  it('two targets in one field are both retargeted', () => {
+    const v = inspectFieldInstruction(' INCLUDETEXT "http://evil.example/a" "http://other.example/b"');
+    expect(v?.rewritten).not.toContain('evil.example');
+    expect(v?.rewritten).not.toContain('other.example');
+  });
+
+  it('a complete package: a field with a switch argument is neutralised in the document body', () => {
+    const body = `<w:p>${complexField([' INCLUDETEXT \\c "HTML" ', '"http://evil.example/file"'])}</w:p>`;
+    const a = neutraliseReferences(buildDocx({ body }));
+    expect(a.found).toHaveLength(1);
+    expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
+  });
+});

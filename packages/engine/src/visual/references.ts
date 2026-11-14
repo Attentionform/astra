@@ -193,8 +193,8 @@ interface FieldToken {
 }
 
 const DDE_FIELDS = new Set(['DDE', 'DDEAUTO']);
-/** Field type -> which non-switch argument names the external file (0-based). */
-const FILE_FIELDS: Record<string, number> = { INCLUDEPICTURE: 0, INCLUDETEXT: 0, IMPORT: 0, LINK: 1 };
+/** Field types whose arguments name an external file (every non-switch argument is judged, see below). */
+const FILE_FIELDS = new Set(['INCLUDEPICTURE', 'INCLUDETEXT', 'IMPORT', 'LINK']);
 const MAX_INSTRUCTION_LENGTH = 32768;
 
 /** Split an instruction (after the field type) into quoted and unquoted tokens, keeping their source spans. */
@@ -248,20 +248,31 @@ export function inspectFieldInstruction(instruction: string): FieldVerdict | nul
   if (!m) return null;
   const type = m[1].toUpperCase();
   const isDde = DDE_FIELDS.has(type);
-  const fileIndex = FILE_FIELDS[type];
-  if (!isDde && fileIndex === undefined) return null;
+  if (!isDde && !FILE_FIELDS.has(type)) return null;
   if (isDde) return { type, rewritten: ' QUOTE "" ', class: 'dde' };
   if (instruction.length > MAX_INSTRUCTION_LENGTH) return { type, rewritten: ' QUOTE "" ', class: 'unparseable' };
+  // Every argument that is not a switch is judged, not only the one at the file position: a switch can take an
+  // argument of its own (`INCLUDETEXT \c "HTML" "http://host/f"`), which shifts the position of the file name.
+  // An argument that is a converter name or a bookmark is local and stays; anything else is retargeted.
   const args = tokenizeInstruction(instruction, m[0].length).filter((t) => !isSwitch(t));
-  const target = args[fileIndex];
-  if (!target) return { type, class: 'local' };
-  // An unquoted token is classified both as written and with doubled backslashes collapsed.
-  const classes = [classifyTarget(target.value)];
-  if (!target.quoted) classes.push(classifyTarget(target.raw.replace(/\\\\/g, '\\')));
-  let best = classes[0];
-  for (const c of classes) if (SEVERITY[c.class] > SEVERITY[best.class]) best = c;
-  if (best.class === 'local') return { type, class: 'local' };
-  const rewritten = `${instruction.slice(0, target.start)}"${INERT_TARGET}"${instruction.slice(target.end)}`;
+  if (args.length === 0) return { type, class: 'local' };
+  let best: TargetClassification = { class: 'local' };
+  const retarget: FieldToken[] = [];
+  for (const arg of args) {
+    // An unquoted token is classified both as written and with doubled backslashes collapsed.
+    const classes = [classifyTarget(arg.value)];
+    if (!arg.quoted) classes.push(classifyTarget(arg.raw.replace(/\\\\/g, '\\')));
+    let worst = classes[0];
+    for (const c of classes) if (SEVERITY[c.class] > SEVERITY[worst.class]) worst = c;
+    if (worst.class === 'local') continue;
+    retarget.push(arg);
+    if (SEVERITY[worst.class] > SEVERITY[best.class]) best = worst;
+  }
+  if (retarget.length === 0) return { type, class: 'local' };
+  let rewritten = instruction;
+  for (const arg of retarget.sort((x, y) => y.start - x.start)) {
+    rewritten = `${rewritten.slice(0, arg.start)}"${INERT_TARGET}"${rewritten.slice(arg.end)}`;
+  }
   return { type, rewritten, class: best.class, scheme: best.scheme };
 }
 
