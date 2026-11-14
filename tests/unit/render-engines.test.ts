@@ -56,14 +56,27 @@ function logRows(file: string): Array<Record<string, unknown>> {
 }
 
 describe.skipIf(!POSIX)('renderer choice through renderDocxToImages', () => {
-  it('auto is LibreOffice even on a Windows with Word installed (0.5.2: Word is opt-in)', async () => {
+  it('auto uses Word on a Windows with Word installed', async () => {
     process.env.FAKE_LOG = path.join(tmpBase, 'log');
     process.env.FAKE_PS_MODE = 'ok';
     const r = await renderDocxToImages(blank(), { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm, testHooks: { ...winHooks, windowsRenderer: false } });
-    expect(r.backend).toBe('libreoffice');
-    expect(r.renderer).toEqual({ requested: 'auto', used: 'libreoffice' });
-    expect(logRows(process.env.FAKE_LOG).map((x) => x.bin)).toEqual(['soffice', 'pdftoppm']);
+    expect(r.backend).toBe('word');
+    expect(r.renderer).toEqual({ requested: 'auto', used: 'word', version: 16 });
     expect(leftovers()).toEqual([]);
+  });
+
+  it('auto is LibreOffice where Word is not installed, and on any platform but Windows', async () => {
+    process.env.FAKE_LOG = path.join(tmpBase, 'log');
+    for (const hooks of [
+      { ...winHooks, windowsRenderer: false, word: null },
+      { ...winHooks, windowsRenderer: false, platform: 'linux' as const },
+    ]) {
+      fs.rmSync(process.env.FAKE_LOG, { force: true });
+      const r = await renderDocxToImages(blank(), { sofficeBin: bins.soffice, pdftoppmBin: bins.pdftoppm, testHooks: hooks });
+      expect(r.backend).toBe('libreoffice');
+      expect(r.renderer).toEqual({ requested: 'auto', used: 'libreoffice' });
+      expect(logRows(process.env.FAKE_LOG).map((x) => x.bin)).toEqual(['soffice', 'pdftoppm']);
+    }
   });
 
   it('word renders through the PowerShell host and reports itself', async () => {

@@ -106,7 +106,7 @@ Word, paragraph, and page counts (deterministic estimate).
 ### 11. Visual Page Rendering (`astra visual`)
 Renders one saved-file page to PNG/JPEG via a headless renderer (same renderer as `inspect --visual`).
 
-- `--renderer auto|word|libreoffice` picks the DOCX-to-PDF program. `auto` is LibreOffice. `word` is Windows only and never falls back. Env `ASTRA_RENDERER`.
+- `--renderer auto|word|libreoffice` picks the DOCX-to-PDF program. `auto` is Word on Windows when it is installed, else LibreOffice, and LibreOffice again if Word fails; on Linux and macOS it is LibreOffice. `word` is Windows only and never falls back. Env `ASTRA_RENDERER`.
 - `--pdf-to-image auto|windows|poppler` picks the page-image program. On Windows `auto` tries the built-in renderer, then Poppler. Env `ASTRA_PDF_TO_IMAGE`.
 - `--allow-network-references` lets the renderer load content from network locations the document names. Default: not loaded (the references are changed on a copy). Env `ASTRA_ALLOW_NETWORK_REFERENCES=1`.
 

@@ -16,7 +16,7 @@ import {
   DocxParser,
   getEngineErrorCode,
   effectiveRendererPreference,
-  hasPdfBackend,
+  getVisualBackendStatus,
   runPreflightChecks,
   type DocumentAST,
   type PreflightIssue,
@@ -36,7 +36,7 @@ export const ExportDocumentSchema = z.object({
   tagged_pdf: z.boolean().optional().describe('PDF only: tagged (accessible) render (default true)'),
   tagged: z.boolean().optional().describe('Alias of tagged_pdf'),
   strict: z.boolean().optional().describe('PDF only: fail closed on preflight blockers (default false, warn-only)'),
-  renderer: z.enum(['auto', 'word', 'libreoffice']).optional().describe('PDF only: which program renders. auto (default) is LibreOffice; word is Windows only and must be asked for; an explicit choice is never replaced'),
+  renderer: z.enum(['auto', 'word', 'libreoffice']).optional().describe('PDF only: which program renders. auto (default) is Word on Windows when it is installed, else LibreOffice, and LibreOffice again if Word fails; word is Windows only; an explicit choice is never replaced'),
   allowNetworkReferences: z.boolean().optional().describe(`PDF only. ${NETWORK_REFERENCES_PARAM_NOTE.replace(/^allowNetworkReferences: /, '')}`),
   showMarkup: z.boolean().optional().describe(`PDF only. ${SHOW_MARKUP_PARAM_NOTE.replace(/^showMarkup: /, '')}`),
 });
@@ -355,7 +355,7 @@ export async function handleExportDocument(
   let validatedPdfPath: string | undefined;
   if (format === 'pdf') {
     // A named renderer, from the parameter or ASTRA_RENDERER, is checked by the engine itself (it names what is
-    // missing); with `auto`, the usual pre-check reports a missing LibreOffice before any path work. A value the
+    // missing); with `auto`, the usual pre-check reports that no program is installed (neither Word on Windows nor LibreOffice) before any path work. A value the
     // engine will refuse (a bad ASTRA_RENDERER) is left to the engine, which reports it.
     let renderer: string = 'auto';
     try {
@@ -363,7 +363,8 @@ export async function handleExportDocument(
     } catch {
       renderer = 'invalid';
     }
-    if (renderer === 'auto' && !hasPdfBackend()) {
+    // `auto` can use Word on Windows, so only a machine with neither program stops here.
+    if (renderer === 'auto' && (getVisualBackendStatus().plan?.renderers.length ?? 0) === 0) {
       return {
         ok: false,
         code: 'E_DEPENDENCY',

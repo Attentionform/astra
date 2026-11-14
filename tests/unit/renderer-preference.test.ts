@@ -64,10 +64,13 @@ describe('renderer preference parsing', () => {
 });
 
 describe('planRenderers', () => {
-  it('0.5.2: Word is opt-in, so auto never starts with Word', () => {
-    expect(AUTO_PREFERS_WORD).toBe(false);
-    expect(planRenderers('auto', { platform: win, word: true, libreoffice: true }).engines).toEqual(['libreoffice']);
-    expect(planRenderers('auto', { platform: win, word: true, libreoffice: false }).engines).toEqual([]);
+  it('auto prefers Word on Windows, falls back to LibreOffice, and is LibreOffice only elsewhere', () => {
+    expect(AUTO_PREFERS_WORD).toBe(true);
+    expect(planRenderers('auto', { platform: win, word: true, libreoffice: true })).toMatchObject({ engines: ['word', 'libreoffice'], canFallBack: true });
+    expect(planRenderers('auto', { platform: win, word: false, libreoffice: true }).engines).toEqual(['libreoffice']);
+    expect(planRenderers('auto', { platform: win, word: true, libreoffice: false }).engines).toEqual(['word']);
+    expect(planRenderers('auto', { platform: win, word: false, libreoffice: false }).engines).toEqual([]);
+    for (const platform of [mac, linux]) expect(planRenderers('auto', { platform, word: true, libreoffice: true }).engines).toEqual(['libreoffice']);
   });
   it('a Word-first plan: an open breaker skips Word only when LibreOffice can take over', () => {
     const probe = { platform: win, word: true, autoPrefersWord: true, wordUsable: false };

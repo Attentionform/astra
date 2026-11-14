@@ -68,7 +68,7 @@
         ]
       },
       "renderer": {
-        "description": "PDF only: which program renders. auto (default) is LibreOffice; word is Windows only and must be asked for; an explicit choice is never replaced",
+        "description": "PDF only: which program renders. auto (default) is Word on Windows when it is installed, else LibreOffice, and LibreOffice again if Word fails; word is Windows only; an explicit choice is never replaced",
         "allOf": [
           {
             "$ref": "#/definitions/__schema6"
