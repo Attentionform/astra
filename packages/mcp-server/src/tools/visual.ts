@@ -40,13 +40,14 @@ import {
   type DocumentAST,
   type EngineErrorCode,
   type RasterizerReport,
+  type MarkupReport,
   type ReferenceReport,
   type RendererReport,
   type VisualImageFormat,
   type VisualPageMap,
   type VisualTelemetry,
 } from '@attentionform/astra-engine';
-import { NETWORK_REFERENCES_PARAM_NOTE, mcpFlagNames, renderNotes } from '../lib/mcp/render-notes';
+import { NETWORK_REFERENCES_PARAM_NOTE, SHOW_MARKUP_PARAM_NOTE, mcpFlagNames, renderNotes } from '../lib/mcp/render-notes';
 
 /** Legacy argv helper; opt-in renders use the withVisual tool param (startup rejects unknown flags). */
 export const MCP_VISUAL_FLAG = '--with-visual';
@@ -103,6 +104,7 @@ export interface VisualInspectOk {
   rasterizer?: RasterizerReport;
   /** withVisual only: references to network locations that were not loaded (or may have been, when allowed). */
   references?: ReferenceReport;
+  markup?: MarkupReport;
   /** withVisual only: plain-language lines for the above (a fallback, omitted references). */
   notes?: string[];
   /**
@@ -197,6 +199,8 @@ export const VisualInspectSchema = z
     pdfToImage: z.enum(['auto', 'windows', 'poppler']).optional(),
     /** Default false. See the tool description before setting it. */
     allowNetworkReferences: z.boolean().optional(),
+    /** Default false. Draws tracked changes and comments. See the tool description before setting it. */
+    showMarkup: z.boolean().optional(),
   })
   .strict();
 
@@ -208,7 +212,7 @@ export const VISUAL_INSPECT_DESCRIPTION =
   '(includes unsaved execute_batch edits, not the last saved file); success returns ' +
   '{ok:true,sessionId,revision,dirty,telemetry,...} (dirty:true = unsaved edits present). ' +
   'withVisual renders also report renderer, rasterizer and references (what was used, any fallback, and network references that were not loaded). ' +
-  'renderer (auto|word|libreoffice; word is Windows only) and pdfToImage (auto|windows|poppler) choose the programs; auto is the default and falls back visibly. ' + NETWORK_REFERENCES_PARAM_NOTE;
+  'renderer (auto|word|libreoffice; word is Windows only) and pdfToImage (auto|windows|poppler) choose the programs; auto is the default and falls back visibly. ' + NETWORK_REFERENCES_PARAM_NOTE + ' ' + SHOW_MARKUP_PARAM_NOTE;
 
 /**
  * Stale seed-table hint (advisory, additive, bounded).
@@ -418,9 +422,9 @@ export async function handleVisualInspect(
     const detail = parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
     return visualError('E_VALIDATION', `visual_inspect: invalid input. ${detail}`, 'Retry with {sessionId} and optional {pages, withVisual, format}.');
   }
-  const { sessionId, pages, withVisual, format, jpegQuality, dpi, outputDir, renderer, pdfToImage, allowNetworkReferences } = parsed.data;
-  if (!withVisual && (renderer !== undefined || pdfToImage !== undefined || allowNetworkReferences !== undefined)) {
-    return visualError('E_VALIDATION', 'visual_inspect: renderer, pdfToImage and allowNetworkReferences only apply to rendered images.', 'Add withVisual:true, or drop them for telemetry only.');
+  const { sessionId, pages, withVisual, format, jpegQuality, dpi, outputDir, renderer, pdfToImage, allowNetworkReferences, showMarkup } = parsed.data;
+  if (!withVisual && (renderer !== undefined || pdfToImage !== undefined || allowNetworkReferences !== undefined || showMarkup !== undefined)) {
+    return visualError('E_VALIDATION', 'visual_inspect: renderer, pdfToImage, allowNetworkReferences and showMarkup only apply to rendered images.', 'Add withVisual:true, or drop them for telemetry only.');
   }
   if (outputDir !== undefined && !withVisual) {
     return visualError('E_VALIDATION', 'visual_inspect: outputDir only applies to rendered images.', 'Add withVisual:true, or drop outputDir for telemetry only.');
@@ -510,6 +514,7 @@ export async function handleVisualInspect(
           ...(renderer !== undefined ? { renderer } : {}),
           ...(pdfToImage !== undefined ? { pdfToImage } : {}),
           ...(allowNetworkReferences !== undefined ? { allowNetworkReferences } : {}),
+          ...(showMarkup !== undefined ? { showMarkup } : {}),
         });
         // The marker must describe the image actually produced: page picks
         // clamp to the renderer's last page exactly like the CLI. Guard:
@@ -558,6 +563,7 @@ export async function handleVisualInspect(
           ...(rendered.renderer ? { renderer: rendered.renderer } : {}),
           ...(rendered.rasterizer ? { rasterizer: rendered.rasterizer } : {}),
           ...(rendered.references ? { references: rendered.references } : {}),
+          ...(rendered.markup ? { markup: rendered.markup } : {}),
           ...(notes.length > 0 ? { notes } : {}),
           ...staleExtras,
         };

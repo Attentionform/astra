@@ -110,7 +110,9 @@ Renders one saved-file page to PNG/JPEG via a headless renderer (same renderer a
 - `--pdf-to-image auto|windows|poppler` picks the page-image program. On Windows `auto` tries the built-in renderer, then Poppler. Env `ASTRA_PDF_TO_IMAGE`.
 - `--allow-network-references` lets the renderer load content from network locations the document names. Default: not loaded (the references are changed on a copy). Env `ASTRA_ALLOW_NETWORK_REFERENCES=1`.
 
-`export --format pdf` takes `--renderer` and the network flag too.
+- `--show-markup` draws tracked changes and comments in the render (default: Word draws content only, LibreOffice draws tracked changes but no comments). The output shows reviewer names, deleted text and comments. Env `ASTRA_SHOW_MARKUP=1`; `--no-show-markup` overrides it.
+
+`export --format pdf` takes `--renderer`, the network flag and `--show-markup` too.
 
 ### 12. Document History (`astra history`)
 Lists recorded sidecar commits newest first; read-only; `--init` (alias `--track`) records the current file as the baseline when no sidecar exists yet.

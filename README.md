@@ -149,6 +149,8 @@ Without them, those calls fail with `E_DEPENDENCY` and write nothing; everything
 
 **On Windows** you can also use what is already installed. Windows 10 and later turn PDF pages into images without Poppler (`--pdf-to-image windows`, tried first by default, with Poppler as the fallback). With Microsoft Word 2010 or later installed, `--renderer word` (env `ASTRA_RENDERER=word`, MCP `renderer: "word"`) lays out the document with Word instead of LibreOffice. Word is never chosen automatically in this release. WSL is a Linux process, so under WSL ASTra uses LibreOffice and Poppler, as on any Linux machine.
 
+**Tracked changes and comments.** Without `--show-markup` a Word render draws the content only (changes as if accepted, no comments) and a LibreOffice render draws tracked changes, deleted text included, but no comments. Pass `--show-markup` (env `ASTRA_SHOW_MARKUP=1`, MCP `showMarkup: true`). With it, Word draws changes inline and comments in balloons and LibreOffice draws comments in the margin. The output shows reviewer names, deleted text and comments, so check it before you share it. LibreOffice 7.6.7 or later is needed; a long comment can be cut short there.
+
 **Network references.** A document can name images or files at network locations. ASTra changes those references on a copy before it starts a renderer, so a document you did not write cannot make a render contact a server or send your Windows login hash. Your file is not changed. Pass `--allow-network-references` (MCP `allowNetworkReferences: true`) only when you want the content from those locations loaded. See [Security](docs/security.md#7-network-references-in-documents).
 
 ### Connect an AI assistant

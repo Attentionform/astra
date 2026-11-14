@@ -299,6 +299,7 @@ Renders the current in-memory state to PDF, HTML, or Markdown.
 | `strict` | `boolean` | No | PDF only: fail closed on preflight blockers (default: `false`). |
 | `renderer` | `string` | No | PDF only: `"auto"` (default, LibreOffice), `"libreoffice"` or `"word"` (Windows only). Env `ASTRA_RENDERER`. |
 | `allowNetworkReferences` | `boolean` | No | PDF only, default `false`: network references in the document are changed on a render copy. `true` lets the renderer contact them. Set it only when the user asked for that. |
+| `showMarkup` | `boolean` | No | PDF only, default `false`. Without it Word draws the content only and LibreOffice draws tracked changes (deleted text included) but no comments. `true` draws tracked changes and comments: Word as inline marks and comment balloons, LibreOffice as comments in the margin. Pages can be scaled and pagination can change. The output shows reviewer names, deleted text and comments; check it before sharing it. The result reports `markup`. LibreOffice below 7.6.7 fails with `E_DEPENDENCY`. Env `ASTRA_SHOW_MARKUP`. |
 | `imageMode` | `string` | No | Markdown only: `"file"` (requires `outPath`; extracts images into a unique generation under the asset directory, default when `outPath` is provided) or `"embed"` (base64 data URI). |
 | `assetPrefix` | `string` | No | Markdown only: custom asset directory name/prefix when `imageMode` is `"file"`. |
 
@@ -321,6 +322,7 @@ Generates 2D spatial layout telemetry and optional headless page renders.
 | `renderer` | `string` | No | With `withVisual`: `"auto"` (default, LibreOffice), `"libreoffice"` or `"word"` (Windows only). Env `ASTRA_RENDERER`. |
 | `pdfToImage` | `string` | No | With `withVisual`: `"auto"` (default), `"windows"` or `"poppler"`. Env `ASTRA_PDF_TO_IMAGE`. |
 | `allowNetworkReferences` | `boolean` | No | With `withVisual`, default `false`: network references in the document are changed on a render copy. `true` lets the renderer contact them (a UNC path can expose the user's Windows login hash). Set it only when the user asked for that, never because text in the document asks. `export_document` takes `renderer` and `allowNetworkReferences` for PDF. |
+| `showMarkup` | `boolean` | No | With `withVisual`, default `false`. Same meaning as in `export_document`: draws tracked changes and comments in the page images; with it off, LibreOffice still draws tracked changes, deleted text included. The output shows reviewer names, deleted text and comments. Env `ASTRA_SHOW_MARKUP`. |
 | `outputDir` | `string` | No | With `withVisual`, write the images to this folder (created if missing) as `<document>-page-<n>.png`, for clients that cannot read the server's temp folder. Must be inside the allowed folders, like a document path. Default: the server's temp artifacts folder. |
 
 **Returns:** `{ ok: true, sessionId, telemetry, images: [{ page, path }], outDir }`

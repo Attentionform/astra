@@ -47,6 +47,10 @@ Raise the binary `version` when the native validator changes. Move the `range` u
 
 Raise versions in a normal commit before releasing; the workflow publishes what the `package.json` files say. Also raise `version` in `registries/glama.json` and `registries/smithery.json` to the MCP server version; a test in `tests/unit/docs-truth.test.ts` fails when they differ. After a real publish, each package published in that run is tagged on the released commit: `validator-binary-v<version>` (only when all six platforms are on npm at it), `validator-v<version>`, `engine-v<version>`, `cli-v<version>`, `mcp-server-v<version>`. A tag that already exists is left alone.
 
+## Checks with real renderers
+
+The review-marks feature (`--show-markup`) depends on how real LibreOffice and Word draw comments, and the unit tests use stand-in programs. Before a release that changes it, or that changes the LibreOffice minimum (`MIN_LIBREOFFICE_FOR_MARKUP`), run `node scripts/word-markup-smoke.mjs` after building the engine. Give it each LibreOffice build to be tried with `--soffice <path>` and, on Windows with Word, add `--expect-word`. `--check-minimum` asserts that the minimum in the code equals the lowest version that passed. Put the versions tried in the table at the end of `docs/page-layout.md`. The script is not part of CI because CI has no Word and installs one LibreOffice.
+
 ## A partial release
 
 Every publish skips a version already on npm, so running the same choices again finishes a release that stopped half way. A platform that failed shows as a failed job; fix the cause and run `validator_platforms` again.

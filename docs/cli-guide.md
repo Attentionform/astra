@@ -57,17 +57,17 @@ astra --version
 Usage: astra [--json] [--verbose] [--version] [--help] <command> [args]
 
 Commands (exit 0 ok · 1 operational failure · 2 usage):
-  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references]
+  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references] [--show-markup]
   validate <docx> [--max-errors <n>] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--style-guide <name|path>]
   sanitize <in.docx> <out.docx> [--client-safe] [--redact-pii] [--zero-retention] [--replacement-author <name>] [--accept-all-revisions] [--strip-comments] [--metadata-only] [--keep-revisions] [--keep-comments] [--force]
   batch    <docx> [<ops.json|->] [--target-text <needle> --append <text>] [--append <text>] [--out <docx>] [--force] [--sequential|--no-sequential] [--no-validate] [--strict] [--no-history] [--schema] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--dry-run] [--backup[=<path>]] [--matrix <vars.csv>] [--reproducible|--no-reproducible] [--author <name>] [--stream [--on-error abort|continue] [--max-errors <n>]] [--style-guide <name|path>]
   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]]
-  export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force] [--renderer auto|word|libreoffice] [--allow-network-references]
+  export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force] [--renderer auto|word|libreoffice] [--allow-network-references] [--show-markup]
   search   <docx> <query> [--limit <n>]
   create   <out.docx> [--template report|memo|blank] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   import   <file.md> [-o <out.docx>] [--template report|memo|blank] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   stats    <docx>
-  visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references]
+  visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references] [--show-markup]
   history  <docx> [--init|--track|--export-original <out>|--restore-original] [--force]
   preview-revert <docx> [--steps <n>]
   revert   <docx> [--steps <n>]
@@ -85,7 +85,7 @@ Sanitize is fail-closed: bare `sanitize in out` keeps body text (metadata/rsids/
 Sanitize --json carries survivors as warnings:[...] (bare and --metadata-only always warn; absent only when fully redacted and clean).
 Create/import refuse to overwrite without --force; batch/export/visual --out targets do too (exit 2 naming the file).
 Inspect --visual adds spatial telemetry (<500 tok) + one headless page render (--page, PNG default, JPEG opt-in); missing renderer or Poppler degrades with E_DEPENDENCY hint.
-Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is LibreOffice; word is Windows only), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1).
+Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is LibreOffice; word is Windows only), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1). Without --show-markup, Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments; --show-markup (env ASTRA_SHOW_MARKUP=1) draws tracked changes and comments in both. That view scales pages, and the output shows reviewer names, deleted text and comments.
 Visual renders the saved on-disk file (MCP visual_inspect renders session state incl. unsaved edits: save first for matching renders); inspect --visual is the same renderer as visual (alias: same --page/--format yields identical bytes).
 ```
 
@@ -170,6 +170,7 @@ astra inspect report.docx --visual --format png
 | `--renderer` | `auto\|word\|libreoffice` | With `--visual`: the program that turns the document into a PDF. See [Rendering programs](#rendering-programs-and-network-references). |
 | `--pdf-to-image` | `auto\|windows\|poppler` | With `--visual`: the program that turns the PDF into page images. |
 | `--allow-network-references` | `flag` | With `--visual`: let the renderer load content from network locations the document names (default: not loaded). `--no-allow-network-references` keeps them off even when the environment allows them. |
+| `--show-markup` | `flag` | With `--visual`: draw tracked changes and comments in the page images (default: Word draws content only, LibreOffice draws tracked changes but no comments). Env `ASTRA_SHOW_MARKUP=1`. `--no-show-markup` overrides the variable. See [Tracked changes and comments in renders](#tracked-changes-and-comments-in-renders). |
 | `--json` | `flag` | Emit structured JSON output containing rows, styles, and telemetry. |
 
 ---
@@ -497,6 +498,7 @@ astra visual report.docx --page 2 -o preview_p2.jpg --format jpeg --force
 | `--renderer <auto\|word\|libreoffice>` | `string` | DOCX-to-PDF program (default `auto`, which is LibreOffice). `word` is Windows only. Env `ASTRA_RENDERER`. |
 | `--pdf-to-image <auto\|windows\|poppler>` | `string` | PDF-to-image program (default `auto`: on Windows the built-in renderer first, then Poppler; elsewhere Poppler). Env `ASTRA_PDF_TO_IMAGE`. |
 | `--allow-network-references` | `flag` | Let the renderer load content from network locations the document names. Default: not loaded. Env `ASTRA_ALLOW_NETWORK_REFERENCES=1`. `--no-allow-network-references` overrides the variable. |
+| `--show-markup` | `flag` | Draw tracked changes and comments (default: Word draws content only, LibreOffice draws tracked changes but no comments). Env `ASTRA_SHOW_MARKUP=1`. `--no-show-markup` overrides the variable. See [Tracked changes and comments in renders](#tracked-changes-and-comments-in-renders). |
 
 `visual` renders the saved on-disk document file. For MCP sessions where unsaved edits exist in memory, call `save_document` first or use `visual_inspect`. A missing renderer or page-image program stops `visual` with exit code 1 (`E_DEPENDENCY`) and a remedy; `inspect --visual` degrades instead and keeps exit code 0.
 
@@ -517,6 +519,20 @@ Two programs sit between a document and a page image. Each has its own switch.
 - WSL is a Linux process: it always uses LibreOffice and Poppler, even when Windows has Word.
 
 Network references. A document can name content at a network location: a linked image, an attached template, a field such as `INCLUDETEXT`, `INCLUDEPICTURE` or `LINK`, a linked sub-document or a mail-merge source. A renderer that loads it contacts that location, and for a Windows file share (`\\host\share`) the machine can send the user's Windows login hash. ASTra therefore changes these references on the copy it renders and leaves the original file alone. By default no network location is contacted. `--allow-network-references` (env `ASTRA_ALLOW_NETWORK_REFERENCES=1`, MCP `allowNetworkReferences`) turns that off for one call. Use it only when you have asked for content from those locations to appear in the render. The `--json` result reports what was changed in `references`: a count, and up to 50 entries that name the package part, the relationship id or field number, the kind and the type. No host name and no path from the document appears in the report.
+
+### Tracked changes and comments in renders
+
+By default a render shows the document without review marks, and what that means depends on the program. Word draws the content only: tracked changes appear as if accepted and comments are not drawn. LibreOffice draws tracked changes with their marks even with the switch off and draws no comments. Neither program draws a comment in the default render.
+
+`--show-markup` (env `ASTRA_SHOW_MARKUP=1`, MCP `showMarkup`) asks for the review view:
+
+- **Word (Windows).** ASTra exports with markup (Word's "Export with markup"): tracked changes appear inline and comments in balloons. ASTra sets the review view it needs on its own hidden Word, restores the settings it changed before it closes the document, and reports `markup.warnings` for a setting Word would not take. If the view cannot be set up, the render fails with `E_RENDER`, and under `auto` ASTra then tries LibreOffice.
+- **LibreOffice.** ASTra asks for comments in the margin. LibreOffice ignores an export option it does not know, so ASTra reads the program's version first. A version below 7.6.7 fails with `E_DEPENDENCY` ("has not been tested"), and a version that cannot be read fails the same way ("could not determine"). 7.6.7 is the oldest version checked, not a promise about every later one; see [Page layout, known limits](page-layout.md#9-known-limits).
+- **Layout changes.** The review view uses a different layout mode. Pages can be scaled and pagination can change, so page numbers in a markup render can differ from a render without markup.
+- **A long comment can be cut short in LibreOffice.** Every version that was tested cut a long comment short in the margin, either at the page edge or at the end of the box when other comments follow close below. Every LibreOffice markup render carries a warning for this. Word shows the full balloon.
+- **Privacy.** The output shows reviewer names, deleted text and comments. Check it before sharing it. The command line prints this on stderr and the MCP tools return it in `notes`.
+
+The `--json` result has `markup`: `requested`, `renderer` (`word` or `libreoffice`), `mode` (`export-with-markup` or `comments-in-margin`) and `warnings`. It records what was asked and which mode the renderer was told to use. It does not check the image. `export` takes `--show-markup` for PDF only.
 
 ---
 

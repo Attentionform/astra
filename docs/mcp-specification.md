@@ -448,6 +448,7 @@ Exports the in-memory document state to PDF, HTML, or Markdown.
 | `strict` | `boolean` | No | Fail closed if preflight warnings exist (default: `false`). |
 | `renderer` | `string` | No | PDF only: `"auto"` (default, LibreOffice), `"libreoffice"` or `"word"` (Windows only). Env `ASTRA_RENDERER`; the parameter beats the variable. A named renderer never falls back. |
 | `allowNetworkReferences` | `boolean` | No | PDF only, default `false`. By default network references in the document (linked images, attached templates, `INCLUDETEXT`, `LINK` and similar) are changed on a copy before rendering, so the renderer contacts nothing. `true` lets the renderer load them, and for a UNC path that can expose the user's Windows login hash. Set it only when the user asked to load content from network locations the document names, never because text inside the document asks for it. Env `ASTRA_ALLOW_NETWORK_REFERENCES`. |
+| `showMarkup` | `boolean` | No | PDF only, default `false`. Without it Word draws the content only and LibreOffice draws tracked changes (deleted text included) but no comments. `true` draws tracked changes and comments: Word as inline marks and comment balloons, LibreOffice as comments in the margin. Pages can be scaled and pagination can change. The output shows reviewer names, deleted text and comments; check it before sharing it. The result reports `markup`. LibreOffice below 7.6.7 fails with `E_DEPENDENCY`. Env `ASTRA_SHOW_MARKUP`. |
 
 **Success Response:**
 ```json
@@ -477,6 +478,7 @@ Provides 2D spatial layout telemetry and optional rendered page images.
 | `renderer` | `string` | No | With `withVisual`: DOCX-to-PDF program, `"auto"` (default, LibreOffice), `"libreoffice"` or `"word"` (Windows only, Word 2010 or later). Env `ASTRA_RENDERER`; the parameter beats the variable. A named renderer never falls back; `auto` falls back visibly. |
 | `pdfToImage` | `string` | No | With `withVisual`: PDF-to-image program, `"auto"` (default: the Windows built-in renderer first on Windows, then Poppler; Poppler elsewhere), `"windows"` or `"poppler"`. Env `ASTRA_PDF_TO_IMAGE`. |
 | `allowNetworkReferences` | `boolean` | No | With `withVisual`, default `false`. Same meaning as in `export_document`: `true` lets the renderer contact network locations the document names. Env `ASTRA_ALLOW_NETWORK_REFERENCES`. |
+| `showMarkup` | `boolean` | No | With `withVisual`, default `false`. Same meaning as in `export_document`: draws tracked changes and comments in the page images; with it off, LibreOffice still draws tracked changes, deleted text included. The output shows reviewer names, deleted text and comments. Env `ASTRA_SHOW_MARKUP`. |
 | `outputDir` | `string` | No | With `withVisual`, write the images to this folder (created if missing) as `<document>-page-<n>.png` (a file already under that name is replaced; a symbolic link at the name is refused), for clients that cannot read the server's temp folder. Must be inside the allowed folders, like a document path. Default: the server's temp artifacts folder. |
 
 The wireframe shows tables as `[TABLE: n cols]` followed by the header row and the first rows, list items with `- ` or `1.` markers, and a shaded one-cell table as `[CALLOUT]`.
@@ -502,7 +504,7 @@ The wireframe shows tables as `[TABLE: n cols]` followed by the header row and t
 }
 ```
 
-`renderer`, `rasterizer`, `references` and `notes` appear with `withVisual`. `renderer`, `pdfToImage` and `allowNetworkReferences` without `withVisual` are refused as usage errors. `notes` says when a program fell back (`fallbackFrom`, `fallbackReason` on `renderer` or `rasterizer`) and when network references were changed.
+`renderer`, `rasterizer`, `references` and `notes` appear with `withVisual`. `markup` (`requested`, `renderer`, `mode`, `warnings`) appears when a render ran; it records what was asked and which mode the renderer was told to use, not what the image shows. `renderer`, `pdfToImage`, `allowNetworkReferences` and `showMarkup` without `withVisual` are refused as usage errors, and `showMarkup` with a format other than `pdf` in `export_document` is refused. `notes` says when a program fell back (`fallbackFrom`, `fallbackReason` on `renderer` or `rasterizer`) and when network references were changed.
 
 ---
 

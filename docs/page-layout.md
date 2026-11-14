@@ -154,6 +154,7 @@ astra visual report.docx --page 2 --out page2.png
 - **`.docx` only.** `.doc`, `.odt` and other formats are not edited.
 - **Checked automatically with the Open XML SDK and LibreOffice, not with Word.** Fifteen sample documents covering sections, headers and footers, lists, a chart and other content were also opened by hand in desktop Word and opened without a repair prompt; the chart stayed editable. Equations and comments were not confirmed separately.
 - **PDF export and page images need LibreOffice and Poppler** installed on the machine. On Windows, `--renderer word` (Word 2010 or later) and `--pdf-to-image windows` (built in) can stand in. Word and LibreOffice lay a page out differently, so page breaks can differ between the two renderers; the wireframe's page count follows the renderer that drew the page.
+- **Tracked changes and comments in renders are opt-in** (`--show-markup`, MCP `showMarkup`). The review view uses a different layout mode: pages can be scaled and pagination can change, so page numbers in a markup render refer to that render. Word shows comments in balloons and LibreOffice shows them in the margin. LibreOffice cuts a long comment short on every version that was tried: on 24.8, 25.2 and 25.8 the margin box runs past the page's right edge, and on 7.6, 26.2 and 26.8 it wraps but is shortened when other comments follow close below. A markup render by LibreOffice always carries a warning for this. Comment icons and the exact balloon layout are not controlled. ASTra needs LibreOffice 7.6.7 or later for markup, because older versions were not tried and LibreOffice silently ignores an export option it does not know. The check is a guard on the version number, not a guarantee that every later build behaves the same. The evidence is in the table below.
 - **Version 0.x.** Interfaces may change before 1.0.
 - **Node.js 22.19 or later.**
 - **Node IDs last for one session.** Read them again after you reopen a file.
@@ -161,3 +162,21 @@ astra visual report.docx --page 2 --out page2.png
 - **Deleting a section break merges the sections** and the text takes the next section's page setup (section 7).
 - **Landscape swaps width and height and keeps the margins.** Change margins separately if you want them to follow.
 - **Revision history is off until you turn it on** (`astra history <file> --init`).
+
+### Review marks: what was tried
+
+`scripts/word-markup-smoke.mjs` runs these checks with the real programs. It is run by hand before a release, not in the unit tests.
+
+| Program | L1 comment and tracked deletion | L2a three authors | L3 comment across a change, comment on last line | L4 plain document unchanged | L2b long comment (recorded only) |
+|---|---|---|---|---|---|
+| LibreOffice 7.6.7.2 (Linux) | pass | pass | pass | pass | cut short |
+| LibreOffice 24.8.7.2 (Linux) | pass | pass | pass | pass | cut short |
+| LibreOffice 25.2.7.2 (Linux) | pass | pass | pass | pass | cut short |
+| LibreOffice 25.8.7.3 (Linux) | pass | pass | pass | pass | cut short |
+| LibreOffice 26.2.7.3 (Linux) | pass | pass | pass | pass | cut short |
+| LibreOffice 26.8.0.3 (Linux) | pass | pass | pass | pass | cut short |
+| LibreOffice 26.8.0.3 (Windows) | pass | pass | pass | pass | cut short |
+
+Versions older than 7.6.7 were not tried. Windows was tried with one LibreOffice version only.
+
+Microsoft Word 16.0.14334.20974 on Windows passed the checks for the default view, for Word starting in "No Markup", with one reviewer hidden and with comments off (the view comes back after each), for three reviewers, and for a user's own open Word keeping its process and window. Other Word builds were not tried.

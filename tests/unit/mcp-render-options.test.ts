@@ -14,7 +14,7 @@ import { buildDocx, readPart } from '../helpers/docx-refs';
 import { makeFakePdftoppm, makeFakeSoffice } from '../helpers/fake-bins';
 
 const POSIX = process.platform !== 'win32';
-const KEYS = ['PATH', 'ASTRA_RENDERER', 'ASTRA_PDF_TO_IMAGE', 'ASTRA_ALLOW_NETWORK_REFERENCES', 'ASTRA_TMPDIR', 'ASTRA_EXTRA_DOC_ROOTS', 'FAKE_COPY_INPUT', 'FAKE_COPY_SEQ', 'FAKE_LOG'];
+const KEYS = ['PATH', 'ASTRA_RENDERER', 'ASTRA_PDF_TO_IMAGE', 'ASTRA_ALLOW_NETWORK_REFERENCES', 'ASTRA_SHOW_MARKUP', 'FAKE_SOFFICE_VERSION', 'ASTRA_TMPDIR', 'ASTRA_EXTRA_DOC_ROOTS', 'FAKE_COPY_INPUT', 'FAKE_COPY_SEQ', 'FAKE_LOG'];
 const saved: Record<string, string | undefined> = {};
 let base: string;
 let docs: string;
@@ -35,7 +35,7 @@ beforeEach(() => {
     process.env.PATH = `${path.join(base, 'bin')}${path.delimiter}${saved.PATH ?? ''}`;
   }
   resetRendererBreakersForTesting();
-  resetPdfBackendCache(); // the resolved soffice path is remembered: each test has its own fake
+  resetPdfBackendCache(); // the resolved soffice path is remembered: each test has its own fake (the version cache is per path)
 });
 afterEach(() => {
   for (const k of KEYS) {
@@ -72,6 +72,76 @@ describe('schemas and descriptions', () => {
     expect(VisualInspectSchema.safeParse({ sessionId: 's', allowNetworkReferences: 'yes' }).success).toBe(false);
     // export has no pdfToImage: it renders no page images
     expect(Object.keys(ExportDocumentSchema.shape)).not.toContain('pdfToImage');
+  });
+});
+
+describe('showMarkup schema', () => {
+  it('is a boolean on both tools and the description carries the privacy sentence', () => {
+    expect(VisualInspectSchema.safeParse({ sessionId: 's', withVisual: true, showMarkup: true }).success).toBe(true);
+    expect(VisualInspectSchema.safeParse({ sessionId: 's', withVisual: true, showMarkup: 'yes' }).success).toBe(false);
+    expect(ExportDocumentSchema.safeParse({ sessionId: 's', format: 'pdf', showMarkup: true }).success).toBe(true);
+    expect(ExportDocumentSchema.safeParse({ sessionId: 's', format: 'pdf', showMarkup: 1 }).success).toBe(false);
+    for (const description of [VISUAL_INSPECT_DESCRIPTION, ExportDocumentSchema.shape.showMarkup.description ?? '']) {
+      expect(description).toMatch(/shows reviewer names, deleted text and comments; check it before sharing it/);
+      expect(description).toMatch(/does not check the image/);
+    }
+  });
+});
+
+describe.skipIf(!POSIX)('showMarkup', () => {
+  it('visual_inspect needs withVisual', async () => {
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'sm1.docx');
+    expect(await handleVisualInspect(store, { sessionId, showMarkup: true })).toMatchObject({ ok: false, code: 'E_VALIDATION' });
+  });
+
+  it('export_document refuses showMarkup for a format other than pdf', async () => {
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'sm2.docx');
+    for (const format of ['html', 'markdown'] as const) {
+      const res = await handleExportDocument(store, { sessionId, format, showMarkup: true });
+      expect(res).toMatchObject({ ok: false, code: 'E_VALIDATION' });
+      expect(res.message).toMatch(/PDF export only/);
+    }
+  });
+
+  it('a render with showMarkup reports markup, the contract notes and the parameter-style wording', async () => {
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'sm3.docx');
+    const res = await handleVisualInspect(store, { sessionId, withVisual: true, showMarkup: true });
+    expect(res.ok, JSON.stringify(res)).toBe(true);
+    if (!res.ok) return;
+    expect(res.markup).toMatchObject({ requested: true, renderer: 'libreoffice', mode: 'comments-in-margin' });
+    expect(res.notes?.join(' ')).toMatch(/comments/);
+    expect(res.notes?.join(' ')).not.toMatch(/--show-markup/);
+  });
+
+  it('a render without showMarkup reports no markup', async () => {
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'sm4.docx');
+    const res = await handleVisualInspect(store, { sessionId, withVisual: true });
+    expect(res.ok && res.markup).toBeFalsy();
+  });
+
+  it('ASTRA_SHOW_MARKUP is honoured and an explicit false beats it', async () => {
+    process.env.ASTRA_SHOW_MARKUP = '1';
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'sm5.docx');
+    const on = await handleVisualInspect(store, { sessionId, withVisual: true });
+    expect(on.ok && on.markup?.requested).toBe(true);
+    const off = await handleVisualInspect(store, { sessionId, withVisual: true, showMarkup: false });
+    expect(off.ok && off.markup?.requested).not.toBe(true);
+  });
+
+  it('export_document pdf reports markup', async () => {
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'sm6.docx');
+    const res = await handleExportDocument(store, { sessionId, format: 'pdf', showMarkup: true, outPath: path.join(docs, 'sm6.pdf') });
+    expect(res.ok, JSON.stringify(res)).toBe(true);
+    expect(res.markup).toMatchObject({ requested: true, renderer: 'libreoffice', mode: 'comments-in-margin' });
+  });
+
+  it('a LibreOffice below the tested minimum is E_DEPENDENCY with no CLI flag in the remedy', async () => {
+    process.env.FAKE_SOFFICE_VERSION = 'LibreOffice 7.5.9.2 abcdef';
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'sm7.docx');
+    const res = await handleVisualInspect(store, { sessionId, withVisual: true, showMarkup: true, renderer: 'libreoffice' });
+    expect(res).toMatchObject({ ok: false, code: 'E_DEPENDENCY' });
+    if (res.ok) return;
+    expect(`${res.message} ${res.remedy}`).not.toMatch(/--show-markup|--renderer/);
   });
 });
 

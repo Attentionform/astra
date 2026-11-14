@@ -72,6 +72,17 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
     else return usage(out, 'inspect takes exactly one <docx> argument');
   }
   if (!file) return usage(out, 'inspect requires <docx>');
+  if (!withVisual) {
+    const renderOnly = [
+      renderFlags.renderer !== undefined ? '--renderer' : '',
+      renderFlags.pdfToImage !== undefined ? '--pdf-to-image' : '',
+      renderFlags.allowNetworkReferences !== undefined ? '--allow-network-references/--no-allow-network-references' : '',
+      renderFlags.showMarkup !== undefined ? '--show-markup/--no-show-markup' : '',
+    ].filter(Boolean);
+    if (renderOnly.length > 0) {
+      return usage(out, `inspect ${renderOnly.join(', ')} only applies to a rendered page. Add --visual to render one, or drop the flag for the text outline.`);
+    }
+  }
   if (allowMacros && stripMacros) return usage(out, macroFlagsUsageError());
   const ceilings: ZipCeilingOverrides = {};
   try {
@@ -213,6 +224,7 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
           ...(rendered.renderer ? { renderer: rendered.renderer } : {}),
           ...(rendered.rasterizer ? { rasterizer: rendered.rasterizer } : {}),
           ...(rendered.references ? { references: rendered.references } : {}),
+          ...(rendered.markup ? { markup: rendered.markup } : {}),
         };
       } catch (err: unknown) {
         const code = (err as { code?: unknown })?.code;

@@ -29,6 +29,17 @@ describe('readRenderFlag', () => {
     readRenderFlag('visual', ['--no-allow-network-references'], 0, flags, { pdfToImage: true });
     expect(flags.allowNetworkReferences).toBe(false);
   });
+  it('reads the markup flags; the last one wins; the option is passed only when given', () => {
+    const flags: RenderFlags = {};
+    expect(readRenderFlag('visual', ['--show-markup'], 0, flags, { pdfToImage: true })).toEqual({ matched: true, next: 0 });
+    expect(flags.showMarkup).toBe(true);
+    readRenderFlag('visual', ['--no-show-markup'], 0, flags, { pdfToImage: true });
+    expect(flags.showMarkup).toBe(false);
+    expect(renderOptionsFromFlags({})).toEqual({});
+    expect(renderOptionsFromFlags({ showMarkup: false })).toEqual({ showMarkup: false });
+    expect(renderOptionsFromFlags({ showMarkup: true, renderer: 'word' })).toEqual({ showMarkup: true, renderer: 'word' });
+    expect(read(['--show-markups']).r).toEqual({ matched: false });
+  });
   it('rejects a bad or missing value with a message that names the choices', () => {
     expect(read(['--renderer', 'excel']).r).toMatchObject({ matched: true, error: expect.stringMatching(/excel.*auto, word, libreoffice/) });
     expect(read(['--renderer']).r).toMatchObject({ error: expect.stringMatching(/requires a value/) });
@@ -47,7 +58,7 @@ describe('readRenderFlag', () => {
 });
 
 describe.skipIf(!POSIX)('render flags through the CLI', () => {
-  const ENV = ['PATH', 'ASTRA_RENDERER', 'ASTRA_PDF_TO_IMAGE', 'ASTRA_ALLOW_NETWORK_REFERENCES', 'ASTRA_TMPDIR', 'FAKE_COPY_INPUT', 'FAKE_COPY_SEQ', 'FAKE_PDF_PAGES'];
+  const ENV = ['PATH', 'ASTRA_SHOW_MARKUP', 'FAKE_SOFFICE_VERSION', 'ASTRA_RENDERER', 'ASTRA_PDF_TO_IMAGE', 'ASTRA_ALLOW_NETWORK_REFERENCES', 'ASTRA_TMPDIR', 'FAKE_COPY_INPUT', 'FAKE_COPY_SEQ', 'FAKE_PDF_PAGES'];
   const saved: Record<string, string | undefined> = {};
   let base: string;
 
@@ -137,6 +148,79 @@ describe.skipIf(!POSIX)('render flags through the CLI', () => {
     const r = await cli(['visual', doc, '--out', path.join(base, 'd2.png'), '--no-allow-network-references']);
     expect(r.status).toBe(0);
     expect(seenNamesEvil(1)).toBe(false);
+  });
+
+  it('visual --show-markup: markup block in --json, the contract, privacy and long-comment notes on stderr, stdout stays JSON', async () => {
+    const doc = writeDoc('m1.docx', DocxParser.createNewDocument('blank').rezip());
+    const r = await cli(['--json', 'visual', doc, '--out', path.join(base, 'm1.png'), '--show-markup']);
+    expect(r.status).toBe(0);
+    const json = JSON.parse(r.stdout);
+    expect(json.markup).toMatchObject({ requested: true, renderer: 'libreoffice', mode: 'comments-in-margin' });
+    expect(json.markup.warnings[0]).toMatch(/cut short in the margin/);
+    expect(r.stderr).toMatch(/note: markup view: pages are scaled and may differ .* page numbers refer to this render/);
+    expect(r.stderr).toMatch(/note: markup view: the output shows reviewer names, deleted text and comments/);
+    expect(r.stderr).toMatch(/note: markup warning: LibreOffice can show a long comment cut short/);
+  });
+
+  it('inspect without --visual refuses the render flags instead of ignoring them, and says how to render', async () => {
+    const doc = writeDoc('m0.docx', DocxParser.createNewDocument('blank').rezip());
+    for (const flag of ['--show-markup', '--no-show-markup', '--renderer=libreoffice', '--allow-network-references']) {
+      const r = await cli(['inspect', doc, ...flag.split('=')]);
+      expect(r.status, flag).toBe(2);
+      expect(r.stderr, flag).toMatch(/only applies to a rendered page\. Add --visual/);
+    }
+    const ok = await cli(['inspect', doc, '--visual', '--show-markup']);
+    expect(ok.status).toBe(0);
+  });
+
+  it('visual: without the switch there is no markup block and no markup note', async () => {
+    const doc = writeDoc('m2.docx', DocxParser.createNewDocument('blank').rezip());
+    const r = await cli(['--json', 'visual', doc, '--out', path.join(base, 'm2.png')]);
+    expect(JSON.parse(r.stdout).markup).toBeUndefined();
+    expect(r.stderr).not.toMatch(/markup/i);
+  });
+
+  it('visual: ASTRA_SHOW_MARKUP turns it on and --no-show-markup beats it; a bad value is an error naming the variable', async () => {
+    const doc = writeDoc('m3.docx', DocxParser.createNewDocument('blank').rezip());
+    process.env.ASTRA_SHOW_MARKUP = '1';
+    const on = await cli(['--json', 'visual', doc, '--out', path.join(base, 'm3a.png')]);
+    expect(JSON.parse(on.stdout).markup).toMatchObject({ requested: true });
+    const off = await cli(['--json', 'visual', doc, '--out', path.join(base, 'm3b.png'), '--no-show-markup']);
+    expect(JSON.parse(off.stdout).markup).toBeUndefined();
+    process.env.ASTRA_SHOW_MARKUP = 'sometimes';
+    const bad = await cli(['visual', doc, '--out', path.join(base, 'm3c.png')]);
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toMatch(/ASTRA_SHOW_MARKUP/);
+  });
+
+  it('visual --show-markup with a LibreOffice below the tested minimum fails E_DEPENDENCY before any render, with a remedy', async () => {
+    process.env.FAKE_SOFFICE_VERSION = 'LibreOffice 6.4.7.2 x';
+    const doc = writeDoc('m4.docx', DocxParser.createNewDocument('blank').rezip());
+    const r = await cli(['visual', doc, '--out', path.join(base, 'm4.png'), '--show-markup']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/E_DEPENDENCY/);
+    expect(r.stderr).toMatch(/has not been tested for showing comments in the margin/);
+    expect(fs.existsSync(path.join(base, 'm4.png'))).toBe(false);
+  });
+
+  it('inspect --visual --show-markup carries the markup block in --json', async () => {
+    const doc = writeDoc('m5.docx', DocxParser.createNewDocument('blank').rezip());
+    const r = await cli(['--json', 'inspect', doc, '--visual', '--show-markup']);
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout).visual.markup).toMatchObject({ requested: true, renderer: 'libreoffice' });
+  });
+
+  it('export --format pdf --show-markup: markup in --json and the notes; html with the flag is a usage error', async () => {
+    const doc = writeDoc('m6.docx', DocxParser.createNewDocument('blank').rezip());
+    const pdf = path.join(base, 'm6.pdf');
+    const r = await cli(['--json', 'export', doc, '--format', 'pdf', '--out', pdf, '--show-markup']);
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout).markup).toMatchObject({ requested: true, renderer: 'libreoffice', mode: 'comments-in-margin' });
+    expect(r.stderr).toMatch(/note: markup view: the output shows reviewer names/);
+    const html = await cli(['export', doc, '--format', 'html', '--show-markup']);
+    expect(html.status).toBe(2);
+    expect(html.stderr).toMatch(/--show-markup/);
+    expect(html.stderr).toMatch(/PDF export only/);
   });
 
   it('visual: --renderer word off Windows fails E_DEPENDENCY with the engine remedy (exit 1)', async () => {
