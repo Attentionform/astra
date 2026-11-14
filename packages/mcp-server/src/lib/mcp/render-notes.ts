@@ -8,10 +8,10 @@ export const NETWORK_REFERENCES_PARAM_NOTE =
 
 /**
  * Shared by visual_inspect and export_document: what showMarkup does and what the caller must know before sharing the
- * output. It is off by default. Tracked changes and comments are drawn by the renderer's own review view.
+ * output. It is off by default; what a render shows with it off depends on the program (see the text below).
  */
 export const SHOW_MARKUP_PARAM_NOTE =
-  'showMarkup: default false. Set true to draw tracked changes and comments (Word: inline marks and comment balloons; LibreOffice: comments in the margin). ' +
+  'showMarkup: default false. Without it Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments. Set true to draw tracked changes and comments (Word: inline marks and comment balloons; LibreOffice: comments in the margin). ' +
   'It uses a different layout mode: pages can be scaled and pagination can change, so page numbers refer to the render that was produced. ' +
   'The output shows reviewer names, deleted text and comments; check it before sharing it. ' +
   'The result reports markup:{requested,renderer,mode,warnings} (what was asked and which mode the renderer was told to use; it does not check the image), and a LibreOffice below the tested minimum fails with E_DEPENDENCY.';

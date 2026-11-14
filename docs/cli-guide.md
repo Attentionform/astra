@@ -85,7 +85,7 @@ Sanitize is fail-closed: bare `sanitize in out` keeps body text (metadata/rsids/
 Sanitize --json carries survivors as warnings:[...] (bare and --metadata-only always warn; absent only when fully redacted and clean).
 Create/import refuse to overwrite without --force; batch/export/visual --out targets do too (exit 2 naming the file).
 Inspect --visual adds spatial telemetry (<500 tok) + one headless page render (--page, PNG default, JPEG opt-in); missing renderer or Poppler degrades with E_DEPENDENCY hint.
-Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is LibreOffice; word is Windows only), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1). Tracked changes and comments are drawn only with --show-markup (env ASTRA_SHOW_MARKUP=1); that view scales pages, and the output shows reviewer names, deleted text and comments.
+Rendering: --renderer auto|word|libreoffice picks the DOCX-to-PDF program (auto is LibreOffice; word is Windows only), --pdf-to-image auto|windows|poppler picks the page-image program (Windows: auto tries the built-in renderer, then Poppler); env ASTRA_RENDERER, ASTRA_PDF_TO_IMAGE. Network references in a document are not loaded unless --allow-network-references (env ASTRA_ALLOW_NETWORK_REFERENCES=1). Without --show-markup, Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments; --show-markup (env ASTRA_SHOW_MARKUP=1) draws tracked changes and comments in both. That view scales pages, and the output shows reviewer names, deleted text and comments.
 Visual renders the saved on-disk file (MCP visual_inspect renders session state incl. unsaved edits: save first for matching renders); inspect --visual is the same renderer as visual (alias: same --page/--format yields identical bytes).
 ```
 
@@ -170,7 +170,7 @@ astra inspect report.docx --visual --format png
 | `--renderer` | `auto\|word\|libreoffice` | With `--visual`: the program that turns the document into a PDF. See [Rendering programs](#rendering-programs-and-network-references). |
 | `--pdf-to-image` | `auto\|windows\|poppler` | With `--visual`: the program that turns the PDF into page images. |
 | `--allow-network-references` | `flag` | With `--visual`: let the renderer load content from network locations the document names (default: not loaded). `--no-allow-network-references` keeps them off even when the environment allows them. |
-| `--show-markup` | `flag` | With `--visual`: draw tracked changes and comments in the page images (default: not drawn). Env `ASTRA_SHOW_MARKUP=1`. `--no-show-markup` overrides the variable. See [Tracked changes and comments in renders](#tracked-changes-and-comments-in-renders). |
+| `--show-markup` | `flag` | With `--visual`: draw tracked changes and comments in the page images (default: Word draws content only, LibreOffice draws tracked changes but no comments). Env `ASTRA_SHOW_MARKUP=1`. `--no-show-markup` overrides the variable. See [Tracked changes and comments in renders](#tracked-changes-and-comments-in-renders). |
 | `--json` | `flag` | Emit structured JSON output containing rows, styles, and telemetry. |
 
 ---
@@ -498,7 +498,7 @@ astra visual report.docx --page 2 -o preview_p2.jpg --format jpeg --force
 | `--renderer <auto\|word\|libreoffice>` | `string` | DOCX-to-PDF program (default `auto`, which is LibreOffice). `word` is Windows only. Env `ASTRA_RENDERER`. |
 | `--pdf-to-image <auto\|windows\|poppler>` | `string` | PDF-to-image program (default `auto`: on Windows the built-in renderer first, then Poppler; elsewhere Poppler). Env `ASTRA_PDF_TO_IMAGE`. |
 | `--allow-network-references` | `flag` | Let the renderer load content from network locations the document names. Default: not loaded. Env `ASTRA_ALLOW_NETWORK_REFERENCES=1`. `--no-allow-network-references` overrides the variable. |
-| `--show-markup` | `flag` | Draw tracked changes and comments (default: not drawn). Env `ASTRA_SHOW_MARKUP=1`. `--no-show-markup` overrides the variable. See [Tracked changes and comments in renders](#tracked-changes-and-comments-in-renders). |
+| `--show-markup` | `flag` | Draw tracked changes and comments (default: Word draws content only, LibreOffice draws tracked changes but no comments). Env `ASTRA_SHOW_MARKUP=1`. `--no-show-markup` overrides the variable. See [Tracked changes and comments in renders](#tracked-changes-and-comments-in-renders). |
 
 `visual` renders the saved on-disk document file. For MCP sessions where unsaved edits exist in memory, call `save_document` first or use `visual_inspect`. A missing renderer or page-image program stops `visual` with exit code 1 (`E_DEPENDENCY`) and a remedy; `inspect --visual` degrades instead and keeps exit code 0.
 

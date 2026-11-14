@@ -162,6 +162,17 @@ describe.skipIf(!POSIX)('render flags through the CLI', () => {
     expect(r.stderr).toMatch(/note: markup warning: LibreOffice can show a long comment cut short/);
   });
 
+  it('inspect without --visual refuses the render flags instead of ignoring them, and says how to render', async () => {
+    const doc = writeDoc('m0.docx', DocxParser.createNewDocument('blank').rezip());
+    for (const flag of ['--show-markup', '--no-show-markup', '--renderer=libreoffice', '--allow-network-references']) {
+      const r = await cli(['inspect', doc, ...flag.split('=')]);
+      expect(r.status, flag).toBe(2);
+      expect(r.stderr, flag).toMatch(/only applies to a rendered page\. Add --visual/);
+    }
+    const ok = await cli(['inspect', doc, '--visual', '--show-markup']);
+    expect(ok.status).toBe(0);
+  });
+
   it('visual: without the switch there is no markup block and no markup note', async () => {
     const doc = writeDoc('m2.docx', DocxParser.createNewDocument('blank').rezip());
     const r = await cli(['--json', 'visual', doc, '--out', path.join(base, 'm2.png')]);

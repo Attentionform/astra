@@ -54,6 +54,7 @@ let savedTmp: string | undefined;
 const saved: Record<string, string | undefined> = {};
 const ENV_KEYS = [
   SHOW_MARKUP_ENV,
+  'ASTRA_WORD_MARKUP',
   'ASTRA_RENDERER',
   'FAKE_PS_MODE',
   'FAKE_PS_LOG',
@@ -420,12 +421,28 @@ describe('Word through the fake PowerShell host', () => {
     return wordDocxToPdf(inp, path.join(tmpBase, 'out.pdf'), { ...fakePsHooks, retryPauseMs: [0, 0], ...o });
   };
 
-  it('without markup the variable is not passed and no markup block is reported', async () => {
+  it('without markup the variable is passed as 0 and no markup block is reported', async () => {
     process.env.FAKE_PS_MODE = 'ok';
     process.env.FAKE_PS_LOG = path.join(tmpBase, 'ps');
     const r = await run({});
     expect(r.markup).toBeUndefined();
-    expect(logRows(process.env.FAKE_PS_LOG)[0].markup).toBeUndefined();
+    expect(logRows(process.env.FAKE_PS_LOG)[0].markup).toBe('0');
+  });
+
+  it('an inherited ASTRA_WORD_MARKUP=1 cannot turn the review view on when markup is off', async () => {
+    process.env.FAKE_PS_MODE = 'ok';
+    process.env.FAKE_PS_LOG = path.join(tmpBase, 'ps');
+    process.env.ASTRA_WORD_MARKUP = '1';
+    try {
+      for (const o of [{}, { markup: false }]) {
+        const r = await run(o);
+        expect(r.markup).toBeUndefined();
+      }
+      const rows = logRows(process.env.FAKE_PS_LOG);
+      expect(rows.map((x) => x.markup)).toEqual(['0', '0']);
+    } finally {
+      delete process.env.ASTRA_WORD_MARKUP;
+    }
   });
 
   it('with markup the variable is passed and the confirmed mode comes back', async () => {

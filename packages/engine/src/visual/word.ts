@@ -513,7 +513,7 @@ export function wordDocxToPdf(inDocx: string, outPdf: string, options: WordRende
       if (remaining < 1000) break;
       const run: PowerShellRunOptions = {
         script,
-        env: { ASTRA_WORD_IN: inDocx, ASTRA_WORD_OUT: outPdf, ASTRA_WORD_TAGGED: options.tagged === false ? '0' : '1', ...(markup ? { ASTRA_WORD_MARKUP: '1' } : {}) },
+        env: { ASTRA_WORD_IN: inDocx, ASTRA_WORD_OUT: outPdf, ASTRA_WORD_TAGGED: options.tagged === false ? '0' : '1', ASTRA_WORD_MARKUP: markup ? '1' : '0' },
         timeoutMs: remaining,
         powershellBin: options.powershellBin,
         powershellArgs: options.powershellArgs,
