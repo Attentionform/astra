@@ -11,6 +11,7 @@ import {
   inspectFieldInstruction,
   neutraliseReferences,
   parseAllowNetworkReferences,
+  removeUpdateFields,
 } from '../../packages/engine/src/visual/references';
 import { REL_NS, buildDocx, complexField, documentXml, listParts, rawZip, readPart, relsXml } from '../helpers/docx-refs';
 import { createHash, randomBytes } from 'crypto';
@@ -252,6 +253,113 @@ describe('fields in the document body', () => {
     const a = neutraliseReferences(buildDocx({ body }));
     expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
     expect(a.found.map((f) => f.type)).toEqual(['INCLUDEPICTURE']);
+  });
+  describe('a nested field supplies the arguments', () => {
+    const quote = (url: string) => complexField([` QUOTE "${url}"`], url);
+    const nestedBody = (type: string, inner: string, tail = '') =>
+      `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${type} </w:instrText></w:r>${inner}${tail}<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>r</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+    it.each(['INCLUDETEXT', 'INCLUDEPICTURE', 'LINK', 'IMPORT', 'includetext'])('%s with a nested QUOTE that holds a network address is neutralised', (type) => {
+      const a = neutraliseReferences(buildDocx({ body: nestedBody(type, quote('http://evil.example/n')) }));
+      const xml = readPart(a.docx, 'word/document.xml');
+      // the address sits in the nested field's own text; the outer field no longer reads it as its argument
+      expect(a.found.some((f) => f.type === type.toUpperCase() && f.kind === 'field')).toBe(true);
+      expect(xml).toContain('QUOTE ""');
+      expect(xml).not.toMatch(new RegExp(`>\\s*${type}\\s*<`));
+    });
+    it('the outer instruction text after the nested field is dropped as well', () => {
+      const tail = '<w:r><w:instrText xml:space="preserve"> \\c HTML</w:instrText></w:r>';
+      const a = neutraliseReferences(buildDocx({ body: nestedBody('INCLUDETEXT', quote('\\\\host\\share\\f'), tail) }));
+      const xml = readPart(a.docx, 'word/document.xml');
+      expect(xml).not.toContain('INCLUDETEXT');
+      expect(xml).not.toContain('HTML');
+    });
+    it('a field of another type with a nested field is left alone', () => {
+      const a = neutraliseReferences(buildDocx({ body: nestedBody('IF 1 = 1 "', quote('plain text'), '<w:r><w:instrText xml:space="preserve">" ""</w:instrText></w:r>') }));
+      expect(a.found).toEqual([]);
+      expect(a.changed).toBe(false);
+    });
+    it('a formula that starts with = and holds a nested field is left alone', () => {
+      const body = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> = </w:instrText></w:r>${complexField([' SUM(ABOVE)'], '3')}<w:r><w:instrText xml:space="preserve"> * 2</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>6</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+      const a = neutraliseReferences(buildDocx({ body }));
+      expect(a.changed).toBe(false);
+    });
+    it('the field type built by a nested field cannot be judged: the document is refused (E_SECURITY)', () => {
+      const cases = [
+        // the nested field is the whole instruction
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>${quote('INCLUDETEXT http://evil.example/n')}<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`,
+        // the nested field comes first and the outer text follows
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>${quote('INCLUDETEXT http://evil.example/n')}<w:r><w:instrText xml:space="preserve"> \\* MERGEFORMAT</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`,
+        // the type word is finished by the nested field
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> INCLUDE</w:instrText></w:r>${quote('TEXT http://evil.example/n')}<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`,
+      ];
+      for (const body of cases) {
+        expect(() => neutraliseReferences(buildDocx({ body }))).toThrow(/E_SECURITY/);
+        expect(() => analyseReferences(buildDocx({ body }), { mutate: false })).toThrow(/E_SECURITY/);
+      }
+    });
+    describe('a simple field (w:fldSimple) inside a complex field instruction', () => {
+      const simple = (url: string) => `<w:fldSimple w:instr=" QUOTE &quot;${url}&quot; "><w:r><w:t>x</w:t></w:r></w:fldSimple>`;
+      const outer = (type: string, inner: string, tail = '') =>
+        `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${type} </w:instrText></w:r>${inner}${tail}<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>r</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+      it.each(['INCLUDETEXT', 'INCLUDEPICTURE', 'LINK', 'IMPORT'])('%s: the outer instruction is neutralised, in scan-only mode it is reported', (type) => {
+        const docx = buildDocx({ body: outer(type, simple('http://evil.example/s')) });
+        const scan = analyseReferences(docx, { mutate: false });
+        expect(scan.changed).toBe(false);
+        expect(scan.found.map((f) => f.type)).toEqual([type]);
+        expect(scan.local).toEqual([]);
+        const a = neutraliseReferences(docx);
+        const xml = readPart(a.docx, 'word/document.xml');
+        expect(a.changed).toBe(true);
+        expect(xml).toContain('QUOTE ""');
+        expect(xml).not.toMatch(new RegExp(`>\\s*${type}\\s*<`));
+      });
+      it('outer text after the simple field is dropped as well', () => {
+        const tail = '<w:r><w:instrText xml:space="preserve"> \\c HTML</w:instrText></w:r>';
+        const a = neutraliseReferences(buildDocx({ body: outer('INCLUDETEXT', simple('\\\\host\\share\\f'), tail) }));
+        expect(readPart(a.docx, 'word/document.xml')).not.toContain('HTML');
+      });
+      it('the simple field comes first or finishes the type word: refused (E_SECURITY), also in scan-only mode', () => {
+        const run = (t: string) => `<w:r><w:instrText xml:space="preserve">${t}</w:instrText></w:r>`;
+        const begin = '<w:r><w:fldChar w:fldCharType="begin"/></w:r>';
+        const end = '<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>';
+        const cases = [
+          `<w:p>${begin}${simple('INCLUDETEXT http://evil.example/n')}${run(' \\* MERGEFORMAT')}${end}</w:p>`,
+          `<w:p>${begin}${run(' INCLUDE')}${simple('TEXT http://evil.example/n')}${end}</w:p>`,
+          `<w:p>${begin}${simple('INCLUDETEXT http://evil.example/n')}${end}</w:p>`,
+        ];
+        for (const body of cases) {
+          expect(() => neutraliseReferences(buildDocx({ body }))).toThrow(/E_SECURITY/);
+          expect(() => analyseReferences(buildDocx({ body }), { mutate: false })).toThrow(/E_SECURITY/);
+        }
+      });
+      it('a simple field in the result part, or in a field of another type, changes nothing', () => {
+        const result = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> INCLUDETEXT "local.docx" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${simple('shown')}<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+        expect(neutraliseReferences(buildDocx({ body: result })).changed).toBe(false);
+        expect(neutraliseReferences(buildDocx({ body: outer('IF 1 = 1 "', simple('plain'), '<w:r><w:instrText xml:space="preserve">" ""</w:instrText></w:r>') })).changed).toBe(false);
+      });
+      it('a simple field with a network INCLUDEPICTURE inside is still judged on its own', () => {
+        const inner = `<w:fldSimple w:instr=" INCLUDEPICTURE &quot;http://evil.example/in.png&quot; "><w:r><w:t>x</w:t></w:r></w:fldSimple>`;
+        const a = neutraliseReferences(buildDocx({ body: outer('INCLUDETEXT', inner) }));
+        expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
+        expect(a.found.map((f) => f.type).sort()).toEqual(['INCLUDEPICTURE', 'INCLUDETEXT']);
+      });
+    });
+    it('a nested field in the result part of a field is not an argument', () => {
+      const body = `<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> INCLUDETEXT "local.docx" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${quote('shown')}<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+      const a = neutraliseReferences(buildDocx({ body }));
+      expect(a.changed).toBe(false);
+      expect(a.local).toHaveLength(1);
+    });
+    it('the nested field is still judged on its own', () => {
+      const inner = complexField([' INCLUDEPICTURE "http://evil.example/in.png"']);
+      const a = neutraliseReferences(buildDocx({ body: nestedBody('INCLUDETEXT', inner) }));
+      expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
+      expect(a.found.map((f) => f.type).sort()).toEqual(['INCLUDEPICTURE', 'INCLUDETEXT']);
+    });
+    it('a DDE field with a nested field is neutralised as dde', () => {
+      const a = neutraliseReferences(buildDocx({ body: nestedBody('DDEAUTO', quote('cmd')) }));
+      expect(a.found.map((f) => f.class)).toContain('dde');
+    });
   });
   it('neutralises w:fldSimple', () => {
     const body = '<w:p><w:fldSimple w:instr=" INCLUDEPICTURE &quot;http://evil.example/s.png&quot; \\d"><w:r><w:t>x</w:t></w:r></w:fldSimple></w:p>';
@@ -622,5 +730,131 @@ describe('field switches that take an argument', () => {
     const a = neutraliseReferences(buildDocx({ body }));
     expect(a.found).toHaveLength(1);
     expect(readPart(a.docx, 'word/document.xml')).not.toContain('evil.example');
+  });
+});
+
+describe('removeUpdateFields (Word asks a question nobody can answer when the setting is on)', () => {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const settings = (inner: string) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings ${W}><w:zoom w:percent="100"/>${inner}<w:defaultTabStop w:val="720"/></w:settings>`;
+  it('removes w:updateFields from the settings part and keeps everything else', () => {
+    const docx = buildDocx({ extra: { 'word/settings.xml': settings('<w:updateFields w:val="true"/>') } });
+    const out = removeUpdateFields(docx);
+    const xml = readPart(out, 'word/settings.xml');
+    expect(xml).not.toContain('updateFields');
+    expect(xml).toContain('<w:zoom w:percent="100"/>');
+    expect(xml).toContain('<w:defaultTabStop w:val="720"/>');
+    expect(readPart(out, 'word/document.xml')).toBe(readPart(docx, 'word/document.xml'));
+  });
+  it('returns the same buffer when there is nothing to remove', () => {
+    const docx = buildDocx({ extra: { 'word/settings.xml': settings('') } });
+    expect(removeUpdateFields(docx)).toBe(docx);
+    expect(removeUpdateFields(buildDocx())).not.toBeNull();
+  });
+  it('reads a UTF-16 settings part and writes it back in UTF-16', () => {
+    const docx = buildDocx({ extra: { 'word/settings.xml': utf16(settings('<w:updateFields w:val="1"/>'), 'le', true) } });
+    const out = removeUpdateFields(docx);
+    expect(fromUtf16(rawPart(out, 'word/settings.xml'), 'le')).not.toContain('updateFields');
+  });
+  it('leaves a part it cannot parse, and a non-package, as they are', () => {
+    const bad = buildDocx({ extra: { 'word/settings.xml': '<w:settings updateFields' } });
+    expect(removeUpdateFields(bad)).toBe(bad);
+    const junk = Buffer.from('not a zip');
+    expect(removeUpdateFields(junk)).toBe(junk);
+  });
+  it('handles a settings part larger than 16 MiB (only media-looking parts are skipped above that size)', () => {
+    const pad = `<!--${'x'.repeat(17 * 1024 * 1024)}-->`;
+    const docx = buildDocx({ extra: { 'word/settings.xml': settings(`${pad}<w:updateFields w:val="true"/>`) } });
+    const out = removeUpdateFields(docx);
+    expect(out).not.toBe(docx);
+    expect(readPart(out, 'word/settings.xml')).not.toContain('updateFields');
+  });
+  it('an XML part over the part ceiling refuses the render (E_SECURITY); a large non-XML part is skipped', () => {
+    const big = Buffer.alloc(129 * 1024 * 1024, 0x61);
+    expect(() => removeUpdateFields(buildDocx({ extra: { 'word/settings.xml': big } }))).toThrow(/E_SECURITY/);
+    const skipped = buildDocx({ extra: { 'word/media/blob.bin': big } });
+    expect(removeUpdateFields(skipped)).toBe(skipped);
+  });
+  it('does not touch an element of another namespace with the same name', () => {
+    const other = '<?xml version="1.0"?><x:root xmlns:x="urn:other"><x:updateFields/></x:root>';
+    const docx = buildDocx({ extra: { 'customXml/item1.xml': other } });
+    expect(removeUpdateFields(docx)).toBe(docx);
+  });
+});
+
+describe('a large XML part with a media-looking name is still inspected (parts are identified by content type, not by name)', () => {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const MAIN = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+  const SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+  const pad = `<!--${'x'.repeat(17 * 1024 * 1024)}-->`;
+  /** Rename a part and say what it is: an Override for the new name, and the relationship that points at it. */
+  function rename(docx: Buffer, from: string, to: string, contentType: string | null, relFile?: string): Buffer {
+    const zip = new AdmZip(docx);
+    zip.updateFile(from, Buffer.from(zip.getEntry(from)!.getData()));
+    const data = zip.getEntry(from)!.getData();
+    zip.deleteFile(from);
+    zip.addFile(to, data);
+    const ct = zip.getEntry('[Content_Types].xml')!.getData().toString('utf8');
+    const add = contentType ? `<Override PartName="/${to}" ContentType="${contentType}"/>` : '';
+    zip.updateFile('[Content_Types].xml', Buffer.from(ct.replace('</Types>', `${add}</Types>`).replace(new RegExp(`<Override PartName="/${from}"[^>]*/>`), '')));
+    if (relFile) {
+      const rels = zip.getEntry(relFile)!.getData().toString('utf8');
+      zip.updateFile(relFile, Buffer.from(rels.split(from.replace(/^word\//, '')).join(to.replace(/^word\//, '')).split(`"${from}"`).join(`"${to}"`)));
+    }
+    return zip.toBuffer();
+  }
+
+  it('removeUpdateFields: a 17 MiB settings part named settings.bin, declared as settings, is changed', () => {
+    const base = buildDocx({ extra: { 'word/settings.xml': `<?xml version="1.0"?><w:settings ${W}>${pad}<w:updateFields w:val="true"/></w:settings>` } });
+    const docx = rename(base, 'word/settings.xml', 'word/settings.bin', SETTINGS);
+    const out = removeUpdateFields(docx);
+    expect(out).not.toBe(docx);
+    expect(readPart(out, 'word/settings.bin')).not.toContain('updateFields');
+  });
+  it('the reference scan: a 17 MiB main part named document.bin, declared as the main part, is scanned and neutralised', () => {
+    const body = `<w:p>${complexField([' INCLUDEPICTURE "http://evil.example/big.png"'])}</w:p>`;
+    const base = buildDocx({ document: `<?xml version="1.0"?><w:document ${W}><w:body>${body}${pad}</w:body></w:document>` });
+    const docx = rename(base, 'word/document.xml', 'word/document.bin', MAIN, '_rels/.rels');
+    const a = neutraliseReferences(docx);
+    expect(a.found.map((f) => f.type)).toEqual(['INCLUDEPICTURE']);
+    expect(readPart(a.docx, 'word/document.bin')).not.toContain('evil.example');
+  });
+  it('an XML part over the part ceiling is refused whatever its name: settings.bin declared as settings, document.bin declared as the main part', () => {
+    const huge = Buffer.alloc(129 * 1024 * 1024, 0x20);
+    const settings = rename(buildDocx({ extra: { 'word/settings.xml': `<?xml version="1.0"?><w:settings ${W}><w:updateFields w:val="true"/></w:settings>` } }), 'word/settings.xml', 'word/settings.bin', SETTINGS);
+    const z1 = new AdmZip(settings);
+    z1.updateFile('word/settings.bin', huge);
+    const bigSettings = z1.toBuffer();
+    expect(() => removeUpdateFields(bigSettings)).toThrow(/E_SECURITY/);
+    expect(() => analyseReferences(bigSettings, { mutate: false })).toThrow(/E_SECURITY/);
+    const main = rename(buildDocx(), 'word/document.xml', 'word/document.bin', MAIN, '_rels/.rels');
+    const z2 = new AdmZip(main);
+    z2.updateFile('word/document.bin', huge);
+    const bigMain = z2.toBuffer();
+    expect(() => neutraliseReferences(bigMain)).toThrow(/E_SECURITY/);
+    expect(() => removeUpdateFields(bigMain)).toThrow(/E_SECURITY/);
+  });
+  it('a relationships part is known by its content type: one not named .rels is still neutralised', () => {
+    const base = buildDocx({ rels: [{ id: 'rId9', type: 'image', target: 'http://evil.example/p.png', mode: 'External' }] });
+    const docx = rename(base, 'word/_rels/document.xml.rels', 'word/_rels/links.dat', 'application/vnd.openxmlformats-package.relationships+xml');
+    const a = neutraliseReferences(docx);
+    expect(a.found).toHaveLength(1);
+    expect(readPart(a.docx, 'word/_rels/links.dat')).not.toContain('evil.example');
+  });
+  it('a UTF-32 part declared as XML is refused even when it is not named .xml', () => {
+    const text = '\ufeff<w:settings xmlns:w="x"><w:updateFields/></w:settings>';
+    const utf32 = Buffer.alloc(text.length * 4);
+    for (let i = 0; i < text.length; i++) utf32.writeUInt32LE(text.charCodeAt(i), i * 4);
+    const docx = rename(buildDocx({ extra: { 'word/settings.xml': '<w:settings xmlns:w="x"/>' } }), 'word/settings.xml', 'word/settings.bin', SETTINGS);
+    const z = new AdmZip(docx);
+    z.updateFile('word/settings.bin', utf32);
+    expect(() => neutraliseReferences(z.toBuffer())).toThrow(/E_SECURITY/);
+  });
+  it('a genuine large media part is still skipped, and so is a large part declared as binary', () => {
+    const big = Buffer.alloc(17 * 1024 * 1024, 0x61);
+    const png = rename(buildDocx({ extra: { 'word/media/p.png': big } }), 'word/media/p.png', 'word/media/p.png', 'image/png');
+    expect(removeUpdateFields(png)).toBe(png);
+    const bin = rename(buildDocx({ extra: { 'word/embeddings/o.bin': big } }), 'word/embeddings/o.bin', 'word/embeddings/o.bin', 'application/vnd.openxmlformats-officedocument.oleObject');
+    expect(removeUpdateFields(bin)).toBe(bin);
+    expect(neutraliseReferences(bin).changed).toBe(false);
   });
 });

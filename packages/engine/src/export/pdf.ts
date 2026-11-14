@@ -23,6 +23,7 @@ import {
   effectiveAllowNetworkReferences,
   emptyReferenceReport,
   neutraliseReferences,
+  removeUpdateFields,
   type ReferenceReport,
 } from '../visual/references';
 import { findWord, wordDocxToPdf, type WordInstall } from '../visual/word';
@@ -253,6 +254,7 @@ export async function convertDocxToPdfDetailed(
     renderBytes = neutralised.docx;
     references = buildReferenceReport(false, neutralised);
   }
+  renderBytes = removeUpdateFields(renderBytes);
 
   // Failure dirs are staged (not yet logged as forensics) so a successful render by any engine or filter
   // leaves no temp dirs behind.

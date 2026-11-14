@@ -33,6 +33,7 @@ import {
   effectiveAllowNetworkReferences,
   emptyReferenceReport,
   neutraliseReferences,
+  removeUpdateFields,
   type ReferenceReport,
 } from './references';
 import { findWord, wordDocxToPdf, type WordInstall } from './word';
@@ -434,6 +435,7 @@ export async function renderDocxToImages(
     renderBytes = neutralised.docx;
     references = buildReferenceReport(false, neutralised);
   }
+  renderBytes = removeUpdateFields(renderBytes);
 
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   // Jail custom outDirs to the visual artifacts base dir (E_SANDBOX pre-write

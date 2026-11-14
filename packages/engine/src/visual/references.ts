@@ -15,10 +15,14 @@
  *     path: retargeted in place, so relationship ids stay valid;
  *   - the instruction of fields that load external content (INCLUDEPICTURE, INCLUDETEXT, LINK, IMPORT) when
  *     the file argument is not a plain local path, including instructions split across several runs and
- *     `w:fldSimple`; DDE and DDEAUTO fields are always neutralised (they can start programs).
+ *     `w:fldSimple`; DDE and DDEAUTO fields are always neutralised (they can start programs);
+ *   - a field of those types whose instruction holds another field (a nested QUOTE, REF or similar can supply the
+ *     address): the whole instruction is replaced, the nested field is judged on its own, and an instruction whose
+ *     field type is itself built by a nested field is refused with E_SECURITY.
  * Every part is looked at by content, not by name or extension (a renderer reads a part according to its
- * declared content type, so a main document part could be hidden under any name), except media-looking parts
- * over 16 MB, which are skipped.
+ * declared content type, so a main document part could be hidden under any name), except parts over 16 MB that
+ * have a media-looking name and that the package declares as something other than XML, which are skipped. A part
+ * the package declares as XML, or does not declare, is read whatever it is called.
  * Not inspected: VML `o:href` attributes, mail-merge data-source connection strings, DATABASE fields, content
  * inside embedded objects and imported chunks (altChunk), and anything a renderer does that is not driven by
  * the structures above.
@@ -290,6 +294,50 @@ const SNIFF_LIMIT_BYTES = 16 * 1024 * 1024;
 const MEDIA_NAME = /\.(?:png|jpe?g|gif|bmp|tiff?|emf|wmf|wdp|svg|ico|mp3|mp4|m4a|wav|avi|mov|mpe?g|wmv|webm|ogg|ttf|otf|odttf|fntdata|bin|pdf|zip|docx|xlsx|pptx)$/i;
 const MAX_PART_BYTES = 128 * 1024 * 1024;
 
+/**
+ * What the package says each part is. A part is identified by its content type (an Override for its name, else the
+ * Default for its extension), not by its name: a settings or main document part can carry any name, `.bin` included.
+ * A package whose content types cannot be read gives `undefined` for every part, and such parts are inspected.
+ */
+function contentTypeResolver(zip: InstanceType<typeof AdmZip>): (partName: string) => string | undefined {
+  const overrides = new Map<string, string>();
+  const defaults = new Map<string, string>();
+  try {
+    const entry = zip.getEntry('[Content_Types].xml');
+    if (entry && entry.header.size <= SNIFF_LIMIT_BYTES) {
+      const { text } = decodePart('[Content_Types].xml', entry.getData());
+      const doc = parseXml('[Content_Types].xml', text) as unknown as { getElementsByTagNameNS(ns: string, ln: string): ArrayLike<Element> };
+      const defs = doc.getElementsByTagNameNS('*', 'Default');
+      for (let i = 0; i < defs.length; i++) defaults.set((defs[i].getAttribute('Extension') ?? '').toLowerCase(), defs[i].getAttribute('ContentType') ?? '');
+      const ovs = doc.getElementsByTagNameNS('*', 'Override');
+      for (let i = 0; i < ovs.length; i++) overrides.set((ovs[i].getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase(), ovs[i].getAttribute('ContentType') ?? '');
+    }
+  } catch {
+    overrides.clear();
+    defaults.clear();
+  }
+  return (partName: string): string | undefined => {
+    const lower = partName.replace(/\\/g, '/').toLowerCase();
+    const o = overrides.get(lower);
+    if (o !== undefined) return o;
+    const ext = lower.includes('.') ? lower.slice(lower.lastIndexOf('.') + 1) : '';
+    return defaults.get(ext);
+  };
+}
+
+/**
+ * Large parts that look like media by name are not read (a 100 MB video is not an XML part). A part that the package
+ * declares as XML, or does not declare at all, is read whatever it is called.
+ */
+/** A part over the part ceiling that is XML by name or by the package's own declaration: it cannot be inspected. */
+function isOversizedXml(lowerName: string, size: number, contentType: string | undefined): boolean {
+  return size > MAX_PART_BYTES && (lowerName.endsWith('.xml') || (contentType !== undefined && /xml/i.test(contentType)));
+}
+
+function isLargeMedia(lowerName: string, size: number, contentType: string | undefined): boolean {
+  return size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lowerName) && contentType !== undefined && !/xml/i.test(contentType);
+}
+
 export interface ReferenceAnalysis {
   /** The bytes to render: the input itself when nothing had to change. */
   docx: Buffer;
@@ -461,6 +509,13 @@ function processRels(name: string, data: Buffer, mutate: boolean, out: Reference
 interface FieldFrame {
   nodes: Element[];
   separated: boolean;
+  /**
+   * Another field begins inside this field's instruction (before the separator). Its result becomes part of this
+   * instruction, so this frame's own text is not the whole instruction.
+   */
+  nested: boolean;
+  /** The frame's own instruction text before the first nested field began. */
+  prefix: string;
 }
 
 function textOf(el: Element): string {
@@ -488,15 +543,16 @@ function setFldSimpleInstruction(el: Element, text: string): void {
   }
 }
 
-function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis): Buffer | null {
+function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis, declaredXml: boolean): Buffer | null {
+  const isXml = declaredXml || /\.xml$/i.test(name);
   const utf16 = utf16Endianness(data) !== undefined;
   if (!utf16 && !looksLikeXml(data)) {
     // An .xml part in an encoding these checks cannot read could hide a field: fail closed rather than skip it.
-    if (/\.xml$/i.test(name) && looksLikeUtf32(data)) throw failClosed(`part "${name}" is not UTF-8 or UTF-16 encoded`);
+    if (isXml && looksLikeUtf32(data)) throw failClosed(`part "${name}" is not UTF-8 or UTF-16 encoded`);
     return null;
   }
   // A binary part that happens to look like UTF-16 text but has an odd length is not XML; an .xml part is.
-  if (utf16 && data.length % 2 !== 0 && !/\.xml$/i.test(name)) return null;
+  if (utf16 && data.length % 2 !== 0 && !isXml) return null;
   // Cheap pre-filter on the raw bytes: most parts hold no field at all. `InstrText` also matches `delInstrText`.
   // A UTF-16 part is decoded first (it is rare), because its bytes never match a UTF-8 search string.
   let decoded: { text: string; enc: PartEncoding } | undefined;
@@ -518,7 +574,27 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
     else out.found.push(entry);
   };
 
-  const finalizeComplex = (nodes: Element[]): void => {
+  const finalizeComplex = (nodes: Element[], frame?: FieldFrame): void => {
+    if (frame?.nested) {
+      // A nested field can supply any part of this instruction, so the frame's own text proves nothing: a QUOTE field
+      // can hand INCLUDETEXT a network address that neither frame shows as one. The field type must stand complete in
+      // this frame's own text before the nested field ("INCLUDETEXT" then white space, or a formula "="); if it
+      // does not, the instruction cannot be judged and the document is refused. Otherwise an external-content field
+      // is rewritten as a whole: its nested field stays, and is judged on its own, but becomes an argument of QUOTE.
+      const own = /^\s*(?:([A-Za-z]+)\s|=)/.exec(frame.prefix);
+      if (!own) throw failClosed('a field instruction that is partly built by another field cannot be checked');
+      const type = (own[1] ?? '').toUpperCase();
+      if (DDE_FIELDS.has(type) || FILE_FIELDS.has(type)) {
+        const own2 = inspectFieldInstruction(frame.prefix + ' ');
+        const keep = own2 !== null && own2.class !== 'local' ? own2 : undefined;
+        record({ type, rewritten: ' QUOTE "" ', class: DDE_FIELDS.has(type) ? 'dde' : keep ? keep.class : 'unparseable', ...(keep?.scheme ? { scheme: keep.scheme } : {}) });
+        if (mutate && nodes.length > 0) {
+          setInstructionText(nodes[0], nodes.slice(1), ' QUOTE "" ');
+          changed = true;
+        }
+      }
+      return;
+    }
     if (nodes.length === 0) return;
     const instruction = nodes.map(textOf).join('');
     const v = inspectFieldInstruction(instruction);
@@ -531,6 +607,14 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
   };
 
   const stack: FieldFrame[] = [];
+  /** A field starts here: if it is inside the instruction part of an open complex field, that field is nested-into. */
+  const markNested = (): void => {
+    const parent = stack.length > 0 ? stack[stack.length - 1] : undefined;
+    if (parent && !parent.separated) {
+      if (!parent.nested) parent.prefix = parent.nodes.map(textOf).join('');
+      parent.nested = true;
+    }
+  };
   const todo: Node[] = [doc.documentElement];
   while (todo.length > 0) {
     const node = todo.pop() as Node;
@@ -540,18 +624,22 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
         const ln = el.localName;
         if (ln === 'fldChar') {
           const kind = getAttr(el, 'fldCharType');
-          if (kind === 'begin') stack.push({ nodes: [], separated: false });
+          if (kind === 'begin') {
+            markNested();
+            stack.push({ nodes: [], separated: false, nested: false, prefix: '' });
+          }
           else if (kind === 'separate') {
             if (stack.length > 0) stack[stack.length - 1].separated = true;
           } else if (kind === 'end') {
             const frame = stack.pop();
-            if (frame) finalizeComplex(frame.nodes);
+            if (frame) finalizeComplex(frame.nodes, frame);
           }
         } else if (ln === 'instrText' || ln === 'delInstrText') {
           const top = stack.length > 0 ? stack[stack.length - 1] : undefined;
           if (top && !top.separated) top.nodes.push(el);
           else finalizeComplex([el]); // an instruction outside a begin..separate span: judged on its own
         } else if (ln === 'fldSimple') {
+          markNested(); // a simple field inside a complex field's instruction supplies part of it just the same
           const instr = getAttr(el, 'instr');
           if (instr !== null) {
             const v = inspectFieldInstruction(instr);
@@ -569,7 +657,10 @@ function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: Ref
     }
   }
   // A field that was begun and never ended is still judged (fail closed).
-  while (stack.length > 0) finalizeComplex((stack.pop() as FieldFrame).nodes);
+  while (stack.length > 0) {
+    const frame = stack.pop() as FieldFrame;
+    finalizeComplex(frame.nodes, frame);
+  }
   return changed ? encodePart(serialise(doc), enc) : null;
 }
 
@@ -593,6 +684,7 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     throw failClosed('the file is not a readable zip package');
   }
   const entries = zip.getEntries();
+  const contentTypeOf = contentTypeResolver(zip);
   const seen = new Set<string>();
   for (const e of entries) {
     const key = e.entryName.replace(/\\/g, '/').toLowerCase();
@@ -604,17 +696,17 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     if (e.isDirectory) continue;
     const name = e.entryName.replace(/\\/g, '/');
     const lower = name.toLowerCase();
-    if (lower.endsWith('.rels')) {
+    const declared = contentTypeOf(name);
+    // A relationships part is known by its content type as well as by its name.
+    if (lower.endsWith('.rels') || (declared !== undefined && /relationships\+xml/i.test(declared))) {
       const next = processRels(name, e.getData(), opts.mutate, out);
       if (next !== null) updates.set(e.entryName, next);
     } else {
       const size = e.header.size;
-      if (size > SNIFF_LIMIT_BYTES && MEDIA_NAME.test(lower)) continue;
-      if (size > MAX_PART_BYTES) {
-        if (lower.endsWith('.xml')) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
-        continue;
-      }
-      const next = processFieldsPart(name, e.getData(), opts.mutate, out);
+      if (isLargeMedia(lower, size, declared)) continue;
+      if (isOversizedXml(lower, size, declared)) throw failClosed(`part "${name}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+      if (size > MAX_PART_BYTES) continue;
+      const next = processFieldsPart(name, e.getData(), opts.mutate, out, declared !== undefined && /xml/i.test(declared));
       if (next !== null) updates.set(e.entryName, next);
     }
   }
@@ -624,6 +716,52 @@ export function analyseReferences(docx: Buffer, opts: { mutate: boolean }): Refe
     out.changed = true;
   }
   return out;
+}
+
+/**
+ * Word asks "update the fields in this document?" when the settings part holds `w:updateFields`. For a hidden Word
+ * that is a visible dialog nobody can answer: the render waits until its timeout and a hidden Word stays behind.
+ * The render copy never asks: the setting is removed from it (the user's file is not changed). Returns the same
+ * buffer when there is nothing to remove, or when a part cannot be read as XML (it is then left as it is). A part
+ * too large to inspect (an XML part over the part ceiling) refuses the render with E_SECURITY, as the scan does.
+ */
+export function removeUpdateFields(docx: Buffer): Buffer {
+  let zip: InstanceType<typeof AdmZip>;
+  try {
+    zip = new AdmZip(docx);
+  } catch {
+    return docx;
+  }
+  const updates = new Map<string, Buffer>();
+  const contentTypeOf = contentTypeResolver(zip);
+  for (const e of zip.getEntries()) {
+    const lower = e.entryName.toLowerCase();
+    if (e.isDirectory || lower.endsWith('.rels')) continue;
+    // The same limits as the reference scan: only a part over 16 MiB with a media-looking name that the package does not
+    // declare as XML is skipped, and an XML part over the part ceiling cannot be inspected, so the render is refused
+    // instead of going ahead with a settings part that may still hold the setting.
+    if (isOversizedXml(lower, e.header.size, contentTypeOf(e.entryName))) throw failClosed(`part "${e.entryName}" is larger than ${MAX_PART_BYTES >> 20} MB`);
+    if (e.header.size > MAX_PART_BYTES) continue;
+    if (isLargeMedia(lower, e.header.size, contentTypeOf(e.entryName))) continue;
+    try {
+      const data = e.getData();
+      if (utf16Endianness(data) === undefined && !data.includes('updateFields')) continue;
+      const { text, enc } = decodePart(e.entryName, data);
+      if (!text.includes('updateFields')) continue;
+      const doc = parseXml(e.entryName, text);
+      const found = (doc as unknown as { getElementsByTagNameNS(ns: string, ln: string): ArrayLike<Element> }).getElementsByTagNameNS('*', 'updateFields');
+      const hits: Element[] = [];
+      for (let i = 0; i < found.length; i++) if (found[i].namespaceURI !== null && W_NAMESPACES.has(found[i].namespaceURI as string)) hits.push(found[i]);
+      if (hits.length === 0) continue;
+      for (const el of hits) el.parentNode?.removeChild(el);
+      updates.set(e.entryName, encodePart(serialise(doc), enc));
+    } catch {
+      /* not readable as XML here: the part is left as it is */
+    }
+  }
+  if (updates.size === 0) return docx;
+  for (const [entryName, bytes] of updates) zip.updateFile(entryName, bytes);
+  return zip.toBuffer();
 }
 
 /** Retarget every network reference on a copy. See the file header for the exact coverage. */
