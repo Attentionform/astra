@@ -22,9 +22,9 @@ function utf16(text: string, endian: 'le' | 'be', bom: boolean): Buffer {
   if (endian === 'be') b.swap16();
   return b;
 }
-function fromUtf16(b: Buffer): string {
+function fromUtf16(b: Buffer, endian: 'le' | 'be'): string {
   const copy = Buffer.from(b);
-  if (copy[0] === 0xfe || (copy[0] === 0x00 && copy[1] === 0x3c)) copy.swap16();
+  if (endian === 'be') copy.swap16();
   return copy.toString('utf16le').replace(/^\ufeff/, '');
 }
 const rawPart = (docx: Buffer, name: string) => new AdmZip(docx).getEntry(name)!.getData();
@@ -488,7 +488,7 @@ describe('UTF-16 parts (valid documents that Word and other tools write)', () =>
     expect(a.found).toHaveLength(1);
     const out = rawPart(a.docx, 'word/header1.xml');
     expect(out.subarray(0, 2).equals(Buffer.from(bom ? (endian === 'le' ? [0xff, 0xfe] : [0xfe, 0xff]) : endian === 'le' ? [0x3c, 0x00] : [0x00, 0x3c]))).toBe(true);
-    const text = fromUtf16(out);
+    const text = fromUtf16(out, endian);
     expect(text).not.toContain('evil.example');
     expect(text).toContain('Grüße');
     const problems: string[] = [];
@@ -501,7 +501,7 @@ describe('UTF-16 parts (valid documents that Word and other tools write)', () =>
     const docx = buildDocx({ extra: { 'word/_rels/header1.xml.rels': utf16(rels, endian, bom) } });
     const a = neutraliseReferences(docx);
     expect(a.found).toHaveLength(1);
-    const text = fromUtf16(rawPart(a.docx, 'word/_rels/header1.xml.rels'));
+    const text = fromUtf16(rawPart(a.docx, 'word/_rels/header1.xml.rels'), endian);
     expect(text).not.toContain('evil.example');
     expect(text).toContain(INERT_TARGET);
   });
@@ -527,5 +527,62 @@ describe('size limits', () => {
       if (prev === undefined) delete process.env.ASTRA_MAX_UNCOMPRESSED_BYTES;
       else process.env.ASTRA_MAX_UNCOMPRESSED_BYTES = prev;
     }
+  });
+});
+
+describe('XML white space before the first tag', () => {
+  const field = `<w:p>${complexField([' INCLUDEPICTURE "http://evil.example/x.png"'])}</w:p>`;
+  const variants: Array<['le' | 'be', boolean]> = [
+    ['le', true],
+    ['be', true],
+    ['le', false],
+    ['be', false],
+  ];
+  const withSpace = (xml: string, space: string) => space + xml;
+  const noDecl = (body: string) => documentXml(body).replace(/^<\?xml[^>]*\?>/, '');
+
+  it.each(variants)('UTF-16 %s (BOM: %s): a field after a newline is found and neutralised, with or without an XML declaration', (endian, bom) => {
+    for (const xml of [noDecl(field), documentXml(field)]) {
+      for (const space of ['\n', '\r\n  \t', ' '.repeat(300)]) {
+        const docx = buildDocx({ extra: { 'word/header1.xml': utf16(withSpace(xml, space), endian, bom) } });
+        const a = neutraliseReferences(docx);
+        expect(a.found, JSON.stringify(space)).toHaveLength(1);
+        expect(a.changed).toBe(true);
+        const out = fromUtf16(rawPart(a.docx, 'word/header1.xml'), endian);
+        expect(out).toContain('w:document'); // the part decoded as XML
+        expect(out).not.toContain('evil.example');
+      }
+    }
+  });
+
+  it.each(variants)('UTF-16 %s (BOM: %s): a relationship part after a newline is retargeted', (endian, bom) => {
+    const rels = '\n' + relsXml([{ id: 'rId1', type: 'image', target: 'http://evil.example/p.png', mode: 'External' }]);
+    const docx = buildDocx({ extra: { 'word/_rels/header1.xml.rels': utf16(rels, endian, bom) } });
+    const a = neutraliseReferences(docx);
+    expect(a.found).toHaveLength(1);
+    expect(fromUtf16(rawPart(a.docx, 'word/_rels/header1.xml.rels'), endian)).not.toContain('evil.example');
+  });
+
+  it('UTF-8: more than 64 bytes of white space before the root element does not hide a field', () => {
+    const docx = buildDocx({ extra: { 'word/header1.xml': Buffer.from(' '.repeat(500) + noDecl(field)) } });
+    const a = neutraliseReferences(docx);
+    expect(a.found).toHaveLength(1);
+    expect(readPart(a.docx, 'word/header1.xml')).not.toContain('evil.example');
+  });
+
+  it('an .xml part in an encoding that cannot be read (UTF-32) fails closed; other names are left alone', () => {
+    const utf32 = Buffer.alloc((noDecl(field).length + 1) * 4);
+    const text = '\ufeff' + noDecl(field);
+    for (let i = 0; i < text.length; i++) utf32.writeUInt32LE(text.charCodeAt(i), i * 4);
+    expect(() => neutraliseReferences(buildDocx({ extra: { 'word/header1.xml': utf32 } }))).toThrow(/E_SECURITY.*not UTF-8 or UTF-16/);
+    const docx = buildDocx({ extra: { 'word/embeddings/o.bin': utf32 } });
+    expect(neutraliseReferences(docx).docx).toBe(docx);
+  });
+
+  it('an odd-length .xml part that looks like UTF-16 fails closed; a binary part with that start does not', () => {
+    const odd = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('\n<w:p/>', 'utf16le'), Buffer.from([0x20])]);
+    expect(() => neutraliseReferences(buildDocx({ extra: { 'word/header1.xml': odd } }))).toThrow(/E_SECURITY/);
+    const docx = buildDocx({ extra: { 'word/embeddings/o.bin': odd } });
+    expect(neutraliseReferences(docx).docx).toBe(docx);
   });
 });

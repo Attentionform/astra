@@ -336,26 +336,51 @@ interface PartEncoding {
   bom: boolean;
 }
 
+const isXmlSpace = (c: number): boolean => c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d;
+
 /**
- * UTF-16 XML: a BOM (FF FE or FE FF) or none, then `<` as the first character, which shows as `3C 00` (LE)
- * or `00 3C` (BE). A binary part that merely starts with FF FE is not text and is left alone.
+ * UTF-16 XML: an optional BOM (FF FE or FE FF), then any XML white space, then `<`. White space may come
+ * before the root element, so `<` is not always the first character. A binary part that merely starts with a
+ * BOM or with a NUL-separated byte is not text and does not match.
  */
 function utf16Endianness(data: Buffer): 'le' | 'be' | undefined {
   if (data.length < 4) return undefined;
-  const [a, b, c, d] = [data[0], data[1], data[2], data[3]];
-  if (a === 0xff && b === 0xfe && c === 0x3c && d === 0x00) return 'le';
-  if (a === 0xfe && b === 0xff && c === 0x00 && d === 0x3c) return 'be';
-  if (a === 0x3c && b === 0x00 && d === 0x00) return 'le';
-  if (a === 0x00 && b === 0x3c && c === 0x00) return 'be';
+  const bom: 'le' | 'be' | undefined = data[0] === 0xff && data[1] === 0xfe ? 'le' : data[0] === 0xfe && data[1] === 0xff ? 'be' : undefined;
+  const orders: Array<'le' | 'be'> = bom ? [bom] : ['le', 'be'];
+  for (const order of orders) {
+    let i = bom ? 2 : 0;
+    // Code unit i is data[i] (low byte) and data[i + 1] (high byte) in LE, the other way round in BE.
+    const lo = (k: number): number => (order === 'le' ? data[k] : data[k + 1]);
+    const hi = (k: number): number => (order === 'le' ? data[k + 1] : data[k]);
+    while (i + 1 < data.length && hi(i) === 0 && isXmlSpace(lo(i))) i += 2;
+    if (i + 1 < data.length && hi(i) === 0 && lo(i) === 0x3c) return order;
+  }
   return undefined;
 }
 
-/** Does the part start like an XML document (after a UTF-8 BOM and white space)? */
+/** UTF-32 text (an encoding an OPC package does not allow) that these checks cannot read. */
+function looksLikeUtf32(data: Buffer): boolean {
+  if (data.length < 4) return false;
+  const [a, b, c, d] = [data[0], data[1], data[2], data[3]];
+  return (
+    (a === 0xff && b === 0xfe && c === 0 && d === 0) ||
+    (a === 0 && b === 0 && c === 0xfe && d === 0xff) ||
+    (a === 0x3c && b === 0 && c === 0 && d === 0) ||
+    (a === 0 && b === 0 && c === 0 && d === 0x3c)
+  );
+}
+
+/** Does the part start like an XML document (after a UTF-8 BOM and any white space)? */
 function looksLikeXml(data: Buffer): boolean {
   let i = 0;
   if (data[0] === 0xef && data[1] === 0xbb && data[2] === 0xbf) i = 3;
-  while (i < data.length && i < 64 && (data[i] === 0x20 || data[i] === 0x09 || data[i] === 0x0a || data[i] === 0x0d)) i++;
+  while (i < data.length && isXmlSpace(data[i])) i++;
   return data[i] === 0x3c;
+}
+
+/** White space before the first tag is legal before a root element; a parser would reject it before an XML declaration. */
+function stripLeadingSpace(text: string): string {
+  return text.replace(/^[ \t\r\n]+/, '');
 }
 
 function decodePart(name: string, data: Buffer): { text: string; enc: PartEncoding } {
@@ -371,12 +396,12 @@ function decodePart(name: string, data: Buffer): { text: string; enc: PartEncodi
     let text = bytes.toString('utf16le');
     const bom = text.charCodeAt(0) === 0xfeff;
     if (bom) text = text.slice(1);
-    return { text, enc: { utf16, bom } };
+    return { text: stripLeadingSpace(text), enc: { utf16, bom } };
   }
   let text = data.toString('utf8');
   const bom = text.charCodeAt(0) === 0xfeff;
   if (bom) text = text.slice(1);
-  return { text, enc: { bom } };
+  return { text: stripLeadingSpace(text), enc: { bom } };
 }
 
 function encodePart(xml: string, enc: PartEncoding): Buffer {
@@ -454,7 +479,13 @@ function setFldSimpleInstruction(el: Element, text: string): void {
 
 function processFieldsPart(name: string, data: Buffer, mutate: boolean, out: ReferenceAnalysis): Buffer | null {
   const utf16 = utf16Endianness(data) !== undefined;
-  if (!utf16 && !looksLikeXml(data)) return null;
+  if (!utf16 && !looksLikeXml(data)) {
+    // An .xml part in an encoding these checks cannot read could hide a field: fail closed rather than skip it.
+    if (/\.xml$/i.test(name) && looksLikeUtf32(data)) throw failClosed(`part "${name}" is not UTF-8 or UTF-16 encoded`);
+    return null;
+  }
+  // A binary part that happens to look like UTF-16 text but has an odd length is not XML; an .xml part is.
+  if (utf16 && data.length % 2 !== 0 && !/\.xml$/i.test(name)) return null;
   // Cheap pre-filter on the raw bytes: most parts hold no field at all. `InstrText` also matches `delInstrText`.
   // A UTF-16 part is decoded first (it is rare), because its bytes never match a UTF-8 search string.
   let decoded: { text: string; enc: PartEncoding } | undefined;
