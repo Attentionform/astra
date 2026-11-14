@@ -15,6 +15,7 @@ import {
   convertDocxToPdfDetailed,
   DocxParser,
   getEngineErrorCode,
+  effectiveRendererPreference,
   hasPdfBackend,
   runPreflightChecks,
   type DocumentAST,
@@ -342,9 +343,16 @@ export async function handleExportDocument(
 
   let validatedPdfPath: string | undefined;
   if (format === 'pdf') {
-    // An explicit renderer is checked by the engine itself (it names what is missing); without one, the usual
-    // pre-check reports a missing LibreOffice before any path work.
-    if (parsed.data.renderer === undefined && !hasPdfBackend()) {
+    // A named renderer, from the parameter or ASTRA_RENDERER, is checked by the engine itself (it names what is
+    // missing); with `auto`, the usual pre-check reports a missing LibreOffice before any path work. A value the
+    // engine will refuse (a bad ASTRA_RENDERER) is left to the engine, which reports it.
+    let renderer: string = 'auto';
+    try {
+      renderer = effectiveRendererPreference(parsed.data.renderer);
+    } catch {
+      renderer = 'invalid';
+    }
+    if (renderer === 'auto' && !hasPdfBackend()) {
       return {
         ok: false,
         code: 'E_DEPENDENCY',

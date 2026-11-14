@@ -182,6 +182,26 @@ describe.skipIf(!POSIX)('export_document pdf', () => {
     expect(fs.existsSync(path.join(docs, 'j.pdf'))).toBe(false);
   });
 
+  it('ASTRA_RENDERER=word is handed to the engine, not stopped by the LibreOffice pre-check (even with no LibreOffice)', async () => {
+    process.env.ASTRA_RENDERER = 'word';
+    process.env.PATH = path.join(base, 'tmp'); // an empty folder: no soffice anywhere on PATH
+    resetPdfBackendCache();
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'l.docx');
+    const res = await handleExportDocument(store, { sessionId, format: 'pdf', outPath: path.join(docs, 'l.pdf') });
+    expect(res).toMatchObject({ ok: false, code: 'E_DEPENDENCY' });
+    // off Windows the engine says Word is unavailable; the pre-check would have said LibreOffice is missing
+    expect(res.message).toMatch(/renderer "word"/);
+    expect(res.message).not.toMatch(/requires LibreOffice/);
+  });
+
+  it('a bad ASTRA_RENDERER is reported by the engine as E_VALIDATION naming the variable', async () => {
+    process.env.ASTRA_RENDERER = 'bogus';
+    const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'm.docx');
+    const res = await handleExportDocument(store, { sessionId, format: 'pdf', outPath: path.join(docs, 'm.pdf') });
+    expect(res).toMatchObject({ ok: false, code: 'E_VALIDATION' });
+    expect(res.message).toMatch(/ASTRA_RENDERER/);
+  });
+
   it('a non-pdf export ignores nothing silently: the parameters exist but only PDF uses them', async () => {
     const { store, sessionId } = await open(DocxParser.createNewDocument('blank').rezip(), 'k.docx');
     const res = await handleExportDocument(store, { sessionId, format: 'html', renderer: 'libreoffice' });
