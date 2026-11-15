@@ -230,6 +230,12 @@ export async function handleExecuteBatch(
       revisionsUnresolved?: number;
       /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
       possiblyStaleBodyRefs: { nodeId: string; preview: string }[];
+      /** 0.5.3: package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
+      prunedParts?: string[];
+      /** 0.5.3: why the package cleanup after a delete was skipped. The edit itself is unaffected. */
+      cleanupSkipped?: string;
+      /** 0.5.3: defects the file already had that the cleanup saw and left alone. */
+      existingDefects?: string[];
       /** Normalizer rewrites reported for this batch (display-only core log). */
       normalized: string[];
       /** True only when this batch dropped a non-empty redo stack (absent otherwise). */
@@ -491,6 +497,15 @@ export async function handleExecuteBatch(
         ...(batchRevisionsRemedy ? { revisionsRemedy: batchRevisionsRemedy } : {}),
         ...(batchRevisionsUnresolved > 0 ? { revisionsUnresolved: batchRevisionsUnresolved } : {}),
         possiblyStaleBodyRefs: batchStaleRefs,
+        ...(Array.isArray((res as { prunedParts?: unknown }).prunedParts) && (res as { prunedParts: string[] }).prunedParts.length > 0
+          ? { prunedParts: (res as { prunedParts: string[] }).prunedParts }
+          : {}),
+        ...(typeof (res as { cleanupSkipped?: unknown }).cleanupSkipped === 'string'
+          ? { cleanupSkipped: (res as { cleanupSkipped: string }).cleanupSkipped }
+          : {}),
+        ...(Array.isArray((res as { existingDefects?: unknown }).existingDefects) && (res as { existingDefects: string[] }).existingDefects.length > 0
+          ? { existingDefects: (res as { existingDefects: string[] }).existingDefects }
+          : {}),
         // Display-only: engine result (no field yet) merged with the core
         // log from this batch's bookkeeping rezip.
         normalized: mergeNormalized(readEngineNormalized(res), batchBookkeepingNormalized),

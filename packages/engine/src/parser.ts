@@ -23,6 +23,13 @@ import { newDocumentParts, newDocumentTitle, NEW_DOCUMENT_CONTENT_TYPE_OVERRIDES
 import { assertNoXxe, assertNoXxeAdjacent } from './ooxml/xxe-guard';
 import { decodeXmlPart } from './ooxml/part-text';
 import { headerFooterRefIds, pruneOrphanedHeaderFooters, type PruneResult } from './parser/header-footer-prune';
+import {
+  pruneUnusedDrawingParts,
+  snapshotDrawingUse,
+  type DrawingPruneResult,
+  type DrawingUseBefore,
+  type RelationshipView,
+} from './ooxml/prune-unused-parts';
 import { isRogueZipEntry, isBlockedExecutableEntry } from './sanitizer';
 import {
   MacroEntryStore,
@@ -856,6 +863,105 @@ export class DocxParser {
       }
       const field = file.startsWith('header') ? 'headerText' : 'footerText';
       if (removed?.text && ast.metadata?.[field] === removed.text) delete ast.metadata[field];
+    }
+    this.invalidateMediaCache();
+    return result;
+  }
+
+  /**
+   * The main document's relationships as they will be saved: the package file merged with the model
+   * (the model leads: a relationship added by an operation reaches the file only at save).
+   */
+  private mainDocumentRelationships(ast: DocumentAST): Record<string, RelationshipView> {
+    const out: Record<string, RelationshipView> = {};
+    const raw = this.zip.getEntry('word/_rels/document.xml.rels');
+    if (raw) {
+      const doc = this.parser.parseFromString(raw.getData().toString('utf8'), 'text/xml');
+      const list = doc.getElementsByTagName('Relationship');
+      for (let i = 0; i < list.length; i++) {
+        const el = list[i] as Element;
+        const id = el.getAttribute('Id');
+        const type = el.getAttribute('Type');
+        const target = el.getAttribute('Target');
+        if (!id || !type || !target) continue;
+        out[id] = { type, target, ...(el.getAttribute('TargetMode') === 'External' ? { targetMode: 'External' as const } : {}) };
+      }
+    }
+    for (const [id, rel] of Object.entries(ast.relationships ?? {})) {
+      if (rel?.type && rel?.target) out[id] = { type: rel.type, target: rel.target, ...(rel.targetMode === 'External' ? { targetMode: 'External' as const } : {}) };
+    }
+    return out;
+  }
+
+  /** Every prefixed attribute value in the live document (relationship ids among them). */
+  private documentReferenceValues(): Set<string> {
+    const values = new Set<string>();
+    const walk = (node: Node): void => {
+      if (node.nodeType !== 1) return;
+      const el = node as Element;
+      const attrs = el.attributes;
+      for (let i = 0; i < attrs.length; i++) {
+        const a = attrs[i];
+        if (a.name.includes(':') && !a.name.startsWith('xmlns')) values.add(a.value);
+      }
+      for (let c = el.firstChild; c; c = c.nextSibling) walk(c);
+    };
+    if (this.documentDom.documentElement) walk(this.documentDom.documentElement);
+    return values;
+  }
+
+  /**
+   * Records which chart and image relationships exist and which the document uses, before an edit.
+   * Undefined when the document has none (nothing to clean up, and no cost paid).
+   */
+  public drawingUseSnapshot(ast: DocumentAST): DrawingUseBefore | undefined {
+    try {
+      const rels = this.mainDocumentRelationships(ast);
+      if (!Object.values(rels).some((r) => r.type.endsWith('/chart') || r.type.endsWith('/image'))) return undefined;
+      return snapshotDrawingUse(rels, this.documentReferenceValues());
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Removes chart and image parts that the edit left unreachable (a deleted chart: its part, workbook, style
+   * parts and relationship; a deleted picture: its file). Also drops them from `ast`, since rezip writes the
+   * model's relationships and media back into the package. Never throws except when a failed apply could not
+   * be restored: then the save must stop.
+   */
+  public pruneUnusedDrawingParts(ast: DocumentAST, before: DrawingUseBefore): DrawingPruneResult {
+    const zip = this.zip;
+    const result = pruneUnusedDrawingParts({
+      parts: {
+        names: () => zip.getEntries().map((entry) => entry.entryName),
+        read: (name) => {
+          const entry = zip.getEntry(name);
+          return entry ? Buffer.from(entry.getData()) : null;
+        },
+        write: (name, data) => {
+          if (zip.getEntry(name)) zip.updateFile(name, data);
+          else zip.addFile(name, data);
+        },
+        remove: (name) => {
+          const entry = zip.getEntry(name);
+          if (entry) zip.deleteFile(entry);
+        },
+      },
+      relationships: this.mainDocumentRelationships(ast),
+      before,
+      guard: (xml, name) => {
+        assertNoXxe(xml, name);
+        assertNoXxeAdjacent(xml, name);
+      },
+      documentReferences: () => this.documentReferenceValues(),
+    });
+    if (result.parts.length === 0 && result.relationshipIds.length === 0) return result;
+    for (const id of result.relationshipIds) if (ast.relationships) delete ast.relationships[id];
+    for (const part of result.parts) {
+      if (!part.startsWith('word/media/') || !ast.mediaFiles) continue;
+      const base = part.slice(part.lastIndexOf('/') + 1);
+      for (const key of [part, part.replace(/^word\//, ''), base]) delete ast.mediaFiles[key];
     }
     this.invalidateMediaCache();
     return result;
