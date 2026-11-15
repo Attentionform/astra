@@ -57,37 +57,41 @@ export function chartAltTextAttr(altText: string | undefined): string {
   return trimmed ? ` descr="${escapeAttr(trimmed)}"` : '';
 }
 
+const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+const CHART_NS = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+
 interface DrawingLike {
-  getElementsByTagName(name: string): ArrayLike<DrawingLike>;
+  localName?: string;
+  getElementsByTagNameNS(ns: string, local: string): ArrayLike<DrawingLike>;
   getAttribute(name: string): string | null;
   setAttribute(name: string, value: string): void;
   removeAttribute(name: string): void;
 }
 
-/** The `wp:inline` or `wp:anchor` that carries the chart graphic inside a body node, or null. */
+/** The `inline` or `anchor` (wordprocessingDrawing namespace, any prefix) that carries the chart graphic inside a body node, or null. */
 export function findChartDrawingContainer(nodeXml: unknown): DrawingLike | null {
   const root = nodeXml as DrawingLike | undefined;
-  if (!root || typeof root.getElementsByTagName !== 'function') return null;
-  for (const tag of ['wp:inline', 'wp:anchor']) {
-    const containers = root.getElementsByTagName(tag);
+  if (!root || typeof root.getElementsByTagNameNS !== 'function') return null;
+  for (const local of ['inline', 'anchor']) {
+    const containers = root.getElementsByTagNameNS(WP_NS, local);
     for (let i = 0; i < containers.length; i++) {
-      if (containers[i].getElementsByTagName('c:chart').length > 0) return containers[i];
+      if (containers[i].getElementsByTagNameNS(CHART_NS, 'chart').length > 0) return containers[i];
     }
   }
   return null;
 }
 
-/** True when the chart drawing is floating (`wp:anchor`), false when inline, null when no drawing was found. */
+/** True when the chart drawing is floating (`anchor`), false when inline, null when no drawing was found. */
 export function isChartDrawingFloating(nodeXml: unknown): boolean | null {
-  const container = findChartDrawingContainer(nodeXml) as (DrawingLike & { tagName?: string; nodeName?: string }) | null;
+  const container = findChartDrawingContainer(nodeXml);
   if (!container) return null;
-  return (container.tagName ?? container.nodeName) === 'wp:anchor';
+  return container.localName === 'anchor';
 }
 
 /** Reads the drawing size in EMU, or null when there is no chart drawing. */
 export function readChartDrawingSize(nodeXml: unknown): { widthEmu: number; heightEmu: number } | null {
   const container = findChartDrawingContainer(nodeXml);
-  const extent = container?.getElementsByTagName('wp:extent')[0];
+  const extent = container?.getElementsByTagNameNS(WP_NS, 'extent')[0];
   if (!extent) return null;
   const widthEmu = Number(extent.getAttribute('cx'));
   const heightEmu = Number(extent.getAttribute('cy'));
@@ -97,7 +101,7 @@ export function readChartDrawingSize(nodeXml: unknown): { widthEmu: number; heig
 /** Sets the drawing size. A dimension that is not given keeps its current value. Returns false when no drawing exists. */
 export function setChartDrawingSize(nodeXml: unknown, size: { widthEmu?: number; heightEmu?: number }): boolean {
   const container = findChartDrawingContainer(nodeXml);
-  const extent = container?.getElementsByTagName('wp:extent')[0];
+  const extent = container?.getElementsByTagNameNS(WP_NS, 'extent')[0];
   if (!extent) return false;
   if (size.widthEmu !== undefined) extent.setAttribute('cx', String(size.widthEmu));
   if (size.heightEmu !== undefined) extent.setAttribute('cy', String(size.heightEmu));
@@ -107,7 +111,7 @@ export function setChartDrawingSize(nodeXml: unknown, size: { widthEmu?: number;
 /** Sets (non-empty text) or clears (empty text) the alt text on the chart's `wp:docPr`. Returns false when no drawing exists. */
 export function setChartAltText(nodeXml: unknown, altText: string): boolean {
   const container = findChartDrawingContainer(nodeXml);
-  const docPr = container?.getElementsByTagName('wp:docPr')[0];
+  const docPr = container?.getElementsByTagNameNS(WP_NS, 'docPr')[0];
   if (!docPr) return false;
   const trimmed = altText.trim();
   if (trimmed) docPr.setAttribute('descr', trimmed);

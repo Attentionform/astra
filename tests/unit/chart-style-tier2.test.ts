@@ -203,3 +203,29 @@ describe('axis label settings', () => {
     await refused(p, [update({ style: { axes: { value: { showAxisLine: true } } } })], /no value axis/);
   });
 });
+
+describe('found by the random sequences', () => {
+  it('chartFont with a legend change keeps a single legend (the chart span moves when the font is written)', async () => {
+    const s = await withChart();
+    const res = await s.run([update({ allowRebuild: true, style: { legend: { position: 'r', overlay: false }, chartFont: { family: 'Courier New' } } })]);
+    expect(res.success).toBe(true);
+    expect(xmlOf(s).match(/<c:legend>/g)).toHaveLength(1);
+    expect(await valid(s)).toBe(true);
+  });
+
+  it('dataLabels show:false writes a lone c:delete, on 2D and 3D charts, and show:true removes it again', async () => {
+    for (const chartType of ['column', 'column3D', 'pie']) {
+      const s = await withChart({ chartType, series: [{ name: 'A', values: [1, 2, 3, 4] }] });
+      expect((await s.run([update({ style: { dataLabels: { show: false } } })])).success).toBe(true);
+      expect(xmlOf(s), chartType).toMatch(/<c:dLbls><c:delete val="1"\/><\/c:dLbls>/);
+      expect(await valid(s), chartType).toBe(true);
+      expect((await s.run([update({ style: { dataLabels: { show: true } } })])).success).toBe(true);
+      expect((xmlOf(s).match(/<c:dLbls>[\s\S]*?<\/c:dLbls>/g) ?? []).join(''), chartType).not.toContain('<c:delete');
+      expect(xmlOf(s), chartType).toContain('<c:showVal val="1"/>');
+      expect(await valid(s), chartType).toBe(true);
+    }
+    const t = await open();
+    expect((await t.run([insertOp(t, { chartType: 'column3D', style: { dataLabels: { show: false } } })])).success).toBe(true);
+    expect(await valid(t)).toBe(true);
+  });
+});
