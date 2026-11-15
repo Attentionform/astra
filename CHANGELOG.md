@@ -6,6 +6,27 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+Charts, tables and page layout. Charts can be sized, restyled and changed in structure without losing what the file already holds, tables get width and row-height controls, and documents that were opened in Word look the same in LibreOffice more often. There is no migration step: files written by earlier versions are read as before, and nothing repairs or converts them.
+
+### Added
+
+- Chart size and alt text. `widthIn`/`heightIn` (inches) and `widthEmu`/`heightEmu` set the size of a chart on insert and update; giving both units for one dimension is refused. A new 2D chart is 6 x 2.6 in (3D charts keep their own default), the allowed range is 0.1 to 22 in, and a chart wider than the usable page width inserts with a `layoutWarning`. `altText` sets the description. A one-dimension resize keeps the other dimension. The style guide's `## Charts` section sets defaults (`Width`, `Height`, `3D Width`, `3D Height`, `Gridline Color`, `Font Family`, `Font Size`, `Title Size`), and the Markdown chart block reads the size keys and `altText`.
+- Chart structure updates on `chart update`. `series` with more entries adds series in place, `removeSeries` (names or numbers) removes them, and a change among column, bar, stacked and percent types keeps the chart part and its formatting. Everything else that changes the structure (a different family, scatter, combo, 2D to 3D) is a rebuild and needs `allowRebuild: true`; the result then lists what the rebuild dropped (`chartUpdates`, with `formattingNotKept`, `styleNotApplied` and `updateMode`). Without `allowRebuild` the call is refused before anything is written.
+- Workbook rules for chart data. A call that does not change data never touches the embedded workbook. A call that changes data needs a workbook that ASTra can prove it wrote (rebuilt from the stored data it is part-for-part the same); any other workbook is refused unless `allowRebuild: true`. A workbook shared by two charts is refused or copied for the updated chart, and a linked workbook is always refused.
+- Chart `style`, first group: `titleFormat` (size, bold, colour of the existing title), `removeTitle` (update only; removes the title and shows no automatic one), axis `gridlineColor`, and per-point colours (`style.series[].points[]`, counted from 1) for column, bar, pie, doughnut, line and scatter charts.
+- Chart `style`, second group: `chartFont`, `bars` (`gapPercent`, `overlapPercent`), `lines` (`widthPt`, `smooth`, `showMarkers`), `chartArea` and `plotArea` (`fillColor`, `borderColor`), and axis `labelSizePt`, `labelRotationDeg` and `showAxisLine`. See the MCP specification for the rules of each key.
+- Table operations `setTableWidth` (inches, percent or twips; `columns: scale | keep`) and `setRowHeights`.
+- Paragraph flags on `style`: `keepWithNext`, `keepLines`, `pageBreakBefore` and `contextualSpacing`. The style guide's `Prevent Orphan Headings` and `Space After` (for callouts and tables) use them.
+- Parts that a delete leaves unreachable (a chart and its workbook, a picture) are removed from the package after the delete.
+- `scripts/word-parity.mjs` renders files with Word and LibreOffice and compares page counts, with a parity set in `tests/fixtures/parity`.
+
+### Changed
+
+- `trendline.series` is now `trendline.seriesNumbers` (numbers count from 1). The old key is refused; there is no alias.
+- Chart titles are written with overlay off and gridlines with a light grey line (`D9D9D9`, or the guide's gridline colour). Table borders take the guide's border colour, and a light grey without a guide. Callouts and tables get 8 pt and 12 pt of space after by default.
+- `chart updateView3D` is refused on a chart that is not 3D, and a `series` array shorter than the chart's series is refused (use `removeSeries`).
+- `execute_batch` results carry `chartUpdates` for chart updates. The MCP tool schema budget is 95,000 characters (it was 90,000).
+
 ## [0.5.2] - 2026-11-15
 
 Ten npm packages move to 0.5.2: `@attentionform/astra-engine`, `@attentionform/astra-mcp-server`, `@attentionform/astra`, the `@attentionform/ooxml-validator` wrapper and the six native validator binaries. The validator itself did not change. This release adds a Microsoft Word renderer for Windows (the default there when Word is installed, with LibreOffice as the fallback), a Windows page-image renderer, network-reference handling for renders, and an opt-in view of tracked changes and comments in renders (`--show-markup`).
