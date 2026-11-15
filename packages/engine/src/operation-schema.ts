@@ -624,7 +624,14 @@ const chartDataLabelStyle = z.object({
   showLegendKey: z.boolean().optional(),
 }).strict();
 
+const chartAxisLabelFields = {
+  labelSizePt: z.number().min(1).max(400).optional(),
+  labelRotationDeg: z.number().min(-90).max(90).optional(),
+  showAxisLine: z.boolean().optional(),
+};
+
 const chartCategoryAxisStyle = z.object({
+  ...chartAxisLabelFields,
   title: z.string().min(1).max(1_000).optional(),
   gridlineColor: colourField().optional(),
   hidden: z.boolean().optional(),
@@ -633,6 +640,7 @@ const chartCategoryAxisStyle = z.object({
 }).strict();
 
 const chartValueAxisStyle = z.object({
+  ...chartAxisLabelFields,
   title: z.string().min(1).max(1_000).optional(),
   gridlineColor: colourField().optional(),
   hidden: z.boolean().optional(),
@@ -673,7 +681,28 @@ const chartSeriesStyle = z.object({
   }).strict()).min(1).max(1_000).optional(),
 }).strict();
 
+const chartAreaStyle = z.object({
+  fillColor: z.string().max(16).optional().describe('Hex colour or "none"'),
+  borderColor: z.string().max(16).optional().describe('Hex colour or "none"'),
+}).strict();
+
 const chartStyle = z.object({
+  chartFont: z.object({
+    family: z.string().min(1).max(100).optional(),
+    sizePt: z.number().min(1).max(400).optional(),
+    color: colourField().optional(),
+  }).strict().optional().describe('Chart-wide font; size skips the title'),
+  bars: z.object({
+    gapPercent: z.number().min(0).max(500).optional(),
+    overlapPercent: z.number().min(-100).max(100).optional(),
+  }).strict().optional(),
+  lines: z.object({
+    widthPt: z.number().min(0.25).max(20).optional(),
+    smooth: z.boolean().optional(),
+    showMarkers: z.boolean().optional(),
+  }).strict().optional(),
+  chartArea: chartAreaStyle.optional(),
+  plotArea: chartAreaStyle.optional(),
   titleFormat: chartTitleFormat.optional().describe('Size, bold, colour of the existing title; text stays in title'),
   series: z.array(chartSeriesStyle).min(1).max(100).optional(),
   legend: chartLegendStyle.optional(),

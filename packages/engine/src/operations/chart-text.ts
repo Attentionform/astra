@@ -23,19 +23,28 @@ const AFTER_FILL = [
 ];
 const AFTER_LATIN = ['a:ea', 'a:cs', 'a:sym', 'a:hlinkClick', 'a:hlinkMouseOver', 'a:rtl', 'a:extLst'];
 
-function expand(elementXml: string): string {
+export function expand(elementXml: string): string {
   const gt = tagEnd(elementXml, 0);
   if (gt < 0 || elementXml[gt - 1] !== '/') return elementXml;
   return `${elementXml.slice(0, gt - 1)}>${'</' + tagNameOf(elementXml)}>`;
 }
 
-function insertBefore(elementXml: string, laterTags: readonly string[], child: string): string {
+export function insertBefore(elementXml: string, laterTags: readonly string[], child: string): string {
   for (const tag of laterTags) {
     const span = findDirectChild(elementXml, tag);
     if (span) return elementXml.slice(0, span.start) + child + elementXml.slice(span.start);
   }
   const close = elementXml.lastIndexOf('</');
   return elementXml.slice(0, close) + child + elementXml.slice(close);
+}
+
+/** Replaces the direct fill child of a DrawingML properties element, or inserts one before the first of `laterTags`. */
+export function setFillChild(elementXml: string, fillXml: string, laterTags: readonly string[]): string {
+  const out = expand(elementXml);
+  const existing = FILL_TAGS.map((tag) => findDirectChild(out, tag)).find((span) => span !== null);
+  return existing
+    ? out.slice(0, existing.start) + fillXml + out.slice(existing.end)
+    : insertBefore(out, laterTags, fillXml);
 }
 
 export function solidFillXml(color: string): string {

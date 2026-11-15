@@ -57,7 +57,7 @@ import {
   supportsInPlaceSeriesChange,
   type AddedSeries,
 } from './chart-structure';
-import { type ChartStyle, applyChartFloating, applyChartStyle, applyDefaultGridlineColor, applyDefaultTitleSize, readChartStyle, validateChartStyle } from './chart-style';
+import { type ChartStyle, applyChartFloating, applyChartFont, applyChartStyle, applyDefaultGridlineColor, applyDefaultTitleSize, readChartStyle, validateChartStyle } from './chart-style';
 import { chartSpans, findDirectChild, attrValue, chartQualifiedName } from './chart-xml-spans';
 import { normalizeColour } from './colour';
 
@@ -444,9 +444,17 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
   // Guide defaults (gridline colour, title size) go in first so an explicit style key in the call wins.
   const guideGridlineColor = guide?.charts?.gridlineColor;
   const guideTitleSizePt = guide?.charts?.titleSizePt;
-  const transformChartXml = resolved.style !== undefined || guideGridlineColor !== undefined || guideTitleSizePt !== undefined
+  const guideFont = { family: guide?.charts?.fontFamily, sizePt: guide?.charts?.fontSizePt };
+  const hasGuideFont = guideFont.family !== undefined || guideFont.sizePt !== undefined;
+  const transformChartXml = resolved.style !== undefined || guideGridlineColor !== undefined || guideTitleSizePt !== undefined || hasGuideFont
     ? (xml: string): string => {
         let out = xml;
+        if (hasGuideFont) {
+          out = applyChartFont(out, {
+            ...(guideFont.family !== undefined ? { family: guideFont.family } : {}),
+            ...(guideFont.sizePt !== undefined ? { sizePt: guideFont.sizePt } : {}),
+          });
+        }
         if (guideGridlineColor !== undefined) out = applyDefaultGridlineColor(out, guideGridlineColor);
         if (guideTitleSizePt !== undefined) out = applyDefaultTitleSize(out, guideTitleSizePt);
         return resolved.style !== undefined ? applyChartStyle(out, resolved.style, styleContext) : out;
