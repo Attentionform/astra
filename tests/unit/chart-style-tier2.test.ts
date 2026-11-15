@@ -120,6 +120,18 @@ describe('lines', () => {
     expect(await valid(s)).toBe(true);
   });
 
+  it('keeps the group-level smooth of a combo chart equal to the series', async () => {
+    const s = await withChart({
+      chartType: 'combo',
+      series: [{ name: 'R', values: [1, 2, 3, 4], chartType: 'column' }, { name: 'M', values: [4, 3, 2, 1], chartType: 'line' }],
+    });
+    await s.run([update({ style: { lines: { smooth: true } } })]);
+    const line = /<c:lineChart>[\s\S]*?<\/c:lineChart>/.exec(xmlOf(s))![0];
+    expect(line).toContain('<c:smooth val="1"/></c:ser>');
+    expect(line.match(/<c:smooth val="1"\/>/g)).toHaveLength(2);
+    expect(await valid(s)).toBe(true);
+  });
+
   it('refuses a chart with no line group and bad values', async () => {
     const s = await withChart();
     await refused(s, [update({ style: { lines: { widthPt: 2 } } })], /no line|none|has none/);

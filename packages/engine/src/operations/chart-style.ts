@@ -1689,6 +1689,11 @@ function patchLines(xml: string, lines: ChartLinesStyle, scope: ChartNamespaceSc
       if (lines.smooth !== undefined) serXml = setScalarChild(serXml, SER_ORDER, 'smooth', lines.smooth ? '1' : '0');
       group = group.slice(0, ser.start) + serXml + group.slice(ser.end);
     }
+    if (lines.smooth !== undefined) {
+      // A group-level smooth (the combo generator writes one) overrides the series in LibreOffice, so keep them equal.
+      const g = findDirectChild(group, chartQualifiedName(group, 'smooth'));
+      if (g) group = replaceSpan(group, g, setAttribute(group.slice(g.start, g.end), 'val', lines.smooth ? '1' : '0'));
+    }
     if (lines.showMarkers !== undefined) {
       const m = findDirectChild(group, chartQualifiedName(group, 'marker'));
       if (m && !/^<(?:[\w.-]+:)?marker\s+val=/.test(group.slice(m.start, m.end))) { /* series-level marker, not group-level */ }
