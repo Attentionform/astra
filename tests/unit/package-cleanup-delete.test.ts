@@ -145,7 +145,7 @@ describe('pruneUnusedDrawingParts (package level)', () => {
   const doc = (body: string) => `<w:document xmlns:w="w" xmlns:r="${REL}"><w:body>${body}</w:body></w:document>`;
 
   function store(files: Record<string, string>): PackageParts & { files: Map<string, Buffer>; failWrites?: boolean } {
-    const files_ = new Map(Object.entries(files).map(([k, v]) => [k, Buffer.from(v)]));
+    const files_ = new Map<string, Buffer>(Object.entries(files).map(([k, v]) => [k, Buffer.from(v)] as [string, Buffer]));
     const s: any = {
       files: files_,
       names: () => [...files_.keys()],
@@ -277,10 +277,10 @@ describe('pruneUnusedDrawingParts (package level)', () => {
     expect(resolvePartName('https://x/y', 'word/document.xml')).toBeNull();
     expect(resolvePartName('a\\b', 'word/document.xml')).toBeNull();
     const body = '<w:p><c:chart r:id="rId2"/></w:p>';
-    const files = baseFiles(body);
+    const files: Record<string, string> = baseFiles(body);
     files['word/charts/_rels/chart1.xml.rels'] = rels([rel('rId1', `${REL}/package`, '../EMBEDDINGS/W1.xlsx')]);
     files['word/embeddings/W1.xlsx'] = 'x1';
-    delete (files as Record<string, string>)['word/embeddings/w1.xlsx'];
+    delete files['word/embeddings/w1.xlsx'];
     const p = store(files);
     const out = run(p, model(relMap()), ['rId1', 'rId2'], body);
     // the workbook name differs only by case from the target: it must still be found as the same part
