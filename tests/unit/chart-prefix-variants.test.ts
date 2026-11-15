@@ -86,3 +86,42 @@ describe('trendline type names in the file', () => {
     expect(node.length).toBe(3);
   });
 });
+
+describe('rebuild loss inventory names changed formatting values', () => {
+  it('a colour that is gone is reported even though the element name survives', () => {
+    const before = '<c:chartSpace><c:spPr><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></c:spPr></c:chartSpace>';
+    const after = '<c:chartSpace><c:spPr><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></c:spPr></c:chartSpace>';
+    expect(describeLoss(before, after, null)).toEqual(['colour FF0000']);
+  });
+
+  it('font size, typeface and line width are reported; values that survive are not', () => {
+    const before = '<c:txPr><a:p><a:pPr><a:defRPr sz="1400"><a:latin typeface="Calibri"/></a:defRPr></a:pPr></a:p></c:txPr><a:ln w="28575"><a:solidFill><a:srgbClr val="00ff00"/></a:solidFill></a:ln>';
+    const after = '<c:txPr><a:p><a:pPr><a:defRPr sz="1000"><a:latin typeface="Calibri"/></a:defRPr></a:pPr></a:p></c:txPr><a:ln w="9525"><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></a:ln>';
+    const lost = describeLoss(before, after, null);
+    expect(lost).toEqual(expect.arrayContaining(['font size 14 pt', 'line width 28575 EMU']));
+    expect(lost).not.toContain('typeface Calibri');
+    expect(lost.some((l) => l.startsWith('colour'))).toBe(false);
+  });
+
+  it('an unchanged part reports nothing', () => {
+    const xml = '<c:chartSpace><a:srgbClr val="123456"/><a:schemeClr val="accent1"/></c:chartSpace>';
+    expect(describeLoss(xml, xml, null)).toEqual([]);
+  });
+
+  it('end to end: a rebuild that drops the plot area fill says so', async () => {
+    const s = await open(createBlankDocxBuffer('blank'));
+    await s.run([{
+      action: 'chart', operation: 'insert', anchor: s.ast.sections[0].nodes[0].id, id: 'c1', chartType: 'column', title: 'R',
+      categories: ['a', 'b'], series: [{ name: 'A', values: [1, 2], color: '0066CC' }, { name: 'B', values: [2, 1], color: '10B981' }],
+    }]);
+    const path = 'word/charts/chart1.xml';
+    s.zip.writeText(path, s.zip.readText(path).replace('</c:plotArea>', '<c:spPr><a:solidFill><a:srgbClr val="F2F2F2"/></a:solidFill></c:spPr></c:plotArea>'));
+    const refusal = await s.run([{ action: 'chart', operation: 'update', target: 'c1', chartType: 'line' }]);
+    expect(refusal.success).toBe(false);
+    expect(JSON.stringify(refusal)).toContain('colour F2F2F2');
+    const ok = await s.run([{ action: 'chart', operation: 'update', target: 'c1', chartType: 'line', allowRebuild: true }]);
+    expect(ok.success).toBe(true);
+    expect(ok.chartUpdates[0].formattingNotKept).toContain('colour F2F2F2');
+    expect(ok.chartUpdates[0].formattingNotKept).not.toContain('colour 0066CC');
+  });
+});

@@ -1,6 +1,7 @@
 import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from './dom-parser';
 import { relationshipElements } from './relationships-dom';
+import { decodePartUri } from './xml-entities';
 
 /**
  * Removes chart and image parts that an edit left unreachable (0.5.3, DN2).
@@ -98,7 +99,8 @@ const relsPartOf = (part: string): string => {
 };
 
 /** Package name a relationship target points at, resolved from the source part's folder; null for anything that is not a plain internal path. */
-export function resolvePartName(target: string, sourcePart: string): string | null {
+export function resolvePartName(rawTarget: string, sourcePart: string): string | null {
+  const target = decodePartUri(rawTarget);
   if (!target || target.includes('\\') || /^[a-z][a-z0-9+.-]*:/i.test(target)) return null;
   const base = target.startsWith('/') ? [] : sourcePart.split('/').slice(0, -1);
   for (const seg of target.replace(/^\//, '').split('/')) {

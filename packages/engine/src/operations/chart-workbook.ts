@@ -17,6 +17,7 @@
 import AdmZip from '../adm-zip-safe';
 import { generateEmbeddedWorkbook } from '../manipulators/chart3d';
 import type { DocxZipAdapter } from '../parser/types';
+import { decodePartUri, decodeXmlEntities } from '../ooxml/xml-entities';
 
 export interface StoredChartData {
   categories: string[];
@@ -52,7 +53,8 @@ interface RelEntry {
 
 function attr(tag: string, name: string): string | undefined {
   const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(tag);
-  return m ? (m[1] ?? m[2]) : undefined;
+  const raw = m ? (m[1] ?? m[2]) : undefined;
+  return raw === undefined ? undefined : decodeXmlEntities(raw);
 }
 
 function parseRels(xml: string): RelEntry[] {
@@ -75,7 +77,8 @@ function parseRels(xml: string): RelEntry[] {
 
 /** Resolves a relationship target against the directory of its source part. */
 function resolveTarget(sourceDir: string, target: string): string {
-  const parts = (target.startsWith('/') ? target.slice(1) : `${sourceDir}${target}`).split('/');
+  const uri = decodePartUri(target);
+  const parts = (uri.startsWith('/') ? uri.slice(1) : `${sourceDir}${uri}`).split('/');
   const out: string[] = [];
   for (const part of parts) {
     if (part === '' || part === '.') continue;

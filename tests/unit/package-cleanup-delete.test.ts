@@ -328,6 +328,8 @@ describe('pruneUnusedDrawingParts (package level)', () => {
 
   it('upper and lower case names and .. segments resolve to the same part', () => {
     expect(resolvePartName('../embeddings/W1.xlsx', 'word/charts/chart1.xml')).toBe('word/embeddings/W1.xlsx');
+    expect(resolvePartName('../embeddings/W%31.xlsx', 'word/charts/chart1.xml')).toBe('word/embeddings/W1.xlsx');
+    expect(resolvePartName('../embeddings/bad%ZZ.xlsx', 'word/charts/chart1.xml')).toBe('word/embeddings/bad%ZZ.xlsx');
     expect(resolvePartName('/word/charts/chart1.xml', 'word/document.xml')).toBe('word/charts/chart1.xml');
     expect(resolvePartName('./charts//chart1.xml', 'word/document.xml')).toBe('word/charts/chart1.xml');
     expect(resolvePartName('../../../x', 'word/document.xml')).toBeNull();
