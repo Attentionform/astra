@@ -117,10 +117,11 @@
                 ]
               },
               "color": {
-                "type": "string",
-                "maxLength": 32,
-                "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE]|[aA][uU][tT][oO])\\s*$",
-                "description": "A colour: 6 hex digits such as FF0000 (optionally with #), \"auto\", or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema10"
+                  }
+                ]
               },
               "thickness": {
                 "type": "number"
@@ -132,14 +133,14 @@
               "spacingBefore": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema11"
                   }
                 ]
               },
               "spacingAfter": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema11"
                   }
                 ]
               },
@@ -217,14 +218,14 @@
                 "maxItems": 1000,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema13"
+                  "$ref": "#/definitions/__schema14"
                 }
               },
               "series": {
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema14"
+                  "$ref": "#/definitions/__schema15"
                 }
               },
               "view3D": {
@@ -275,10 +276,10 @@
                 "type": "boolean"
               },
               "author": {
-                "$ref": "#/definitions/__schema16"
+                "$ref": "#/definitions/__schema17"
               },
               "date": {
-                "$ref": "#/definitions/__schema17"
+                "$ref": "#/definitions/__schema18"
               },
               "target": {
                 "type": "string",
@@ -299,12 +300,12 @@
               "sectionIndex": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema18"
+                    "$ref": "#/definitions/__schema19"
                   }
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
                 "type": "object",
@@ -354,30 +355,30 @@
                 "type": "boolean"
               },
               "author": {
-                "$ref": "#/definitions/__schema16"
+                "$ref": "#/definitions/__schema17"
               },
               "date": {
-                "$ref": "#/definitions/__schema17"
+                "$ref": "#/definitions/__schema18"
               },
               "fontSize": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema20"
+                    "$ref": "#/definitions/__schema21"
                   }
                 ]
               },
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema20"
+                    "$ref": "#/definitions/__schema21"
                   }
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -395,7 +396,7 @@
                 "const": "delete"
               },
               "target": {
-                "$ref": "#/definitions/__schema24"
+                "$ref": "#/definitions/__schema25"
               },
               "strict": {
                 "type": "boolean"
@@ -404,16 +405,16 @@
                 "type": "boolean"
               },
               "author": {
-                "$ref": "#/definitions/__schema16"
-              },
-              "date": {
                 "$ref": "#/definitions/__schema17"
               },
+              "date": {
+                "$ref": "#/definitions/__schema18"
+              },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -430,19 +431,19 @@
                 "const": "style"
               },
               "target": {
-                "$ref": "#/definitions/__schema24"
+                "$ref": "#/definitions/__schema25"
               },
               "properties": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema26"
+                    "$ref": "#/definitions/__schema27"
                   }
                 ]
               },
               "params": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema26"
+                    "$ref": "#/definitions/__schema27"
                   }
                 ]
               },
@@ -480,22 +481,23 @@
                 ]
               },
               "color": {
-                "type": "string",
-                "maxLength": 32,
-                "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE]|[aA][uU][tT][oO])\\s*$",
-                "description": "A colour: 6 hex digits such as FF0000 (optionally with #), \"auto\", or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema10"
+                  }
+                ]
               },
               "fontSize": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema20"
+                    "$ref": "#/definitions/__schema21"
                   }
                 ]
               },
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema20"
+                    "$ref": "#/definitions/__schema21"
                   }
                 ]
               },
@@ -531,42 +533,42 @@
               "spacingBefore": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema11"
                   }
                 ]
               },
               "spacingAfter": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema11"
                   }
                 ]
               },
               "indentLeft": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema11"
                   }
                 ]
               },
               "indentRight": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema11"
                   }
                 ]
               },
               "indentFirstLine": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema11"
                   }
                 ]
               },
               "indentHanging": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema10"
+                    "$ref": "#/definitions/__schema11"
                   }
                 ]
               },
@@ -574,7 +576,7 @@
                 "description": "Word-level span: style only this literal substring (run splitting); an absent match fails with E_NOT_FOUND.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema30"
+                    "$ref": "#/definitions/__schema31"
                   }
                 ]
               },
@@ -582,7 +584,7 @@
                 "description": "Style every occurrence of match (default false: first occurrence only).",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema31"
+                    "$ref": "#/definitions/__schema32"
                   }
                 ]
               },
@@ -590,12 +592,12 @@
                 "description": "Case-sensitive match (default true: pass false for case-insensitive).",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema32"
+                    "$ref": "#/definitions/__schema33"
                   }
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -612,13 +614,13 @@
                 "const": "clearFormat"
               },
               "target": {
-                "$ref": "#/definitions/__schema24"
+                "$ref": "#/definitions/__schema25"
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -635,7 +637,7 @@
                 "const": "move"
               },
               "target": {
-                "$ref": "#/definitions/__schema24"
+                "$ref": "#/definitions/__schema25"
               },
               "anchor": {
                 "type": "string",
@@ -651,10 +653,10 @@
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -683,10 +685,10 @@
                 "maxLength": 256
               },
               "operation": {
-                "description": "Parameters each operation reads (row and col count from 1): updateCell(row,col,text,author,date); setCaption(captionText,captionPosition); addRow(afterIndex,cells); deleteRow(index,row); addColumn(afterIndex,width); deleteColumn(index,col); mergeCells(fromRow,fromCol,toRow,toCol); splitCell(row,col); setBorder(border,color,sz,size,val); setShading(fill,headerFill,zebra,textColor); setColumnWidths(widths,columnWidths); setColumnWidth(width,w,col); setHeaderRepeat(row); setCantSplit; setVerticalAlign(vAlign,alignment,row,col); setCellShading(row,col,fill,textColor); setRowHeight(height,rule,row); setCellAlignment(align,alignment,row,col); setTableAlignment(align,alignment); setCellPadding(padding,row,col); setCellTextColor(color,textColor,row,col); setKeepTogether.",
+                "description": "Parameters each operation reads (row and col count from 1): updateCell(row,col,text,author,date); setCaption(captionText,captionPosition); addRow(afterIndex,cells); deleteRow(index,row); addColumn(afterIndex,width); deleteColumn(index,col); mergeCells(fromRow,fromCol,toRow,toCol); splitCell(row,col); setBorder(border,color,sz,size,val); setShading(fill,headerFill,zebra,textColor); setColumnWidths(widths,columnWidths); setColumnWidth(width,w,col); setHeaderRepeat(row); setCantSplit; setVerticalAlign(vAlign,alignment,row,col); setCellShading(row,col,fill,textColor); setRowHeight(height,rule,row); setRowHeights(heightIn,heightTwips,rule); setTableWidth(widthIn,widthPercent,widthTwips,columns); setCellAlignment(align,alignment,row,col); setTableAlignment(align,alignment); setCellPadding(padding,row,col); setCellTextColor(color,textColor,row,col); setKeepTogether.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema33"
+                    "$ref": "#/definitions/__schema34"
                   }
                 ]
               },
@@ -694,7 +696,7 @@
                 "description": "Alias of operation.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema33"
+                    "$ref": "#/definitions/__schema34"
                   }
                 ]
               },
@@ -702,13 +704,13 @@
                 "type": "boolean"
               },
               "author": {
-                "$ref": "#/definitions/__schema16"
-              },
-              "date": {
                 "$ref": "#/definitions/__schema17"
               },
+              "date": {
+                "$ref": "#/definitions/__schema18"
+              },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               },
               "rowIndex": {
                 "type": "integer",
@@ -748,7 +750,7 @@
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema34"
+                  "$ref": "#/definitions/__schema35"
                 },
                 "description": "addRow: the text of the new cells, one entry per column from the first (also accepted inside params)."
               },
@@ -765,38 +767,41 @@
                 "description": "deleteRow/deleteColumn: the row or column number to remove (counting from 1)."
               },
               "fill": {
-                "type": "string",
-                "maxLength": 32,
-                "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE])\\s*$",
-                "description": "A colour: 6 hex digits such as FF0000 (optionally with #), or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema36"
+                  }
+                ]
               },
               "headerFill": {
-                "type": "string",
-                "maxLength": 32,
-                "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE])\\s*$",
-                "description": "A colour: 6 hex digits such as FF0000 (optionally with #), or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema36"
+                  }
+                ]
               },
               "zebra": {
                 "type": "boolean"
               },
               "textColor": {
-                "type": "string",
-                "maxLength": 32,
-                "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE])\\s*$",
-                "description": "A colour: 6 hex digits such as FF0000 (optionally with #), or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema36"
+                  }
+                ]
               },
               "widths": {
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema35"
+                  "$ref": "#/definitions/__schema37"
                 }
               },
               "columnWidths": {
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema36"
+                  "$ref": "#/definitions/__schema38"
                 }
               },
               "width": {
@@ -817,20 +822,51 @@
                   "auto"
                 ]
               },
+              "widthIn": {
+                "type": "number",
+                "description": "setTableWidth: inches; give one of widthIn, widthPercent, widthTwips."
+              },
+              "widthPercent": {
+                "type": "number",
+                "description": "setTableWidth: 1 to 100, of the text width."
+              },
+              "widthTwips": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "columns": {
+                "type": "string",
+                "enum": [
+                  "scale",
+                  "keep"
+                ],
+                "description": "setTableWidth: scale (default) resizes columns in proportion; keep changes only the table width."
+              },
+              "heightIn": {
+                "type": "number",
+                "description": "setRowHeights: inches; or heightTwips; none with rule auto."
+              },
+              "heightTwips": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
               "border": {
                 "type": "string",
                 "maxLength": 32
               },
               "color": {
-                "type": "string",
-                "maxLength": 32,
-                "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE]|[aA][uU][tT][oO])\\s*$",
-                "description": "A colour: 6 hex digits such as FF0000 (optionally with #), \"auto\", or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema10"
+                  }
+                ]
               },
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema37"
+                    "$ref": "#/definitions/__schema39"
                   }
                 ]
               },
@@ -841,14 +877,14 @@
               "align": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema38"
+                    "$ref": "#/definitions/__schema40"
                   }
                 ]
               },
               "alignment": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema38"
+                    "$ref": "#/definitions/__schema40"
                   }
                 ]
               },
@@ -900,7 +936,7 @@
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -931,7 +967,7 @@
               "sectionIndex": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema18"
+                    "$ref": "#/definitions/__schema19"
                   }
                 ]
               },
@@ -947,10 +983,10 @@
                 "type": "boolean"
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -1011,7 +1047,7 @@
                   "sectionIndex": {
                     "allOf": [
                       {
-                        "$ref": "#/definitions/__schema18"
+                        "$ref": "#/definitions/__schema19"
                       }
                     ]
                   }
@@ -1060,12 +1096,12 @@
               "sectionIndex": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema18"
+                    "$ref": "#/definitions/__schema19"
                   }
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -1094,12 +1130,12 @@
               "target": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema24"
+                    "$ref": "#/definitions/__schema25"
                   }
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -1162,15 +1198,15 @@
               "sectionIndex": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema18"
+                    "$ref": "#/definitions/__schema19"
                   }
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -1226,10 +1262,10 @@
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -1256,7 +1292,7 @@
                 ]
               },
               "target": {
-                "$ref": "#/definitions/__schema24"
+                "$ref": "#/definitions/__schema25"
               },
               "listType": {
                 "type": "string",
@@ -1283,10 +1319,10 @@
                 "description": "changeLevel: move this many levels deeper (positive) or shallower (negative); below level 1 leaves the list."
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -1336,7 +1372,7 @@
               "sectionIndex": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema18"
+                    "$ref": "#/definitions/__schema19"
                   }
                 ]
               },
@@ -1353,7 +1389,7 @@
                 "maxLength": 32
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -1428,14 +1464,14 @@
                 "maxItems": 1000,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema39"
+                  "$ref": "#/definitions/__schema41"
                 }
               },
               "series": {
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema40"
+                  "$ref": "#/definitions/__schema42"
                 }
               },
               "style": {
@@ -1593,7 +1629,7 @@
                         "maxItems": 100,
                         "type": "array",
                         "items": {
-                          "$ref": "#/definitions/__schema42"
+                          "$ref": "#/definitions/__schema44"
                         }
                       },
                       "order": {
@@ -1675,34 +1711,34 @@
                 "maximum": 100000000
               },
               "widthIn": {
-                "description": "Chart width in inches, 0.1 to 22. Use widthIn or widthEmu, not both.",
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/__schema43"
-                  }
-                ]
-              },
-              "heightIn": {
-                "description": "Chart height in inches, 0.1 to 22. Use heightIn or heightEmu, not both.",
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/__schema44"
-                  }
-                ]
-              },
-              "altText": {
-                "description": "Alternative text of the chart drawing. On update an empty string clears it.",
+                "description": "Inches, 0.1 to 22 (or widthEmu, not both).",
                 "allOf": [
                   {
                     "$ref": "#/definitions/__schema45"
                   }
                 ]
               },
+              "heightIn": {
+                "description": "Inches, 0.1 to 22 (or heightEmu, not both).",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema46"
+                  }
+                ]
+              },
+              "altText": {
+                "description": "Alt text; update with \"\" clears it.",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema47"
+                  }
+                ]
+              },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -1780,7 +1816,7 @@
                 "maxLength": 5000
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -1824,10 +1860,10 @@
                 "$ref": "#/definitions/__schema1"
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
-                "$ref": "#/definitions/__schema23"
+                "$ref": "#/definitions/__schema24"
               }
             },
             "required": [
@@ -1871,7 +1907,7 @@
                 "maximum": 9007199254740991
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -1916,7 +1952,7 @@
                 "maximum": 9007199254740991
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -1945,14 +1981,14 @@
               "fontSize": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema46"
+                    "$ref": "#/definitions/__schema48"
                   }
                 ]
               },
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema46"
+                    "$ref": "#/definitions/__schema48"
                   }
                 ]
               },
@@ -1965,7 +2001,7 @@
                 "type": "number"
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -1987,22 +2023,23 @@
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema37"
+                    "$ref": "#/definitions/__schema39"
                   }
                 ]
               },
               "fontSize": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema20"
+                    "$ref": "#/definitions/__schema21"
                   }
                 ]
               },
               "color": {
-                "type": "string",
-                "maxLength": 32,
-                "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE]|[aA][uU][tT][oO])\\s*$",
-                "description": "A colour: 6 hex digits such as FF0000 (optionally with #), \"auto\", or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema10"
+                  }
+                ]
               },
               "marginOffset": {
                 "type": "string",
@@ -2014,12 +2051,12 @@
               "sectionIndex": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema18"
+                    "$ref": "#/definitions/__schema19"
                   }
                 ]
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -2084,7 +2121,7 @@
                 "maximum": 9007199254740991
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               },
               "params": {
                 "type": "object",
@@ -2145,7 +2182,7 @@
                 "maxLength": 256
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -2189,7 +2226,7 @@
                 "maxLength": 256
               },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -2226,13 +2263,13 @@
                 "maxLength": 50000
               },
               "author": {
-                "$ref": "#/definitions/__schema16"
-              },
-              "date": {
                 "$ref": "#/definitions/__schema17"
               },
+              "date": {
+                "$ref": "#/definitions/__schema18"
+              },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -2264,7 +2301,7 @@
                 "minItems": 1,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema47"
+                  "$ref": "#/definitions/__schema49"
                 }
               },
               "target": {
@@ -2280,13 +2317,13 @@
                 "maximum": 9007199254740991
               },
               "author": {
-                "$ref": "#/definitions/__schema16"
-              },
-              "date": {
                 "$ref": "#/definitions/__schema17"
               },
+              "date": {
+                "$ref": "#/definitions/__schema18"
+              },
               "expectedVersion": {
-                "$ref": "#/definitions/__schema19"
+                "$ref": "#/definitions/__schema20"
               }
             },
             "required": [
@@ -2402,28 +2439,34 @@
         "maximum": 9007199254740991
       },
       "__schema10": {
+        "type": "string",
+        "maxLength": 32,
+        "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE]|[aA][uU][tT][oO])\\s*$",
+        "description": "A colour: 6 hex digits such as FF0000 (optionally with #), \"auto\", or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+      },
+      "__schema11": {
         "anyOf": [
           {
-            "$ref": "#/definitions/__schema11"
+            "$ref": "#/definitions/__schema12"
           },
           {
-            "$ref": "#/definitions/__schema12"
+            "$ref": "#/definitions/__schema13"
           }
         ],
         "description": "Twips (20 per point, so 240 is 12 pt), or a string in points such as \"12pt\"."
       },
-      "__schema11": {
-        "type": "number"
-      },
       "__schema12": {
-        "type": "string",
-        "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
+        "type": "number"
       },
       "__schema13": {
         "type": "string",
-        "maxLength": 500
+        "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
       },
       "__schema14": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "__schema15": {
         "type": "object",
         "properties": {
           "name": {
@@ -2434,7 +2477,7 @@
             "maxItems": 1000,
             "type": "array",
             "items": {
-              "$ref": "#/definitions/__schema15"
+              "$ref": "#/definitions/__schema16"
             }
           },
           "color": {
@@ -2449,77 +2492,77 @@
         ],
         "additionalProperties": {}
       },
-      "__schema15": {
+      "__schema16": {
         "type": "number"
       },
-      "__schema16": {
+      "__schema17": {
         "type": "string",
         "minLength": 1,
         "maxLength": 128
       },
-      "__schema17": {
+      "__schema18": {
         "type": "string",
         "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
       },
-      "__schema18": {
+      "__schema19": {
         "type": "integer",
         "exclusiveMinimum": 0,
         "maximum": 9007199254740991,
         "description": "Section number, counting from 1 (1 is the first section)."
       },
-      "__schema19": {
+      "__schema20": {
         "type": "integer",
         "minimum": 0,
         "maximum": 9007199254740991
       },
-      "__schema20": {
+      "__schema21": {
         "anyOf": [
           {
-            "$ref": "#/definitions/__schema21"
+            "$ref": "#/definitions/__schema22"
           },
           {
-            "$ref": "#/definitions/__schema22"
+            "$ref": "#/definitions/__schema23"
           }
         ],
         "description": "Font size: a number of half-points (24 is 12 pt) or a string in points such as \"12pt\"; at most 1638 pt."
       },
-      "__schema21": {
+      "__schema22": {
         "type": "number",
         "minimum": 0,
         "maximum": 3276
       },
-      "__schema22": {
+      "__schema23": {
         "type": "string",
         "pattern": "^\\s*(\\d+(?:\\.\\d+)?)\\s*pt\\s*$"
       },
-      "__schema23": {
+      "__schema24": {
         "type": "object",
         "propertyNames": {
           "type": "string"
         },
         "additionalProperties": {}
       },
-      "__schema24": {
+      "__schema25": {
         "anyOf": [
           {
-            "$ref": "#/definitions/__schema25"
+            "$ref": "#/definitions/__schema26"
           },
           {
             "minItems": 1,
             "maxItems": 100,
             "type": "array",
             "items": {
-              "$ref": "#/definitions/__schema25"
+              "$ref": "#/definitions/__schema26"
             }
           }
         ]
       },
-      "__schema25": {
+      "__schema26": {
         "type": "string",
         "minLength": 1,
         "maxLength": 256
       },
-      "__schema26": {
+      "__schema27": {
         "type": "object",
         "properties": {
           "bold": {
@@ -2556,22 +2599,23 @@
             ]
           },
           "color": {
-            "type": "string",
-            "maxLength": 32,
-            "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE]|[aA][uU][tT][oO])\\s*$",
-            "description": "A colour: 6 hex digits such as FF0000 (optionally with #), \"auto\", or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
+            "allOf": [
+              {
+                "$ref": "#/definitions/__schema10"
+              }
+            ]
           },
           "fontSize": {
             "allOf": [
               {
-                "$ref": "#/definitions/__schema20"
+                "$ref": "#/definitions/__schema21"
               }
             ]
           },
           "sz": {
             "allOf": [
               {
-                "$ref": "#/definitions/__schema20"
+                "$ref": "#/definitions/__schema21"
               }
             ]
           },
@@ -2607,42 +2651,42 @@
           "spacingBefore": {
             "allOf": [
               {
-                "$ref": "#/definitions/__schema10"
+                "$ref": "#/definitions/__schema11"
               }
             ]
           },
           "spacingAfter": {
             "allOf": [
               {
-                "$ref": "#/definitions/__schema10"
+                "$ref": "#/definitions/__schema11"
               }
             ]
           },
           "indentLeft": {
             "allOf": [
               {
-                "$ref": "#/definitions/__schema10"
+                "$ref": "#/definitions/__schema11"
               }
             ]
           },
           "indentRight": {
             "allOf": [
               {
-                "$ref": "#/definitions/__schema10"
+                "$ref": "#/definitions/__schema11"
               }
             ]
           },
           "indentFirstLine": {
             "allOf": [
               {
-                "$ref": "#/definitions/__schema10"
+                "$ref": "#/definitions/__schema11"
               }
             ]
           },
           "indentHanging": {
             "allOf": [
               {
-                "$ref": "#/definitions/__schema10"
+                "$ref": "#/definitions/__schema11"
               }
             ]
           },
@@ -2650,7 +2694,7 @@
             "description": "Word-level span: style only this literal substring (run splitting); an absent match fails with E_NOT_FOUND.",
             "allOf": [
               {
-                "$ref": "#/definitions/__schema27"
+                "$ref": "#/definitions/__schema28"
               }
             ]
           },
@@ -2658,7 +2702,7 @@
             "description": "Style every occurrence of match (default false: first occurrence only).",
             "allOf": [
               {
-                "$ref": "#/definitions/__schema28"
+                "$ref": "#/definitions/__schema29"
               }
             ]
           },
@@ -2666,36 +2710,36 @@
             "description": "Case-sensitive match (default true: pass false for case-insensitive).",
             "allOf": [
               {
-                "$ref": "#/definitions/__schema29"
+                "$ref": "#/definitions/__schema30"
               }
             ]
           }
         },
         "additionalProperties": {}
       },
-      "__schema27": {
+      "__schema28": {
         "type": "string",
         "minLength": 1,
         "maxLength": 1000
-      },
-      "__schema28": {
-        "type": "boolean"
       },
       "__schema29": {
         "type": "boolean"
       },
       "__schema30": {
+        "type": "boolean"
+      },
+      "__schema31": {
         "type": "string",
         "minLength": 1,
         "maxLength": 1000
-      },
-      "__schema31": {
-        "type": "boolean"
       },
       "__schema32": {
         "type": "boolean"
       },
       "__schema33": {
+        "type": "boolean"
+      },
+      "__schema34": {
         "type": "string",
         "enum": [
           "updateCell",
@@ -2715,6 +2759,8 @@
           "setVerticalAlign",
           "setCellShading",
           "setRowHeight",
+          "setRowHeights",
+          "setTableWidth",
           "setCellAlignment",
           "setTableAlignment",
           "setCellPadding",
@@ -2722,23 +2768,29 @@
           "setKeepTogether"
         ]
       },
-      "__schema34": {
+      "__schema35": {
         "type": "string",
         "maxLength": 100000
       },
-      "__schema35": {
-        "type": "number"
-      },
       "__schema36": {
-        "type": "number"
+        "type": "string",
+        "maxLength": 32,
+        "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE])\\s*$",
+        "description": "A colour: 6 hex digits such as FF0000 (optionally with #), or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
       },
       "__schema37": {
+        "type": "number"
+      },
+      "__schema38": {
+        "type": "number"
+      },
+      "__schema39": {
         "type": "integer",
         "minimum": 1,
         "maximum": 96,
         "description": "Border width in eighths of a point (8 is 1 pt), a whole number from 1 to 96."
       },
-      "__schema38": {
+      "__schema40": {
         "type": "string",
         "enum": [
           "left",
@@ -2746,11 +2798,11 @@
           "right"
         ]
       },
-      "__schema39": {
+      "__schema41": {
         "type": "string",
         "maxLength": 500
       },
-      "__schema40": {
+      "__schema42": {
         "type": "object",
         "properties": {
           "name": {
@@ -2761,7 +2813,7 @@
             "maxItems": 1000,
             "type": "array",
             "items": {
-              "$ref": "#/definitions/__schema41"
+              "$ref": "#/definitions/__schema43"
             }
           },
           "color": {
@@ -2790,26 +2842,26 @@
         ],
         "additionalProperties": {}
       },
-      "__schema41": {
+      "__schema43": {
         "type": "number"
       },
-      "__schema42": {
+      "__schema44": {
         "type": "integer",
         "exclusiveMinimum": 0,
         "maximum": 9007199254740991,
         "description": "Series number, counting from 1 in the order the series appear"
       },
-      "__schema43": {
-        "type": "number"
-      },
-      "__schema44": {
-        "type": "number"
-      },
       "__schema45": {
+        "type": "number"
+      },
+      "__schema46": {
+        "type": "number"
+      },
+      "__schema47": {
         "type": "string",
         "maxLength": 5000
       },
-      "__schema46": {
+      "__schema48": {
         "anyOf": [
           {
             "type": "number",
@@ -2822,7 +2874,7 @@
           }
         ]
       },
-      "__schema47": {
+      "__schema49": {
         "type": "integer",
         "minimum": 0,
         "maximum": 9007199254740991
