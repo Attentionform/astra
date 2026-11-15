@@ -44,7 +44,8 @@ describe('workbook policy: no data change leaves the workbook alone', () => {
   const noData: Array<[string, Record<string, unknown>]> = [
     ['title', { title: 'New title' }],
     ['style', { style: { legend: { position: 'b' } } }],
-    ['chartType within the family', { chartType: 'line' }],
+    ['chartType within the family', { chartType: 'columnStacked' }],
+    ['chartType column to bar', { chartType: 'bar' }],
     ['size', { widthIn: 5, heightIn: 3 }],
     ['alt text', { altText: 'A chart' }],
   ];
@@ -130,10 +131,10 @@ describe('workbook policy: workbooks ASTra did not generate', () => {
     const [path] = workbooks(s);
     const res = await s.run([{
       action: 'chart', operation: 'update', target: wordChartId(s), allowRebuild: true,
-      categories: ['A', 'B', 'C', 'D'], series: [{ name: 'S1', values: [1, 2, 3, 4] }],
+      categories: ['A', 'B', 'C', 'D'],
     }]);
     expect(res.success).toBe(true);
-    expect(new AdmZip(wb(s, path)).readAsText('xl/worksheets/sheet1.xml')).toContain('S1');
+    expect(new AdmZip(wb(s, path)).readAsText('xl/worksheets/sheet1.xml')).toContain('>D<');
     const report = await validateDocxBuffer(s.parser.rezip(s.ast));
     expect(JSON.stringify(report)).not.toMatch(/"severity":"error"/);
   });

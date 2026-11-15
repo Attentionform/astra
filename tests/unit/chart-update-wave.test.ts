@@ -368,7 +368,7 @@ describe('Wave 1C: Chart in-place update without duplication (P0-4)', () => {
       executeChart(
         {
           action: 'chart',
-          operation: 'update',
+          operation: 'update', allowRebuild: true,
           target: 'convertible_chart',
           chartType: 'column3D',
           title: '3D Converted Chart',
@@ -392,6 +392,7 @@ describe('Wave 1C: Chart in-place update without duplication (P0-4)', () => {
         {
           action: 'chart',
           operation: 'update',
+          allowRebuild: true,
           target: 'convertible_chart',
           chartType: 'pie',
           title: '2D Pie Converted',

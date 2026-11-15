@@ -330,7 +330,7 @@ describe('scatter charts', () => {
   it('regenerates scatter on series-count and chartType changes', async () => {
     const count = await insertScatter('count');
     executeChart({
-      action: 'chart', operation: 'update', target: 'count',
+      action: 'chart', operation: 'update', allowRebuild: true, removeSeries: ['P99'], target: 'count',
       series: [{ name: 'P50', values: [7, 18, 30] }],
     }, count.ast, count.parser);
     const oneSeries = chartXml(count.parser);
@@ -341,7 +341,7 @@ describe('scatter charts', () => {
     expect((await validateDocxBuffer(count.parser.rezip())).ok).toBe(true);
 
     const shape = await insertScatter('shape');
-    executeChart({ action: 'chart', operation: 'update', target: 'shape', chartType: 'column' }, shape.ast, shape.parser);
+    executeChart({ action: 'chart', operation: 'update', allowRebuild: true, target: 'shape', chartType: 'column' }, shape.ast, shape.parser);
     const column = chartXml(shape.parser);
     expect(column).toContain('<c:barChart>');
     expect(column).toContain('<c:catAx>');
@@ -356,14 +356,14 @@ describe('scatter charts', () => {
     const version = chartNode(ast, id).version;
     const cases = [
       { name: 'non-numeric', categories: ['a', '10', '20'], series: DEMO.series, match: /not numeric/, },
-      { name: 'mismatch', categories: ['0', '10'], series: [{ name: 'P50', values: [5, 15, 25] }], match: /same length/, },
+      { name: 'mismatch', categories: ['0', '10'], series: DEMO.series, match: /same length/, },
       { name: 'empty', categories: [], series: DEMO.series, match: /non-empty/, },
     ];
     for (const testCase of cases) {
       let err: (Error & { code?: string; remedy?: string }) | undefined;
       try {
         executeChart({
-          action: 'chart', operation: 'update', target: id,
+          action: 'chart', operation: 'update', allowRebuild: true, target: id,
           categories: testCase.categories, series: testCase.series,
         }, ast, parser);
       } catch (caught) {
@@ -1071,7 +1071,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
       action: 'chart', chartType: 'column', id: 'switch',
       categories: ['0', '10', '20'], series: [{ name: 'S', values: [1, 2, 3] }],
     }, ast, parser);
-    executeChart({ action: 'chart', operation: 'update', target: 'switch', chartType: 'scatter' }, ast, parser);
+    executeChart({ action: 'chart', operation: 'update', allowRebuild: true, target: 'switch', chartType: 'scatter' }, ast, parser);
     const node = ast.sections[0].nodes.find((n) => n.id === 'switch')!;
     const data = node.metadata.chartData as { series: Array<{ xValues?: number[] }> };
     expect(data.series[0].xValues).toEqual([0, 10, 20]);
@@ -1087,7 +1087,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
   it('gives a newly added series the existing shared x list', async () => {
     const base = await insertScatter('grow_series');
     executeChart({
-      action: 'chart', operation: 'update', target: base.id,
+      action: 'chart', operation: 'update', allowRebuild: true, target: base.id,
       series: [
         { name: 'P50', values: [5, 15, 25] },
         { name: 'P99', values: [12, 34, 58] },
@@ -1115,7 +1115,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
 
     const removed = await insertScatter('x_remove', divergent);
     executeChart({
-      action: 'chart', operation: 'update', target: 'x_remove',
+      action: 'chart', operation: 'update', allowRebuild: true, removeSeries: ['A'], target: 'x_remove',
       series: [{ name: 'B', values: [3, 4] }],
     }, removed.ast, removed.parser);
     expect(xValBlocks(chartXml(removed.parser))).toEqual([`<c:xVal>${numLitXml([5, 15])}</c:xVal>`]);
@@ -1184,7 +1184,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     expect(workbookSheet(prepended.parser)).toBe(sheetBefore);
 
     executeChart({
-      action: 'chart', operation: 'update', target: 'x_prepend',
+      action: 'chart', operation: 'update', allowRebuild: true, target: 'x_prepend',
       series: [
         { name: 'C', values: [7, 8], xValues: [7, 17] },
         { name: 'A', values: [1, 2] },
@@ -1241,7 +1241,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     expect(workbookSheet(base.parser)).toBe(sheetBefore);
 
     executeChart({
-      action: 'chart', operation: 'update', target: 'dup_request',
+      action: 'chart', operation: 'update', allowRebuild: true, target: 'dup_request',
       series: [
         { name: 'B', values: [7, 8], xValues: [5, 15] },
         { name: 'A', values: [1, 2], xValues: [0, 10] },
@@ -1270,7 +1270,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     let err: (Error & { code?: string; remedy?: string }) | undefined;
     try {
       executeChart({
-        action: 'chart', operation: 'update', target: node.id,
+        action: 'chart', operation: 'update', allowRebuild: true, removeSeries: [2], target: node.id,
         series: [{ name: 'P50', values: [5, 15, 25] }],
       }, ast, reopened);
     } catch (caught) {
@@ -1286,7 +1286,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     expect(workbookSheet(reopened)).toBe(sheetBefore);
 
     executeChart({
-      action: 'chart', operation: 'update', target: node.id, allowRebuild: true,
+      action: 'chart', operation: 'update', target: node.id, allowRebuild: true, removeSeries: [2],
       series: [{ name: 'P50', values: [5, 15, 25], xValues: [0, 10, 20] }],
     }, ast, reopened);
     expect(renderChartText(node)).toBe('[Chart scatter] Latency vs load | P50: (0, 5),(10, 15),(20, 25)');
@@ -1328,7 +1328,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     let err: (Error & { code?: string; remedy?: string }) | undefined;
     try {
       executeChart({
-        action: 'chart', operation: 'update', target: 'rename_divergent',
+        action: 'chart', operation: 'update', allowRebuild: true, removeSeries: ['B'], target: 'rename_divergent',
         series: [{ name: 'A renamed', values: [1, 2] }],
       }, divergent.ast, divergent.parser);
     } catch (caught) {
@@ -1368,7 +1368,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     const countAst = await countReopened.getAST();
     const countNode = countAst.sections[0].nodes.find((n) => n.type === 'chart')!;
     executeChart({
-      action: 'chart', operation: 'update', target: countNode.id,
+      action: 'chart', operation: 'update', allowRebuild: true, removeSeries: ['P99'], target: countNode.id,
       series: [{ name: 'P50', values: [6, 16, 26] }],
     }, countAst, countReopened);
     expect(chartXml(countReopened)).not.toContain('<c:title>');
@@ -1397,7 +1397,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     const switchAst = await switchReopened.getAST();
     const switchNode = switchAst.sections[0].nodes.find((n) => n.type === 'chart')!;
     executeChart({
-      action: 'chart', operation: 'update', target: switchNode.id, chartType: 'scatter',
+      action: 'chart', operation: 'update', allowRebuild: true, target: switchNode.id, chartType: 'scatter',
     }, switchAst, switchReopened);
     expect(chartXml(switchReopened)).not.toContain('<c:title>');
     expect(Object.hasOwn(switchNode.metadata, 'title')).toBe(false);
@@ -1436,7 +1436,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     const threeDAst2 = await threeDReopened.getAST();
     const threeDNode = threeDAst2.sections[0].nodes.find((n) => n.type === 'chart3d')!;
     executeChart({
-      action: 'chart', operation: 'update', target: threeDNode.id,
+      action: 'chart', operation: 'update', target: threeDNode.id, removeSeries: ['T'],
       series: [{ name: 'S', values: [4, 5] }],
     }, threeDAst2, threeDReopened);
     expect(chartXml(threeDReopened)).not.toContain('<c:title>');
@@ -1670,15 +1670,15 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     );
 
     executeChart({
-      action: 'chart', operation: 'update', target: nodeAgain.id,
+      action: 'chart', operation: 'update', allowRebuild: true, removeSeries: ['P99'], target: nodeAgain.id,
       series: [{ name: 'P50', values: [6, 16, 26] }],
     }, astAgain, reopenedAgain);
     const structural = chartXml(reopenedAgain);
-    // A series-count change rebuilds the part (historical regeneration path),
-    // so the unmodeled axis title XML is not carried over; what must never
-    // happen is its text reappearing as a chart-level title.
+    // A rebuild re-applies the modelled style (the axis title is modelled), so the
+    // axis title survives; what must never happen is its text reappearing as a
+    // chart-level title.
     expect(chartLevelXml(structural)).not.toContain('<c:title');
-    expect(structural).not.toContain('Y AXIS KEEP');
+    expect(structural).toContain('Y AXIS KEEP');
     expect(summarize2DChartXml(structural).title).toBeUndefined();
     expect(Object.hasOwn(nodeAgain.metadata, 'title')).toBe(false);
     expect(Object.hasOwn(nodeAgain.metadata.chartData!, 'title')).toBe(false);
@@ -1691,7 +1691,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     const structuralNode = structuralAst.sections[0].nodes.find((n) => n.type === 'chart')!;
     const structuralXml = chartXml(structuralReopened);
     expect(chartLevelXml(structuralXml)).not.toContain('<c:title');
-    expect(structuralXml).not.toContain('Y AXIS KEEP');
+    expect(structuralXml).toContain('Y AXIS KEEP');
     expect(summarize2DChartXml(structuralXml).title).toBeUndefined();
     expect(Object.hasOwn(structuralNode.metadata, 'title')).toBe(false);
     expect(Object.hasOwn(structuralNode.metadata.chartData!, 'title')).toBe(false);

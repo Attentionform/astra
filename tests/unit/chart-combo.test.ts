@@ -124,7 +124,7 @@ describe('combo charts and secondary axes', () => {
     const { parser, ast, id } = await insertCombo('combo_structural');
     executeChart(
       {
-        action: 'chart', operation: 'update', target: id,
+        action: 'chart', operation: 'update', allowRebuild: true, target: id,
         style: { legend: { position: 'b' } },
         series: [
           { name: 'Revenue', values: [12, 22, 32], chartType: 'column' },
