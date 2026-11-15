@@ -1498,7 +1498,7 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
     const indexes = resolveSeriesRemovals(removalRequest, existing.series.map((s) => s.name), chartPath);
     if (supportsInPlaceSeriesChange(existingXml) || !rebuildAllowed) {
       try {
-        existingXml = removeSeriesInPlace(existingXml, chartPath, indexes);
+        existingXml = removeSeriesInPlace(existingXml, chartPath, indexes, existing.series.length);
       } catch (error) {
         if (!(error instanceof ChartStructureRefusal) || !rebuildAllowed) throw error;
         removalRebuildSeries = existing.series.filter((_, i) => !indexes.includes(i));

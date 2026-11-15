@@ -491,10 +491,18 @@ export function resolveSeriesRemovals(
   return [...picked].sort((a, b) => a - b);
 }
 
-export function removeSeriesInPlace(chartXml: string, chartPath: string, removeIndexes: readonly number[]): string {
+export function removeSeriesInPlace(
+  chartXml: string,
+  chartPath: string,
+  removeIndexes: readonly number[],
+  expectedCount: number
+): string {
   let xml = chartXml;
   const scope = chartNamespaceScopeFromXml(xml);
   const plot = singleSeriesPlot(xml, scope, chartPath, 'removing a series');
+  if (plot.series.length !== expectedCount) {
+    throw refuse(chartPath, `the part carries ${plot.series.length} series but the chart reads ${expectedCount}`, 'Remedy: re-read the chart with inspect_document and retry.');
+  }
   const drop = new Set(removeIndexes);
   const meta = plot.series.map((s) => {
     const serXml = xml.slice(s.start, s.end);
