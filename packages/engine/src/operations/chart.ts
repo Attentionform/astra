@@ -1102,6 +1102,12 @@ function resolveExplicitChartNode(
   }
   const target = resolveChartRIdTarget(parser, rId, ast);
   const num = target ? chartNumFromTarget(target) : undefined;
+  if (target !== undefined && num === undefined) {
+    throw chartUpdateError(
+      "E_VALIDATION: chart node '" + selector + "' uses the chart part '" + target + "', whose name ASTra does not edit (it works on parts named chart<number>.xml, as Word writes them).",
+      'Remedy: delete the chart (its parts are removed with it) and insert a new one, or rename the part to chart<number>.xml in the package.'
+    );
+  }
   if (target === undefined || num === undefined) {
     throw chartUpdateError(
       "E_VALIDATION: chart node '" + selector + "' references unknown relationship '" + rId + "'.",
