@@ -1,4 +1,5 @@
 import { chartNamespaceScopeFromXml } from '../parser/factory';
+import { majorGridlinesXml } from '../manipulators/chart-parts';
 import {
   type ChartNamespaceScope,
   type Span,
@@ -542,8 +543,7 @@ function patchAxis(
   if (style.majorGridlines !== undefined) {
     if (style.majorGridlines) {
       if (!findDirectChild(out, chartQualifiedName(out, 'majorGridlines'))) {
-        const tag = chartQualifiedName(out, 'majorGridlines');
-        out = insertOrderedChild(out, AXIS_ORDER, 'majorGridlines', `<${tag}/>`);
+        out = insertOrderedChild(out, AXIS_ORDER, 'majorGridlines', majorGridlinesXml((local) => chartQualifiedName(out, local)));
       }
     } else {
       out = removeDirectChildren(out, 'majorGridlines');

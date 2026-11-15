@@ -128,16 +128,19 @@ describe('doughnut charts', () => {
   });
 
   it('keeps legacy c: chart writer bytes identical to the pre-doughnut baseline', () => {
+    // Re-pinned in 0.5.3: every chart title now carries <c:overlay val="0"/> and gridlines carry an
+    // explicit light grey line (Word draws an empty <c:majorGridlines/> black and overlaps the title
+    // without the overlay). Nothing else in the writer output changed.
     const baseline: Record<string, string> = {
-      column: 'b770508c2048e21c7780f9c7b1ec4115ab26a8034cf4b1c4a56850cbabe4f3e1',
-      bar: 'f462502f6d15c1405d6a80601966576c52f88c17a017730ab448402c54f82dee',
-      line: '4a302064e21fca58f46e87df8fd906fb46b1a77b18fa816a10ec89e629ec04df',
-      pie: 'a1c4ac842515523e67c10269744e5a3057292ea36b7cdcafa48db9ee7e3b315c',
-      area: 'c12a069f6da02bba8b4ea910152ff720f733022e27e028e1e2dd8d9fceeb2eb3',
-      column3D: '58d895b545b35413be65b35afc89ba76240176741c9969f43c56be1499398758',
-      bar3D: '1b37db9feff92129dd467a23a22d7af70573e088a8c9f50fc8469dbc58ae3ba6',
-      line3D: '68929996f6eea1a85772c1210a962a42480f868f2b9c5b4edc1c3caaa790e2e5',
-      pie3D: 'b649bd696283e663967de6e52dc0a3e941eab9d1bbc8b860086548924111975c',
+      column: 'bf481756869a779e0db8549c822189318adcff529561d827a130c2ac9246b91b',
+      bar: 'ed850fdbbe2de414b59283e3c2c34b7abbb31174e822d0f6f8b9a7944679e5aa',
+      line: '789fc5547da2c0d712ec412d36703a3928024838128dd67b7ffd62956392cbef',
+      pie: 'f2aa4d0535b5adef13b6f6f54834374ea1f07d2bb5dc5ccdea54734267fab4e8',
+      area: '110c0c61f844ec1b54be3419d9b426fb486ee6389df3318198c37b34697d53f6',
+      column3D: '1b2db296d774fb0d0f2a0f541ab155b39c701757af89aecefb4f5747abae1038',
+      bar3D: '2c931321743651f5e2554d77940cff987708d61d5c8278544eeae5b1ae19e1a0',
+      line3D: '6712cfa9fcb0dd41f2314d999a838cb366f96833933073773c4e6e6781c738c9',
+      pie3D: '28f1cbd8dfad5be516d0b1c31379ca4d194c1464d5c6406c784bd26f1b948726',
     };
     const demo = {
       title: 'T',

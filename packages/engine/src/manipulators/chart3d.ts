@@ -6,6 +6,7 @@ import { DocumentAST } from '../ast';
 import { DocxParser, DocxZipAdapter } from '../parser';
 import { readChartStyle, type ChartStyle, type ChartFloatingStyle } from '../operations/chart-style';
 import { chartTitleElement } from '../parser/factory';
+import { chartTitleXml, majorGridlinesXml } from './chart-parts';
 import { buildChartDrawingContainer } from './chart-drawing';
 import { RelationshipsManipulator } from './relationships';
 import { createChartElement, createRelationshipsElement, createContentTypesElement, allocateNextDrawingDocPrId } from '../ooxml/ns';
@@ -285,29 +286,9 @@ export class Chart3DManipulator {
     // A part with no title must stay titleless: only an absent option gets
     // the historical default, an explicit empty title omits <c:title>.
     const rawTitle = options.title === undefined ? '3D Chart Analysis' : options.title;
-    const title = rawTitle
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
-    const titleXml = title.length > 0
-      ? `
-    <c:title>
-      <c:tx>
-        <c:rich>
-          <a:bodyPr/>
-          <a:lstStyle/>
-          <a:p>
-            <a:r>
-              <a:rPr b="1" sz="1400"/>
-              <a:t>${title}</a:t>
-            </a:r>
-          </a:p>
-        </c:rich>
-      </c:tx>
-    </c:title>`
-      : '';
+    const title = rawTitle;
+    const titleXml = title.length > 0 ? `
+    ${chartTitleXml(title)}` : '';
 
     const rawChartType = options.chartType || 'bar3D';
     const supportedChartTypes = SUPPORTED_CHART_TYPES as readonly string[];
@@ -477,7 +458,7 @@ export class Chart3DManipulator {
         <c:scaling><c:orientation val="minMax"/></c:scaling>
         <c:delete val="0"/>
         <c:axPos val="l"/>
-        <c:majorGridlines/>
+        ${majorGridlinesXml()}
         <c:numFmt formatCode="General" sourceLinked="1"/>
         <c:majorTickMark val="out"/>
         <c:minorTickMark val="none"/>

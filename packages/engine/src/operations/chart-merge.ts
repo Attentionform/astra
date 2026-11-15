@@ -1,4 +1,5 @@
 import type { Bar3DShape, View3DProperties } from '../manipulators/chart3d';
+import { chartTitleXml, chartTitleTxXml } from '../manipulators/chart-parts';
 import {
   chartNamespaceScopeFromXml,
   findChartNamespaceElements,
@@ -656,25 +657,7 @@ function patchScatterFormulas(xml: string, req: ChartMergeRequest, scope: ChartN
 }
 
 function titleBlock(title: string, parentXml: string): string {
-  const titleTag = chartQualifiedName(parentXml, 'title');
-  const txTag = chartQualifiedName(parentXml, 'tx');
-  const richTag = chartQualifiedName(parentXml, 'rich');
-  return (
-    `<${titleTag}>\n` +
-    `      <${txTag}>\n` +
-    `        <${richTag}>\n` +
-    '          <a:bodyPr/>\n' +
-    '          <a:lstStyle/>\n' +
-    '          <a:p>\n' +
-    '            <a:r>\n' +
-    '              <a:rPr b="1" sz="1400"/>\n' +
-    `              <a:t>${escapeXml(title)}</a:t>\n` +
-    '            </a:r>\n' +
-    '          </a:p>\n' +
-    `        </${richTag}>\n` +
-    `      </${txTag}>\n` +
-    `    </${titleTag}>`
-  );
+  return chartTitleXml(title, (local) => chartQualifiedName(parentXml, local));
 }
 
 function insertTitleElement(xml: string, title: string, chartPath: string, scope: ChartNamespaceScope): string {
@@ -719,7 +702,7 @@ function patchTitleText(xml: string, title: string, chartPath: string, scope: Ch
   }
   const texts = findAllElements(block, 'a:t');
   if (texts.length === 0) {
-    const tx = titleBlock(title, block).replace(/^<[^>]+>|<\/[^>]+>$/g, '');
+    const tx = chartTitleTxXml(title, (local) => chartQualifiedName(block, local));
     // A linked title (`<c:tx><c:strRef>...`) has no drawn text run; replace
     // its tx wholesale so CT_Title never carries two `c:tx` children.
     const existingTx = findChartDirectChild(block, 'tx', scope);

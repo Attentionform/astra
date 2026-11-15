@@ -361,6 +361,7 @@ export const OOXML_SNIPPETS: Record<string, Record<string, OOXMLSnippetItem>> = 
           </a:p>
         </c:rich>
       </c:tx>
+      <c:overlay val="0"/>
     </c:title>
     <c:view3D>
       <c:rotX val="30"/>
@@ -415,7 +416,7 @@ export const OOXML_SNIPPETS: Record<string, Record<string, OOXMLSnippetItem>> = 
         <c:axId val="1002"/>
         <c:scaling><c:orientation val="minMax"/></c:scaling>
         <c:axPos val="l"/>
-        <c:majorGridlines/>
+        <c:majorGridlines><c:spPr><a:ln w="9525" cap="flat"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill><a:round/></a:ln></c:spPr></c:majorGridlines>
         <c:tickLblPos val="nextTo"/>
         <c:crossAx val="1001"/>
       </c:valAx>
@@ -452,6 +453,7 @@ export const OOXML_SNIPPETS: Record<string, Record<string, OOXMLSnippetItem>> = 
           </a:p>
         </c:rich>
       </c:tx>
+      <c:overlay val="0"/>
     </c:title>
     <c:view3D>
       <c:rotX val="30"/>
@@ -517,6 +519,7 @@ export const OOXML_SNIPPETS: Record<string, Record<string, OOXMLSnippetItem>> = 
           </a:p>
         </c:rich>
       </c:tx>
+      <c:overlay val="0"/>
     </c:title>
     <c:view3D>
       <c:rotX val="20"/>

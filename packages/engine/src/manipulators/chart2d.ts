@@ -3,6 +3,7 @@ import { DOMParser } from '../ooxml/dom-parser';
 import { DocumentAST } from '../ast';
 import { DocxParser, DocxZipAdapter } from '../parser';
 import { RelationshipsManipulator } from './relationships';
+import { chartTitleXml, majorGridlinesXml } from './chart-parts';
 import { createRelationshipsElement, createContentTypesElement, allocateNextDrawingDocPrId } from '../ooxml/ns';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { chartElementDescendants, chartPointTextsByIndex, chartScatterXValuesBySeries, chartTitleElement, detectBar2DChartTypeFromXml, detectChartKindFromXml, pairScatterPointTexts, scatterSeriesXList, scatterXOnlyValues } from '../parser/factory';
@@ -253,7 +254,7 @@ function comboAxisXml(kind: 'cat' | 'val', id: number, cross: number, opts: {
     <c:scaling><c:orientation val="minMax"/></c:scaling>
     <c:delete val="${opts.hidden ? '1' : '0'}"/>
     <c:axPos val="${opts.pos}"/>
-    ${opts.gridlines ? '<c:majorGridlines/>' : ''}
+    ${opts.gridlines ? majorGridlinesXml() : ''}
     <c:numFmt formatCode="General" sourceLinked="1"/>
     <c:majorTickMark val="out"/>
     <c:minorTickMark val="none"/>
@@ -395,23 +396,8 @@ export class Chart2DManipulator {
     // explicit titleless part and must stay titleless through a structural
     // regeneration (no <c:title> element at all).
     const title = options.title === undefined ? 'Chart Analysis' : options.title;
-    const titleXml = title.length > 0
-      ? `
-    <c:title>
-      <c:tx>
-        <c:rich>
-          <a:bodyPr/>
-          <a:lstStyle/>
-          <a:p>
-            <a:r>
-              <a:rPr b="1" sz="1400"/>
-              <a:t>${escapeXml(title)}</a:t>
-            </a:r>
-          </a:p>
-        </c:rich>
-      </c:tx>
-    </c:title>`
-      : '';
+    const titleXml = title.length > 0 ? `
+    ${chartTitleXml(title)}` : '';
 
     const rawChartType = options.chartType || 'column';
     const supportedChartTypes = SUPPORTED_CHART_2D_TYPES as readonly string[];
@@ -643,7 +629,7 @@ export class Chart2DManipulator {
         <c:scaling><c:orientation val="minMax"/></c:scaling>
         <c:delete val="0"/>
         <c:axPos val="${valAxPos}"/>
-        <c:majorGridlines/>
+        ${majorGridlinesXml()}
         <c:numFmt formatCode="${isPercentStacked ? '0%' : 'General'}" sourceLinked="${isPercentStacked ? '0' : '1'}"/>
         <c:majorTickMark val="out"/>
         <c:minorTickMark val="none"/>
@@ -673,7 +659,7 @@ export class Chart2DManipulator {
         <c:scaling><c:orientation val="minMax"/></c:scaling>
         <c:delete val="0"/>
         <c:axPos val="l"/>
-        <c:majorGridlines/>
+        ${majorGridlinesXml()}
         <c:numFmt formatCode="General" sourceLinked="1"/>
         <c:majorTickMark val="out"/>
         <c:minorTickMark val="none"/>
