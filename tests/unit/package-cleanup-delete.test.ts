@@ -223,6 +223,37 @@ describe('pruneUnusedDrawingParts (package level)', () => {
     expect(out.parts).not.toContain('word/embeddings/w1.xlsx');
   });
 
+  it('a workbook still referenced through a prefixed relationship stays when the other chart goes', () => {
+    const files = baseFiles('<w:p><c:chart r:id="rId2"/></w:p>');
+    files['word/charts/_rels/chart2.xml.rels'] = `<?xml version="1.0"?><p:Relationships xmlns:p="http://schemas.openxmlformats.org/package/2006/relationships"><p:Relationship Id="rId1" Type="${REL}/package" Target="../embeddings/w1.xlsx"/></p:Relationships>`;
+    const p = store(files);
+    const out = run(p, model(relMap()), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+    expect(out.relationshipIds).toEqual(['rId1']);
+    expect(p.files.has('word/embeddings/w1.xlsx')).toBe(true);
+    expect(out.parts).not.toContain('word/embeddings/w1.xlsx');
+  });
+
+  it('a chart removed with a prefixed rels file takes its own workbook with it', () => {
+    const files = baseFiles('<w:p><c:chart r:id="rId2"/></w:p>');
+    files['word/charts/_rels/chart1.xml.rels'] = `<?xml version="1.0"?><p:Relationships xmlns:p="http://schemas.openxmlformats.org/package/2006/relationships"><p:Relationship Id="rId1" Type="${REL}/package" Target="../embeddings/w1.xlsx"/></p:Relationships>`;
+    const p = store(files);
+    const out = run(p, model(relMap()), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+    expect(out.parts.sort()).toEqual(['word/charts/_rels/chart1.xml.rels', 'word/charts/chart1.xml', 'word/embeddings/w1.xlsx']);
+  });
+
+  it('a prefixed content-types file loses the override of a removed chart', () => {
+    const body = '<w:p><c:chart r:id="rId2"/></w:p>';
+    const files = baseFiles(body);
+    files['[Content_Types].xml'] = CT.replace('<Types xmlns=', '<t:Types xmlns:t=').replace('</Types>', '</t:Types>').replace(/<(Default|Override)\b/g, '<t:$1');
+    expect(files['[Content_Types].xml']).toContain('<t:Override ');
+    const p = store(files);
+    const out = run(p, model(relMap()), ['rId1', 'rId2'], body);
+    expect(out.parts).toContain('word/charts/chart1.xml');
+    const types = p.files.get('[Content_Types].xml')!.toString();
+    expect(types).not.toContain('/word/charts/chart1.xml');
+    expect(types).toContain('/word/charts/chart2.xml');
+  });
+
   it('a relationship that was unused before the edit is never touched', () => {
     const body = '<w:p><c:chart r:id="rId2"/></w:p>';
     const p = store(baseFiles(body));

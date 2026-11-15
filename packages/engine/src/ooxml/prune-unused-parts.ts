@@ -55,6 +55,16 @@ export interface DrawingPruneResult {
   existingDefects: string[];
 }
 
+
+/** Elements by local name: a package may bind the relationships or content-types namespace to a prefix (`<p:Relationship>`). */
+function elementsByLocalName(doc: Document, local: string): Element[] {
+  return Array.from(doc.getElementsByTagNameNS('*', local));
+}
+
+function relationshipElements(doc: Document): Element[] {
+  return elementsByLocalName(doc, 'Relationship');
+}
+
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 export const CHART_REL_TYPE = `${REL_NS}/chart`;
 export const IMAGE_REL_TYPE = `${REL_NS}/image`;
@@ -168,7 +178,7 @@ function defectsOf(view: Overlay, docRels: Record<string, RelationshipView>): Se
     if (name === DOC_RELS) continue; // the model view below is authoritative for the main document
     const data = view.read(name);
     if (!data) continue;
-    for (const el of Array.from(parseStrict(data.toString('utf8')).getElementsByTagName('Relationship'))) {
+    for (const el of Array.from(relationshipElements(parseStrict(data.toString('utf8'))))) {
       if (el.getAttribute('TargetMode') === 'External') continue;
       const where = resolvePartName(el.getAttribute('Target') ?? '', source);
       if (where && !lower.has(where.toLowerCase())) out.add(`missing target: ${name} ${el.getAttribute('Id')} -> ${where}`);
@@ -184,8 +194,8 @@ function defectsOf(view: Overlay, docRels: Record<string, RelationshipView>): Se
     const types = parseStrict(typesData.toString('utf8'));
     const defaults = new Set<string>();
     const overrides = new Set<string>();
-    for (const el of Array.from(types.getElementsByTagName('Default'))) defaults.add((el.getAttribute('Extension') ?? '').toLowerCase());
-    for (const el of Array.from(types.getElementsByTagName('Override'))) overrides.add((el.getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase());
+    for (const el of elementsByLocalName(types, 'Default')) defaults.add((el.getAttribute('Extension') ?? '').toLowerCase());
+    for (const el of elementsByLocalName(types, 'Override')) overrides.add((el.getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase());
     for (const name of names) {
       if (name === TYPES_PATH || name.endsWith('/')) continue;
       const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
@@ -259,7 +269,7 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
     if (relsData) {
       const doc = parseStrict(relsData.toString('utf8'));
       let changed = false;
-      for (const el of Array.from(doc.getElementsByTagName('Relationship'))) {
+      for (const el of Array.from(relationshipElements(doc))) {
         if (removedRelIds.includes(el.getAttribute('Id') ?? '')) {
           el.parentNode?.removeChild(el);
           changed = true;
@@ -276,7 +286,7 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
         const data = view.read(name);
         if (!data) continue;
         const source = sourceOfRels(name);
-        for (const el of Array.from(parseStrict(data.toString('utf8')).getElementsByTagName('Relationship'))) {
+        for (const el of Array.from(relationshipElements(parseStrict(data.toString('utf8'))))) {
           if (el.getAttribute('TargetMode') === 'External') continue;
           const where = resolvePartName(el.getAttribute('Target') ?? '', source);
           if (where) hit.add(where.toLowerCase());
@@ -304,7 +314,7 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
       const childRels = view.read(relsName);
       if (!childRels) return;
       const children: Array<{ where: string; shape: RegExp }> = [];
-      for (const el of Array.from(parseStrict(childRels.toString('utf8')).getElementsByTagName('Relationship'))) {
+      for (const el of Array.from(relationshipElements(parseStrict(childRels.toString('utf8'))))) {
         if (el.getAttribute('TargetMode') === 'External') continue;
         const where = resolvePartName(el.getAttribute('Target') ?? '', name);
         if (!where) continue;
@@ -324,7 +334,7 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
       const doc = parseStrict(typesData.toString('utf8'));
       const gone = new Set(removedParts.map((n) => n.toLowerCase()));
       let changed = false;
-      for (const el of Array.from(doc.getElementsByTagName('Override'))) {
+      for (const el of elementsByLocalName(doc, 'Override')) {
         if (gone.has((el.getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase())) {
           el.parentNode?.removeChild(el);
           changed = true;

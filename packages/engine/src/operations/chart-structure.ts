@@ -650,7 +650,7 @@ export function describeLoss(beforeXml: string, afterXml: string, relsXml: strin
   const lost = [...names(beforeXml)].map(strip).filter((n) => WORTH_REPORTING.has(n) && !afterNames.has(n));
   const unique = [...new Set(lost)].sort();
   if (relsXml) {
-    for (const [, type] of relsXml.matchAll(/<Relationship\b[^>]*\sType="[^"]*\/([A-Za-z]+)"/g)) {
+    for (const [, type] of relsXml.matchAll(/<(?:[\w.-]+:)?Relationship\b[^>]*\sType="[^"]*\/([A-Za-z]+)"/g)) {
       if (/^(chartStyle|chartColorStyle|themeOverride|userShapes|image)$/.test(type) && !unique.includes(`rel:${type}`)) {
         unique.push(`rel:${type}`);
       }

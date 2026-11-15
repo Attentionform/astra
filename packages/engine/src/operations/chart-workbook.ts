@@ -57,7 +57,7 @@ function attr(tag: string, name: string): string | undefined {
 
 function parseRels(xml: string): RelEntry[] {
   const out: RelEntry[] = [];
-  const re = /<Relationship\b[^>]*>/g;
+  const re = /<(?:[\w.-]+:)?Relationship\b[^>]*>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) {
     const id = attr(m[0], 'Id');
@@ -266,7 +266,7 @@ export function applyWorkbookDecision(zip: DocxZipAdapter, decision: WorkbookDec
   if (decision.privateCopy) {
     const copy = decision.privateCopy;
     const relsXml = zip.readText(copy.relsPath);
-    const next = relsXml.replace(/<Relationship\b[^>]*>/g, (tag) => {
+    const next = relsXml.replace(/<(?:[\w.-]+:)?Relationship\b[^>]*>/g, (tag) => {
       if (attr(tag, 'Id') !== copy.relId) return tag;
       const target = attr(tag, 'Target');
       if (target === undefined) return tag;
