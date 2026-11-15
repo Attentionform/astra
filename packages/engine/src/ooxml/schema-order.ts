@@ -13,7 +13,7 @@
 import crypto from 'crypto';
 import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from './dom-parser';
-import { createWordElement } from './ns';
+import { createWordLike, isWordElement, schemaKey, setWordAttr } from './word-dom';
 import { assertNoXxe } from './xxe-guard';
 
 /**
@@ -307,7 +307,7 @@ export function sortChildrenBySchema(element: Element, order: readonly string[])
     const child = element.childNodes[i];
     allNodes.push(child);
     if (child.nodeType === 1) {
-      const idx = order.indexOf((child as Element).tagName);
+      const idx = order.indexOf(schemaKey(child as Element));
       if (idx !== -1) {
         recognizedIndices.push(i);
         recognizedElements.push(child as Element);
@@ -322,7 +322,7 @@ export function sortChildrenBySchema(element: Element, order: readonly string[])
   // xmldom treat the document as modified.
   let alreadySorted = true;
   for (let i = 1; i < recognizedElements.length; i++) {
-    if (order.indexOf(recognizedElements[i - 1].tagName) > order.indexOf(recognizedElements[i].tagName)) {
+    if (order.indexOf(schemaKey(recognizedElements[i - 1])) > order.indexOf(schemaKey(recognizedElements[i]))) {
       alreadySorted = false;
       break;
     }
@@ -330,7 +330,7 @@ export function sortChildrenBySchema(element: Element, order: readonly string[])
   if (alreadySorted) return;
 
   recognizedElements.sort((a, b) => {
-    return order.indexOf(a.tagName) - order.indexOf(b.tagName);
+    return order.indexOf(schemaKey(a)) - order.indexOf(schemaKey(b));
   });
 
   // Now replace the nodes in allNodes at recognizedIndices
@@ -366,12 +366,12 @@ export function generateValidParaId(seed?: string, counter: number = 0): string 
 /**
  * Ensures that a <w:tbl> contains a compliant <w:tblGrid> between <w:tblPr> and the first <w:tr>.
  */
-export function ensureTableGrid(tbl: Element, doc: Document): void {
+export function ensureTableGrid(tbl: Element): void {
   // Check if tblGrid already exists
   let hasGrid = false;
   for (let i = 0; i < tbl.childNodes.length; i++) {
     const child = tbl.childNodes[i];
-    if (child.nodeType === 1 && (child as Element).tagName === 'w:tblGrid') {
+    if (child.nodeType === 1 && isWordElement(child, 'w:tblGrid')) {
       hasGrid = true;
       break;
     }
@@ -383,12 +383,12 @@ export function ensureTableGrid(tbl: Element, doc: Document): void {
   let firstTr: Element | null = null;
   for (let i = 0; i < tbl.childNodes.length; i++) {
     const child = tbl.childNodes[i];
-    if (child.nodeType === 1 && (child as Element).tagName === 'w:tr') {
+    if (child.nodeType === 1 && isWordElement(child, 'w:tr')) {
       if (!firstTr) firstTr = child as Element;
       let tcCount = 0;
       for (let j = 0; j < child.childNodes.length; j++) {
         const grandChild = child.childNodes[j];
-        if (grandChild.nodeType === 1 && (grandChild as Element).tagName === 'w:tc') {
+        if (grandChild.nodeType === 1 && isWordElement(grandChild, 'w:tc')) {
           tcCount++;
         }
       }
@@ -398,11 +398,11 @@ export function ensureTableGrid(tbl: Element, doc: Document): void {
 
   if (maxCols === 0) maxCols = 2; // Default to 2 columns if empty table
 
-  const tblGrid = createWordElement(doc, 'w:tblGrid');
+  const tblGrid = createWordLike(tbl, 'w:tblGrid');
   const defaultColWidth = Math.round(9360 / maxCols); // 9360 twip = ~6.5 inches printable width
   for (let c = 0; c < maxCols; c++) {
-    const gridCol = createWordElement(doc, 'w:gridCol');
-    gridCol.setAttribute('w:w', String(defaultColWidth));
+    const gridCol = createWordLike(tbl, 'w:gridCol');
+    setWordAttr(gridCol, 'w:w', String(defaultColWidth));
     tblGrid.appendChild(gridCol);
   }
 
@@ -462,7 +462,7 @@ export function canonicalizeDocumentDom(doc: Document): void {
 
   // 6. Ensure all Tables (<w:tbl>) have a valid <w:tblGrid>
   for (const tbl of snapshot(doc, 'w:tbl')) {
-    ensureTableGrid(tbl, doc);
+    ensureTableGrid(tbl);
   }
 
   // 7. Normalize invalid justification ('justify' -> 'both') according to ECMA-376 ST_Jc

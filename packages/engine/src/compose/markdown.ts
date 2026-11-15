@@ -197,6 +197,7 @@ import { applyDocumentIdentity } from '../document-title';
 import type { StyleGuideConfig } from '../style-guide/types';
 import { nlToSpace, segmentsNeedSplit } from './text-spans';
 import type { SpanSegment } from './text-spans';
+import { relationshipsRoot, createRelationshipElement } from '../ooxml/relationships-dom';
 
 // Barrel: historical deep import stays working; canonical homes above.
 export * from './constants';
@@ -478,9 +479,9 @@ function applyInlineSpans(
         if (zipAdapter.hasFile(relsPath)) {
           const relsRaw = zipAdapter.readText(relsPath);
           const relsDoc = new DOMParser().parseFromString(relsRaw, 'text/xml');
-          const relsEl = relsDoc.getElementsByTagName('Relationships')[0];
+          const relsEl = relationshipsRoot(relsDoc);
           if (relsEl) {
-            const rel = relsDoc.createElement('Relationship');
+            const rel = createRelationshipElement(relsDoc);
             rel.setAttribute('Id', relId);
             rel.setAttribute('Type', HYPERLINK_REL_TYPE);
             rel.setAttribute('Target', url);

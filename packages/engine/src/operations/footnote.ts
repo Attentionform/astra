@@ -7,6 +7,7 @@ import { DOMParser } from '../ooxml/dom-parser';
 import { allocateSafeHyperlinkRId } from '../manipulators/relationships';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { SETTINGS_CHILD_ORDER } from '../ooxml/schema-order';
+import { relationshipsRoot, relationshipElements, createRelationshipElement } from '../ooxml/relationships-dom';
 
 export interface FootnoteOperation extends BaseOperation {
   action: 'footnote';
@@ -301,9 +302,9 @@ function ensureFootnoteEndnoteSettings(zipAdapter: DocxZipAdapter, ast: Document
       const relsRaw = zipAdapter.readText(relsPath);
       assertNoXxe(relsRaw, relsPath);
       const relsDoc = new DOMParser().parseFromString(relsRaw, 'text/xml');
-      const relsEl = relsDoc.getElementsByTagName('Relationships')[0];
+      const relsEl = relationshipsRoot(relsDoc);
       if (relsEl) {
-        const rels = relsEl.getElementsByTagName('Relationship');
+        const rels = relationshipElements(relsEl);
         let covered = false;
         for (let i = 0; i < rels.length; i++) {
           const el = rels[i] as Element;
@@ -314,7 +315,7 @@ function ensureFootnoteEndnoteSettings(zipAdapter: DocxZipAdapter, ast: Document
         }
         if (!covered) {
           stagedRId = allocateSafeHyperlinkRId(ast);
-          const rel = relsDoc.createElement('Relationship');
+          const rel = createRelationshipElement(relsDoc);
           rel.setAttribute('Id', stagedRId);
           rel.setAttribute('Type', SETTINGS_REL_TYPE);
           rel.setAttribute('Target', 'settings.xml');
@@ -822,9 +823,9 @@ export function executeFootnote(op: FootnoteOperation, ast: DocumentAST, parser?
     const relsRaw = zipAdapter.readText(relsPath);
     assertNoXxe(relsRaw, relsPath);
     const relsDoc = new DOMParser().parseFromString(relsRaw, 'text/xml');
-    const relsEl = relsDoc.getElementsByTagName('Relationships')[0];
+    const relsEl = relationshipsRoot(relsDoc);
     if (relsEl) {
-      const rels = relsEl.getElementsByTagName('Relationship');
+      const rels = relationshipElements(relsEl);
       let covered = false;
       for (let i = 0; i < rels.length; i++) {
         const el = rels[i] as Element;
@@ -842,7 +843,7 @@ export function executeFootnote(op: FootnoteOperation, ast: DocumentAST, parser?
         // published to ast.relationships only on commit, so a failed commit
         // leaves the AST untouched.
         stagedRId = allocateSafeHyperlinkRId(ast);
-        const rel = relsDoc.createElement('Relationship');
+        const rel = createRelationshipElement(relsDoc);
         rel.setAttribute('Id', stagedRId);
         rel.setAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes');
         rel.setAttribute('Target', 'footnotes.xml');
@@ -1075,9 +1076,9 @@ export function executeEndnote(op: EndnoteOperation, ast: DocumentAST, parser?: 
     const relsRaw = zipAdapter.readText(relsPath);
     assertNoXxe(relsRaw, relsPath);
     const relsDoc = new DOMParser().parseFromString(relsRaw, 'text/xml');
-    const relsEl = relsDoc.getElementsByTagName('Relationships')[0];
+    const relsEl = relationshipsRoot(relsDoc);
     if (relsEl) {
-      const rels = relsEl.getElementsByTagName('Relationship');
+      const rels = relationshipElements(relsEl);
       let covered = false;
       for (let i = 0; i < rels.length; i++) {
         const el = rels[i] as Element;
@@ -1095,7 +1096,7 @@ export function executeEndnote(op: EndnoteOperation, ast: DocumentAST, parser?: 
         // published to ast.relationships only on commit, so a failed commit
         // leaves the AST untouched.
         stagedRId = allocateSafeHyperlinkRId(ast);
-        const rel = relsDoc.createElement('Relationship');
+        const rel = createRelationshipElement(relsDoc);
         rel.setAttribute('Id', stagedRId);
         rel.setAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes');
         rel.setAttribute('Target', 'endnotes.xml');

@@ -2,6 +2,7 @@ import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from '../ooxml/dom-parser';
 import { DocumentAST, DocumentMetadata } from '../ast';
 import { assertNoXxe } from '../ooxml/xxe-guard';
+import { relationshipElements, createRelationshipElement } from '../ooxml/relationships-dom';
 
 /**
  * E2 (F-2): read/update/synthesize the OPC core-properties part
@@ -542,7 +543,7 @@ function ensurePackageRel(adapter: CorePropsZipAdapter): void {
   const doc = parseLenient(raw);
   if (!doc || !doc.documentElement) return;
   const root = doc.documentElement as unknown as Element;
-  const rels = root.getElementsByTagName('Relationship');
+  const rels = relationshipElements(root);
   let maxId = 0;
   for (let i = 0; i < rels.length; i++) {
     const el = rels[i] as unknown as Element;
@@ -562,7 +563,7 @@ function ensurePackageRel(adapter: CorePropsZipAdapter): void {
     maxId += 1;
     candidate = `rId${maxId + 1}`;
   }
-  const created = doc.createElement('Relationship');
+  const created = createRelationshipElement(doc);
   created.setAttribute('Id', candidate);
   created.setAttribute('Type', CORE_PROPERTIES_REL_TYPE);
   created.setAttribute('Target', CORE_PROPERTIES_PART);

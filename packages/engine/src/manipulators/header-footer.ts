@@ -7,6 +7,7 @@ import { RelationshipsManipulator } from './relationships';
 import { getOOXMLSnippet } from '../ooxml/guideline-bank';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { toError } from '../errors';
+import { relationshipElements, createRelationshipElement } from '../ooxml/relationships-dom';
 
 const HEADER_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
 const FOOTER_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
@@ -455,7 +456,7 @@ export class HeaderFooterManipulator {
     if (!relsXml) return;
     assertNoXxe(relsXml, relsPath);
     const doc = this.domParser.parseFromString(relsXml, 'text/xml');
-    for (const rel of Array.from(doc.getElementsByTagName('Relationship'))) {
+    for (const rel of relationshipElements(doc)) {
       const id = rel.getAttribute('Id');
       if (!id || this.ast.relationships[id]) continue;
       const mode = rel.getAttribute('TargetMode');
@@ -485,7 +486,7 @@ export class HeaderFooterManipulator {
       const relsRoot = doc.documentElement;
       let found = false;
 
-      const existingRels = Array.from(relsRoot.getElementsByTagName('Relationship'));
+      const existingRels = relationshipElements(relsRoot);
       for (const rel of existingRels) {
         if (rel.getAttribute('Id') === rId) {
           rel.setAttribute('Type', type);
@@ -496,7 +497,7 @@ export class HeaderFooterManipulator {
       }
 
       if (!found) {
-        const newRel = doc.createElement('Relationship');
+        const newRel = createRelationshipElement(doc);
         newRel.setAttribute('Id', rId);
         newRel.setAttribute('Type', type);
         newRel.setAttribute('Target', target);

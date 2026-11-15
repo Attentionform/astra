@@ -11,7 +11,7 @@ import { DOMParser } from './ooxml/dom-parser';
 import { DocumentAST, Node as AstNode, calculateNodeChecksum, calculateNodeChecksumSync } from './ast';
 import { canonicalizeDocumentDom, canonicalizePartXml, generateValidParaId } from './ooxml/schema-order';
 import { normalizeDocumentDom, normalizePartXml, previewDocumentDom } from './ooxml/normalize';
-import { createWordElement, stampRevision } from './ooxml/ns';
+import { createWordElement, stampRevision, WORD_NS } from './ooxml/ns';
 import { ommlToLatex } from './ooxml/omml';
 import { validateDocxBuffer, ValidationResult } from './ooxml/validator-gate';
 import { NumberingManipulator, NUMBERING_REL_TYPE } from './manipulators/numbering';
@@ -214,6 +214,25 @@ export function getDuplicateParaIdPolicy(): DuplicateParaIdPolicy {
 }
 
 export { headingLevelOfStyle };
+
+/**
+ * The engine reads the main document by the usual `w:` prefix. A package that binds the WordprocessingML namespace
+ * to another prefix (or to the default namespace) would load as an empty document and every edit would miss it, so
+ * it is refused at open with the reason, not read as empty.
+ */
+function assertWordPrefix(doc: Document): void {
+  const all = doc.getElementsByTagNameNS(WORD_NS, '*');
+  for (let i = 0; i < all.length; i++) {
+    const prefix = (all[i] as Element).prefix ?? '';
+    if (prefix !== 'w') {
+      throw toError(
+        'E_VALIDATION',
+        `Unsupported package: word/document.xml writes WordprocessingML with ${prefix === '' ? 'the default namespace (no prefix)' : `the prefix "${prefix}"`} instead of "w" (first seen on <${(all[i] as Element).tagName}>). ASTra reads the document by the "w" prefix and would see an empty document.`,
+        'open the file in Word and save it again (Word writes the "w" prefix), then retry'
+      );
+    }
+  }
+}
 
 export class DocxParser {
   private builtinSeedSnapshot?: Map<string, Buffer>;
@@ -717,6 +736,7 @@ export class DocxParser {
 
     // Security: Parse using xmldom safely. It prevents basic string injection because we manipulate AST.
     this.documentDom = this.parser.parseFromString(xmlStr, "text/xml");
+    assertWordPrefix(this.documentDom);
 
     const stylesEntry = this.zip.getEntry('word/styles.xml');
     if (stylesEntry) {
@@ -736,6 +756,7 @@ export class DocxParser {
     if (parserError.length > 0) {
       throw new Error("XML Injection or Invalid XML detected in input.");
     }
+    assertWordPrefix(newDoc);
     this.documentDom = newDoc;
     this.assignStableIds();
     this._bumpNodePagesRevision();

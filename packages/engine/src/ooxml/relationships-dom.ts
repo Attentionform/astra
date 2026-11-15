@@ -14,3 +14,8 @@ export function createRelationshipElement(doc: Document): Element {
   const prefix = root.prefix;
   return doc.createElementNS(ns, prefix ? `${prefix}:Relationship` : 'Relationship');
 }
+
+/** The `Relationships` root of a relationships part, by namespace and local name. */
+export function relationshipsRoot(doc: Document): Element | undefined {
+  return doc.getElementsByTagNameNS('*', 'Relationships')[0] as Element | undefined;
+}

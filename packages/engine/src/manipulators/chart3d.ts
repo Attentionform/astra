@@ -10,10 +10,11 @@ import { chartTitleXml, majorGridlinesXml } from './chart-parts';
 import { DEFAULT_CHART_HEIGHT_3D_EMU, DEFAULT_CHART_WIDTH_EMU } from '../operations/chart-size';
 import { buildChartDrawingContainer } from './chart-drawing';
 import { RelationshipsManipulator } from './relationships';
-import { createChartElement, createRelationshipsElement, createContentTypesElement, allocateNextDrawingDocPrId } from '../ooxml/ns';
+import { createChartElement, createContentTypesElement, allocateNextDrawingDocPrId } from '../ooxml/ns';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { expandShorthandHex, isShorthandHex } from '../style-guide/parser';
 import { normalizeColour } from '../operations/colour';
+import { createRelationshipElement, relationshipElements } from '../ooxml/relationships-dom';
 
 /**
  * Requestable 3D chart types: exactly the four the writer produces (identical
@@ -713,7 +714,7 @@ export class Chart3DManipulator {
       const relsRoot = doc.documentElement;
       let found = false;
 
-      const existingRels = Array.from(relsRoot.getElementsByTagName('Relationship'));
+      const existingRels = relationshipElements(relsRoot);
       for (const rel of existingRels) {
         if (rel.getAttribute('Id') === rId) {
           rel.setAttribute('Type', type);
@@ -724,7 +725,7 @@ export class Chart3DManipulator {
       }
 
       if (!found) {
-        const newRel = createRelationshipsElement(doc, 'Relationship');
+        const newRel = createRelationshipElement(doc);
         newRel.setAttribute('Id', rId);
         newRel.setAttribute('Type', type);
         newRel.setAttribute('Target', target);

@@ -7,6 +7,7 @@ import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from './ooxml/dom-parser';
 import { checkZipBombCeilings, clampZipEntryTimes } from './zip-hardening';
 import { assertNoForbiddenMarkup, stripSvgActiveContent } from './ooxml/xxe-guard';
+import { decodePartUri, decodeXmlEntities } from './ooxml/xml-entities';
 
 export { assertNoForbiddenMarkup } from './ooxml/xxe-guard';
 
@@ -610,7 +611,13 @@ interface ParsedMacroRel {
   targetBase: string;
 }
 
-const MACRO_REL_TAG_RE = /<Relationship\b[^>]*>/g;
+const MACRO_REL_TAG_RE = /<(?:[\w.-]+:)?Relationship\b[^>]*>/g;
+
+/** One attribute of a relationship tag, either quote style, with XML character references decoded. */
+function relAttribute(tag: string, name: string): string {
+  const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(tag);
+  return m ? decodeXmlEntities(m[1] ?? m[2] ?? '') : '';
+}
 
 function parseMacroRels(text: string): ParsedMacroRel[] {
   const out: ParsedMacroRel[] = [];
@@ -619,13 +626,10 @@ function parseMacroRels(text: string): ParsedMacroRel[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const tag = m[0];
-    const idMatch = /\sId="([^"]*)"/.exec(tag);
-    const typeMatch = /Type="([^"]*)"/.exec(tag);
-    const targetMatch = /Target="([^"]*)"/.exec(tag);
-    const target = targetMatch ? targetMatch[1] : '';
+    const target = decodePartUri(relAttribute(tag, 'Target'));
     out.push({
-      id: idMatch ? idMatch[1] : '',
-      type: typeMatch ? typeMatch[1] : '',
+      id: relAttribute(tag, 'Id'),
+      type: relAttribute(tag, 'Type'),
       target,
       targetBase: macroBasename(target),
     });

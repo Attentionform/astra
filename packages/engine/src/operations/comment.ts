@@ -13,6 +13,7 @@ import { DocxParser } from '../parser';
 import { DOMParser } from '../ooxml/dom-parser';
 import { resolveDeterministicAuthor } from '../ooxml/track-changes-emitter';
 import { toError } from '../errors';
+import { relationshipElements } from '../ooxml/relationships-dom';
 
 /** A comment id as a client holds it: the number, or the comment:<n> form that search_content returns. */
 const COMMENT_TARGET = /^(?:comment:)?\d+$/;
@@ -69,7 +70,7 @@ function publishPackageRelationships(ast: DocumentAST, parser: DocxParser): void
   const relsXml = parser.getZipAdapter().readTextOrNull('word/_rels/document.xml.rels');
   if (!relsXml) return;
   const doc = new DOMParser().parseFromString(relsXml, 'text/xml');
-  const rels = doc.getElementsByTagName('Relationship');
+  const rels = relationshipElements(doc);
   for (let i = 0; i < rels.length; i++) {
     const rel = rels[i] as Element;
     const id = rel.getAttribute('Id');

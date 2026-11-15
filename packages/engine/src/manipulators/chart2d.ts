@@ -5,7 +5,7 @@ import { DocxParser, DocxZipAdapter } from '../parser';
 import { RelationshipsManipulator } from './relationships';
 import { chartTitleXml, majorGridlinesXml } from './chart-parts';
 import { DEFAULT_CHART_HEIGHT_2D_EMU, DEFAULT_CHART_WIDTH_EMU } from '../operations/chart-size';
-import { createRelationshipsElement, createContentTypesElement, allocateNextDrawingDocPrId } from '../ooxml/ns';
+import { createContentTypesElement, allocateNextDrawingDocPrId } from '../ooxml/ns';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { chartElementDescendants, chartPointTextsByIndex, chartScatterXValuesBySeries, chartTitleElement, detectBar2DChartTypeFromXml, detectChartKindFromXml, pairScatterPointTexts, scatterSeriesXList, scatterXOnlyValues } from '../parser/factory';
 import { readChartStyle, type ChartFloatingStyle } from '../operations/chart-style';
@@ -16,6 +16,7 @@ import { DEFAULT_SERIES_PALETTE, defaultSeriesColor } from './chart3d';
 // explicit series colors always win. The same palette drives pie fills.
 import type { ChartXmlSummary } from './chart3d';
 import { type Chart2DBarType, barChartVariantOf } from './chart2d-types';
+import { createRelationshipElement, relationshipElements } from '../ooxml/relationships-dom';
 export { BAR_2D_VARIANTS, barChartVariantOf } from './chart2d-types';
 export type { BarChartVariant, Chart2DBarType } from './chart2d-types';
 
@@ -836,7 +837,7 @@ export class Chart2DManipulator {
       const relsRoot = doc.documentElement;
       let found = false;
 
-      const existingRels = Array.from(relsRoot.getElementsByTagName('Relationship'));
+      const existingRels = relationshipElements(relsRoot);
       for (const rel of existingRels) {
         if (rel.getAttribute('Id') === rId) {
           rel.setAttribute('Type', type);
@@ -847,7 +848,7 @@ export class Chart2DManipulator {
       }
 
       if (!found) {
-        const newRel = createRelationshipsElement(doc, 'Relationship');
+        const newRel = createRelationshipElement(doc);
         newRel.setAttribute('Id', rId);
         newRel.setAttribute('Type', type);
         newRel.setAttribute('Target', target);

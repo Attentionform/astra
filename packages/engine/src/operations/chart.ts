@@ -60,6 +60,7 @@ import {
 import { type ChartStyle, applyChartFloating, applyChartFont, applyChartStyle, applyDefaultGridlineColor, applyDefaultTitleSize, readChartStyle, validateChartStyle } from './chart-style';
 import { chartSpans, findDirectChild, attrValue, chartQualifiedName } from './chart-xml-spans';
 import { normalizeColour } from './colour';
+import { relationshipElements } from '../ooxml/relationships-dom';
 
 /**
  * Unified chart type system: 2D DrawingML types are the default;
@@ -979,7 +980,7 @@ function resolveChartRIdTarget(parser: DocxParser, rId: string, ast: DocumentAST
     assertNoXxe(docRels, 'word/_rels/document.xml.rels');
     try {
       const doc = new DOMParser().parseFromString(docRels, 'text/xml');
-      const rels = Array.from(doc.getElementsByTagName('Relationship'));
+      const rels = relationshipElements(doc);
       for (const rel of rels) {
         if ((rel as Element).getAttribute('Id') === rId) {
           const t = (rel as Element).getAttribute('Target') || undefined;
@@ -998,7 +999,7 @@ function resolveChartRIdTarget(parser: DocxParser, rId: string, ast: DocumentAST
       assertNoXxe(xml, part);
       try {
         const doc = new DOMParser().parseFromString(xml, 'text/xml');
-        const rels = Array.from(doc.getElementsByTagName('Relationship'));
+        const rels = relationshipElements(doc);
         for (const rel of rels) {
           if ((rel as Element).getAttribute('Id') === rId) {
             const t = (rel as Element).getAttribute('Target') || undefined;
