@@ -63,7 +63,7 @@ describe('OOXML Schema Ordering & Canonicalization Suite', () => {
 
     const doc = new DOMParser().parseFromString(xml, 'text/xml');
     const tbl = doc.documentElement;
-    ensureTableGrid(tbl, doc);
+    ensureTableGrid(tbl);
 
     const tblGrid = tbl.getElementsByTagName('w:tblGrid')[0];
     expect(tblGrid).toBeDefined();
