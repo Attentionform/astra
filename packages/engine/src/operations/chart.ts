@@ -44,6 +44,7 @@ import {
   assertScatterData
 } from '../manipulators/chart2d';
 import { mergeChartDataInPlace } from './chart-merge';
+import { applyWorkbookDecision, planWorkbook } from './chart-workbook';
 import { type ChartStyle, applyChartFloating, applyChartStyle, readChartStyle, validateChartStyle } from './chart-style';
 import { chartSpans, findDirectChild, attrValue, chartQualifiedName } from './chart-xml-spans';
 import { normalizeColour } from './colour';
@@ -219,6 +220,12 @@ export interface ChartOperation extends BaseOperation {
   chartType?: ChartType;
   /** Doughnut hole diameter percentage (integer 1..90; default 50). */
   holeSize?: number;
+  /**
+   * Allows a data change to replace a workbook ASTra did not generate, to copy a
+   * workbook shared with another chart, or to rebuild across chart families.
+   * Without it those updates are refused before anything is written.
+   */
+  allowRebuild?: boolean;
   title?: string;
   view3D?: View3DProperties;
   shape?: Bar3DShape;
@@ -285,14 +292,19 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
       );
     }
     if (parser) {
+      // The chart is the one the call names (target, anchor or id), or the only chart of the document: never a fixed part name.
       const zipAdapter = parser.getZipAdapter();
-      const chartPath = 'word/charts/chart1.xml';
-      if (zipAdapter.hasFile(chartPath)) {
-        const existingXml = zipAdapter.readText(chartPath);
-        assertNoXxe(existingXml, chartPath);
-        const updatedXml = manipulator3D.updateView3D(existingXml, resolved.view3D || {});
-        zipAdapter.writeText(chartPath, updatedXml);
+      const { chartPath } = resolveUpdateTarget(resolved, ast, parser);
+      const existingXml = zipAdapter.readText(chartPath);
+      assertNoXxe(existingXml, chartPath);
+      if (!is3DChartType(parseExistingChartData(existingXml).detected.chartType)) {
+        throw chartUpdateError(
+          'E_VALIDATION: updateView3D needs a 3D chart, but ' + chartPath + ' is not one.',
+          "Remedy: use operation:'update' with chartType set to a 3D type (for example column3D) and allowRebuild:true, or target a 3D chart."
+        );
       }
+      const updatedXml = manipulator3D.updateView3D(existingXml, resolved.view3D || {});
+      zipAdapter.writeText(chartPath, updatedXml);
     }
     return;
   }
@@ -1372,7 +1384,6 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
   const altTextChange = resolved.altText === undefined ? undefined : validateChartAltText(resolved.altText);
   const zipAdapter = parser.getZipAdapter();
   const targetResult = resolveUpdateTarget(resolved, ast, parser);
-  const chartNum = targetResult.chartNum;
   const chartPath = targetResult.chartPath;
   const node = targetResult.node;
   if (!node) {
@@ -1653,52 +1664,52 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
       applyChartFloating(node.xml, resolved.style.floating, chartPath, chartRId);
     }
   }
+  // Workbook policy (DN1): decided before the first write so a refusal leaves the package untouched.
+  const existingIsScatter = existing.detected.chartType === 'scatter';
+  const dataChange = resolved.categories !== undefined || resolved.series !== undefined
+    || existingIsScatter !== (rawChartType === 'scatter');
+  const workbookDecision = planWorkbook({
+    zip: zipAdapter,
+    chartPath,
+    externalDataRId: existing.externalDataRId,
+    stored: {
+      categories: existing.categories,
+      series: existing.series.map((s) => ({ name: s.name, values: s.values, ...(s.xValues ? { xValues: s.xValues } : {}) })),
+      scatter: existingIsScatter,
+    },
+    dataChange,
+    allowRebuild: resolved.allowRebuild === true,
+  });
+  if (workbookDecision.action === 'refuse') {
+    throw chartUpdateError(workbookDecision.refusal.message, workbookDecision.refusal.remedy);
+  }
   zipAdapter.writeText(chartPath, updatedXml);
 
-  const chartRelsPath = 'word/charts/_rels/chart' + chartNum + '.xml.rels';
-  const chartRelsXml = zipAdapter.readTextOrNull(chartRelsPath);
-  if (chartRelsXml) assertNoXxe(chartRelsXml, chartRelsPath);
-  let workbookPath: string | undefined;
-  if (chartRelsXml) {
-    const targetMatch = /Target="([^"]*embeddings\/[^"]*)"/.exec(chartRelsXml);
-    if (targetMatch) {
-      const base = targetMatch[1].split('/').pop() || '';
-      if (base) workbookPath = 'word/embeddings/' + base;
-    }
-  }
-  if (!workbookPath) {
-    workbookPath = 'word/embeddings/Microsoft_Excel_Worksheet' + chartNum + '.xlsx';
-  }
-  // The workbook is regenerated from the parsed model, so its row count must
-  // follow the data actually written into the chart cache: a series-only
-  // update that carries more values than parsed categories (or a numeric /
-  // unparsed category cache) must not silently drop data rows from "Edit Data".
-  // A scatter edit without categories/series (title only) does not change
-  // chart data; leave the workbook untouched so a malformed part cannot have
-  // its x columns rewritten to point indexes.
-  if (rawChartType !== 'scatter' || scatterDataSupplied) {
-  const workbookCategories = categories.length > 0 ? categories : existing.categories;
-  const scatterSeriesX = rawChartType === 'scatter'
-    ? series.map((s) => {
-        if (s.xValues !== undefined && s.xValues.length > 0) return s.xValues;
-        return Array.from({ length: s.values.length }, (_, i) => {
-          const numeric = Number(workbookCategories[i]);
-          return Number.isFinite(numeric) ? numeric : i;
-        });
-      })
-    : undefined;
-  const workbookRowCount = Math.max(
-    workbookCategories.length,
-    series.reduce((max, s) => Math.max(max, s.values.length), 0),
-    ...(scatterSeriesX ?? []).map((x) => x.length)
-  );
-  const paddedCategories = Array.from({ length: workbookRowCount }, (_, i) => workbookCategories[i] ?? '');
-  const workbookBuf = generateEmbeddedWorkbook(
-    series.map((s) => ({ name: s.name, values: s.values, ...(s.color ? { color: s.color } : {}) })),
-    paddedCategories,
-    scatterSeriesX
-  );
-  zipAdapter.writeBuffer(workbookPath, workbookBuf);
+  if (workbookDecision.action === 'rewrite') {
+    const workbookCategories = categories.length > 0 ? categories : existing.categories;
+    const scatterSeriesX = rawChartType === 'scatter'
+      ? series.map((s) => {
+          if (s.xValues !== undefined && s.xValues.length > 0) return s.xValues;
+          return Array.from({ length: s.values.length }, (_, i) => {
+            const numeric = Number(workbookCategories[i]);
+            return Number.isFinite(numeric) ? numeric : i;
+          });
+        })
+      : undefined;
+    // The row count follows the data actually written into the chart cache, so
+    // "Edit Data" never drops rows the cache shows.
+    const workbookRowCount = Math.max(
+      workbookCategories.length,
+      series.reduce((max, s) => Math.max(max, s.values.length), 0),
+      ...(scatterSeriesX ?? []).map((x) => x.length)
+    );
+    const paddedCategories = Array.from({ length: workbookRowCount }, (_, i) => workbookCategories[i] ?? '');
+    const workbookBuf = generateEmbeddedWorkbook(
+      series.map((s) => ({ name: s.name, values: s.values, ...(s.color ? { color: s.color } : {}) })),
+      paddedCategories,
+      scatterSeriesX
+    );
+    applyWorkbookDecision(zipAdapter, workbookDecision, workbookBuf);
   }
 
   if (node) {

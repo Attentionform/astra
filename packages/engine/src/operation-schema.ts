@@ -674,6 +674,7 @@ const chartOp = z.object({
   // list and still carries the remedy for untyped callers).
   chartType: z.enum(SUPPORTED_CHART_2D_AND_3D_TYPES).optional(),
   holeSize: z.number().int().min(1).max(90).optional(),
+  allowRebuild: z.boolean().optional().describe('Update only. Allows a data change to replace a workbook ASTra did not generate, or copy a shared one. Default false: refused.'),
   title: z.string().max(1_000).optional(),
   view3D: z.record(z.string(), z.unknown()).optional(),
   shape: z.string().max(32).optional(),

@@ -525,7 +525,7 @@ describe('scatter charts', () => {
     expect(node.version).toBe(2);
 
     executeChart({
-      action: 'chart', operation: 'update', target: node.id,
+      action: 'chart', operation: 'update', target: node.id, allowRebuild: true,
       series: [{ name: 'P50', values: [6, 16, 26] }, { name: 'P99', values: [13, 35, 59, 81] }],
     }, ast, reopened);
     const afterValues = reopened.getZipAdapter().readText('word/charts/chart1.xml');
@@ -1286,7 +1286,7 @@ function nodeChartData(ast: DocumentAST, id: string): { chartType?: string; cate
     expect(workbookSheet(reopened)).toBe(sheetBefore);
 
     executeChart({
-      action: 'chart', operation: 'update', target: node.id,
+      action: 'chart', operation: 'update', target: node.id, allowRebuild: true,
       series: [{ name: 'P50', values: [5, 15, 25], xValues: [0, 10, 20] }],
     }, ast, reopened);
     expect(renderChartText(node)).toBe('[Chart scatter] Latency vs load | P50: (0, 5),(10, 15),(20, 25)');

@@ -655,7 +655,11 @@ describe('chart update preserve-and-merge: rework pins', () => {
       .split('<c:v>Q1</c:v>').join('<c:v>2024</c:v>')
       .split('<c:v>Q2</c:v>').join('<c:v>2025</c:v>');
     parser.getZipAdapter().writeText('word/charts/chart1.xml', numeric);
-    executeChart({ action: 'chart', operation: 'update', target: id, title: 'Numeric cats' }, ast, parser);
+    // The hand-edited cache no longer matches the generated workbook, so rebuilding needs allowRebuild.
+    executeChart({
+      action: 'chart', operation: 'update', target: id, allowRebuild: true,
+      categories: ['2024', '2025'], series: [{ name: 'ARR', values: [10, 20] }, { name: 'Costs', values: [5, 7] }],
+    }, ast, parser);
     const parts = new AdmZip(parser.rezip());
     const wb = new AdmZip(parts.getEntry('word/embeddings/Microsoft_Excel_Worksheet1.xlsx')!.getData());
     const sheet = wb.getEntry('xl/worksheets/sheet1.xml')!.getData().toString('utf8');

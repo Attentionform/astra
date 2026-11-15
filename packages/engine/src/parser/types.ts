@@ -10,6 +10,12 @@ export interface DocxZipAdapter {
   readTextOrNull(path: string): string | null;
   writeText(path: string, content: string): void;
   writeBuffer(path: string, content: Buffer): void;
+  /** Raw bytes of one part, or null when absent. Not every adapter provides it. */
+  readBuffer?(path: string): Buffer | null;
+  /** Names of every part (no directories). Not every adapter provides it. */
+  entryNames?(): string[];
+  /** Removes one part; absent parts are ignored. Not every adapter provides it. */
+  removeFile?(path: string): void;
 }
 
 export interface TableMetadata {
