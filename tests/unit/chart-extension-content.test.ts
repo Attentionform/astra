@@ -46,7 +46,6 @@ async function session() {
   zip.writeText(CHART, injected);
   return { parser, ast, run, zip, xml: () => zip.readText(CHART) };
 }
-type Session = Awaited<ReturnType<typeof session>>;
 
 /** Every `extLst` is the last element child of its parent; the part parses. */
 function expectSound(xml: string): void {
