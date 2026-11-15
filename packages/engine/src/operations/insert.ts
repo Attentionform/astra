@@ -666,6 +666,19 @@ function populateTableCell(
   }
 }
 
+/** Light grey used for table borders when no style guide colour applies (Word draws `auto` black). */
+export const DEFAULT_TABLE_BORDER_COLOR = 'BFBFBF';
+
+/** Guide `tables.borderColor` as 6-char uppercase hex; any other value falls back to the light grey default. */
+export function resolveTableBorderColor(guide?: StyleGuideConfig): string {
+  const raw = guide?.tables?.borderColor;
+  if (typeof raw === 'string') {
+    const hex = raw.replace(/^#/, '').toUpperCase();
+    if (/^[0-9A-F]{6}$/.test(hex)) return hex;
+  }
+  return DEFAULT_TABLE_BORDER_COLOR;
+}
+
 export async function executeInsert(op: InsertOperation, ast: DocumentAST, parser?: DocxParser, guide?: StyleGuideConfig, paraIdCache?: ParaIdScanCache): Promise<{ revisionIds: number[] } | void> {  let anchorSection: Section | null = null;
   let anchorIndex = -1;
   let anchorNode: Node | undefined;
@@ -999,13 +1012,15 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
     const newNodeXml = createWordElement(doc, 'w:tbl');
     newNodeXml.setAttribute('data-astra-id', newId);
     const tblPr = createWordElement(doc, 'w:tblPr');
+    // Guide tables.borderColor when it is a usable hex colour, else a light grey. `auto` is drawn black by Word.
+    const tableBorderColor = resolveTableBorderColor(guide);
     const tblBorders = createWordElement(doc, 'w:tblBorders');
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].forEach(border => {
       const b = createWordElement(doc, `w:${border}`);
       b.setAttribute('w:val', 'single');
       b.setAttribute('w:sz', '4');
       b.setAttribute('w:space', '0');
-      b.setAttribute('w:color', 'auto');
+      b.setAttribute('w:color', tableBorderColor);
       tblBorders.appendChild(b);
     });
     const tblStyle = createWordElement(doc, 'w:tblStyle');
