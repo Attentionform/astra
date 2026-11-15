@@ -244,6 +244,10 @@ const insertOp = z.object({
   height: z.number().int().positive().max(100_000_000).optional(),
   widthEmu: z.number().int().positive().max(100_000_000).optional(),
   heightEmu: z.number().int().positive().max(100_000_000).optional(),
+  // Chart size in inches (0.1 to 22; the engine checks the range and refuses with a remedy). Give either the Emu or
+  // the In form of a dimension, not both.
+  widthIn: z.number().optional(),
+  heightIn: z.number().optional(),
   // Chart types: 2D default ('column' when omitted) + opt-in 3D, enumerated
   // from the engine's single source of truth.
   chartType: z.enum(SUPPORTED_CHART_2D_AND_3D_TYPES).optional(),
@@ -649,6 +653,9 @@ const chartOp = z.object({
   id: z.string().min(1).max(256).optional(),
   widthEmu: z.number().positive().max(100_000_000).optional(),
   heightEmu: z.number().positive().max(100_000_000).optional(),
+  widthIn: z.number().optional().describe('Chart width in inches, 0.1 to 22. Use widthIn or widthEmu, not both.'),
+  heightIn: z.number().optional().describe('Chart height in inches, 0.1 to 22. Use heightIn or heightEmu, not both.'),
+  altText: z.string().max(5_000).optional().describe('Alternative text of the chart drawing. On update an empty string clears it.'),
   expectedVersion,
   params: nestedParams,
 }).strict();

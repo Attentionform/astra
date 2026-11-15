@@ -4,6 +4,7 @@ import { DocumentAST } from '../ast';
 import { DocxParser, DocxZipAdapter } from '../parser';
 import { RelationshipsManipulator } from './relationships';
 import { chartTitleXml, majorGridlinesXml } from './chart-parts';
+import { DEFAULT_CHART_HEIGHT_2D_EMU, DEFAULT_CHART_WIDTH_EMU } from '../operations/chart-size';
 import { createRelationshipsElement, createContentTypesElement, allocateNextDrawingDocPrId } from '../ooxml/ns';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 import { chartElementDescendants, chartPointTextsByIndex, chartScatterXValuesBySeries, chartTitleElement, detectBar2DChartTypeFromXml, detectChartKindFromXml, pairScatterPointTexts, scatterSeriesXList, scatterXOnlyValues } from '../parser/factory';
@@ -64,7 +65,9 @@ export interface InsertChart2DOptions extends CreateChart2DOptions {
   anchorNodeId?: string;
   id?: string;
   widthEmu?: number; // Default 5486400 (6 inches)
-  heightEmu?: number; // Default 2800000 (3.06 inches)
+  heightEmu?: number; // Default 2377440 (2.6 inches)
+  /** Alternative text for the chart drawing (wp:docPr descr). */
+  altText?: string;
 }
 
 function chartColLetter(colIdx: number): string {
@@ -696,7 +699,7 @@ export class Chart2DManipulator {
    * Carries the P1 centered, auto-spaced w:pPr so Word expands the line box
    * for the inline graphic even when Normal uses exact line spacing.
    */
-  public generateDrawingEmbedXml(rId: string, docPrId: number = 1, name: string = 'Chart 1', widthEmu: number = 5486400, heightEmu: number = 2800000, floating?: ChartFloatingStyle): string {
+  public generateDrawingEmbedXml(rId: string, docPrId: number = 1, name: string = 'Chart 1', widthEmu: number = DEFAULT_CHART_WIDTH_EMU, heightEmu: number = DEFAULT_CHART_HEIGHT_2D_EMU, floating?: ChartFloatingStyle, altText?: string): string {
     const safeName = escapeXml(name || 'Chart');
 
     return `<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -707,7 +710,7 @@ export class Chart2DManipulator {
   <w:pPr><w:spacing w:before="140" w:after="140" w:line="240" w:lineRule="auto"/><w:jc w:val="center"/></w:pPr>
   <w:r>
     <w:drawing>
-      ${buildChartDrawingContainer({ rId, docPrId, name: safeName, widthEmu, heightEmu, floating })}
+      ${buildChartDrawingContainer({ rId, docPrId, name: safeName, widthEmu, heightEmu, floating, altText })}
     </w:drawing>
   </w:r>
 </w:p>`;
@@ -761,8 +764,8 @@ export class Chart2DManipulator {
       ? options.series
       : [{ name: 'Performance', values: [12.5, 14.8, 18.2, 22.0], color: '0066CC' }];
 
-    const widthEmu = options.widthEmu || 5486400;
-    const heightEmu = options.heightEmu || 2800000;
+    const widthEmu = options.widthEmu || DEFAULT_CHART_WIDTH_EMU;
+    const heightEmu = options.heightEmu || DEFAULT_CHART_HEIGHT_2D_EMU;
 
     // Globally unique docPr id via shared DOM-scanning allocator
     // (images + charts occupy the same id space; scans wp:docPr + pic:cNvPr).
@@ -772,7 +775,7 @@ export class Chart2DManipulator {
     } catch { parserDom = null; }
     const docPrId = allocateNextDrawingDocPrId(parserDom);
 
-    const drawingXml = this.generateDrawingEmbedXml(rId, docPrId, options.title || `Chart ${maxNum}`, widthEmu, heightEmu, options.floating);
+    const drawingXml = this.generateDrawingEmbedXml(rId, docPrId, options.title || `Chart ${maxNum}`, widthEmu, heightEmu, options.floating, options.altText);
 
     if (this.parser) {
       const workbookPartName = `embeddings/Microsoft_Excel_Worksheet${maxNum}.xlsx`;

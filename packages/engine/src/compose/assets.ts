@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { SUPPORTED_CHART_2D_AND_3D_TYPES } from '../operations/chart';
+import { parseChartSize } from '../operations/chart-size';
 import { canonicalizeForAsset, hasUriScheme, isPathInsideDir } from '../sandbox/paths';
 import { containsSvgActiveContent, containsXxeAdjacent } from '../ooxml/xxe-guard';
 import {
@@ -464,6 +465,15 @@ export interface ChartAsset {
   title?: string;
   categories?: string[];
   series?: Array<{ name: string; values: number[]; color?: string }>;
+  /** Drawing size, either form per dimension (the operation refuses both). Range and conflicts are checked by the chart operation. */
+  widthIn?: number;
+  heightIn?: number;
+  widthEmu?: number;
+  heightEmu?: number;
+  /** Alt text from the chart JSON; it wins over the Markdown image text. */
+  altText?: string;
+  /** Chart style object, validated by the chart operation. */
+  style?: Record<string, unknown>;
 }
 
 export function readChartAsset(absPath: string, line: number, allowedDir: string): ChartAsset {
@@ -558,5 +568,49 @@ export function readChartAsset(absPath: string, line: number, allowedDir: string
       fail(line, 'chart has too many series', 'keep series at 100 or fewer');
     }
   }
-  return { chartType, title, categories, series };
+  const optionalNumber = (key: string): number | undefined => {
+    const v = rec[key];
+    if (v === undefined) return undefined;
+    if (typeof v !== 'number' || !Number.isFinite(v)) {
+      fail(line, `chart ${key} must be a number`, key.endsWith('In') ? `pass ${key} as a number of inches, for example 6, or omit it` : `pass ${key} as a number of EMU or omit it`);
+    }
+    return v as number;
+  };
+  const widthIn = optionalNumber('widthIn');
+  const heightIn = optionalNumber('heightIn');
+  const widthEmu = optionalNumber('widthEmu');
+  const heightEmu = optionalNumber('heightEmu');
+  try {
+    parseChartSize({ widthIn, heightIn, widthEmu, heightEmu });
+  } catch (err) {
+    const msg = (err as Error).message.replace(/^E_VALIDATION: /, '');
+    const at = msg.indexOf('. Remedy: ');
+    fail(line, at >= 0 ? msg.slice(0, at) : msg, at >= 0 ? msg.slice(at + '. Remedy: '.length) : 'use a size from 0.1 to 22 inches');
+  }
+  let altText: string | undefined;
+  if (rec['altText'] !== undefined) {
+    if (typeof rec['altText'] !== 'string') {
+      fail(line, 'chart altText must be a string', 'pass altText as text or omit it');
+    }
+    altText = (rec['altText'] as string).trim();
+    if (altText.length > 5000) {
+      fail(line, 'chart altText is too long', 'keep altText under 5000 characters');
+    }
+  }
+  let style: Record<string, unknown> | undefined;
+  if (rec['style'] !== undefined) {
+    if (!rec['style'] || typeof rec['style'] !== 'object' || Array.isArray(rec['style'])) {
+      fail(line, 'chart style must be an object', 'pass style as an object such as {"legend":{"position":"t"}} or omit it');
+    }
+    style = rec['style'] as Record<string, unknown>;
+  }
+  return {
+    chartType, title, categories, series,
+    ...(widthIn !== undefined ? { widthIn } : {}),
+    ...(heightIn !== undefined ? { heightIn } : {}),
+    ...(widthEmu !== undefined ? { widthEmu } : {}),
+    ...(heightEmu !== undefined ? { heightEmu } : {}),
+    ...(altText ? { altText } : {}),
+    ...(style !== undefined ? { style } : {}),
+  };
 }

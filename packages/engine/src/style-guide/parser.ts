@@ -101,6 +101,8 @@ const SECTION_ALIASES: Record<string, string> = {
   codeblock: 'codeBlocks',
   code: 'codeBlocks',
   layout: 'layout',
+  charts: 'charts',
+  chart: 'charts',
 };
 
 const KNOWN_SECTIONS = [
@@ -252,6 +254,51 @@ export function parseStyleGuide(markdown: string): StyleGuideParseResult {
     );
     return { config, warnings };
   }
+}
+
+/**
+ * Reads a length from the guide. Sizes accept `in`, `cm`, `mm` and `pt` (stored as inches); text sizes accept `pt`
+ * only (stored as points). A number with no unit uses the key's natural unit (inches for sizes, points for text
+ * sizes). An unknown unit is never reinterpreted: the value is not used and the warning names the unit.
+ */
+function lengthField(
+  warnings: string[],
+  set: (v: number) => void,
+  label: string,
+  value: string,
+  lineNo: number,
+  kind: 'size' | 'text',
+): void {
+  const m = /^\s*(-?\d+(?:\.\d+)?)\s*([A-Za-z"]*)\s*$/.exec(value);
+  if (!m) {
+    warnings.push(`line ${lineNo}: ${label} '${value.trim()}' is not a number with an optional unit; built-in default applies`);
+    return;
+  }
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  const accepted = kind === 'size' ? 'in, cm, mm, pt' : 'pt';
+  if (kind === 'size') {
+    const inches = unit === '' || unit === 'in' || unit === '"' ? n : unit === 'cm' ? n / 2.54 : unit === 'mm' ? n / 25.4 : unit === 'pt' ? n / 72 : undefined;
+    if (inches === undefined) {
+      warnings.push(`line ${lineNo}: ${label} unit '${m[2]}' is not supported (use ${accepted}); value not used, built-in default applies`);
+      return;
+    }
+    if (!(inches >= 0.1 && inches <= 22)) {
+      warnings.push(`line ${lineNo}: ${label} '${value.trim()}' is outside 0.1 to 22 inches; built-in default applies`);
+      return;
+    }
+    set(Math.round(inches * 10000) / 10000);
+    return;
+  }
+  if (unit !== '' && unit !== 'pt') {
+    warnings.push(`line ${lineNo}: ${label} unit '${m[2]}' is not supported (use ${accepted}); value not used, built-in default applies`);
+    return;
+  }
+  if (!(n >= 4 && n <= 200)) {
+    warnings.push(`line ${lineNo}: ${label} '${value.trim()}' is outside 4 to 200 pt; built-in default applies`);
+    return;
+  }
+  set(n);
 }
 
 function hexField(
@@ -430,6 +477,46 @@ function applyKey(
           return;
         case 'keeptogether':
           boolField(warnings, (v) => (config.tables.keepTogether = v), d.keepTogether as boolean, 'tables.keepTogether', value, lineNo);
+          return;
+        default:
+          unknown();
+          return;
+      }
+    }
+    case 'charts': {
+      config.charts ??= {};
+      const charts = config.charts;
+      switch (key) {
+        case 'width':
+          lengthField(warnings, (v) => (charts.widthIn = v), 'charts.width', value, lineNo, 'size');
+          return;
+        case 'height':
+          lengthField(warnings, (v) => (charts.heightIn = v), 'charts.height', value, lineNo, 'size');
+          return;
+        case '3dwidth':
+        case 'width3d':
+          lengthField(warnings, (v) => (charts.width3dIn = v), 'charts.3dWidth', value, lineNo, 'size');
+          return;
+        case '3dheight':
+        case 'height3d':
+          lengthField(warnings, (v) => (charts.height3dIn = v), 'charts.3dHeight', value, lineNo, 'size');
+          return;
+        case 'gridlinecolor': {
+          const hex = normalizeHexColor(value);
+          if (hex !== null) charts.gridlineColor = hex;
+          else if (isShorthandHex(value)) charts.gridlineColor = expandShorthandHex(value);
+          else warnings.push(`line ${lineNo}: charts.gridlineColor '${value.trim()}' is not a hex colour; built-in default applies`);
+          return;
+        }
+        case 'fontfamily':
+          if (value.trim() === '') warnings.push(`line ${lineNo}: charts.fontFamily is empty; built-in default applies`);
+          else charts.fontFamily = value.trim();
+          return;
+        case 'fontsize':
+          lengthField(warnings, (v) => (charts.fontSizePt = v), 'charts.fontSize', value, lineNo, 'text');
+          return;
+        case 'titlesize':
+          lengthField(warnings, (v) => (charts.titleSizePt = v), 'charts.titleSize', value, lineNo, 'text');
           return;
         default:
           unknown();

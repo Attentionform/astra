@@ -266,7 +266,7 @@ describe('style guide parser', () => {
       '- Primary: #112233',
       '- Favorite Snack: pretzels',
       '',
-      '## Charts',
+      '## Spreadsheets',
       '- Primary: #000000',
       '',
       '## Tables',

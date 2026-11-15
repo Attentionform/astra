@@ -564,6 +564,13 @@ export function compileMarkdownDetailed(
         title,
         ...(asset.categories ? { categories: asset.categories } : {}),
         ...(asset.series ? { series: asset.series } : {}),
+        ...(asset.widthIn !== undefined ? { widthIn: asset.widthIn } : {}),
+        ...(asset.heightIn !== undefined ? { heightIn: asset.heightIn } : {}),
+        ...(asset.widthEmu !== undefined ? { widthEmu: asset.widthEmu } : {}),
+        ...(asset.heightEmu !== undefined ? { heightEmu: asset.heightEmu } : {}),
+        // Explicit altText in the chart JSON wins over the Markdown image text.
+        ...((asset.altText ?? (alt.trim().length > 0 ? alt.trim() : undefined)) ? { altText: asset.altText ?? alt.trim() } : {}),
+        ...(asset.style ? { style: asset.style } : {}),
       } as Operation);
       lastInsertId = id;
       return { id, kind: 'chart' };

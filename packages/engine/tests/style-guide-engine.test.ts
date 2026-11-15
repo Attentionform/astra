@@ -358,7 +358,9 @@ describe('chart palette defaulting', () => {
       anchor: lastNodeId(ast),
     } as never);
     const chartXml = parser.getZipAdapter().readText('word/charts/chart1.xml');
-    const fills = Array.from(chartXml.matchAll(/<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/g)).map((m) => m[1].toUpperCase());
+    // Series fills only: the gridline colour (D9D9D9) is not a series colour.
+    const seriesXml = Array.from(chartXml.matchAll(/<c:ser>[\s\S]*?<\/c:ser>/g)).map((m) => m[0]).join('');
+    const fills = Array.from(seriesXml.matchAll(/<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/g)).map((m) => m[1].toUpperCase());
     expect(fills).toHaveLength(7);
     expect(new Set(fills).size).toBe(7);
     const dups = lintDocumentStyle(ast, guide).filter((w) => w.rule === 'chart-duplicate-colors');
@@ -381,7 +383,9 @@ describe('chart palette defaulting', () => {
       anchor: lastNodeId(ast),
     } as never);
     const chartXml = parser.getZipAdapter().readText('word/charts/chart1.xml');
-    const fills = Array.from(chartXml.matchAll(/<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/g)).map((m) => m[1].toUpperCase());
+    // Series fills only: the gridline colour (D9D9D9) is not a series colour.
+    const seriesXml = Array.from(chartXml.matchAll(/<c:ser>[\s\S]*?<\/c:ser>/g)).map((m) => m[0]).join('');
+    const fills = Array.from(seriesXml.matchAll(/<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/g)).map((m) => m[1].toUpperCase());
     expect(fills).toHaveLength(12);
     for (const f of fills) expect(f).toMatch(/^[0-9A-F]{6}$/);
     expect(new Set(fills).size).toBe(12);
