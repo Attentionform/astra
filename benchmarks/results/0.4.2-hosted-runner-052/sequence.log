@@ -1,0 +1,48 @@
+## results-baseline-create-0.4.2-hosted-runner
+2026-11-15T08:52:26+00:00 START c2_build
+2026-11-15T08:52:31+00:00 END c2_build ok
+2026-11-15T08:52:31+00:00 START c2_oracles
+2026-11-15T08:52:35+00:00 END c2_oracles ok
+2026-11-15T08:52:35+00:00 START c1_create
+2026-11-15T08:53:30+00:00 END c1_create ok
+2026-11-15T08:53:30+00:00 START c1_oracles
+2026-11-15T08:53:38+00:00 END c1_oracles ok
+2026-11-15T08:53:38+00:00 ALL DONE failed=0
+## results-baseline-e10-0.4.2-hosted-runner
+2026-11-15T08:51:48+00:00 START e10_race
+2026-11-15T08:52:16+00:00 END e10_race ok
+2026-11-15T08:52:16+00:00 ALL DONE failed=0
+## results-baseline-e1-0.4.2-hosted-runner
+2026-11-15T08:51:45+00:00 START e1_edit_locality
+2026-11-15T09:15:53+00:00 END e1_edit_locality ok
+2026-11-15T09:15:53+00:00 START e1_oracles
+2026-11-15T09:21:32+00:00 END e1_oracles ok
+2026-11-15T09:21:32+00:00 START e1_control
+2026-11-15T09:21:39+00:00 END e1_control ok
+2026-11-15T09:21:39+00:00 ALL DONE failed=0
+## results-baseline-e2-0.4.2-hosted-runner
+2026-11-15T08:51:50+00:00 START r1_representation
+2026-11-15T08:52:46+00:00 END r1_representation ok
+2026-11-15T08:52:46+00:00 ALL DONE failed=0
+## results-baseline-e3-0.4.2-hosted-runner
+2026-11-15T08:51:52+00:00 START faults
+2026-11-15T08:51:53+00:00 END faults ok
+2026-11-15T08:51:53+00:00 START e3_gate
+2026-11-15T09:04:51+00:00 END e3_gate ok
+2026-11-15T09:04:51+00:00 START e3_followup
+2026-11-15T09:09:08+00:00 END e3_followup ok
+2026-11-15T09:09:08+00:00 ALL DONE failed=0
+## results-baseline-e4-0.4.2-hosted-runner
+2026-11-15T08:52:11+00:00 START e4_atomicity
+2026-11-15T08:58:23+00:00 END e4_atomicity ok
+2026-11-15T08:58:23+00:00 ALL DONE failed=0
+## results-baseline-e5-0.4.2-hosted-runner
+2026-11-15T08:52:08+00:00 START e5_history
+2026-11-15T09:11:38+00:00 END e5_history ok
+2026-11-15T09:11:38+00:00 START e5_orphans
+2026-11-15T09:12:09+00:00 END e5_orphans ok
+2026-11-15T09:12:09+00:00 ALL DONE failed=0
+## results-baseline-e9-0.4.2-hosted-runner
+2026-11-15T08:51:52+00:00 START e9_original
+2026-11-15T08:52:10+00:00 END e9_original ok
+2026-11-15T08:52:10+00:00 ALL DONE failed=0
