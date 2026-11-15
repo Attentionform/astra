@@ -159,6 +159,9 @@ function colourField(options: ColourOptions = {}, max = 32) {
   return field;
 }
 
+/** Paragraph flag: true on, false explicitly off, null back to the paragraph style's setting. */
+const paragraphFlag = z.boolean().nullable().describe('true on, false off, null back to the style.');
+
 const styleProperties = z.object({
   bold: z.boolean().optional(),
   italic: z.boolean().optional(),
@@ -167,6 +170,10 @@ const styleProperties = z.object({
   doubleStrikethrough: z.boolean().optional(),
   vertAlign: z.enum(['superscript', 'subscript', 'baseline']).optional(),
   alignment: z.enum(['left', 'center', 'right', 'both', 'justify']).optional(),
+  keepWithNext: paragraphFlag.optional(),
+  keepLines: paragraphFlag.optional(),
+  pageBreakBefore: paragraphFlag.optional(),
+  contextualSpacing: paragraphFlag.optional(),
   color: colourField({ allowAuto: true }).optional(),
   fontSize: fontSizeOrSzSchema.optional(),
   sz: fontSizeOrSzSchema.optional(),
@@ -336,6 +343,10 @@ const styleOp = z.object({
   doubleStrikethrough: z.boolean().optional(),
   vertAlign: z.enum(['superscript', 'subscript', 'baseline']).optional(),
   alignment: z.enum(['left', 'center', 'right', 'both', 'justify']).optional(),
+  keepWithNext: paragraphFlag.optional(),
+  keepLines: paragraphFlag.optional(),
+  pageBreakBefore: paragraphFlag.optional(),
+  contextualSpacing: paragraphFlag.optional(),
   color: colourField({ allowAuto: true }).optional(),
   fontSize: fontSizeOrSzSchema.optional(),
   sz: fontSizeOrSzSchema.optional(),

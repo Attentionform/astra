@@ -267,7 +267,7 @@ function lengthField(
   label: string,
   value: string,
   lineNo: number,
-  kind: 'size' | 'text',
+  kind: 'size' | 'text' | 'space',
 ): void {
   const m = /^\s*(-?\d+(?:\.\d+)?)\s*([A-Za-z"]*)\s*$/.exec(value);
   if (!m) {
@@ -277,6 +277,18 @@ function lengthField(
   const n = Number(m[1]);
   const unit = m[2].toLowerCase();
   const accepted = kind === 'size' ? 'in, cm, mm, pt' : 'pt';
+  if (kind === 'space') {
+    if (unit !== '' && unit !== 'pt') {
+      warnings.push(`line ${lineNo}: ${label} unit '${m[2]}' is not supported (use pt); value not used, built-in default applies`);
+      return;
+    }
+    if (!(n >= 0 && n <= 72)) {
+      warnings.push(`line ${lineNo}: ${label} '${value.trim()}' is outside 0 to 72 pt; built-in default applies`);
+      return;
+    }
+    set(n);
+    return;
+  }
   if (kind === 'size') {
     const inches = unit === '' || unit === 'in' || unit === '"' ? n : unit === 'cm' ? n / 2.54 : unit === 'mm' ? n / 25.4 : unit === 'pt' ? n / 72 : undefined;
     if (inches === undefined) {
@@ -478,6 +490,9 @@ function applyKey(
         case 'keeptogether':
           boolField(warnings, (v) => (config.tables.keepTogether = v), d.keepTogether as boolean, 'tables.keepTogether', value, lineNo);
           return;
+        case 'spaceafter':
+          lengthField(warnings, (v) => (config.tables.spaceAfterPt = v), 'tables.spaceAfter', value, lineNo, 'space');
+          return;
         default:
           unknown();
           return;
@@ -613,6 +628,9 @@ function applyKey(
           }
           return;
         }
+        case 'spaceafter':
+          lengthField(warnings, (v) => (config.callouts.spaceAfterPt = v), 'callouts.spaceAfter', value, lineNo, 'space');
+          return;
         case 'notetheme':
           tagThemeField(config, warnings, 'note', 'Note Theme', value, lineNo);
           return;

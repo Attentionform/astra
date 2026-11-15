@@ -480,6 +480,34 @@
                   "justify"
                 ]
               },
+              "keepWithNext": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema28"
+                  }
+                ]
+              },
+              "keepLines": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema28"
+                  }
+                ]
+              },
+              "pageBreakBefore": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema28"
+                  }
+                ]
+              },
+              "contextualSpacing": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema28"
+                  }
+                ]
+              },
               "color": {
                 "allOf": [
                   {
@@ -576,7 +604,7 @@
                 "description": "Word-level span: style only this literal substring (run splitting); an absent match fails with E_NOT_FOUND.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema31"
+                    "$ref": "#/definitions/__schema33"
                   }
                 ]
               },
@@ -584,7 +612,7 @@
                 "description": "Style every occurrence of match (default false: first occurrence only).",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema32"
+                    "$ref": "#/definitions/__schema34"
                   }
                 ]
               },
@@ -592,7 +620,7 @@
                 "description": "Case-sensitive match (default true: pass false for case-insensitive).",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema33"
+                    "$ref": "#/definitions/__schema35"
                   }
                 ]
               },
@@ -688,7 +716,7 @@
                 "description": "Parameters each operation reads (row and col count from 1): updateCell(row,col,text,author,date); setCaption(captionText,captionPosition); addRow(afterIndex,cells); deleteRow(index,row); addColumn(afterIndex,width); deleteColumn(index,col); mergeCells(fromRow,fromCol,toRow,toCol); splitCell(row,col); setBorder(border,color,sz,size,val); setShading(fill,headerFill,zebra,textColor); setColumnWidths(widths,columnWidths); setColumnWidth(width,w,col); setHeaderRepeat(row); setCantSplit; setVerticalAlign(vAlign,alignment,row,col); setCellShading(row,col,fill,textColor); setRowHeight(height,rule,row); setRowHeights(heightIn,heightTwips,rule); setTableWidth(widthIn,widthPercent,widthTwips,columns); setCellAlignment(align,alignment,row,col); setTableAlignment(align,alignment); setCellPadding(padding,row,col); setCellTextColor(color,textColor,row,col); setKeepTogether.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema34"
+                    "$ref": "#/definitions/__schema36"
                   }
                 ]
               },
@@ -696,7 +724,7 @@
                 "description": "Alias of operation.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema34"
+                    "$ref": "#/definitions/__schema36"
                   }
                 ]
               },
@@ -750,7 +778,7 @@
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema35"
+                  "$ref": "#/definitions/__schema37"
                 },
                 "description": "addRow: the text of the new cells, one entry per column from the first (also accepted inside params)."
               },
@@ -769,14 +797,14 @@
               "fill": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema36"
+                    "$ref": "#/definitions/__schema38"
                   }
                 ]
               },
               "headerFill": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema36"
+                    "$ref": "#/definitions/__schema38"
                   }
                 ]
               },
@@ -786,7 +814,7 @@
               "textColor": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema36"
+                    "$ref": "#/definitions/__schema38"
                   }
                 ]
               },
@@ -794,14 +822,14 @@
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema37"
+                  "$ref": "#/definitions/__schema39"
                 }
               },
               "columnWidths": {
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema38"
+                  "$ref": "#/definitions/__schema40"
                 }
               },
               "width": {
@@ -866,7 +894,7 @@
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema39"
+                    "$ref": "#/definitions/__schema41"
                   }
                 ]
               },
@@ -877,14 +905,14 @@
               "align": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema40"
+                    "$ref": "#/definitions/__schema42"
                   }
                 ]
               },
               "alignment": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema40"
+                    "$ref": "#/definitions/__schema42"
                   }
                 ]
               },
@@ -1464,14 +1492,14 @@
                 "maxItems": 1000,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema41"
+                  "$ref": "#/definitions/__schema43"
                 }
               },
               "series": {
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema42"
+                  "$ref": "#/definitions/__schema44"
                 }
               },
               "style": {
@@ -1629,7 +1657,7 @@
                         "maxItems": 100,
                         "type": "array",
                         "items": {
-                          "$ref": "#/definitions/__schema44"
+                          "$ref": "#/definitions/__schema46"
                         }
                       },
                       "order": {
@@ -1714,7 +1742,7 @@
                 "description": "Inches, 0.1 to 22 (or widthEmu, not both).",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema45"
+                    "$ref": "#/definitions/__schema47"
                   }
                 ]
               },
@@ -1722,7 +1750,7 @@
                 "description": "Inches, 0.1 to 22 (or heightEmu, not both).",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema46"
+                    "$ref": "#/definitions/__schema48"
                   }
                 ]
               },
@@ -1730,7 +1758,7 @@
                 "description": "Alt text; update with \"\" clears it.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema47"
+                    "$ref": "#/definitions/__schema49"
                   }
                 ]
               },
@@ -1981,14 +2009,14 @@
               "fontSize": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema48"
+                    "$ref": "#/definitions/__schema50"
                   }
                 ]
               },
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema48"
+                    "$ref": "#/definitions/__schema50"
                   }
                 ]
               },
@@ -2023,7 +2051,7 @@
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema39"
+                    "$ref": "#/definitions/__schema41"
                   }
                 ]
               },
@@ -2301,7 +2329,7 @@
                 "minItems": 1,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema49"
+                  "$ref": "#/definitions/__schema51"
                 }
               },
               "target": {
@@ -2598,6 +2626,34 @@
               "justify"
             ]
           },
+          "keepWithNext": {
+            "allOf": [
+              {
+                "$ref": "#/definitions/__schema28"
+              }
+            ]
+          },
+          "keepLines": {
+            "allOf": [
+              {
+                "$ref": "#/definitions/__schema28"
+              }
+            ]
+          },
+          "pageBreakBefore": {
+            "allOf": [
+              {
+                "$ref": "#/definitions/__schema28"
+              }
+            ]
+          },
+          "contextualSpacing": {
+            "allOf": [
+              {
+                "$ref": "#/definitions/__schema28"
+              }
+            ]
+          },
           "color": {
             "allOf": [
               {
@@ -2694,7 +2750,7 @@
             "description": "Word-level span: style only this literal substring (run splitting); an absent match fails with E_NOT_FOUND.",
             "allOf": [
               {
-                "$ref": "#/definitions/__schema28"
+                "$ref": "#/definitions/__schema30"
               }
             ]
           },
@@ -2702,7 +2758,7 @@
             "description": "Style every occurrence of match (default false: first occurrence only).",
             "allOf": [
               {
-                "$ref": "#/definitions/__schema29"
+                "$ref": "#/definitions/__schema31"
               }
             ]
           },
@@ -2710,7 +2766,7 @@
             "description": "Case-sensitive match (default true: pass false for case-insensitive).",
             "allOf": [
               {
-                "$ref": "#/definitions/__schema30"
+                "$ref": "#/definitions/__schema32"
               }
             ]
           }
@@ -2718,28 +2774,42 @@
         "additionalProperties": {}
       },
       "__schema28": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 1000
+        "anyOf": [
+          {
+            "$ref": "#/definitions/__schema29"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "true on, false off, null back to the style."
       },
       "__schema29": {
         "type": "boolean"
       },
       "__schema30": {
-        "type": "boolean"
-      },
-      "__schema31": {
         "type": "string",
         "minLength": 1,
         "maxLength": 1000
+      },
+      "__schema31": {
+        "type": "boolean"
       },
       "__schema32": {
         "type": "boolean"
       },
       "__schema33": {
-        "type": "boolean"
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
       },
       "__schema34": {
+        "type": "boolean"
+      },
+      "__schema35": {
+        "type": "boolean"
+      },
+      "__schema36": {
         "type": "string",
         "enum": [
           "updateCell",
@@ -2768,29 +2838,29 @@
           "setKeepTogether"
         ]
       },
-      "__schema35": {
+      "__schema37": {
         "type": "string",
         "maxLength": 100000
       },
-      "__schema36": {
+      "__schema38": {
         "type": "string",
         "maxLength": 32,
         "pattern": "^\\s*(#?[0-9A-Fa-f]{6}|[rR][eE][dD]|[gG][rR][eE][eE][nN]|[bB][lL][uU][eE]|[bB][lL][aA][cC][kK]|[wW][hH][iI][tT][eE]|[yY][eE][lL][lL][oO][wW]|[oO][rR][aA][nN][gG][eE]|[gG][rR][aA][yY]|[gG][rR][eE][yY]|[pP][uU][rR][pP][lL][eE])\\s*$",
         "description": "A colour: 6 hex digits such as FF0000 (optionally with #), or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple."
       },
-      "__schema37": {
-        "type": "number"
-      },
-      "__schema38": {
-        "type": "number"
-      },
       "__schema39": {
+        "type": "number"
+      },
+      "__schema40": {
+        "type": "number"
+      },
+      "__schema41": {
         "type": "integer",
         "minimum": 1,
         "maximum": 96,
         "description": "Border width in eighths of a point (8 is 1 pt), a whole number from 1 to 96."
       },
-      "__schema40": {
+      "__schema42": {
         "type": "string",
         "enum": [
           "left",
@@ -2798,11 +2868,11 @@
           "right"
         ]
       },
-      "__schema41": {
+      "__schema43": {
         "type": "string",
         "maxLength": 500
       },
-      "__schema42": {
+      "__schema44": {
         "type": "object",
         "properties": {
           "name": {
@@ -2813,7 +2883,7 @@
             "maxItems": 1000,
             "type": "array",
             "items": {
-              "$ref": "#/definitions/__schema43"
+              "$ref": "#/definitions/__schema45"
             }
           },
           "color": {
@@ -2842,26 +2912,26 @@
         ],
         "additionalProperties": {}
       },
-      "__schema43": {
+      "__schema45": {
         "type": "number"
       },
-      "__schema44": {
+      "__schema46": {
         "type": "integer",
         "exclusiveMinimum": 0,
         "maximum": 9007199254740991,
         "description": "Series number, counting from 1 in the order the series appear"
       },
-      "__schema45": {
-        "type": "number"
-      },
-      "__schema46": {
-        "type": "number"
-      },
       "__schema47": {
+        "type": "number"
+      },
+      "__schema48": {
+        "type": "number"
+      },
+      "__schema49": {
         "type": "string",
         "maxLength": 5000
       },
-      "__schema48": {
+      "__schema50": {
         "anyOf": [
           {
             "type": "number",
@@ -2874,7 +2944,7 @@
           }
         ]
       },
-      "__schema49": {
+      "__schema51": {
         "type": "integer",
         "minimum": 0,
         "maximum": 9007199254740991
