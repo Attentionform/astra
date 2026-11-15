@@ -1,4 +1,5 @@
 import { headingLevelOfStyle, headingLevelOfStyleId, ownParagraphStyleId } from './heading-style';
+import { relationshipElements, createRelationshipElement } from './ooxml/relationships-dom';
 import { firstFreeRevisionId, maxRevisionId, REVISION_TAGS, takeRevisionId } from './ooxml/revision-ids';
 import { countRevisions, resolveRevisions, listRevisions, readRevision, expandMoveSelection, type RevisionResolution, type RevisionSelector } from './ooxml/revisions';
 import { commentThreadMap, commentThreadsCoveredBy, deleteCommentThread, listComments } from './ooxml/comments';
@@ -877,7 +878,7 @@ export class DocxParser {
     const raw = this.zip.getEntry('word/_rels/document.xml.rels');
     if (raw) {
       const doc = this.parser.parseFromString(raw.getData().toString('utf8'), 'text/xml');
-      const list = doc.getElementsByTagName('Relationship');
+      const list = relationshipElements(doc);
       for (let i = 0; i < list.length; i++) {
         const el = list[i] as Element;
         const id = el.getAttribute('Id');
@@ -1275,7 +1276,7 @@ export class DocxParser {
       assertNoXxeAdjacent(relsXml, 'word/_rels/document.xml.rels');
       try {
         const relsDoc = this.parser.parseFromString(relsXml, 'text/xml');
-        const relNodes = relsDoc.getElementsByTagName('Relationship');
+        const relNodes = relationshipElements(relsDoc);
         for (let i = 0; i < relNodes.length; i++) {
           const rel = relNodes[i];
           const rId = rel.getAttribute('Id');
@@ -1347,7 +1348,7 @@ export class DocxParser {
         assertNoXxeAdjacent(relsRawForTypes, 'word/_rels/document.xml.rels');
         try {
           const relsDoc = this.parser.parseFromString(relsRawForTypes, 'text/xml');
-          const relNodes = relsDoc.getElementsByTagName('Relationship');
+          const relNodes = relationshipElements(relsDoc);
           for (let i = 0; i < relNodes.length; i++) {
             const id = relNodes[i].getAttribute('Id') || '';
             const tgt = relNodes[i].getAttribute('Target') || '';
@@ -1769,7 +1770,7 @@ export class DocxParser {
       assertNoXxe(docRelsXml, 'word/_rels/document.xml.rels');
       assertNoXxeAdjacent(docRelsXml, 'word/_rels/document.xml.rels');
       const relsDoc = this.parser.parseFromString(docRelsXml, 'text/xml');
-      const rels = relsDoc.getElementsByTagName('Relationship');
+      const rels = relationshipElements(relsDoc);
       for (let i = 0; i < rels.length; i++) {
         const rel = rels[i];
         const rId = rel.getAttribute('Id');
@@ -1868,7 +1869,7 @@ export class DocxParser {
               assertNoXxe(relsRaw, 'word/_rels/document.xml.rels');
               assertNoXxeAdjacent(relsRaw, 'word/_rels/document.xml.rels');
               const relsDoc = this.parser.parseFromString(relsRaw, 'text/xml');
-              const relNodes = relsDoc.getElementsByTagName('Relationship');
+              const relNodes = relationshipElements(relsDoc);
               for (let i = 0; i < relNodes.length; i++) {
                 if (relNodes[i].getAttribute('Id') === rId) {
                   const target = relNodes[i].getAttribute('Target') || '';
@@ -3318,7 +3319,7 @@ export class DocxParser {
         assertNoXxeAdjacent(raw, relsPath);
         const relsDoc = new DOMParser().parseFromString(raw, 'text/xml');
         if (relsDoc?.documentElement && relsDoc.getElementsByTagName('parsererror').length === 0) {
-          const rels = Array.from(relsDoc.getElementsByTagName('Relationship'));
+          const rels = relationshipElements(relsDoc);
           let dirty = false;
           for (const el of rels) {
             if ((el as Element).getAttribute('Type') === NUMBERING_REL_TYPE) {
@@ -3416,7 +3417,7 @@ export class DocxParser {
         } catch { relsDoc = null; }
         if (relsDoc) {
           const root = relsDoc.documentElement;
-          const existing = Array.from(root.getElementsByTagName('Relationship'));
+          const existing = relationshipElements(root);
           let hasNumberingType = false;
           let hasExactId = false;
           for (const el of existing) {
@@ -3426,7 +3427,7 @@ export class DocxParser {
             if (id === numberingRId) hasExactId = true;
           }
           if (!hasNumberingType && !hasExactId) {
-            const created = relsDoc.createElement('Relationship');
+            const created = createRelationshipElement(relsDoc);
             created.setAttribute('Id', numberingRId);
             created.setAttribute('Type', NUMBERING_REL_TYPE);
             created.setAttribute('Target', numberingTarget);
@@ -3504,7 +3505,7 @@ export class DocxParser {
     }
     const root = relsDoc.documentElement;
     const existingById = new Map<string, Element>();
-    const existingNodes = root.getElementsByTagName('Relationship');
+    const existingNodes = relationshipElements(root);
     for (let i = 0; i < existingNodes.length; i++) {
       const el = existingNodes[i] as Element;
       const id = el.getAttribute('Id');
@@ -3526,7 +3527,7 @@ export class DocxParser {
           current.removeAttribute('TargetMode');
         }
       } else {
-        const created = relsDoc.createElement('Relationship');
+        const created = createRelationshipElement(relsDoc);
         created.setAttribute('Id', rId);
         created.setAttribute('Type', rel.type);
         created.setAttribute('Target', rel.target);

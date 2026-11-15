@@ -46,6 +46,32 @@ describe('deleting a chart removes the parts only it used', () => {
     expect(docx.errors).toEqual([]);
   });
 
+  it('prunes a deleted chart when the main document relationships use a namespace prefix', async () => {
+    const first = await session();
+    await first.run([chartOp(first.anchor, 'c1'), chartOp(first.anchor, 'c2')]);
+    const zip = new AdmZip(first.parser.rezip(first.ast));
+    const relsPath = 'word/_rels/document.xml.rels';
+    const plain = zip.readAsText(relsPath);
+    const prefixed = plain
+      .replace(/<Relationships\b/, '<p:Relationships').replace(/<\/Relationships>/, '</p:Relationships>')
+      .replace(/xmlns=/, 'xmlns:p=').replace(/<Relationship\b/g, '<p:Relationship');
+    expect(prefixed).toContain('<p:Relationship ');
+    zip.updateFile(relsPath, Buffer.from(prefixed, 'utf8'));
+    const s = await session(zip.toBuffer());
+    const before = s.names();
+    const charts = s.ast.sections.flatMap((sec: any) => sec.nodes).filter((n: any) => n.type === 'chart');
+    expect(charts).toHaveLength(2);
+    const res: any = await s.run([{ action: 'delete', target: charts[0].id }]);
+    expect(res.success).toBe(true);
+    expect(res.skippedIds ?? []).toEqual([]);
+    const after = s.names();
+    expect(after.filter((n) => /charts\/chart1\.xml$|chart1\.xml\.rels$/.test(n))).toEqual([]);
+    expect(after.some((n) => n.endsWith('chart2.xml'))).toBe(true);
+    expect(chartParts(after).length).toBeLessThan(chartParts(before).length);
+    expect(s.zip().readAsText('[Content_Types].xml')).not.toContain('/word/charts/chart1.xml');
+    expect((await validateDocxBuffer(s.parser.rezip(s.ast))).errors).toEqual([]);
+  });
+
   it('works when the chart is inserted and deleted in the same batch', async () => {
     const s = await session();
     const res: any = await s.run([chartOp(s.anchor, 'c1'), { action: 'delete', target: 'c1' }]);

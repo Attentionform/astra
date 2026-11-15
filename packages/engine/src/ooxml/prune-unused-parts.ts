@@ -1,5 +1,6 @@
 import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from './dom-parser';
+import { relationshipElements } from './relationships-dom';
 
 /**
  * Removes chart and image parts that an edit left unreachable (0.5.3, DN2).
@@ -61,9 +62,7 @@ function elementsByLocalName(doc: Document, local: string): Element[] {
   return Array.from(doc.getElementsByTagNameNS('*', local));
 }
 
-function relationshipElements(doc: Document): Element[] {
-  return elementsByLocalName(doc, 'Relationship');
-}
+
 
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 export const CHART_REL_TYPE = `${REL_NS}/chart`;
