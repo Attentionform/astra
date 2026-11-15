@@ -194,11 +194,14 @@ const styleProperties = z.object({
   matchCase: z.boolean().optional().describe('Case-sensitive match (default true: pass false for case-insensitive).'),
 }).catchall(z.unknown());
 
+/** One shared instance so the generated JSON schema carries the description once ($ref). */
+const seriesColorField = z.string().max(16).describe('Series colour: 6 hex digits (# optional) or a name: red, green, blue, black, white, yellow, orange, gray, purple. Otherwise the guide palette colour is used when there is one.').optional();
+
 /** Shared image/chart compat shapes for insert rewriting (M3 backward-compat). */
 const insertChartSeries = z.object({
   name: z.string().max(500),
   values: z.array(z.number()).max(1_000),
-  color: z.string().max(16).describe('Series colour: 6 hex digits, optionally with #, or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple. Any other value is replaced by the style guide palette colour when there is one.').optional(),
+  color: seriesColorField,
 }).catchall(z.unknown());
 
 const insertWrapMode = z.enum(['inline', 'square', 'tight', 'through', 'topAndBottom', 'behindText', 'inFrontOfText']);
@@ -600,7 +603,7 @@ export function chartHoleSizeSchemaRemedy(detail: string): string | undefined {
 const chartSeries = z.object({
   name: z.string().max(500),
   values: z.array(z.number()).max(1_000),
-  color: z.string().max(16).describe('Series colour: 6 hex digits, optionally with #, or one of: red, green, blue, black, white, yellow, orange, gray, grey, purple. Any other value is replaced by the style guide palette colour when there is one.').optional(),
+  color: seriesColorField,
   chartType: z.enum(['column', 'line']).optional(),
   axis: z.enum(['primary', 'secondary']).optional(),
 }).catchall(z.unknown());
@@ -623,6 +626,7 @@ const chartDataLabelStyle = z.object({
 
 const chartCategoryAxisStyle = z.object({
   title: z.string().min(1).max(1_000).optional(),
+  gridlineColor: colourField().optional(),
   hidden: z.boolean().optional(),
   tickLabelPosition: z.enum(['nextTo', 'high', 'low', 'none']).optional(),
   majorGridlines: z.boolean().optional(),
@@ -630,6 +634,7 @@ const chartCategoryAxisStyle = z.object({
 
 const chartValueAxisStyle = z.object({
   title: z.string().min(1).max(1_000).optional(),
+  gridlineColor: colourField().optional(),
   hidden: z.boolean().optional(),
   min: z.number().finite().optional(),
   max: z.number().finite().optional(),
@@ -640,7 +645,7 @@ const chartValueAxisStyle = z.object({
 
 const chartTrendlineStyle = z.object({
   type: z.enum(['linear', 'exponential', 'logarithmic', 'movingAvg', 'polynomial', 'power', 'none']),
-  series: z.array(z.number().int().positive('series numbers count from 1 (1 is the first series)').describe('Series number, counting from 1 in the order the series appear')).min(1).max(100).optional(),
+  seriesNumbers: z.array(z.number().int().positive('series numbers count from 1 (1 is the first series)').describe('Series number, counting from 1 in the order the series appear')).min(1).max(100).optional(),
   order: z.number().int().min(2).max(6).optional(),
   period: z.number().int().min(2).max(255).optional(),
   displayEquation: z.boolean().optional(),
@@ -654,7 +659,23 @@ const chartFloatingStyle = z.object({
   wrap: z.enum(['none', 'square']).optional(),
 }).strict();
 
+const chartTitleFormat = z.object({
+  sizePt: z.number().min(1).max(400).optional(),
+  bold: z.boolean().optional(),
+  color: colourField().optional(),
+}).strict();
+
+const chartSeriesStyle = z.object({
+  seriesNumber: z.number().int().min(1).describe('Counted from 1'),
+  points: z.array(z.object({
+    pointNumber: z.number().int().min(1).describe('Counted from 1'),
+    color: colourField(),
+  }).strict()).min(1).max(1_000).optional(),
+}).strict();
+
 const chartStyle = z.object({
+  titleFormat: chartTitleFormat.optional().describe('Size, bold, colour of the existing title; text stays in title'),
+  series: z.array(chartSeriesStyle).min(1).max(100).optional(),
   legend: chartLegendStyle.optional(),
   dataLabels: chartDataLabelStyle.optional(),
   axes: z.object({
@@ -674,6 +695,7 @@ const chartOp = z.object({
   // list and still carries the remedy for untyped callers).
   chartType: z.enum(SUPPORTED_CHART_2D_AND_3D_TYPES).optional(),
   holeSize: z.number().int().min(1).max(90).optional(),
+  removeTitle: z.literal(true).optional().describe('Update only. Removes the chart title and its text; not with title or titleFormat.'),
   allowRebuild: z.boolean().optional().describe('Update only. Allows a data change to replace a workbook ASTra did not generate, or copy a shared one. Default false: refused.'),
   removeSeries: z.array(z.union([z.string().min(1).max(500), z.number().int().min(1)])).min(1).max(100).optional().describe('Update only. Series to remove: exact name or one-based position.'),
   title: z.string().max(1_000).optional(),

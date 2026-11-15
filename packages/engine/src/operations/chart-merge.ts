@@ -276,7 +276,7 @@ function expandSelfClosedElement(elementXml: string, content: string): string | 
 
 /** Replaces (or inserts) the fill child of a shape/line-properties block,
  * keeping borders, effects and geometry, in schema order. */
-function withFillChild(blockXml: string, color: string, postFillTags: string[]): string {
+export function withFillChild(blockXml: string, color: string, postFillTags: string[]): string {
   const solid = `<a:solidFill><a:srgbClr val="${color}"/></a:solidFill>`;
   const existing = SHAPE_FILL_TAGS.map((tag) => findDirectChild(blockXml, tag)).find((span) => span !== null);
   if (existing) return blockXml.slice(0, existing.start) + solid + blockXml.slice(existing.end);
@@ -291,12 +291,12 @@ function withFillChild(blockXml: string, color: string, postFillTags: string[]):
 
 /** Replaces (or inserts) only the fill child of a shape-properties block, so
  * borders, effects and geometry survive an explicitly requested color. */
-function withSolidFill(spPrXml: string, color: string): string {
+export function withSolidFill(spPrXml: string, color: string): string {
   return withFillChild(spPrXml, color, SHAPE_POST_FILL_TAGS);
 }
 
 /** Line series carry their color in the stroke, not the shape fill. */
-function withLineStroke(spPrXml: string, color: string): string {
+export function withLineStroke(spPrXml: string, color: string): string {
   const ln = findDirectChild(spPrXml, 'a:ln');
   if (ln) {
     return (
@@ -740,7 +740,7 @@ function patchTitleText(xml: string, title: string, chartPath: string, scope: Ch
  * exactly like patchTitleText. Leading whitespace is removed with the element
  * so the result matches a structurally generated titleless part.
  */
-function removeTitleElement(xml: string, scope: ChartNamespaceScope): string {
+export function removeTitleElement(xml: string, scope: ChartNamespaceScope): string {
   let out = xml;
   // CT_Chart allows at most one title; remove every direct title before the
   // plot area so a hostile duplicate cannot resurface after a clear.
@@ -753,6 +753,28 @@ function removeTitleElement(xml: string, scope: ChartNamespaceScope): string {
     while (start > chartSpan.start && /\s/.test(out[start - 1])) start--;
     out = out.slice(0, start) + out.slice(titleSpan.end);
   }
+}
+
+/** Tells the renderer not to draw an automatic title (Word shows the series name on a one-series chart otherwise). */
+export function markAutoTitleDeleted(xml: string): string {
+  const scope = chartNamespaceScopeFromXml(xml);
+  const chartSpan = findChartElement(xml, 'chart', scope);
+  if (!chartSpan) return xml;
+  const chartXml = xml.slice(chartSpan.start, chartSpan.end);
+  const existing = findChartDirectChild(chartXml, 'autoTitleDeleted', scope);
+  if (existing) {
+    const start = chartSpan.start + existing.start;
+    const end = chartSpan.start + existing.end;
+    return xml.slice(0, start) + setAttribute(xml.slice(start, end), 'val', '1') + xml.slice(end);
+  }
+  let at = -1;
+  for (const marker of ['pivotFmts', 'view3D', 'floor', 'sideWall', 'backWall', 'plotArea']) {
+    const tag = findChartDirectChild(chartXml, marker, scope);
+    if (tag && (at < 0 || tag.start < at)) at = tag.start;
+  }
+  if (at < 0) return xml;
+  const absolute = chartSpan.start + at;
+  return `${xml.slice(0, absolute)}<${chartQualifiedName(chartXml, 'autoTitleDeleted')} val="1"/>\n    ${xml.slice(absolute)}`;
 }
 
 function clearAutoTitleDeleted(xml: string, scope: ChartNamespaceScope): string {

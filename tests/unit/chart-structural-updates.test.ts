@@ -260,7 +260,7 @@ describe('case B: removeSeries', () => {
     await b.run([update({ removeSeries: ['C'] })]);
     expect(seriesBlocks(chartXml(b)).map(nameOf)).toEqual(['A', 'B']);
     const c = await styled();
-    await c.run([update({ removeSeries: ['A', 3] })]);
+    await c.run([update({ removeSeries: [1, 3] })]);
     expect(seriesBlocks(chartXml(c)).map(nameOf)).toEqual(['B']);
   });
 
