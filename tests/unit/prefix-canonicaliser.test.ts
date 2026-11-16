@@ -114,7 +114,7 @@ describe('a part written by a real producer', () => {
     const once = canonicalisePart(xml, 'word/webSettings.xml');
     expect(once.renames).toEqual([{ from: 'ns0', to: 'w', uri: W }]);
     expect(once.xml).toContain('<w:webSettings ');
-    expect(once.xml).toContain('<w:allowPNG />');
+    expect(once.xml).toContain('<w:allowPNG/>');
     expect(scanPart(once.xml)).toBeNull();
   });
 });
