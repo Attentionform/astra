@@ -42,6 +42,7 @@ import {
 } from './sanitizer';
 import { readDocxFileBuffer, getMimeType } from './parser/io';
 import { toError } from './errors';
+import { assertWordPrefix } from './ooxml/word-prefix-guard';
 import { upsertSectPrChild } from './parser/sect-pr';
 import { addNodeInDocumentOrder, bodySectPr, listFileSections, splitIntoSections } from './parser/sections';
 import {
@@ -217,12 +218,7 @@ export function getDuplicateParaIdPolicy(): DuplicateParaIdPolicy {
 export { headingLevelOfStyle };
 
 /**
- * The engine reads the main document by the usual `w:` prefix. A package that binds the WordprocessingML namespace
- * to another prefix (or to the default namespace) would load as an empty document and every edit would miss it, so
- * it is refused at open with the reason, not read as empty.
- */
-/**
- * DN3 spike ingress: rewrites every XML part that binds a table namespace to a non-canonical prefix, in a staging
+ * DN3 ingress: rewrites every XML part that binds a table namespace to a non-canonical prefix, in a staging
  * map, and writes the replacements only when every part passed. Throws `E_VALIDATION` (nothing written) otherwise.
  */
 function canonicalisePackageParts(zip: AdmZip): Array<{ part: string; renames: Rename[] }> {
@@ -266,22 +262,8 @@ function canonicaliseText(xml: string, part: string): string {
   }
 }
 
-function assertWordPrefix(doc: Document): void {
-  const all = doc.getElementsByTagNameNS(WORD_NS, '*');
-  for (let i = 0; i < all.length; i++) {
-    const prefix = (all[i] as Element).prefix ?? '';
-    if (prefix !== 'w') {
-      throw toError(
-        'E_VALIDATION',
-        `Unsupported package: word/document.xml writes WordprocessingML with ${prefix === '' ? 'the default namespace (no prefix)' : `the prefix "${prefix}"`} instead of "w" (first seen on <${(all[i] as Element).tagName}>). ASTra reads the document by the "w" prefix and would see an empty document.`,
-        'open the file in Word and save it again (Word writes the "w" prefix), then retry'
-      );
-    }
-  }
-}
-
 export class DocxParser {
-  /** Parts rewritten to the usual prefixes at open (DN3 spike). Empty for a canonical package. */
+  /** Parts rewritten to the usual prefixes at open (DN3). Empty for a canonical package. */
   public canonicalisedParts: Array<{ part: string; renames: Rename[] }> = [];
   private builtinSeedSnapshot?: Map<string, Buffer>;
 

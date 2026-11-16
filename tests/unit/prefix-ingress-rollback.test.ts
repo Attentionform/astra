@@ -11,6 +11,8 @@ import { DocumentManager, DocxParser, createBlankDocxBuffer } from '@attentionfo
 import { getOriginalInfo, originalSha256 } from '../../packages/engine/src/original';
 import { verifyEquivalent } from '../../packages/engine/src/ooxml/prefix-canonicaliser';
 import { createHash } from 'node:crypto';
+import { DOMParser } from '@xmldom/xmldom';
+import { assertWordPrefix } from '../../packages/engine/src/ooxml/word-prefix-guard';
 
 const renameW = (xml: string): string =>
   xml.replace(/(<\/?)w:/g, '$1x:').replace(/(\s)w:([A-Za-z])/g, '$1x:$2').replace(/xmlns:w=/g, 'xmlns:x=');
@@ -138,4 +140,36 @@ describe('prefixed package through the ingress', () => {
     dm.rollbackTransaction();
     expect(dm.getParser().readDocumentXml()).toBe(before);
   });
+});
+
+describe('the open-time guard and the unsupported arrangements (release gate)', () => {
+  const WNS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const parse = (xml: string): Document => new DOMParser().parseFromString(xml, 'text/xml') as unknown as Document;
+
+  it('the guard passes the usual prefix and refuses another prefix and the default namespace', () => {
+    expect(() => assertWordPrefix(parse(`<w:document xmlns:w="${WNS}"><w:body/></w:document>`))).not.toThrow();
+    expect(() => assertWordPrefix(parse(`<x:document xmlns:x="${WNS}"><x:body/></x:document>`))).toThrow(/prefix "x" instead of "w"/);
+    expect(() => assertWordPrefix(parse(`<document xmlns="${WNS}"><body/></document>`))).toThrow(/default namespace/);
+  });
+
+  const mutate = (fn: (xml: string) => string): Buffer => {
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    zip.updateFile('word/document.xml', Buffer.from(fn(zip.readAsText('word/document.xml')), 'utf8'));
+    return zip.toBuffer();
+  };
+  const unsupported: Array<[string, () => Buffer, RegExp]> = [
+    ['the usual prefix rebound to another namespace inside the body', () => mutate((x) => x.replace('<w:document ', `<w:document xmlns:x="${WNS}" `).replace('<w:body>', '<w:body><q:t xmlns:q="urn:q" xmlns:w="urn:other"><x:p/></q:t>')), /cannot be canonicalised safely/],
+    ['two table prefixes swapped', () => mutate(() => `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:a="${WNS}"><a:body><a:p/></a:body></w:document>`), /cannot be canonicalised safely/],
+    ['a document type declaration', () => mutate((x) => x.replace(/(<\?xml[^>]*\?>)/, '$1<!DOCTYPE d [<!ENTITY e "v">]>')), /./],
+  ];
+  for (const [label, make, message] of unsupported) {
+    it(`refused at open, before any edit, file and folder untouched: ${label}`, async () => {
+      const file = path.join(dir, 'unsupported.docx');
+      fs.writeFileSync(file, make());
+      const before = sha(fs.readFileSync(file));
+      await expect(new DocumentManager().openDocument(file)).rejects.toThrow(message);
+      expect(sha(fs.readFileSync(file))).toBe(before);
+      expect(fs.existsSync(path.join(dir, '.astra'))).toBe(false);
+    });
+  }
 });
