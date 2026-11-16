@@ -106,14 +106,45 @@ function splitName(qname: string): { prefix: string; local: string } {
   return i < 0 ? { prefix: '', local: qname } : { prefix: qname.slice(0, i), local: qname.slice(i + 1) };
 }
 
-type Scope = Map<string, string>;
+/**
+ * A scope is the declarations of one element plus a link to the enclosing scope. An element without declarations
+ * shares its parent's scope object, so a part nested 100,000 deep does not copy or walk 100,000 maps. Lookups cache
+ * their answer on every scope they pass, so each (scope, prefix) pair is resolved once.
+ */
+interface Scope {
+  decl: Map<string, string>;
+  parent: Scope | null;
+  cache: Map<string, string | null>;
+}
 
-function lookup(scope: Scope[], prefix: string): string | undefined {
-  for (let i = scope.length - 1; i >= 0; i--) {
-    const v = scope[i].get(prefix);
-    if (v !== undefined) return v;
+const newScope = (parent: Scope | null): Scope => ({ decl: new Map(), parent, cache: new Map() });
+
+function lookup(stack: Scope[], prefix: string): string | undefined {
+  let cur: Scope | null = stack.length > 0 ? stack[stack.length - 1] : null;
+  const path: Scope[] = [];
+  let result: string | undefined;
+  while (cur !== null) {
+    const cached = cur.cache.get(prefix);
+    if (cached !== undefined) {
+      result = cached === null ? undefined : cached;
+      break;
+    }
+    const declared = cur.decl.get(prefix);
+    if (declared !== undefined) {
+      result = declared;
+      cur.cache.set(prefix, declared);
+      break;
+    }
+    path.push(cur);
+    cur = cur.parent;
   }
-  return undefined;
+  for (const scope of path) scope.cache.set(prefix, result ?? null);
+  return result;
+}
+
+function declare(scope: Scope, prefix: string, uri: string): void {
+  scope.decl.set(prefix, uri);
+  scope.cache.set(prefix, uri);
 }
 
 /**
@@ -178,18 +209,25 @@ export function canonicalisePrefixes(xml: string, partName = 'part'): { xml: str
       const dq = am[4] !== undefined;
       attrs.push({ ws: am[1], name: am[2], eq: am[3], quote: dq ? '"' : "'", value: dq ? am[4] : am[5] });
     }
-    const inScope: Scope = new Map();
-    const outScope: Scope = new Map();
-    const extraDecls: string[] = [];
+    const declaredHere: Array<[string, string]> = [];
     for (const a of attrs) {
-      if (a.name === 'xmlns') inScope.set('', a.value);
-      else if (a.name.startsWith('xmlns:')) inScope.set(a.name.slice(6), a.value);
+      if (a.name === 'xmlns') declaredHere.push(['', a.value]);
+      else if (a.name.startsWith('xmlns:')) declaredHere.push([a.name.slice(6), a.value]);
+    }
+    const extraDecls: string[] = [];
+    const parentIn = scopeStack.length > 0 ? scopeStack[scopeStack.length - 1] : null;
+    const parentOut = planned.length > 0 ? planned[planned.length - 1] : null;
+    // No declarations: share the enclosing scope objects (see Scope).
+    const inScope = declaredHere.length > 0 ? newScope(parentIn) : (parentIn ?? newScope(null));
+    const outScope = declaredHere.length > 0 ? newScope(parentOut) : (parentOut ?? newScope(null));
+    for (const [p, u] of declaredHere) {
+      declare(inScope, p, u);
+      declare(outScope, p, u);
     }
     scopeStack.push(inScope);
-    for (const [p, u] of inScope) outScope.set(p, u);
     planned.push(outScope);
     // Add the canonical declaration next to each declaration of a table namespace under another prefix.
-    for (const [p, u] of inScope) {
+    for (const [p, u] of declaredHere) {
       const canonical = CANONICAL_PREFIXES[u];
       if (canonical === undefined || p === canonical) continue;
       const present = lookup(planned, canonical);
@@ -197,7 +235,7 @@ export function canonicalisePrefixes(xml: string, partName = 'part'): { xml: str
         refuse('conflict', `the prefix "${canonical}" is bound to "${present}" where "${u}" (prefix "${p || '(default)'}") needs it`);
       }
       if (present === undefined) {
-        outScope.set(canonical, u);
+        declare(outScope, canonical, u);
         extraDecls.push(` xmlns:${canonical}="${u}"`);
       }
       const key = `${p}|${u}`;
@@ -305,24 +343,43 @@ interface Walked {
   scopes: Array<Map<string, string>>;
 }
 
+/** A real part binds a few dozen prefixes. A scope far beyond that is hostile, and comparing it per element would not terminate in useful time. */
+const MAX_BINDINGS_IN_SCOPE = 4096;
+
 function walk(root: Node1): Walked {
   const resolved: string[] = [];
   const scopes: Array<Map<string, string>> = [];
-  const visit = (node: Node1, parent: Map<string, string>): void => {
+  // Iterative on purpose: a document can nest tens of thousands of elements and recursion would overflow the stack.
+  type Frame = { node: Node1; scope: Map<string, string>; close?: string };
+  const stack: Frame[] = [{ node: root, scope: new Map() }];
+  while (stack.length > 0) {
+    const frame = stack.pop() as Frame;
+    if (frame.close !== undefined) {
+      resolved.push(frame.close);
+      continue;
+    }
+    const node = frame.node;
     if (node.nodeType === 3 || node.nodeType === 4) {
       resolved.push(`#${node.nodeType}:${node.data ?? node.nodeValue ?? ''}`);
-      return;
+      continue;
     }
     if (node.nodeType !== 1) {
       resolved.push(`#${node.nodeType}:${node.nodeValue ?? node.data ?? ''}`);
-      return;
+      continue;
     }
-    const scope = new Map(parent);
     const attrs: Array<{ name: string; value: string; namespaceURI?: string | null; localName?: string | null }> = [];
     for (let i = 0; i < (node.attributes?.length ?? 0); i++) attrs.push((node.attributes as ArrayLike<(typeof attrs)[number]>)[i]);
-    for (const a of attrs) {
-      if (a.name === 'xmlns') scope.set('', a.value);
-      else if (a.name.startsWith('xmlns:')) scope.set(a.name.slice(6), a.value);
+    // Copy the scope only when this element declares something; otherwise share the parent's (see `Scope`).
+    const declares = attrs.some((a) => a.name === 'xmlns' || a.name.startsWith('xmlns:'));
+    const scope = declares ? new Map(frame.scope) : frame.scope;
+    if (declares) {
+      for (const a of attrs) {
+        if (a.name === 'xmlns') scope.set('', a.value);
+        else if (a.name.startsWith('xmlns:')) scope.set(a.name.slice(6), a.value);
+      }
+      if (scope.size > MAX_BINDINGS_IN_SCOPE) {
+        throw new PrefixRefusal(`unreadable XML while verifying: more than ${MAX_BINDINGS_IN_SCOPE} namespace bindings in scope`, 'malformed');
+      }
     }
     scopes.push(scope);
     const uriOf = (prefix: string): string => scope.get(prefix) ?? '';
@@ -340,8 +397,8 @@ function walk(root: Node1): Walked {
         value = a.value.split(/\s+/).filter(Boolean).map((p) => `{${uriOf(p)}}`).join(' ');
       } else if (n.prefix !== '' && uriOf(n.prefix) === MC_NS && MC_QNAME_LISTS.has(n.local)) {
         value = a.value.split(/\s+/).filter(Boolean).map((q) => {
-          const s = splitName(q);
-          return `{${uriOf(s.prefix)}}${s.local}`;
+          const sq = splitName(q);
+          return `{${uriOf(sq.prefix)}}${sq.local}`;
         }).join(' ');
       } else if (isMc && own.local === 'Choice' && n.prefix === '' && n.local === 'Requires') {
         value = a.value.split(/\s+/).filter(Boolean).map((p) => `{${uriOf(p)}}`).join(' ');
@@ -350,10 +407,11 @@ function walk(root: Node1): Walked {
     }
     attrKeys.sort();
     resolved.push(`<${elementKey} ${attrKeys.join(' ')}>`);
-    for (let i = 0; i < (node.childNodes?.length ?? 0); i++) visit((node.childNodes as ArrayLike<Node1>)[i], scope);
-    resolved.push(`</${elementKey}>`);
-  };
-  visit(root, new Map());
+    // Close marker first onto the stack, then the children in reverse so they pop in document order.
+    stack.push({ node, scope, close: `</${elementKey}>` });
+    const kids = node.childNodes;
+    for (let i = (kids?.length ?? 0) - 1; i >= 0; i--) stack.push({ node: (kids as ArrayLike<Node1>)[i], scope });
+  }
   return { resolved, scopes };
 }
 
@@ -379,6 +437,8 @@ export function verifyEquivalent(before: string, after: string): Equivalence {
   }
   if (a.scopes.length !== b.scopes.length) return { ok: false, problem: 'element count differs' };
   for (let i = 0; i < a.scopes.length; i++) {
+    // An element that declares nothing shares its parent's scope object on both sides: already compared.
+    if (i > 0 && a.scopes[i] === a.scopes[i - 1] && b.scopes[i] === b.scopes[i - 1]) continue;
     for (const [prefix, uri] of a.scopes[i]) {
       if (b.scopes[i].get(prefix) !== uri) {
         return { ok: false, problem: `element ${i}: the binding ${prefix || '(default)'} -> ${uri} is no longer in scope` };

@@ -63,6 +63,39 @@ describe('scanPart: a retained alias is not work (idempotence)', () => {
   });
 });
 
+describe('deeply nested parts (no stack overflow)', () => {
+  it('canonicalises and verifies a part nested 100,000 deep', () => {
+    const depth = 100000;
+    const xml = `<x:document xmlns:x="${W}">${'<x:sdt>'.repeat(depth)}<x:p/>${'</x:sdt>'.repeat(depth)}</x:document>`;
+    const out = canonicalisePart(xml, 'deep.xml');
+    expect(out.xml.startsWith('<w:document ')).toBe(true);
+    expect(out.xml.endsWith('</w:document>')).toBe(true);
+    expect(verifyEquivalent(xml, out.xml).ok).toBe(true);
+  });
+  it('a part that declares a new prefix at every one of 20,000 nesting levels finishes in useful time or is refused cleanly', () => {
+    const depth = 20000;
+    let open = '';
+    for (let i = 0; i < depth; i++) open += `<x:sdt xmlns:p${i}="urn:p${i}">`;
+    const xml = `<x:document xmlns:x="${W}">${open}<x:p/>${'</x:sdt>'.repeat(depth)}</x:document>`;
+    const started = Date.now();
+    let outcome = 'ok';
+    try { canonicalisePart(xml, 'wide.xml'); } catch (e) { outcome = e instanceof PrefixRefusal ? 'refused' : `crash:${(e as Error).message}`; }
+    expect(outcome).not.toMatch(/^crash/);
+    expect(Date.now() - started).toBeLessThan(20000);
+  }, 60000);
+
+  it('a document nested 20,000 deep opens with another prefix as it does with the usual one', async () => {
+    const { randomBytes } = await import('node:crypto');
+    const { createBlankDocxBuffer: blank } = await import('@attentionform/astra-engine');
+    for (const p of ['w', 'x']) {
+      const zip = new AdmZip(blank('blank'));
+      const open = Array.from({ length: 20000 }, () => `<${p}:sdt ${p}:val="${randomBytes(8).toString('hex')}">`).join('');
+      zip.updateFile('word/document.xml', Buffer.from(`<${p}:document xmlns:${p}="${W}"><${p}:body>${open}<${p}:p/>${`</${p}:sdt>`.repeat(20000)}</${p}:body></${p}:document>`));
+      expect(() => new DocxParser(zip.toBuffer())).not.toThrow();
+    }
+  }, 120000);
+});
+
 describe('canonicalisePrefixes: what it rewrites', () => {
   it('renames elements and attributes, keeps the old declaration and adds the canonical one', () => {
     const xml = doc(`xmlns:x="${W}" xmlns:rel="${R}"`, '<x:p><x:r x:rsidR="00AB"><x:t>hi</x:t></x:r><x:drawing rel:id="rId1"/></x:p>', 'x');
