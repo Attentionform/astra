@@ -175,6 +175,8 @@ ASTra preserves and normalizes standard OOXML namespace prefixes across all part
 - `r:`: Office Document Relationships
 - `m:`: Office Math Markup Language (OMML)
 
+A file may choose other prefixes (`x:`, a default namespace). At open, `ooxml/prefix-canonicaliser.ts` rewrites the prefixes of the table namespaces (`w`, `r`, `wp`, `a`, `pic`, `m`, `mc`, `v`, `o`, `w10`, `w14`, `w15`) to the usual ones in memory, in every ingress path (constructor, `reloadDocumentXml`, `restorePackageSnapshot`, `sanitizePackageEntries`). A scan (about 1.6 ms per 1.8 MB) finds parts that need it; a rewritten part is checked by an independent verifier before it is used. See `docs/mcp-specification.md` (`open_document`, package notes) for what is reported and refused.
+
 ---
 
 ## 6. Dual-Gate Validation Architecture

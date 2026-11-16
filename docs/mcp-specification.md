@@ -163,6 +163,15 @@ Opens an existing `.docx` file into an isolated in-memory editing session.
 }
 ```
 
+**Package notes.** When the open changed something in memory or the package is digitally signed, the response also carries `packageNotes`: `{ canonicalised: [{ part, from: [...], to: [...] }], signed: boolean, warnings: [...] }`. The field is absent for an unsigned package that needed no rewrite, so those responses are unchanged.
+
+- *Namespace prefixes.* OOXML lets a file choose its own prefixes (`x:` for WordprocessingML, a default namespace, `ww14:` for the 2010 extensions). ASTra reads and writes the usual ones, so at open it rewrites the prefixes of these namespaces to the usual ones in memory: `w`, `r`, `wp`, `a`, `pic`, `m`, `mc`, `v`, `o`, `w10`, `w14`, `w15`. Every original declaration is kept and the usual one is added beside it, and each rewritten part is compared with the original (same elements, attributes and values, every binding in scope still in scope) before it is used. `from` and `to` list the renames pair by pair. Saving writes the usual prefixes; reopening a saved file reports nothing more. Namespaces outside the table (for example the chart namespace `c`) are not renamed.
+- *What is refused.* A part that cannot be rewritten safely stops the open with `E_VALIDATION` and changes nothing: two namespaces that need the same usual prefix in one scope, an undeclared prefix, a document type declaration, or a UTF-16 part that needs a rewrite. The remedy is to open the file in Word and save it again. A `mc:Ignorable` that names a prefix declared nowhere in scope is refused for the same reason.
+- *Values that name prefixes.* Only the `mc:` lists (`Ignorable`, `MustUnderstand`, `ProcessContent`, `PreserveElements`, `PreserveAttributes`, and `Requires` on `mc:Choice`) are rewritten. Any other value that holds a qualified name (for example `xsi:type`) is left as written and keeps resolving because the original declaration stays.
+- *Charts.* Chart editing is tested with a chart part and a drawing that use other prefixes than the usual ones for the combinations in `tests/unit/chart-contract-prefixed.test.ts`; a combination outside those is not promised.
+- *Signed packages.* A package with parts under `_xmlsignatures/` opens and edits without an acknowledgement. `signed` is true and the warning "This package is digitally signed. Saving it changes signed parts and invalidates the signature." is returned (and printed by the command line) whether or not a prefix was rewritten.
+- *Sanitize.* `sanitize` rewrites every `word/*.xml` part (glossary parts included) first and then checks that nothing it promised to remove is left; a tracked change that its report does not list stops the run with `E_VALIDATION` and nothing is written.
+
 ---
 
 #### `new_document`
