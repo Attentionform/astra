@@ -230,6 +230,8 @@ export async function handleExecuteBatch(
       revisionsUnresolved?: number;
       /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
       possiblyStaleBodyRefs: { nodeId: string; preview: string }[];
+      /** 0.5.3: one entry per chart update (in-place or rebuilt, workbook handling, what a rebuild did not keep). Absent when none. */
+      chartUpdates?: unknown[];
       /** 0.5.3: package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
       prunedParts?: string[];
       /** 0.5.3: why the package cleanup after a delete was skipped. The edit itself is unaffected. */
@@ -497,6 +499,9 @@ export async function handleExecuteBatch(
         ...(batchRevisionsRemedy ? { revisionsRemedy: batchRevisionsRemedy } : {}),
         ...(batchRevisionsUnresolved > 0 ? { revisionsUnresolved: batchRevisionsUnresolved } : {}),
         possiblyStaleBodyRefs: batchStaleRefs,
+        ...(Array.isArray((res as { chartUpdates?: unknown }).chartUpdates) && (res as { chartUpdates: unknown[] }).chartUpdates.length > 0
+          ? { chartUpdates: (res as { chartUpdates: unknown[] }).chartUpdates }
+          : {}),
         ...(Array.isArray((res as { prunedParts?: unknown }).prunedParts) && (res as { prunedParts: string[] }).prunedParts.length > 0
           ? { prunedParts: (res as { prunedParts: string[] }).prunedParts }
           : {}),

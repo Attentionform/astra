@@ -1666,6 +1666,15 @@ export class DocxParser {
           this.zip.addFile(cleanPath, Buffer.from(content, 'utf8'));
         }
       },
+      readBuffer: (path: string) => {
+        const entry = this.zip.getEntry(this.sanitizePath(path));
+        return entry ? entry.getData() : null;
+      },
+      entryNames: () => this.zip.getEntries().filter((e) => !e.isDirectory).map((e) => e.entryName),
+      removeFile: (path: string) => {
+        const entry = this.zip.getEntry(this.sanitizePath(path));
+        if (entry) this.zip.deleteFile(entry);
+      },
       writeBuffer: (path: string, content: Buffer) => {
         const cleanPath = this.sanitizePath(path);
         // Same gate as writeText: decode at the utf8 storage boundary (see

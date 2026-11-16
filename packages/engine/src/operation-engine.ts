@@ -20,7 +20,7 @@ import { FieldOperation, executeField } from './operations/field';
 import { EquationOperation, executeEquation } from './operations/equation';
 import { ListOperation, executeList } from './operations/list';
 import { HeaderFooterOperation, executeHeaderFooter } from './operations/headerFooter';
-import { ChartOperation, executeChart, type ChartStaleBodyRef } from './operations/chart';
+import { ChartOperation, executeChart, type ChartStaleBodyRef, type ChartUpdateReport } from './operations/chart';
 import { ImageOperation, executeImage } from './operations/image';
 import { CalloutOperation, executeCallout } from './operations/callout';
 import { CommentOperation, executeComment } from './operations/comment';
@@ -227,6 +227,8 @@ export interface ExecutionResult {
   existingDefects?: string[];
   /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
+  /** 0.5.3: one entry per chart update: in-place or rebuilt, what happened to the workbook, and what a rebuild did not keep. Absent when no chart was updated. */
+  chartUpdates?: ChartUpdateReport[];
   /** Compose: where the document title was taken from when it was still a template placeholder. */
   titleSetFrom?: string;
   /**
@@ -697,6 +699,8 @@ export class OperationEngine {
               if (!result.skippedIds.includes(id)) result.skippedIds.push(id);
             }
           }
+          const chartUpdate = (routeOut as { chartUpdate?: ChartUpdateReport } | null | undefined)?.chartUpdate;
+          if (chartUpdate && typeof chartUpdate === 'object') (result.chartUpdates ??= []).push(chartUpdate);
           // R-14: carry chart stale-refs (advisory, additive, deduped by nodeId).
           for (const r of collectStaleBodyRefs(routeOut)) {
             if (!result.possiblyStaleBodyRefs.some((e) => e.nodeId === r.nodeId)) result.possiblyStaleBodyRefs.push(r);

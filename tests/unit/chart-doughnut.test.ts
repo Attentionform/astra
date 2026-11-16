@@ -293,7 +293,7 @@ describe('doughnut charts', () => {
     const { parser, ast, id } = await insertChart('doughnut');
     executeChart({
       action: 'chart',
-      operation: 'update',
+      operation: 'update', allowRebuild: true,
       target: id,
       series: [
         { name: 'ARR', values: [99, 20, 30] },
@@ -310,7 +310,7 @@ describe('doughnut charts', () => {
 
   it('explicit pie to doughnut converts shape and writes the hole', async () => {
     const { parser, ast, id } = await insertChart('pie');
-    executeChart({ action: 'chart', operation: 'update', target: id, chartType: 'doughnut' }, ast, parser);
+    executeChart({ action: 'chart', operation: 'update', allowRebuild: true, target: id, chartType: 'doughnut' }, ast, parser);
     const after = chartXml(parser);
     expect(after).toContain('<c:doughnutChart>');
     expect(after).toContain('<c:holeSize val="50"/>');
@@ -365,7 +365,7 @@ describe('doughnut charts', () => {
       chartXml(foreign.parser).replace('<c:holeSize val="50"/>', '<c:holeSize val="75"/>')
     );
     executeChart({
-      action: 'chart', operation: 'update', target: 'foreign_struct',
+      action: 'chart', operation: 'update', allowRebuild: true, target: 'foreign_struct',
       series: [
         { name: 'ARR', values: [99, 20, 30] },
         { name: 'Costs', values: [5, 7, 9] },
@@ -452,7 +452,7 @@ describe('doughnut charts', () => {
     }, ast2, reopened);
     expect(chartXml(reopened)).toMatch(/<x:doughnutChart[\s>]/);
     executeChart({
-      action: 'chart', operation: 'update', target: node.id,
+      action: 'chart', operation: 'update', allowRebuild: true, target: node.id,
       series: [{ name: 'ARR', values: [99, 20, 30] }, { name: 'Costs', values: [5, 7, 9] }],
     }, ast2, reopened);
     const structural = chartXml(reopened);
@@ -771,7 +771,7 @@ describe('doughnut charts', () => {
     expect(afterValues).toContain('<c:holeSize val="75"/>');
 
     executeChart({
-      action: 'chart', operation: 'update', target: node.id,
+      action: 'chart', operation: 'update', allowRebuild: true, target: node.id,
       series: [{ name: 'ARR', values: [99, 20, 30] }, { name: 'Costs', values: [5, 7, 9] }],
     }, ast2, reopened);
     const afterStruct = reopened.getZipAdapter().readText('word/charts/chart1.xml');

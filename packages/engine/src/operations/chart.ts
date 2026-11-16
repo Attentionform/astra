@@ -44,6 +44,19 @@ import {
   assertScatterData
 } from '../manipulators/chart2d';
 import { mergeChartDataInPlace } from './chart-merge';
+import { applyWorkbookDecision, planWorkbook } from './chart-workbook';
+import {
+  ChartStructureRefusal,
+  addSeriesInPlace,
+  convertBarFamilyInPlace,
+  describeLoss,
+  isBarFamilyType,
+  removeSeriesInPlace,
+  repointSeriesFormulas,
+  resolveSeriesRemovals,
+  supportsInPlaceSeriesChange,
+  type AddedSeries,
+} from './chart-structure';
 import { type ChartStyle, applyChartFloating, applyChartStyle, readChartStyle, validateChartStyle } from './chart-style';
 import { chartSpans, findDirectChild, attrValue, chartQualifiedName } from './chart-xml-spans';
 import { normalizeColour } from './colour';
@@ -219,6 +232,14 @@ export interface ChartOperation extends BaseOperation {
   chartType?: ChartType;
   /** Doughnut hole diameter percentage (integer 1..90; default 50). */
   holeSize?: number;
+  /**
+   * Allows a data change to replace a workbook ASTra did not generate, to copy a
+   * workbook shared with another chart, or to rebuild across chart families.
+   * Without it those updates are refused before anything is written.
+   */
+  allowRebuild?: boolean;
+  /** Update only: series to remove, by exact name or one-based position. Names must be unique in the chart. */
+  removeSeries?: Array<string | number>;
   title?: string;
   view3D?: View3DProperties;
   shape?: Bar3DShape;
@@ -285,14 +306,19 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
       );
     }
     if (parser) {
+      // The chart is the one the call names (target, anchor or id), or the only chart of the document: never a fixed part name.
       const zipAdapter = parser.getZipAdapter();
-      const chartPath = 'word/charts/chart1.xml';
-      if (zipAdapter.hasFile(chartPath)) {
-        const existingXml = zipAdapter.readText(chartPath);
-        assertNoXxe(existingXml, chartPath);
-        const updatedXml = manipulator3D.updateView3D(existingXml, resolved.view3D || {});
-        zipAdapter.writeText(chartPath, updatedXml);
+      const { chartPath } = resolveUpdateTarget(resolved, ast, parser);
+      const existingXml = zipAdapter.readText(chartPath);
+      assertNoXxe(existingXml, chartPath);
+      if (!is3DChartType(parseExistingChartData(existingXml).detected.chartType)) {
+        throw chartUpdateError(
+          'E_VALIDATION: updateView3D needs a 3D chart, but ' + chartPath + ' is not one.',
+          "Remedy: use operation:'update' with chartType set to a 3D type (for example column3D) and allowRebuild:true, or target a 3D chart."
+        );
       }
+      const updatedXml = manipulator3D.updateView3D(existingXml, resolved.view3D || {});
+      zipAdapter.writeText(chartPath, updatedXml);
     }
     return;
   }
@@ -1133,6 +1159,7 @@ function validateUpdatePayload(op: ChartOperation): void {
     op.holeSize !== undefined ||
     op.categories !== undefined ||
     op.series !== undefined ||
+    op.removeSeries !== undefined ||
     op.style !== undefined ||
     (op as { view3D?: unknown }).view3D !== undefined ||
     op.shape !== undefined ||
@@ -1143,7 +1170,7 @@ function validateUpdatePayload(op: ChartOperation): void {
     op.altText !== undefined;
   if (!hasMutableField) {
     throw chartUpdateError(
-      'E_VALIDATION: chart update has no mutable fields to apply (need at least one of title | chartType | holeSize | categories | series | style | view3D | shape | widthIn | heightIn | widthEmu | heightEmu | altText).',
+      'E_VALIDATION: chart update has no mutable fields to apply (need at least one of title | chartType | holeSize | categories | series | removeSeries | style | view3D | shape | widthIn | heightIn | widthEmu | heightEmu | altText).',
       "Remedy: retry with at least one mutable field, e.g. { action:'chart', operation:'update', target:'<chartNodeId>', title:'Revenue' } or series/categories; re-read ids via inspect_document."
     );
   }
@@ -1231,6 +1258,21 @@ export interface ChartUpdateResult {
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
   /** Advisory messages (for example `layoutWarning: ...`); never a failure. */
   warnings?: string[];
+  /** What a chart update did to the part and the workbook (0.5.3). */
+  chartUpdate?: ChartUpdateReport;
+}
+
+export interface ChartUpdateReport {
+  nodeId: string;
+  chartPath: string;
+  /** `in-place` keeps the chart part and edits the nodes it must; `rebuilt` regenerated it (allowRebuild). */
+  updateMode: 'in-place' | 'rebuilt';
+  /** `untouched`, `rewritten`, or `private-copy` (a workbook shared with another chart was copied first). */
+  workbook: 'untouched' | 'rewritten' | 'private-copy';
+  /** Rebuilt only: element types the old part had and the new one does not. Best effort, not a promise. */
+  formattingNotKept?: string[];
+  /** Style values that could not be carried over, or that no longer fit the new type. */
+  styleNotApplied?: string[];
 }
 
 function escapeChartRegExp(s: string): string {
@@ -1362,7 +1404,7 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
       'Remedy: retry the update in a session backed by an open document, or re-insert the chart.'
     );
   }
-  const resolved = resolveChartOp(op);
+  const resolved = { ...resolveChartOp(op) };
   validateUpdatePayload(resolved);
   // Drawing properties are validated before anything changes. A dimension that is not given keeps its value.
   const drawingSize = parseChartSize({
@@ -1372,7 +1414,6 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
   const altTextChange = resolved.altText === undefined ? undefined : validateChartAltText(resolved.altText);
   const zipAdapter = parser.getZipAdapter();
   const targetResult = resolveUpdateTarget(resolved, ast, parser);
-  const chartNum = targetResult.chartNum;
   const chartPath = targetResult.chartPath;
   const node = targetResult.node;
   if (!node) {
@@ -1410,17 +1451,18 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
     }
     const drawingOnly =
       resolved.title === undefined && resolved.chartType === undefined && resolved.holeSize === undefined &&
-      resolved.categories === undefined && resolved.series === undefined && resolved.style === undefined &&
+      resolved.categories === undefined && resolved.series === undefined && resolved.removeSeries === undefined && resolved.style === undefined &&
       (resolved as { view3D?: unknown }).view3D === undefined && resolved.shape === undefined;
     if (drawingOnly) {
       return { possiblyStaleBodyRefs: [], ...(sizeWarning ? { warnings: [sizeWarning] } : {}) };
     }
   }
 
-  const existingXml = zipAdapter.readText(chartPath);
+  const originalXml = zipAdapter.readText(chartPath);
+  let existingXml = originalXml;
   assertNoXxe(existingXml, chartPath);
   assertSupportedChartXml(existingXml, chartPath);
-  const existing = parseExistingChartData(existingXml);
+  let existing = parseExistingChartData(existingXml);
 
   const baseFamilyRequest = resolved.chartType !== undefined &&
     isBaseFamilyOf(resolved.chartType, existing.detected.chartType);
@@ -1436,6 +1478,93 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
     );
   }
   assertComboSeriesFields(resolved.series as Array<{ chartType?: unknown; axis?: unknown }> | undefined, rawChartType, chartPath);
+  // --- Structural updates that keep the chart part (DN1 cases A, B and C) ---
+  // Each step turns (existingXml, existing) into a consistent new pair, so the data-only
+  // path below patches the result exactly as it would patch an untouched chart.
+  const rebuildAllowed = resolved.allowRebuild === true;
+  const originalExisting = existing;
+  const styleNotApplied: string[] = [];
+  let structureChangedSeries = false;
+  let removalRebuildSeries: ExistingChartSeries[] | undefined;
+  const removalRequest = resolved.removeSeries;
+  if (removalRequest !== undefined) {
+    if (!Array.isArray(removalRequest) || removalRequest.length === 0 ||
+        !removalRequest.every((item) => (typeof item === 'string' && item !== '') || typeof item === 'number')) {
+      throw chartUpdateError(
+        'E_VALIDATION: removeSeries must be a non-empty list of series names or one-based positions.',
+        'Remedy: pass removeSeries as ["Costs"] or [2].'
+      );
+    }
+    const indexes = resolveSeriesRemovals(removalRequest, existing.series.map((s) => s.name), chartPath);
+    if (supportsInPlaceSeriesChange(existingXml) || !rebuildAllowed) {
+      try {
+        existingXml = removeSeriesInPlace(existingXml, chartPath, indexes, existing.series.length);
+      } catch (error) {
+        if (!(error instanceof ChartStructureRefusal) || !rebuildAllowed) throw error;
+        removalRebuildSeries = existing.series.filter((_, i) => !indexes.includes(i));
+      }
+      if (removalRebuildSeries === undefined) {
+        existing = { ...existing, series: existing.series.filter((_, i) => !indexes.includes(i)) };
+        structureChangedSeries = true;
+      }
+    } else {
+      removalRebuildSeries = existing.series.filter((_, i) => !indexes.includes(i));
+    }
+    if (removalRebuildSeries !== undefined && resolved.series === undefined) {
+      resolved.series = removalRebuildSeries.map((s) => ({
+        name: s.name,
+        values: s.values,
+        ...(s.color ? { color: s.color } : {}),
+        ...(s.xValues ? { xValues: s.xValues } : {}),
+        ...(s.chartType ? { chartType: s.chartType } : {}),
+        ...(s.axis ? { axis: s.axis } : {}),
+      })) as Chart2DSeries[];
+    }
+  }
+  if (resolved.series !== undefined && removalRebuildSeries === undefined && resolved.series.length < existing.series.length) {
+    const dropped = existing.series.slice(resolved.series.length).map((s) => `"${s.name}"`).join(', ');
+    throw chartUpdateError(
+      `E_VALIDATION: series has ${resolved.series.length} entries but chart part ${chartPath} has ${existing.series.length}; the update would drop ${dropped}.`,
+      'Remedy: to remove a series pass removeSeries with its name or one-based position; to keep all series pass one entry per series.'
+    );
+  }
+  if (resolved.chartType !== undefined && !baseFamilyRequest && resolved.chartType !== existing.detected.chartType &&
+      isBarFamilyType(existing.detected.chartType) && isBarFamilyType(resolved.chartType)) {
+    try {
+      const converted = convertBarFamilyInPlace(existingXml, chartPath, existing.detected.chartType, resolved.chartType);
+      existingXml = converted.xml;
+      styleNotApplied.push(...converted.styleNotApplied);
+      existing = { ...existing, detected: { ...existing.detected, chartType: resolved.chartType } };
+    } catch (error) {
+      if (!(error instanceof ChartStructureRefusal) || !rebuildAllowed) throw error;
+    }
+  }
+  const sameShapeForAdd = resolved.chartType === undefined || resolved.chartType === existing.detected.chartType || baseFamilyRequest;
+  if (resolved.series !== undefined && removalRebuildSeries === undefined && sameShapeForAdd &&
+      resolved.series.length > existing.series.length &&
+      !['combo', 'scatter', 'pie', 'doughnut', 'pie3D'].includes(existing.detected.chartType)) {
+    const requested = resolved.series as Chart2DSeries[];
+    const palette = cleanGuidePalette(guide);
+    const taken = new Set<string>();
+    const added: AddedSeries[] = requested.slice(existing.series.length).map((entry, offset) => {
+      const position = existing.series.length + offset;
+      const explicit = typeof entry.color === 'string' && entry.color.trim() !== '';
+      return {
+        name: entry.name,
+        values: entry.values,
+        color: explicit
+          ? defaultSeriesColor(entry.color as string, position)
+          : (palette !== undefined ? guidePaletteColor(palette, position, taken) : defaultSeriesColor(undefined, position)),
+      };
+    });
+    try {
+      existingXml = addSeriesInPlace(existingXml, chartPath, added, existing.series.length);
+      existing = { ...existing, series: [...existing.series, ...added.map((a) => ({ name: a.name, values: a.values, color: a.color }))] };
+      structureChangedSeries = true;
+    } catch (error) {
+      if (!(error instanceof ChartStructureRefusal) || !rebuildAllowed) throw error;
+    }
+  }
   const scatterTypeSwitch = resolved.chartType !== undefined
     && resolved.chartType !== existing.detected.chartType && !baseFamilyRequest;
   const scatterDataSupplied = resolved.series !== undefined || resolved.categories !== undefined || scatterTypeSwitch;
@@ -1645,60 +1774,103 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
       existing.externalDataRId
     );
   }
-  if (resolved.style !== undefined) {
-    updatedXml = applyChartStyle(updatedXml, resolved.style, styleContext);
-    if (resolved.style.floating !== undefined) {
-      const chartGraphic = findChartElement(node.xml);
-      const chartRId = chartGraphic ? getRId(chartGraphic) : undefined;
-      applyChartFloating(node.xml, resolved.style.floating, chartPath, chartRId);
+  // In-place series changes leave formulas pointing at the old column layout; the
+  // workbook is regenerated for them, so the formulas follow it.
+  if (structureChangedSeries && !structuralChange && rawChartType !== 'scatter') {
+    updatedXml = repointSeriesFormulas(updatedXml, chartPath);
+  }
+
+  // Case D (DN1): a regeneration is refused unless the caller asked for it, and says what it would not keep.
+  const chartRelsPath = chartPath.replace(/([^/]+)$/, '_rels/$1.rels');
+  let formattingNotKept: string[] | undefined;
+  let styleToApply: ChartStyle | undefined = resolved.style;
+  if (structuralChange) {
+    const lost = describeLoss(originalXml, updatedXml, zipAdapter.readTextOrNull(chartRelsPath));
+    if (!rebuildAllowed) {
+      const reason = scatterTypeSwitch
+        ? `changing the chart type from ${originalExisting.detected.chartType} to ${rawChartType} needs a new plot structure`
+        : comboShapeChange
+          ? 'changing the plot or axis of a combo series needs a new plot structure'
+          : `the series list changes from ${existing.series.length} to ${resolved.series?.length ?? existing.series.length} entries in a chart that cannot take or lose a series in place`;
+      throw chartUpdateError(
+        `E_VALIDATION: ${reason} (${chartPath}). The chart part would be regenerated and these element types would not be kept: ${lost.length > 0 ? lost.join(', ') : 'none found'}. ASTra cannot read every extension, so other formatting may be lost too.`,
+        'Remedy: pass allowRebuild:true to accept the regeneration (legend, data labels, axes and trendline are re-applied; the result lists formattingNotKept and styleNotApplied). To keep the formatting, change the type inside the column/bar family, add series at the end, or use removeSeries.'
+      );
     }
+    formattingNotKept = lost;
+    const oldStyle = readChartStyle(originalXml);
+    if (oldStyle) {
+      const carried: Record<string, unknown> = {};
+      for (const key of ['legend', 'dataLabels', 'axes', 'trendline'] as const) {
+        const value = oldStyle[key];
+        if (value === undefined || resolved.style?.[key] !== undefined) continue;
+        try {
+          validateChartStyle({ [key]: value } as ChartStyle, styleContext);
+          carried[key] = value;
+        } catch (error) {
+          const detail = error instanceof Error ? error.message.replace(/^E_VALIDATION: /, '') : String(error);
+          styleNotApplied.push(`${key}: ${detail}`);
+        }
+      }
+      if (Object.keys(carried).length > 0 || resolved.style !== undefined) {
+        styleToApply = { ...(carried as ChartStyle), ...(resolved.style ?? {}) };
+      }
+    }
+  }
+  if (styleToApply !== undefined) {
+    updatedXml = applyChartStyle(updatedXml, styleToApply, styleContext);
+  }
+  // Workbook policy (DN1): decided before the first write so a refusal leaves the package untouched.
+  const existingIsScatter = originalExisting.detected.chartType === 'scatter';
+  const dataChange = resolved.categories !== undefined || resolved.series !== undefined || resolved.removeSeries !== undefined
+    || existingIsScatter !== (rawChartType === 'scatter');
+  const workbookDecision = planWorkbook({
+    zip: zipAdapter,
+    chartPath,
+    externalDataRId: originalExisting.externalDataRId,
+    stored: {
+      categories: originalExisting.categories,
+      series: originalExisting.series.map((s) => ({ name: s.name, values: s.values, ...(s.xValues ? { xValues: s.xValues } : {}) })),
+      scatter: existingIsScatter,
+    },
+    dataChange,
+    allowRebuild: rebuildAllowed,
+  });
+  if (workbookDecision.action === 'refuse') {
+    throw chartUpdateError(workbookDecision.refusal.message, workbookDecision.refusal.remedy);
+  }
+  if (resolved.style?.floating !== undefined) {
+    const chartGraphic = findChartElement(node.xml);
+    const chartRId = chartGraphic ? getRId(chartGraphic) : undefined;
+    applyChartFloating(node.xml, resolved.style.floating, chartPath, chartRId);
   }
   zipAdapter.writeText(chartPath, updatedXml);
 
-  const chartRelsPath = 'word/charts/_rels/chart' + chartNum + '.xml.rels';
-  const chartRelsXml = zipAdapter.readTextOrNull(chartRelsPath);
-  if (chartRelsXml) assertNoXxe(chartRelsXml, chartRelsPath);
-  let workbookPath: string | undefined;
-  if (chartRelsXml) {
-    const targetMatch = /Target="([^"]*embeddings\/[^"]*)"/.exec(chartRelsXml);
-    if (targetMatch) {
-      const base = targetMatch[1].split('/').pop() || '';
-      if (base) workbookPath = 'word/embeddings/' + base;
-    }
-  }
-  if (!workbookPath) {
-    workbookPath = 'word/embeddings/Microsoft_Excel_Worksheet' + chartNum + '.xlsx';
-  }
-  // The workbook is regenerated from the parsed model, so its row count must
-  // follow the data actually written into the chart cache: a series-only
-  // update that carries more values than parsed categories (or a numeric /
-  // unparsed category cache) must not silently drop data rows from "Edit Data".
-  // A scatter edit without categories/series (title only) does not change
-  // chart data; leave the workbook untouched so a malformed part cannot have
-  // its x columns rewritten to point indexes.
-  if (rawChartType !== 'scatter' || scatterDataSupplied) {
-  const workbookCategories = categories.length > 0 ? categories : existing.categories;
-  const scatterSeriesX = rawChartType === 'scatter'
-    ? series.map((s) => {
-        if (s.xValues !== undefined && s.xValues.length > 0) return s.xValues;
-        return Array.from({ length: s.values.length }, (_, i) => {
-          const numeric = Number(workbookCategories[i]);
-          return Number.isFinite(numeric) ? numeric : i;
-        });
-      })
-    : undefined;
-  const workbookRowCount = Math.max(
-    workbookCategories.length,
-    series.reduce((max, s) => Math.max(max, s.values.length), 0),
-    ...(scatterSeriesX ?? []).map((x) => x.length)
-  );
-  const paddedCategories = Array.from({ length: workbookRowCount }, (_, i) => workbookCategories[i] ?? '');
-  const workbookBuf = generateEmbeddedWorkbook(
-    series.map((s) => ({ name: s.name, values: s.values, ...(s.color ? { color: s.color } : {}) })),
-    paddedCategories,
-    scatterSeriesX
-  );
-  zipAdapter.writeBuffer(workbookPath, workbookBuf);
+  if (workbookDecision.action === 'rewrite') {
+    const workbookCategories = categories.length > 0 ? categories : existing.categories;
+    const scatterSeriesX = rawChartType === 'scatter'
+      ? series.map((s) => {
+          if (s.xValues !== undefined && s.xValues.length > 0) return s.xValues;
+          return Array.from({ length: s.values.length }, (_, i) => {
+            const numeric = Number(workbookCategories[i]);
+            return Number.isFinite(numeric) ? numeric : i;
+          });
+        })
+      : undefined;
+    // The row count follows the data actually written into the chart cache, so
+    // "Edit Data" never drops rows the cache shows.
+    const workbookRowCount = Math.max(
+      workbookCategories.length,
+      series.reduce((max, s) => Math.max(max, s.values.length), 0),
+      ...(scatterSeriesX ?? []).map((x) => x.length)
+    );
+    const paddedCategories = Array.from({ length: workbookRowCount }, (_, i) => workbookCategories[i] ?? '');
+    const workbookBuf = generateEmbeddedWorkbook(
+      series.map((s) => ({ name: s.name, values: s.values, ...(s.color ? { color: s.color } : {}) })),
+      paddedCategories,
+      scatterSeriesX
+    );
+    applyWorkbookDecision(zipAdapter, workbookDecision, workbookBuf);
   }
 
   if (node) {
@@ -1787,5 +1959,16 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
     removedCategories,
     removedNumbers,
   });
-  return { possiblyStaleBodyRefs, ...(sizeWarning ? { warnings: [sizeWarning] } : {}) };
+  return {
+    possiblyStaleBodyRefs,
+    ...(sizeWarning ? { warnings: [sizeWarning] } : {}),
+    chartUpdate: {
+      nodeId: node.id,
+      chartPath,
+      updateMode: structuralChange ? 'rebuilt' : 'in-place',
+      workbook: workbookDecision.action !== 'rewrite' ? 'untouched' : workbookDecision.privateCopy ? 'private-copy' : 'rewritten',
+      ...(formattingNotKept !== undefined ? { formattingNotKept } : {}),
+      ...(styleNotApplied.length > 0 ? { styleNotApplied } : {}),
+    },
+  };
 }

@@ -1315,7 +1315,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
             typeof (v as Record<string, unknown>)['preview'] === 'string'
         ) as { nodeId: string; preview: string }[])
       : [];
-    const cleanup = res as { prunedParts?: string[]; cleanupSkipped?: string; existingDefects?: string[] };
+    const cleanup = res as { prunedParts?: string[]; cleanupSkipped?: string; existingDefects?: string[]; chartUpdates?: unknown[] };
     const prunedParts = Array.isArray(cleanup.prunedParts) ? cleanup.prunedParts : [];
     const busy = await refuseWhenHistoryBusy(out, { file, target, noHistory: ctx.noHistory === true });
     if (busy !== undefined) return busy;
@@ -1362,6 +1362,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       ...(history ? { history } : {}),
       ...(batchWarnings.length > 0 ? { warnings: batchWarnings } : {}),
       ...(staleRefs.length > 0 ? { possiblyStaleBodyRefs: staleRefs } : {}),
+      ...(Array.isArray(cleanup.chartUpdates) && cleanup.chartUpdates.length > 0 ? { chartUpdates: cleanup.chartUpdates } : {}),
       ...(prunedParts.length > 0 ? { prunedParts } : {}),
       ...(typeof cleanup.cleanupSkipped === 'string' ? { cleanupSkipped: cleanup.cleanupSkipped } : {}),
       ...(Array.isArray(cleanup.existingDefects) && cleanup.existingDefects.length > 0 ? { existingDefects: cleanup.existingDefects } : {}),
