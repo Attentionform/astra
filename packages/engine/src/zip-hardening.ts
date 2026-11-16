@@ -276,6 +276,9 @@ export function clampCorePropertiesDates(zip: CorePropsZipLike, at?: Date): bool
   }
 }
 
+/** Largest compressed payload an entry that declares size 0 may carry: an empty deflate stream (2 bytes) or an empty stored block (5). */
+const EMPTY_ENTRY_MAX_COMPRESSED_BYTES = 8;
+
 /**
  * Inspect central-directory headers BEFORE inflation and throw fail-closed
  * (`[E_LIMIT]`) when either ceiling is exceeded. Never calls `getData()`,
@@ -320,7 +323,11 @@ export function checkZipBombCeilings(
     const size = rawSize;
     const compressed = rawCompressed;
     if (size === 0) {
-      if (compressed > 0) {
+      // An empty part written by a deflating producer is not zero bytes: the empty deflate stream is 2 bytes
+      // (03 00), a stored empty block is 5. System.IO.Packaging writes `_xmlsignatures/origin.sigs` of a signed
+      // package that way, so refusing it would refuse every such signed file. A size-0 entry with a real payload
+      // (a few dozen bytes or more) is still the lying-size pattern this check exists for.
+      if (compressed > EMPTY_ENTRY_MAX_COMPRESSED_BYTES) {
         throw new Error(
           `[E_LIMIT] zip bomb ceiling: entry '${name}' declared size 0 with non-zero compressed payload (${compressed} bytes). ` +
             `Remedy: re-export the file from Word (or pick a valid .docx) and retry`

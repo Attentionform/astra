@@ -16,6 +16,7 @@ export * from './recovery';
 export * from './grep';
 export * from './validator';
 export * from './sanitizer';
+export * from './package-report';
 export * from './ipc-validation';
 
 // Operations & Mutation Engine

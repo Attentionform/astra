@@ -19,6 +19,8 @@ Charts, tables and page layout. Charts can be sized, restyled and changed in str
 - Paragraph flags on `style`: `keepWithNext`, `keepLines`, `pageBreakBefore` and `contextualSpacing`. The style guide's `Prevent Orphan Headings` and `Space After` (for callouts and tables) use them.
 - Parts that a delete leaves unreachable (a chart and its workbook, a picture) are removed from the package after the delete.
 - `scripts/word-parity.mjs` renders files with Word and LibreOffice and compares page counts, with a parity set in `tests/fixtures/parity`.
+- Files whose XML uses other namespace prefixes than Word's usual ones (`x:` for WordprocessingML, a default namespace, `ww14:` and so on) now open and edit like any other file. At open, ASTra rewrites the prefixes of the table namespaces (`w`, `r`, `wp`, `a`, `pic`, `m`, `mc`, `v`, `o`, `w10`, `w14`, `w15`) to the usual ones in memory, keeps every original declaration and adds the usual one beside it, and checks the rewritten part against the original with an independent comparison (same elements, same attributes, every namespace binding still in scope). A part that cannot be rewritten safely (a prefix conflict, an undeclared prefix, a document type declaration, a UTF-16 part that needs a rewrite) stops the open with `E_VALIDATION` and nothing is changed. Saving writes the usual prefixes; reopening a saved file reports nothing more. Rendered in Word and LibreOffice, a prefixed file and its edited copy look the same as the usual-prefix file and its edited copy.
+- `open_document`, `astra inspect` and `astra batch` report what the open did to the package: `packageNotes` lists the rewritten parts (for example `word/document.xml: x to w`) and, for a digitally signed package, a warning that saving invalidates the signature. The command line prints the notes as `WARNING:` lines on stderr. A signed package opens and edits without an acknowledgement; there is no note for a package that needed no rewrite and is not signed.
 
 ### Changed
 
@@ -26,6 +28,13 @@ Charts, tables and page layout. Charts can be sized, restyled and changed in str
 - Chart titles are written with overlay off and gridlines with a light grey line (`D9D9D9`, or the guide's gridline colour). Table borders take the guide's border colour, and a light grey without a guide. Callouts and tables get 8 pt and 12 pt of space after by default.
 - `chart updateView3D` is refused on a chart that is not 3D, and a `series` array shorter than the chart's series is refused (use `removeSeries`).
 - `execute_batch` results carry `chartUpdates` for chart updates. The MCP tool schema budget is 95,000 characters (it was 90,000).
+- A main document that does not use the `w` prefix is no longer refused at open: it is rewritten (see Added). The check stays as a last guard for an arrangement the rewrite cannot reach.
+
+### Fixed
+
+- `sanitize` on a file with other namespace prefixes used to leave revision marks, authors and RSIDs in place without saying so. Every `word/*.xml` part (including glossary parts) now goes through the prefix rewrite first, and after each option ASTra checks that nothing it promised to remove is left. A tracked change that the report does not list stops the run with `E_VALIDATION` and nothing is written.
+- A signed package written by `System.IO.Packaging` (which stores the empty part `_xmlsignatures/origin.sigs` with a 2-byte deflate stream) was refused by the zip size check as a lying-size entry. An entry that declares size 0 with up to 8 bytes of compressed data now opens; a size-0 entry with a larger payload is still refused.
+- A part nested tens of thousands of levels deep no longer overflows the stack while the prefix rewrite checks it.
 
 ## [0.5.2] - 2026-11-15
 

@@ -1,4 +1,4 @@
-import { DocxParser, ToonGenerator, VISUAL_PROMPT_LAW } from '@attentionform/astra-engine';
+import { DocxParser, ToonGenerator, VISUAL_PROMPT_LAW, packageNotes } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type Fidelity, type GlobalOpts, print, printJson, printStderr, resolveInspectWidth } from './output';
 import { cleanCliMessage, failHuman, rewriteMcpRemedies } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -175,6 +175,9 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
     if (outlineCounts) {
       print(out, `outline: rows are headings (${outlineCounts.headings} listed of ${outlineCounts.nodes} nodes; tables=${outlineCounts.tables} images=${outlineCounts.images}); sections are the file's page sections`);
     }
+    // A signed package, or one whose namespace prefixes were rewritten at open, says so (stderr in human mode; the JSON envelope carries the same notes).
+    const pkgNotes = packageNotes(parser.getPackageReport());
+    if (pkgNotes && !out.json) for (const w of pkgNotes.warnings) printStderr(`${CLI_NAME}: WARNING: ${w}`);
     print(out, `words=${stats.words} paragraphs=${stats.paragraphs} pages~${stats.pages} (rough estimate${describePageEstimate(stats) ? `, ${describePageEstimate(stats)}` : ''})`);
     // Would-be normalizations: the allowlist healing a save would apply
     // (dry-run preview over a DOM clone, nothing written). Clean documents
@@ -268,6 +271,7 @@ export async function cmdInspect(out: GlobalOpts, args: string[]): Promise<numbe
       ...(outlineCounts ? { outline: outlineCounts } : {}),
       toon: pureCanonical,
       pendingNormalizations,
+      ...(pkgNotes ? { packageNotes: pkgNotes } : {}),
       ...(withVisual && visual !== undefined ? { visual } : {}),
     });
     return EXIT_OK;

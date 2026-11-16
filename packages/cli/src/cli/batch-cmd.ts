@@ -2,7 +2,7 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { assertBatchHistoryWritable, extrasRecord, hasHistorySidecar, recordBatchRevision, refuseWhenHistoryBusy, trackedExtras } from './history-support';
 import { judgeGate, refuses, introducedText, toleratedFields, toleratedNote, type ToleratedVerdict } from './baseline-gate';
-import { BASELINE_MAX_ERRORS, BatchOperationsSchema, applyDocumentIdentity, operationIssueRemedy, DocxParser, commitStateIfDiffersFromHead, getDuplicateParaIdPolicy, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, BatchOperationsSchema, applyDocumentIdentity, operationIssueRemedy, DocxParser, commitStateIfDiffersFromHead, getDuplicateParaIdPolicy, OperationEngine, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, getEngineRemedy, packageNotes, resolveStyleGuide, summarizeStyleGuide, type DryRunPreview, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_FAIL, EXIT_OK, type GlobalOpts, formatNormalizedInline, mergeNormalized, previewNormalizedForDisplay, print, printJson, printStderr, readEngineNormalized, readParserNormalizations, stringifyJsonPayload } from './output';
 import { classifyFileReadError, cleanCliMessage, extractEngineRemedy, failWithCode, inferBatchCode, readErrRemedyProp, remedyForPostBatchValidation, rewriteMcpRemedies, withGatedEngineOutput, type KnownCliCode } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -1304,6 +1304,9 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     const batchWarnings: string[] = Array.isArray((res as { warnings?: unknown }).warnings)
       ? ((res as { warnings: unknown[] }).warnings.filter((v): v is string => typeof v === 'string'))
       : [];
+    // A signed package, or one whose namespace prefixes were rewritten at open, says so in the batch output as well.
+    const pkgNotes = packageNotes(parser.getPackageReport());
+    if (pkgNotes) batchWarnings.unshift(...pkgNotes.warnings);
     const staleRefs: { nodeId: string; preview: string }[] = Array.isArray(
       (res as { possiblyStaleBodyRefs?: unknown }).possiblyStaleBodyRefs
     )
@@ -1361,6 +1364,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       ...toleratedFields(tolerated),
       ...(history ? { history } : {}),
       ...(batchWarnings.length > 0 ? { warnings: batchWarnings } : {}),
+      ...(pkgNotes ? { packageNotes: pkgNotes } : {}),
       ...(staleRefs.length > 0 ? { possiblyStaleBodyRefs: staleRefs } : {}),
       ...(Array.isArray(cleanup.chartUpdates) && cleanup.chartUpdates.length > 0 ? { chartUpdates: cleanup.chartUpdates } : {}),
       ...(prunedParts.length > 0 ? { prunedParts } : {}),

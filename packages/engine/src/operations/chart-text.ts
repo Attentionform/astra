@@ -19,8 +19,15 @@ const DRAWINGML_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 
 /** The prefix a part binds to the DrawingML main namespace ('' for the default namespace); undefined when it declares none. */
 export function drawingPrefixOf(xml: string): string | undefined {
-  const m = new RegExp(`xmlns(?::([\\w.-]+))?\\s*=\\s*["']${DRAWINGML_NS.replace(/[.]/g, '\\.')}["']`).exec(xml);
-  return m ? (m[1] ?? '') : undefined;
+  const re = new RegExp(`xmlns(?::([\\w.-]+))?\\s*=\\s*["']${DRAWINGML_NS.replace(/[.]/g, '\\.')}["']`, 'g');
+  let first: string | undefined;
+  for (let m = re.exec(xml); m !== null; m = re.exec(xml)) {
+    // A part can bind the namespace to several prefixes (the package ingress keeps the original binding next to
+    // the usual one). "a" wins when it is bound, because that is the prefix the writers use.
+    if (m[1] === 'a') return 'a';
+    if (first === undefined) first = m[1] ?? '';
+  }
+  return first;
 }
 
 /** A DrawingML name in the given prefix: `q('d', 'rPr')` is `d:rPr`, `q('', 'rPr')` is `rPr`. */
