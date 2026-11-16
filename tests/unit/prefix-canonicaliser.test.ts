@@ -480,3 +480,20 @@ describe('review fixes (second self-review)', () => {
 function ingestPrefixesFor(xml: string) {
   return ingestPrefixes([['p.xml', xml]]);
 }
+
+describe('XML names with combining marks and other legal characters', () => {
+  const names = ['élement', 'a·b', 'x‿y', 'à́', 'ÀÖ'];
+  for (const name of names) {
+    it(`an element named ${JSON.stringify(name)} does not make the part unreadable`, () => {
+      const xml = `<x:document xmlns:x="${W}"><${name} áttr="1"/><x:p x:val="1"/></x:document>`;
+      const out = canonicalisePart(xml, 'n.xml');
+      expect(out.xml).toContain(`<${name} áttr="1"/>`);
+      expect(out.xml).toContain('<w:p w:val="1"/>');
+    });
+  }
+  it('a prefix with a combining mark is read as a prefix', () => {
+    const xml = `<é:document xmlns:é="${W}"><é:p/></é:document>`;
+    const out = canonicalisePart(xml, 'p.xml');
+    expect(out.xml).toContain('<w:p/>');
+  });
+});

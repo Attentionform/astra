@@ -2121,18 +2121,22 @@ export function sanitizeEmbeddedWorkbookBytes(
     return none;
   }
   if (!Array.isArray(entries) || entries.length === 0) return none;
+  // The workbook is a zip inside the package: apply the same size and ratio ceilings as the outer file before any
+  // entry is inflated. Over a ceiling the run fails (E_LIMIT) rather than passing the workbook through unread.
+  checkZipBombCeilings(inner, { sourceCompressedBytes: buf.length });
   let purgedPII = 0;
   let changed = false;
   for (const entry of entries) {
     if (!entry || entry.isDirectory) continue;
     const innerName = entry.entryName;
+    // Only XML entries are read; a binary entry is not inflated at all.
+    if (!isXmlPart(innerName)) continue;
     let data: Buffer;
     try {
       data = Buffer.from(entry.getData());
     } catch {
       continue;
     }
-    if (!isXmlPart(innerName)) continue;
     const xml = data.toString('utf8');
     assertNoForbiddenMarkup(xml, `${outerName}!${innerName}`);
     const textRes = redactTextNodePii(xml, true);
@@ -2480,7 +2484,8 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
   const authorAttr = /\s(?:w|w15):author\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   for (const [name, data] of out) {
     if (!name.toLowerCase().endsWith('.xml') || !name.startsWith('word/')) continue;
-    const xml = data.toString('utf8');
+    // Comments, CDATA sections and processing instructions can hold example markup; it is not an attribute.
+    const xml = data.toString('utf8').replace(OPAQUE_RE, '');
     if (o.purgeRSIDs) {
       RSID_ATTR_RE.lastIndex = 0;
       if (RSID_ATTR_RE.test(xml)) fail('purgeRSIDs', name, 'revision-save ids (w:rsid*)');
@@ -2494,8 +2499,7 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
       }
     }
     if (o.acceptAllRevisions) assertOnlyReportedRevisions(name, xml, unresolved);
-    // Example text inside an XML comment or CDATA section is not an anchor.
-    if (o.stripComments && /<w:comment(RangeStart|RangeEnd|Reference)[\s/>]/.test(xml.replace(OPAQUE_RE, ''))) {
+    if (o.stripComments && /<w:comment(RangeStart|RangeEnd|Reference)[\s/>]/.test(xml)) {
       fail('stripComments', name, 'comment anchors');
     }
   }

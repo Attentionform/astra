@@ -58,8 +58,13 @@ export interface ScanResult {
   nonCanonical: Rename[];
 }
 
-const NAME_CHARS = '[\\p{L}_][\\p{L}\\p{N}._:\\u00B7-]*';
-const DECLARATION = /\sxmlns(?::([\p{L}_][\p{L}\p{N}._\u00B7-]*))?\s*=\s*(?:"([^"]*)"|'([^']*)')/gu;
+// XML 1.0 (fifth edition) NameStartChar and NameChar, without the colon (a prefixed name is checked as two parts).
+const NAME_START = 'A-Za-z_\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\u{10000}-\\u{EFFFF}';
+// The combining-mark range comes first in its class so the linter does not read it as a mark joined to the character before.
+const NAME_REST = `\\u0300-\\u036F${NAME_START}\\-.0-9\\u00B7\\u203F-\\u2040`;
+const NCNAME = `[${NAME_START}][${NAME_REST}]*`;
+const NAME_CHARS = `[${NAME_START}][${NAME_REST}:]*`;
+const DECLARATION = new RegExp(`\\sxmlns(?::(${NCNAME}))?\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'gu');
 const STRIP_OPAQUE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/g;
 /** One start, end or empty tag, quote-aware (a `>` inside an attribute value does not end it). */
 const SCAN_TAG = /<(\/?)([^\s<>/!?=]+)((?:[^<>"']|"[^"]*"|'[^']*')*?)(\/?)>/g;

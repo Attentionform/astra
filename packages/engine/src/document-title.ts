@@ -17,6 +17,14 @@ export const DERIVED_TITLE_MAX = 200;
 /** The creator a new document carries when nobody configured an author. */
 const DEFAULT_CREATOR = 'ASTra';
 
+/** True when docProps/app.xml names ASTra as the application: the file was created by ASTra, not imported from elsewhere. */
+function createdByAstra(parser: DocxParser | undefined): boolean {
+  const app = parser?.getZipAdapter().readTextOrNull('docProps/app.xml');
+  if (!app) return false;
+  const name = /<(?:[\w.-]+:)?Application\b[^>]*>([^<]*)</.exec(app)?.[1];
+  return name !== undefined && name.trim().toLowerCase() === DEFAULT_CREATOR.toLowerCase();
+}
+
 /** True for an empty title and for the name of a built-in template ("Blank Document", "Report", "Memo"). */
 export function isPlaceholderTitle(title: unknown): boolean {
   if (typeof title !== 'string') return true;
@@ -80,7 +88,7 @@ export interface DocumentIdentityResult {
 }
 
 /**
- * A saved document should never carry a placeholder title, and a document made under a configured
+ * A saved document should never carry a placeholder title (the template's own name, in a file ASTra made), and a document made under a configured
  * author (--author, ASTRA_AUTHOR, or the session's author) should name that author. Both changes are
  * made only when the current value is the tool's own default: a title or creator that the caller or
  * the file already had is never touched. Returns what it changed so the caller can report it.
@@ -89,7 +97,11 @@ export function applyDocumentIdentity(ast: DocumentAST, parser: DocxParser | und
   const result: DocumentIdentityResult = {};
   const patch: { title?: string; creator?: string; lastModifiedBy?: string } = {};
 
-  if (isPlaceholderTitle(ast.metadata?.title)) {
+  // The name of a template ("Report", "Memo") is a placeholder only in a file ASTra made from that template; in a file
+  // from another application it is a title somebody chose. A missing or empty title is replaceable either way.
+  const title = ast.metadata?.title;
+  const emptyTitle = typeof title !== 'string' || title.trim() === '';
+  if (emptyTitle || (isPlaceholderTitle(title) && createdByAstra(parser))) {
     const derived = deriveTitleFromContent(ast);
     if (derived) {
       patch.title = derived.title;
