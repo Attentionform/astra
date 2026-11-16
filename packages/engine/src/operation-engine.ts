@@ -1,4 +1,5 @@
 import type { RevisionResolution, UnresolvedRevision } from './ooxml/revisions';
+import type { DrawingUseBefore } from './ooxml/prune-unused-parts';
 import { DocumentAST, cloneAST } from './ast';
 import { refreshAstInPlace } from './ast-refresh';
 import { reconcileSections } from './parser/sections';
@@ -218,6 +219,12 @@ export interface ExecutionResult {
   revisionsRemedy?: string;
   /** FX-07: revisions in `revisionsPending` that this batch's resolution tried and could not resolve. Absent when none. */
   revisionsUnresolved?: number;
+  /** 0.5.3: package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
+  prunedParts?: string[];
+  /** 0.5.3: why the package cleanup after a delete did not run or was refused. The save is unaffected. Absent when nothing went wrong. */
+  cleanupSkipped?: string;
+  /** 0.5.3: defects the file already had that the cleanup saw and left alone (a relationship to a missing part). Absent when none. */
+  existingDefects?: string[];
   /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
   /** Compose: where the document title was taken from when it was still a template placeholder. */
@@ -490,6 +497,7 @@ export class OperationEngine {
     // single op rewinds media/rels/styles, not just the AST.
     const pkgSnap = this.parser?.capturePackageSnapshot();
     const headerFooterBefore = this.parser?.headerFooterReferenceIds();
+    const drawingUseBefore = this.parser?.drawingUseSnapshot(this.ast);
     // OX-06: failed op must not stay pushed — capture the base so the catch
     // path can truncate even if a future edit pushes before routing.
     const historyBase = this.history.length;
@@ -500,6 +508,8 @@ export class OperationEngine {
       const sectionNote = this.reconcileSections();
       if (sectionNote) warnings.push(sectionNote);
       this.pruneOrphanedHeaderFooters(headerFooterBefore);
+      const drawingPrune = this.pruneUnusedDrawingParts(drawingUseBefore);
+      if (drawingPrune?.skipped) warnings.push(`cleanupSkipped: ${drawingPrune.skipped}`);
       this.validateASTIntegrity();
       this.history.push(op);
       return { warnings };
@@ -598,6 +608,7 @@ export class OperationEngine {
     // rewound byte-for-byte, not just at the AST level.
     const pkgSnap = this.parser?.capturePackageSnapshot();
     const headerFooterBefore = this.parser?.headerFooterReferenceIds();
+    const drawingUseBefore = this.parser?.drawingUseSnapshot(this.ast);
     // OX-06: rewind history[] on rollback — ops pushed before the failure
     // must not survive the rewind (they describe DOM state that no longer
     // exists). Manager snapshot/redo stacks need no engine-side pop: the
@@ -752,6 +763,14 @@ export class OperationEngine {
       const sectionNote = this.reconcileSections();
       if (sectionNote && !result.warnings.includes(sectionNote)) result.warnings.push(sectionNote);
       this.pruneOrphanedHeaderFooters(headerFooterBefore);
+      const drawingPrune = this.pruneUnusedDrawingParts(drawingUseBefore);
+      if (drawingPrune) {
+        if (drawingPrune.parts.length > 0) result.prunedParts = drawingPrune.parts;
+        if (drawingPrune.skipped) result.cleanupSkipped = drawingPrune.skipped;
+        if (drawingPrune.existingDefects.length > 0 && (drawingPrune.parts.length > 0 || drawingPrune.skipped)) {
+          result.existingDefects = drawingPrune.existingDefects;
+        }
+      }
       this.validateASTIntegrity();
       batch.onProgress?.(result.appliedCount, sortedOps.length, 'completed');
       // R-1: remaining w:ins + w:del in the doc (batch-created + pre-existing).
@@ -893,6 +912,17 @@ export class OperationEngine {
   private pruneOrphanedHeaderFooters(before: ReadonlySet<string> | undefined): void {
     if (!this.parser || !before || before.size === 0) return;
     this.parser.pruneOrphanedHeaderFooters(this.ast, before);
+  }
+
+  /**
+   * Removes chart and image parts the operations left unreachable (a deleted chart: part, workbook, style
+   * parts, relationship; a deleted picture: its file). Runs only when the document had drawings before the
+   * edit. A failure to apply that cannot be restored throws, and the batch rolls back.
+   */
+  private pruneUnusedDrawingParts(before: DrawingUseBefore | undefined) {
+    if (!this.parser) return undefined;
+    // No drawings before the edit: every drawing relationship now was created by it (insert, then delete).
+    return this.parser.pruneUnusedDrawingParts(this.ast, before ?? { relationships: new Map(), referenced: new Set() });
   }
 
   private validateASTIntegrity() {

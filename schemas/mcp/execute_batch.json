@@ -177,6 +177,12 @@
                 "exclusiveMinimum": 0,
                 "maximum": 100000000
               },
+              "widthIn": {
+                "type": "number"
+              },
+              "heightIn": {
+                "type": "number"
+              },
               "chartType": {
                 "type": "string",
                 "enum": [
@@ -1668,6 +1674,30 @@
                 "exclusiveMinimum": 0,
                 "maximum": 100000000
               },
+              "widthIn": {
+                "description": "Chart width in inches, 0.1 to 22. Use widthIn or widthEmu, not both.",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema43"
+                  }
+                ]
+              },
+              "heightIn": {
+                "description": "Chart height in inches, 0.1 to 22. Use heightIn or heightEmu, not both.",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema44"
+                  }
+                ]
+              },
+              "altText": {
+                "description": "Alternative text of the chart drawing. On update an empty string clears it.",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema45"
+                  }
+                ]
+              },
               "expectedVersion": {
                 "$ref": "#/definitions/__schema19"
               },
@@ -1915,14 +1945,14 @@
               "fontSize": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema43"
+                    "$ref": "#/definitions/__schema46"
                   }
                 ]
               },
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema43"
+                    "$ref": "#/definitions/__schema46"
                   }
                 ]
               },
@@ -2234,7 +2264,7 @@
                 "minItems": 1,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema44"
+                  "$ref": "#/definitions/__schema47"
                 }
               },
               "target": {
@@ -2770,6 +2800,16 @@
         "description": "Series number, counting from 1 in the order the series appear"
       },
       "__schema43": {
+        "type": "number"
+      },
+      "__schema44": {
+        "type": "number"
+      },
+      "__schema45": {
+        "type": "string",
+        "maxLength": 5000
+      },
+      "__schema46": {
         "anyOf": [
           {
             "type": "number",
@@ -2782,7 +2822,7 @@
           }
         ]
       },
-      "__schema44": {
+      "__schema47": {
         "type": "integer",
         "minimum": 0,
         "maximum": 9007199254740991

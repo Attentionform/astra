@@ -1315,6 +1315,8 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
             typeof (v as Record<string, unknown>)['preview'] === 'string'
         ) as { nodeId: string; preview: string }[])
       : [];
+    const cleanup = res as { prunedParts?: string[]; cleanupSkipped?: string; existingDefects?: string[] };
+    const prunedParts = Array.isArray(cleanup.prunedParts) ? cleanup.prunedParts : [];
     const busy = await refuseWhenHistoryBusy(out, { file, target, noHistory: ctx.noHistory === true });
     if (busy !== undefined) return busy;
     const backupCode = await ensureBackupCopy(out, file, docx, target, ctx.backupState);
@@ -1345,6 +1347,7 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
     for (const w of batchWarnings) {
       printStderr(`${CLI_NAME}: WARNING: ${w}`);
     }
+    if (typeof cleanup.cleanupSkipped === 'string') printStderr(`${CLI_NAME}: NOTE: package cleanup skipped: ${cleanup.cleanupSkipped}`);
     for (const s of staleRefs) print(out, `possibly-stale ${s.nodeId}: "${truncLine(s.preview, 120)}"`);
     if (tolerated) printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(tolerated)}`);
     printJson(out, {
@@ -1359,6 +1362,9 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       ...(history ? { history } : {}),
       ...(batchWarnings.length > 0 ? { warnings: batchWarnings } : {}),
       ...(staleRefs.length > 0 ? { possiblyStaleBodyRefs: staleRefs } : {}),
+      ...(prunedParts.length > 0 ? { prunedParts } : {}),
+      ...(typeof cleanup.cleanupSkipped === 'string' ? { cleanupSkipped: cleanup.cleanupSkipped } : {}),
+      ...(Array.isArray(cleanup.existingDefects) && cleanup.existingDefects.length > 0 ? { existingDefects: cleanup.existingDefects } : {}),
       ...(ctx.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(ctx.styleGuide) } : {}),
       ...(ctx.styleGuideWarnings !== undefined && ctx.styleGuideWarnings.length > 0 ? { styleWarnings: ctx.styleGuideWarnings } : {}),
       ...(ctx.rowLabel !== undefined ? { row: ctx.rowLabel } : {}),

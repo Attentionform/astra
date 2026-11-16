@@ -23,6 +23,22 @@ export interface StyleGuideTables {
   keepTogether?: boolean; // cantSplit rows + tblHeader/keepNext header
 }
 
+/**
+ * Chart defaults from the guide's `## Charts` section. Sizes are stored in inches and text sizes in points,
+ * whatever unit the guide file used (`in`, `cm`, `mm`, `pt`). Every key is optional: a missing key means the
+ * built-in default applies.
+ */
+export interface StyleGuideCharts {
+  widthIn?: number;
+  heightIn?: number;
+  width3dIn?: number;
+  height3dIn?: number;
+  gridlineColor?: string; // 6-char uppercase hex
+  fontFamily?: string;
+  fontSizePt?: number;
+  titleSizePt?: number;
+}
+
 export interface StyleGuideTypography {
   fontFamily?: string;
   codeFont?: string;
@@ -77,6 +93,8 @@ export interface StyleGuideConfig {
   description?: string;
   palette: StyleGuidePalette;
   tables: StyleGuideTables;
+  /** Optional: absent when the guide has no Charts section. */
+  charts?: StyleGuideCharts;
   typography: StyleGuideTypography;
   callouts: StyleGuideCallouts;
   codeBlocks: StyleGuideCodeBlocks;

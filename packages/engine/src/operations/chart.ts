@@ -1,4 +1,6 @@
 import { DOMParser } from '../ooxml/dom-parser';
+import { parseChartSize, resolveNewChartSize, chartLayoutWarning, usableAreaOf, type ResolvedChartSize } from './chart-size';
+import { isChartDrawingFloating, readChartDrawingSize, setChartAltText, setChartDrawingSize } from '../manipulators/chart-drawing';
 import * as crypto from 'crypto';
 import { createWordElement } from '../ooxml/ns';
 import { DocumentAST, Node, Section } from '../ast';
@@ -228,6 +230,11 @@ export interface ChartOperation extends BaseOperation {
   target?: string;
   widthEmu?: number;
   heightEmu?: number;
+  /** Width and height in inches (0.1 to 22). Give either the Emu or the In form of a dimension, not both. */
+  widthIn?: number;
+  heightIn?: number;
+  /** Alternative text of the chart drawing; on update an empty string clears it. */
+  altText?: string;
   params?: Record<string, unknown>;
 }
 
@@ -251,6 +258,9 @@ export function resolveChartOp(op: ChartOperation): ChartOperation {
     shape: op.shape ?? (raw.shape as Bar3DShape | undefined),
     widthEmu: op.widthEmu ?? (raw.widthEmu as number | undefined),
     heightEmu: op.heightEmu ?? (raw.heightEmu as number | undefined),
+    widthIn: op.widthIn ?? (raw.widthIn as number | undefined),
+    heightIn: op.heightIn ?? (raw.heightIn as number | undefined),
+    altText: op.altText ?? (raw.altText as string | undefined),
     expectedVersion: op.expectedVersion ?? (raw.expectedVersion as number | undefined),
   };
 }
@@ -314,6 +324,12 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
   if (rawChartType === 'scatter') {
     assertScatterData(resolved.categories, resolved.series as Chart2DSeries[] | undefined);
   }
+  const chartSize: ResolvedChartSize = resolveNewChartSize(
+    { widthEmu: resolved.widthEmu, heightEmu: resolved.heightEmu, widthIn: resolved.widthIn, heightIn: resolved.heightIn },
+    use3D,
+    guide
+  );
+  const insertAltText = validateChartAltText(resolved.altText);
   const defaultTitle = use3D ? '3D Chart Analysis' : 'Chart Analysis';
   const fallbackText = use3D ? 'Q1-Q4 Financial 3D Analysis' : 'Q1-Q4 Financial Analysis';
   const fallbackTitle = use3D ? 'Time Saved by SDLC Stage (Hours)' : 'Time Saved by SDLC Stage (Hours)';
@@ -403,8 +419,9 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
       series: preparedSeries as Chart3DSeries[] | undefined,
       anchorNodeId: domAnchorId,
       id: resolved.id,
-      widthEmu: resolved.widthEmu,
-      heightEmu: resolved.heightEmu,
+      widthEmu: chartSize.widthEmu,
+      heightEmu: chartSize.heightEmu,
+      ...(insertAltText ? { altText: insertAltText } : {}),
       ...(transformChartXml ? { transformChartXml } : {}),
       ...(resolved.style?.floating ? { floating: resolved.style.floating } : {})
     });
@@ -419,13 +436,15 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
       holeSize: resolved.holeSize,
       anchorNodeId: domAnchorId,
       id: resolved.id,
-      widthEmu: resolved.widthEmu,
-      heightEmu: resolved.heightEmu,
+      widthEmu: chartSize.widthEmu,
+      heightEmu: chartSize.heightEmu,
+      ...(insertAltText ? { altText: insertAltText } : {}),
       ...(transformChartXml ? { transformChartXml } : {}),
       ...(resolved.style?.floating ? { floating: resolved.style.floating } : {})
     });
     drawingNodeId = chartRes.drawingNodeId;
   }
+  let insertWarning: string | undefined;
 
   // Sync AST node list so UI & engine immediately reflect the new chart
   if (ast.sections.length > 0) {
@@ -486,12 +505,31 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
     } else {
       lastSection(ast.sections)!.nodes.push(newNode);
     }
+    insertWarning = chartLayoutWarning(
+      chartSize,
+      usableAreaOf((placeAfter?.section ?? lastSection(ast.sections))?.pageSetup),
+      resolved.style?.floating !== undefined
+    );
     if (resolved.anchor && chainHost && effectiveAnchor) {
       liveChain.push(newNode);
       (chainHost as unknown as InsertChainHost)._insertAfterChain = liveChain;
       (chainHost as unknown as InsertChainHost)._lastInsertAfter = newNode;
     }
   }
+  return insertWarning ? { possiblyStaleBodyRefs: [], warnings: [insertWarning] } : undefined;
+}
+
+/** Alt text must be a string of at most 5,000 characters; returns the trimmed text (empty when none). */
+function validateChartAltText(altText: unknown): string {
+  if (altText === undefined) return '';
+  if (typeof altText !== 'string') {
+    throw chartUpdateError('E_VALIDATION: chart altText must be a string.', "Remedy: pass altText as text, for example altText:'Revenue by quarter, stacked columns'.");
+  }
+  const trimmed = altText.trim();
+  if (trimmed.length > 5000) {
+    throw chartUpdateError('E_VALIDATION: chart altText is longer than 5000 characters.', 'Remedy: shorten the alt text to 5000 characters or fewer.');
+  }
+  return trimmed;
 }
 
 /** Metadata follows the part, keeping previously read fields the part still carries. */
@@ -1097,10 +1135,15 @@ function validateUpdatePayload(op: ChartOperation): void {
     op.series !== undefined ||
     op.style !== undefined ||
     (op as { view3D?: unknown }).view3D !== undefined ||
-    op.shape !== undefined;
+    op.shape !== undefined ||
+    op.widthEmu !== undefined ||
+    op.heightEmu !== undefined ||
+    op.widthIn !== undefined ||
+    op.heightIn !== undefined ||
+    op.altText !== undefined;
   if (!hasMutableField) {
     throw chartUpdateError(
-      'E_VALIDATION: chart update has no mutable fields to apply (need at least one of title | chartType | holeSize | categories | series | style | view3D | shape).',
+      'E_VALIDATION: chart update has no mutable fields to apply (need at least one of title | chartType | holeSize | categories | series | style | view3D | shape | widthIn | heightIn | widthEmu | heightEmu | altText).',
       "Remedy: retry with at least one mutable field, e.g. { action:'chart', operation:'update', target:'<chartNodeId>', title:'Revenue' } or series/categories; re-read ids via inspect_document."
     );
   }
@@ -1186,6 +1229,8 @@ export interface ChartStaleBodyRef {
 
 export interface ChartUpdateResult {
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
+  /** Advisory messages (for example `layoutWarning: ...`); never a failure. */
+  warnings?: string[];
 }
 
 function escapeChartRegExp(s: string): string {
@@ -1319,6 +1364,12 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
   }
   const resolved = resolveChartOp(op);
   validateUpdatePayload(resolved);
+  // Drawing properties are validated before anything changes. A dimension that is not given keeps its value.
+  const drawingSize = parseChartSize({
+    widthEmu: resolved.widthEmu, heightEmu: resolved.heightEmu, widthIn: resolved.widthIn, heightIn: resolved.heightIn,
+  });
+  const hasDrawingSize = drawingSize.widthEmu !== undefined || drawingSize.heightEmu !== undefined;
+  const altTextChange = resolved.altText === undefined ? undefined : validateChartAltText(resolved.altText);
   const zipAdapter = parser.getZipAdapter();
   const targetResult = resolveUpdateTarget(resolved, ast, parser);
   const chartNum = targetResult.chartNum;
@@ -1333,6 +1384,37 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
 
   if (resolved.expectedVersion !== undefined) {
     validateVersion(node, resolved.expectedVersion);
+  }
+
+  // Size and alt text live on the drawing (wp:extent, wp:docPr), not in the chart part.
+  let sizeWarning: string | undefined;
+  if (hasDrawingSize || altTextChange !== undefined) {
+    if (hasDrawingSize && !setChartDrawingSize(node.xml, drawingSize)) {
+      throw chartUpdateError(
+        'E_VALIDATION: the chart drawing for ' + chartPath + ' has no wp:extent to resize.',
+        'Remedy: re-read the document via inspect_document; if the drawing is damaged, delete and re-insert the chart with widthIn and heightIn.'
+      );
+    }
+    if (altTextChange !== undefined && !setChartAltText(node.xml, altTextChange)) {
+      throw chartUpdateError(
+        'E_VALIDATION: the chart drawing for ' + chartPath + ' has no wp:docPr to carry alt text.',
+        'Remedy: re-read the document via inspect_document; if the drawing is damaged, delete and re-insert the chart with altText.'
+      );
+    }
+    if (hasDrawingSize) {
+      const finalSize = readChartDrawingSize(node.xml);
+      const owner = ast.sections.find((section) => section.nodes.includes(node));
+      if (finalSize) {
+        sizeWarning = chartLayoutWarning(finalSize, usableAreaOf(owner?.pageSetup), isChartDrawingFloating(node.xml) === true);
+      }
+    }
+    const drawingOnly =
+      resolved.title === undefined && resolved.chartType === undefined && resolved.holeSize === undefined &&
+      resolved.categories === undefined && resolved.series === undefined && resolved.style === undefined &&
+      (resolved as { view3D?: unknown }).view3D === undefined && resolved.shape === undefined;
+    if (drawingOnly) {
+      return { possiblyStaleBodyRefs: [], ...(sizeWarning ? { warnings: [sizeWarning] } : {}) };
+    }
   }
 
   const existingXml = zipAdapter.readText(chartPath);
@@ -1705,5 +1787,5 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
     removedCategories,
     removedNumbers,
   });
-  return { possiblyStaleBodyRefs };
+  return { possiblyStaleBodyRefs, ...(sizeWarning ? { warnings: [sizeWarning] } : {}) };
 }
