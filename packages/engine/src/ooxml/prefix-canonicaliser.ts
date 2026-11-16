@@ -60,7 +60,9 @@ export interface ScanResult {
 const DECLARATION = /\sxmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 
 /** True when some start or end tag in `xml` writes a name or an attribute with this prefix ('' is the default namespace). */
-function prefixIsUsed(xml: string, prefix: string): boolean {
+function prefixIsUsed(source: string, prefix: string): boolean {
+  // Comments, CDATA sections and processing instructions can hold anything, including text that looks like a tag.
+  const xml = source.replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/g, '');
   const tags = /<[^<>!?][^<>]*>/g;
   const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // For a prefix: `<p:x`, `</p:x` or ` p:x=` inside a tag. For the default namespace: an unprefixed element name.
