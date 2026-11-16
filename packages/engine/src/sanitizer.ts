@@ -9,6 +9,7 @@ import { checkZipBombCeilings, clampZipEntryTimes } from './zip-hardening';
 import { assertNoForbiddenMarkup, stripSvgActiveContent } from './ooxml/xxe-guard';
 import { decodePartUri, decodeXmlEntities } from './ooxml/xml-entities';
 import { PrefixRefusal, canonicaliseBufferMap } from './ooxml/prefix-canonicaliser';
+import { assertOnlyReportedRevisions } from './sanitizer-postconditions';
 
 export { assertNoForbiddenMarkup } from './ooxml/xxe-guard';
 
@@ -2434,7 +2435,7 @@ export function sanitizePackageEntries(
     strippedComments += deleteRemovedComments(out, removedCommentIds, touched);
   }
 
-  assertSanitizePostconditions(out, o, unresolvedRevisions.length > 0);
+  assertSanitizePostconditions(out, o, unresolvedRevisions);
 
   return {
     files: out,
@@ -2468,7 +2469,7 @@ export function sanitizePackageEntries(
  * run, never a quiet success. Covers body, headers, footers, notes, comments and extension parts alike, because it
  * looks at every XML part in the output.
  */
-function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick<SanitizeOptions, 'purgeRSIDs' | 'purgeAuthors' | 'acceptAllRevisions' | 'stripComments'>> & { replacementAuthor: string }, hasUnresolvedRevisions: boolean): void {
+function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick<SanitizeOptions, 'purgeRSIDs' | 'purgeAuthors' | 'acceptAllRevisions' | 'stripComments'>> & { replacementAuthor: string }, unresolved: readonly UnresolvedRevision[]): void {
   const fail = (option: string, part: string, what: string): never => {
     throw new Error(`E_VALIDATION: sanitize could not finish "${option}": ${part} still has ${what}. Nothing was written. Open the file in Word, save it again, then retry.`);
   };
@@ -2488,9 +2489,7 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
         if (decodeXmlEntities(m[1]) !== o.replacementAuthor) fail('purgeAuthors', name, 'an author name');
       }
     }
-    if (o.acceptAllRevisions && !hasUnresolvedRevisions && /<w:(ins|del|moveFrom|moveTo)[\s>]/.test(xml)) {
-      fail('acceptAllRevisions', name, 'unresolved tracked changes');
-    }
+    if (o.acceptAllRevisions) assertOnlyReportedRevisions(name, xml, unresolved);
     if (o.stripComments && /<w:comment(RangeStart|RangeEnd|Reference)[\s/>]/.test(xml)) {
       fail('stripComments', name, 'comment anchors');
     }

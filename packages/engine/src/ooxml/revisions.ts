@@ -9,6 +9,8 @@ export interface UnresolvedRevision {
   reason: string;
   part: string;
   nodeId?: string;
+  /** The element's `w:id`, when it has one. Lets a caller tell this revision from another of the same kind in the same part. */
+  revisionId?: string;
 }
 
 export interface RevisionResolution {
@@ -673,7 +675,8 @@ export function resolveRevisions(documents: readonly Document[], mode: 'accept' 
       if (!supported) {
         pending.add(el);
         const nodeId = options.nodeIdOf?.(el);
-        result.unresolved.push({ kind, count: 1, reason, part: options.part ?? 'word/document.xml', ...(nodeId ? {nodeId} : {}) });
+        const revisionId = el.getAttributeNS(W_NS, 'id');
+        result.unresolved.push({ kind, count: 1, reason, part: options.part ?? 'word/document.xml', ...(nodeId ? {nodeId} : {}), ...(revisionId ? { revisionId } : {}) });
         continue;
       }
       noteResolved(el);

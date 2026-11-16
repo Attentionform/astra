@@ -11,7 +11,7 @@ import { DOMParser } from './ooxml/dom-parser';
 import { DocumentAST, Node as AstNode, calculateNodeChecksum, calculateNodeChecksumSync } from './ast';
 import { canonicalizeDocumentDom, canonicalizePartXml, generateValidParaId } from './ooxml/schema-order';
 import { normalizeDocumentDom, normalizePartXml, previewDocumentDom } from './ooxml/normalize';
-import { createWordElement, stampRevision, WORD_NS } from './ooxml/ns';
+import { createWordElement, stampRevision } from './ooxml/ns';
 import { ommlToLatex } from './ooxml/omml';
 import { validateDocxBuffer, ValidationResult } from './ooxml/validator-gate';
 import { NumberingManipulator, NUMBERING_REL_TYPE } from './manipulators/numbering';
