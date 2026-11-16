@@ -43,7 +43,7 @@ import {
   Chart2DSeries,
   assertScatterData
 } from '../manipulators/chart2d';
-import { mergeChartDataInPlace } from './chart-merge';
+import { markAutoTitleDeleted, mergeChartDataInPlace } from './chart-merge';
 import { applyWorkbookDecision, planWorkbook } from './chart-workbook';
 import {
   ChartStructureRefusal,
@@ -57,7 +57,7 @@ import {
   supportsInPlaceSeriesChange,
   type AddedSeries,
 } from './chart-structure';
-import { type ChartStyle, applyChartFloating, applyChartStyle, readChartStyle, validateChartStyle } from './chart-style';
+import { type ChartStyle, applyChartFloating, applyChartFont, applyChartStyle, applyDefaultGridlineColor, applyDefaultTitleSize, readChartStyle, validateChartStyle } from './chart-style';
 import { chartSpans, findDirectChild, attrValue, chartQualifiedName } from './chart-xml-spans';
 import { normalizeColour } from './colour';
 
@@ -240,6 +240,8 @@ export interface ChartOperation extends BaseOperation {
   allowRebuild?: boolean;
   /** Update only: series to remove, by exact name or one-based position. Names must be unique in the chart. */
   removeSeries?: Array<string | number>;
+  /** Update only: remove the chart title and its text, and show no automatic title. Not together with title or style.titleFormat. */
+  removeTitle?: true;
   title?: string;
   view3D?: View3DProperties;
   shape?: Bar3DShape;
@@ -323,6 +325,15 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
     return;
   }
 
+  for (const key of ['allowRebuild', 'removeSeries', 'removeTitle'] as const) {
+    if (resolved[key] !== undefined) {
+      throw Object.assign(new Error(`E_VALIDATION: ${key} is for operation:'update'; it has no meaning when a chart is inserted.`), {
+        code: 'E_VALIDATION',
+        retryable: false,
+        remedy: key === 'removeTitle' ? 'Remedy: omit title to insert a chart without one.' : `Remedy: omit ${key} on insert.`,
+      });
+    }
+  }
   const rawChartType = resolved.chartType || 'column';
   const supported2DTypes = SUPPORTED_CHART_2D_TYPES as readonly string[];
   const supported3DTypes = SUPPORTED_CHART_TYPES as readonly string[];
@@ -430,8 +441,24 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
     is3D: use3D,
   };
   validateChartStyle(resolved.style, styleContext);
-  const transformChartXml = resolved.style !== undefined
-    ? (xml: string): string => applyChartStyle(xml, resolved.style, styleContext)
+  // Guide defaults (gridline colour, title size) go in first so an explicit style key in the call wins.
+  const guideGridlineColor = guide?.charts?.gridlineColor;
+  const guideTitleSizePt = guide?.charts?.titleSizePt;
+  const guideFont = { family: guide?.charts?.fontFamily, sizePt: guide?.charts?.fontSizePt };
+  const hasGuideFont = guideFont.family !== undefined || guideFont.sizePt !== undefined;
+  const transformChartXml = resolved.style !== undefined || guideGridlineColor !== undefined || guideTitleSizePt !== undefined || hasGuideFont
+    ? (xml: string): string => {
+        let out = xml;
+        if (hasGuideFont) {
+          out = applyChartFont(out, {
+            ...(guideFont.family !== undefined ? { family: guideFont.family } : {}),
+            ...(guideFont.sizePt !== undefined ? { sizePt: guideFont.sizePt } : {}),
+          });
+        }
+        if (guideGridlineColor !== undefined) out = applyDefaultGridlineColor(out, guideGridlineColor);
+        if (guideTitleSizePt !== undefined) out = applyDefaultTitleSize(out, guideTitleSizePt);
+        return resolved.style !== undefined ? applyChartStyle(out, resolved.style, styleContext) : out;
+      }
     : undefined;
 
   let drawingNodeId: string | undefined;
@@ -1160,6 +1187,7 @@ function validateUpdatePayload(op: ChartOperation): void {
     op.categories !== undefined ||
     op.series !== undefined ||
     op.removeSeries !== undefined ||
+    op.removeTitle !== undefined ||
     op.style !== undefined ||
     (op as { view3D?: unknown }).view3D !== undefined ||
     op.shape !== undefined ||
@@ -1170,7 +1198,7 @@ function validateUpdatePayload(op: ChartOperation): void {
     op.altText !== undefined;
   if (!hasMutableField) {
     throw chartUpdateError(
-      'E_VALIDATION: chart update has no mutable fields to apply (need at least one of title | chartType | holeSize | categories | series | removeSeries | style | view3D | shape | widthIn | heightIn | widthEmu | heightEmu | altText).',
+      'E_VALIDATION: chart update has no mutable fields to apply (need at least one of title | chartType | holeSize | categories | series | removeSeries | removeTitle | style | view3D | shape | widthIn | heightIn | widthEmu | heightEmu | altText).',
       "Remedy: retry with at least one mutable field, e.g. { action:'chart', operation:'update', target:'<chartNodeId>', title:'Revenue' } or series/categories; re-read ids via inspect_document."
     );
   }
@@ -1406,6 +1434,19 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
   }
   const resolved = { ...resolveChartOp(op) };
   validateUpdatePayload(resolved);
+  if (resolved.removeTitle !== undefined) {
+    if (resolved.removeTitle !== true) {
+      throw chartUpdateError('E_VALIDATION: removeTitle must be true.', 'Remedy: pass removeTitle:true to remove the chart title, or omit it.');
+    }
+    if (resolved.title !== undefined || resolved.style?.titleFormat !== undefined) {
+      throw chartUpdateError(
+        'E_VALIDATION: removeTitle cannot be combined with title or style.titleFormat in one call.',
+        'Remedy: use removeTitle:true alone to remove the title, or title (and titleFormat) to set one.'
+      );
+    }
+    resolved.title = '';
+  }
+  const removeTitleRequested = resolved.removeTitle === true;
   // Drawing properties are validated before anything changes. A dimension that is not given keeps its value.
   const drawingSize = parseChartSize({
     widthEmu: resolved.widthEmu, heightEmu: resolved.heightEmu, widthIn: resolved.widthIn, heightIn: resolved.heightIn,
@@ -1451,7 +1492,7 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
     }
     const drawingOnly =
       resolved.title === undefined && resolved.chartType === undefined && resolved.holeSize === undefined &&
-      resolved.categories === undefined && resolved.series === undefined && resolved.removeSeries === undefined && resolved.style === undefined &&
+      resolved.categories === undefined && resolved.series === undefined && resolved.removeSeries === undefined && resolved.removeTitle === undefined && resolved.style === undefined &&
       (resolved as { view3D?: unknown }).view3D === undefined && resolved.shape === undefined;
     if (drawingOnly) {
       return { possiblyStaleBodyRefs: [], ...(sizeWarning ? { warnings: [sizeWarning] } : {}) };
@@ -1485,6 +1526,7 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
   const originalExisting = existing;
   const styleNotApplied: string[] = [];
   let structureChangedSeries = false;
+  let removedSeriesIndexes: number[] = [];
   let removalRebuildSeries: ExistingChartSeries[] | undefined;
   const removalRequest = resolved.removeSeries;
   if (removalRequest !== undefined) {
@@ -1495,7 +1537,14 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
         'Remedy: pass removeSeries as ["Costs"] or [2].'
       );
     }
+    if (removalRequest.some((item) => typeof item === 'string') && removalRequest.some((item) => typeof item === 'number')) {
+      throw chartUpdateError(
+        'E_VALIDATION: removeSeries mixes names and positions.',
+        'Remedy: give only names (["Costs"]) or only positions from 1 ([2]) in one call.'
+      );
+    }
     const indexes = resolveSeriesRemovals(removalRequest, existing.series.map((s) => s.name), chartPath);
+    removedSeriesIndexes = indexes;
     if (supportsInPlaceSeriesChange(existingXml) || !rebuildAllowed) {
       try {
         existingXml = removeSeriesInPlace(existingXml, chartPath, indexes, existing.series.length);
@@ -1564,6 +1613,26 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
     } catch (error) {
       if (!(error instanceof ChartStructureRefusal) || !rebuildAllowed) throw error;
     }
+  }
+  // Series numbers in one call always mean the chart as it was before the call.
+  if (removedSeriesIndexes.length > 0 && resolved.style !== undefined) {
+    const renumber = (number: number, where: string): number => {
+      if (removedSeriesIndexes.includes(number - 1)) {
+        throw chartUpdateError(
+          `E_VALIDATION: ${where} names series ${number}, which removeSeries removes in the same call.`,
+          'Remedy: drop that entry, or run the style change in a separate call before removing the series.'
+        );
+      }
+      return number - removedSeriesIndexes.filter((index) => index < number - 1).length;
+    };
+    const style = { ...resolved.style };
+    if (style.series !== undefined) {
+      style.series = style.series.map((entry) => ({ ...entry, seriesNumber: renumber(entry.seriesNumber, 'style.series') }));
+    }
+    if (style.trendline?.seriesNumbers !== undefined) {
+      style.trendline = { ...style.trendline, seriesNumbers: style.trendline.seriesNumbers.map((n) => renumber(n, 'style.trendline.seriesNumbers')) };
+    }
+    resolved.style = style;
   }
   const scatterTypeSwitch = resolved.chartType !== undefined
     && resolved.chartType !== existing.detected.chartType && !baseFamilyRequest;
@@ -1774,6 +1843,7 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
       existing.externalDataRId
     );
   }
+  if (removeTitleRequested) updatedXml = markAutoTitleDeleted(updatedXml);
   // In-place series changes leave formulas pointing at the old column layout; the
   // workbook is regenerated for them, so the formulas follow it.
   if (structureChangedSeries && !structuralChange && rawChartType !== 'scatter') {

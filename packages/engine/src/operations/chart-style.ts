@@ -1,5 +1,8 @@
 import { chartNamespaceScopeFromXml } from '../parser/factory';
 import { majorGridlinesXml } from '../manipulators/chart-parts';
+import { withLineStroke, withSolidFill } from './chart-merge';
+import { normalizeColour } from './colour';
+import { applyRunProps, applyRunPropsDeep, setFillChild, solidFillXml, textPropertiesXml, type RunProps } from './chart-text';
 import {
   type ChartNamespaceScope,
   type Span,
@@ -10,6 +13,7 @@ import {
   findChartDirectChild,
   findChartDirectChildren,
   findChartElement,
+  findDirectChartTitleSpan,
   findDirectChild,
   setAttribute,
   tagEnd,
@@ -36,14 +40,30 @@ export interface ChartDataLabelStyle {
 export type ChartTickLabelPosition = 'nextTo' | 'high' | 'low' | 'none';
 
 export interface ChartCategoryAxisStyle {
+  /** Tick label size in points (1-400). */
+  labelSizePt?: number;
+  /** Tick label rotation in degrees, -90 to 90. */
+  labelRotationDeg?: number;
+  /** true draws the axis line (0.75 pt BFBFBF when none is visible); false hides it. */
+  showAxisLine?: boolean;
   title?: string;
+  /** Six hex digits. Needs gridlines on this axis (set majorGridlines:true in the same call to turn them on). */
+  gridlineColor?: string;
   hidden?: boolean;
   tickLabelPosition?: ChartTickLabelPosition;
   majorGridlines?: boolean;
 }
 
 export interface ChartValueAxisStyle {
+  /** Tick label size in points (1-400). */
+  labelSizePt?: number;
+  /** Tick label rotation in degrees, -90 to 90. */
+  labelRotationDeg?: number;
+  /** true draws the axis line (0.75 pt BFBFBF when none is visible); false hides it. */
+  showAxisLine?: boolean;
   title?: string;
+  /** Six hex digits. Needs gridlines on this axis (set majorGridlines:true in the same call to turn them on). */
+  gridlineColor?: string;
   hidden?: boolean;
   min?: number;
   max?: number;
@@ -61,7 +81,8 @@ export type ChartTrendlineType = 'linear' | 'exponential' | 'logarithmic' | 'mov
 
 export interface ChartTrendlineStyle {
   type: ChartTrendlineType;
-  series?: number[];
+  /** Series numbers, counted from 1 in the order the chart lists its series. */
+  seriesNumbers?: number[];
   order?: 2 | 3 | 4 | 5 | 6;
   period?: number;
   displayEquation?: boolean;
@@ -75,7 +96,59 @@ export interface ChartFloatingStyle {
   wrap?: 'none' | 'square';
 }
 
+/** How the existing chart title looks. The title text stays the top-level `title`. */
+export interface ChartTitleFormatStyle {
+  sizePt?: number;
+  bold?: boolean;
+  color?: string;
+}
+
+export interface ChartPointStyle {
+  /** Counted from 1: the first category of the series (the first slice of a pie, the first bar). */
+  pointNumber: number;
+  color: string;
+}
+
+export interface ChartSeriesStyle {
+  /** Counted from 1, in the order the chart lists its series. */
+  seriesNumber: number;
+  points?: ChartPointStyle[];
+}
+
+/** Chart-wide font: family and colour reach every text element; the size reaches everything except the title. */
+export interface ChartFontStyle {
+  family?: string;
+  sizePt?: number;
+  color?: string;
+}
+
+export interface ChartBarsStyle {
+  /** Gap between bar groups as a percentage of bar width, 0-500. */
+  gapPercent?: number;
+  /** Bar overlap within a group, -100 to 100 (100 stacks them on top of each other). Not for 3D bars. */
+  overlapPercent?: number;
+}
+
+export interface ChartLinesStyle {
+  widthPt?: number;
+  smooth?: boolean;
+  showMarkers?: boolean;
+}
+
+/** Fill and border of the chart area or the plot area: a hex colour or "none". */
+export interface ChartAreaStyle {
+  fillColor?: string;
+  borderColor?: string;
+}
+
 export interface ChartStyle {
+  chartFont?: ChartFontStyle;
+  bars?: ChartBarsStyle;
+  lines?: ChartLinesStyle;
+  chartArea?: ChartAreaStyle;
+  plotArea?: ChartAreaStyle;
+  titleFormat?: ChartTitleFormatStyle;
+  series?: ChartSeriesStyle[];
   legend?: ChartLegendStyle;
   dataLabels?: ChartDataLabelStyle;
   axes?: ChartAxesStyle;
@@ -155,6 +228,68 @@ export function validateChartStyle(style: ChartStyle | undefined, context: Chart
   if (valueAxis?.min !== undefined && valueAxis?.max !== undefined && valueAxis.min >= valueAxis.max) {
     throw styleRefusal(context, `axes.value.min (${valueAxis.min}) must be less than axes.value.max (${valueAxis.max})`, 'Use a min strictly below max, or omit one bound to keep the authored scale.');
   }
+  if (style.titleFormat !== undefined) {
+    const fmt = style.titleFormat;
+    if (!fmt || typeof fmt !== 'object' || Array.isArray(fmt) || (fmt.sizePt === undefined && fmt.bold === undefined && fmt.color === undefined)) {
+      throw styleRefusal(context, 'titleFormat needs at least one of sizePt, bold or color', 'Pass titleFormat such as { sizePt: 12, bold: true, color: "1E293B" }. The title text stays in the top-level title.');
+    }
+    if (fmt.sizePt !== undefined && (typeof fmt.sizePt !== 'number' || !Number.isFinite(fmt.sizePt) || fmt.sizePt < 1 || fmt.sizePt > 400)) {
+      throw styleRefusal(context, `titleFormat.sizePt ${String(fmt.sizePt)} must be a number from 1 to 400`, 'Pass the size in points, for example 12.');
+    }
+    if (fmt.bold !== undefined && typeof fmt.bold !== 'boolean') {
+      throw styleRefusal(context, 'titleFormat.bold must be true or false', 'Pass bold: true or bold: false.');
+    }
+    if (fmt.color !== undefined && normalizeColour(fmt.color) === undefined) {
+      throw styleRefusal(context, `titleFormat.color "${String(fmt.color)}" is not a colour`, 'Use six hex digits such as 1E293B, or a colour name such as red.');
+    }
+  }
+  for (const [axisName, axis] of [['category', style.axes?.category], ['value', style.axes?.value]] as const) {
+    if (axis?.gridlineColor === undefined) continue;
+    if (normalizeColour(axis.gridlineColor) === undefined) {
+      throw styleRefusal(context, `axes.${axisName}.gridlineColor "${String(axis.gridlineColor)}" is not a colour`, 'Use six hex digits such as D9D9D9, or a colour name such as gray.');
+    }
+    if (axis.majorGridlines === false) {
+      throw styleRefusal(context, `axes.${axisName}.gridlineColor conflicts with majorGridlines:false`, 'Drop gridlineColor, or set majorGridlines:true to show the gridlines in that colour.');
+    }
+  }
+  validateTier2(style, context);
+  if (style.series !== undefined) {
+    if (!Array.isArray(style.series) || style.series.length === 0) {
+      throw styleRefusal(context, 'series must be a non-empty array of { seriesNumber, points }', 'Pass series such as [{ seriesNumber: 1, points: [{ pointNumber: 3, color: "F59E0B" }] }].');
+    }
+    if (context.is3D) {
+      throw styleRefusal(context, 'point colours are not supported on 3D charts', 'Use a 2D chart, or omit style.series.');
+    }
+    if (context.chartType === 'area') {
+      throw styleRefusal(context, 'area charts draw one shape per series, so point colours do not apply', 'Colour the whole series with the series color, or use a column, bar, line, pie or doughnut chart.');
+    }
+    const seenSeries = new Set<number>();
+    for (const entry of style.series) {
+      if (!entry || !Number.isInteger(entry.seriesNumber) || entry.seriesNumber < 1 || entry.seriesNumber > context.seriesCount) {
+        throw styleRefusal(context, `series entry seriesNumber ${String(entry?.seriesNumber)} is outside 1..${context.seriesCount}`, 'Series are numbered from 1, in the order the chart lists them.');
+      }
+      if (seenSeries.has(entry.seriesNumber)) {
+        throw styleRefusal(context, `seriesNumber ${entry.seriesNumber} appears twice in style.series`, 'Put every point of one series in one entry.');
+      }
+      seenSeries.add(entry.seriesNumber);
+      if (!Array.isArray(entry.points) || entry.points.length === 0) {
+        throw styleRefusal(context, `series ${entry.seriesNumber} lists no points`, 'Pass points such as [{ pointNumber: 1, color: "4F46E5" }].');
+      }
+      const seenPoints = new Set<number>();
+      for (const point of entry.points) {
+        if (!point || !Number.isInteger(point.pointNumber) || point.pointNumber < 1) {
+          throw styleRefusal(context, `series ${entry.seriesNumber} has a pointNumber that is not a whole number from 1`, 'Points are numbered from 1: the first category is point 1.');
+        }
+        if (seenPoints.has(point.pointNumber)) {
+          throw styleRefusal(context, `series ${entry.seriesNumber} lists point ${point.pointNumber} twice`, 'List each point once.');
+        }
+        seenPoints.add(point.pointNumber);
+        if (normalizeColour(point.color) === undefined) {
+          throw styleRefusal(context, `series ${entry.seriesNumber} point ${point.pointNumber} color "${String(point.color)}" is not a colour`, 'Use six hex digits such as F59E0B, or a colour name such as orange.');
+        }
+      }
+    }
+  }
   if (style.floating !== undefined) {
     const floating = style.floating;
     if (floating.horizontalAlign !== undefined && !['left', 'center', 'right'].includes(floating.horizontalAlign)) {
@@ -178,17 +313,17 @@ export function validateChartStyle(style: ChartStyle | undefined, context: Chart
     if (isPieFamily(context.chartType)) {
       throw styleRefusal(context, `${context.chartType} charts cannot carry trendlines`, 'Omit style.trendline for pie/doughnut charts.');
     }
-    if (trend.series !== undefined) {
-      if (!Array.isArray(trend.series) || trend.series.length === 0) {
-        throw styleRefusal(context, 'trendline.series must be a non-empty array of series numbers', 'Series are numbered from 1 in the order they appear: pass series like [1] or [2], or omit series to apply to every series.');
+    if (trend.seriesNumbers !== undefined) {
+      if (!Array.isArray(trend.seriesNumbers) || trend.seriesNumbers.length === 0) {
+        throw styleRefusal(context, 'trendline.seriesNumbers must be a non-empty array of series numbers', 'Series are numbered from 1 in the order they appear: pass seriesNumbers like [1] or [2], or omit seriesNumbers to apply to every series.');
       }
       const seen = new Set<number>();
-      for (const index of trend.series) {
+      for (const index of trend.seriesNumbers) {
         if (!Number.isInteger(index) || index < 1 || index > context.seriesCount) {
-          throw styleRefusal(context, `trendline.series index ${String(index)} is outside 1..${context.seriesCount}`, 'Series are numbered from 1; use the number of a series that exists in the chart.');
+          throw styleRefusal(context, `trendline.seriesNumbers entry ${String(index)} is outside 1..${context.seriesCount}`, 'Series are numbered from 1; use the number of a series that exists in the chart.');
         }
         if (seen.has(index)) {
-          throw styleRefusal(context, `trendline.series index ${index} is repeated`, 'List each series number once.');
+          throw styleRefusal(context, `trendline.seriesNumbers entry ${index} is repeated`, 'List each series number once.');
         }
         seen.add(index);
       }
@@ -532,10 +667,12 @@ function patchAxis(
     hidden?: boolean;
     tickLabelPosition?: ChartTickLabelPosition;
     majorGridlines?: boolean;
+    gridlineColor?: string;
     min?: number;
     max?: number;
     numberFormat?: string;
-  }
+  },
+  refuseGridlines?: () => Error
 ): string {
   let out = axisXml;
   if (style.hidden !== undefined) out = setAxisChild(out, 'delete', style.hidden ? '1' : '0');
@@ -548,6 +685,13 @@ function patchAxis(
     } else {
       out = removeDirectChildren(out, 'majorGridlines');
     }
+  }
+  if (style.gridlineColor !== undefined) {
+    const hex = normalizeColour(style.gridlineColor) as string;
+    const gridTag = chartQualifiedName(out, 'majorGridlines');
+    const grid = findDirectChild(out, gridTag);
+    if (!grid) throw (refuseGridlines ? refuseGridlines() : new Error('gridlines are off on this axis'));
+    out = replaceSpan(out, grid, gridlinesWithColor(out.slice(grid.start, grid.end), hex, (local) => chartQualifiedName(out, local)));
   }
   if (style.title !== undefined) {
     const tag = chartQualifiedName(out, 'title');
@@ -566,7 +710,37 @@ function patchAxis(
       out = insertOrderedChild(out, AXIS_ORDER, 'numFmt', `<${tag} formatCode="${escapeXml(style.numberFormat)}" sourceLinked="0"/>`);
     }
   }
+  out = patchAxisText(out, style);
+  out = patchAxisLine(out, style);
   return patchScalingBounds(out, style.min, style.max);
+}
+
+/** Sets the gridline colour, keeping an authored width, dash or transparency. */
+function gridlinesWithColor(gridXml: string, color: string, qualify: (local: string) => string): string {
+  const spPrTag = qualify('spPr');
+  const spPr = findDirectChild(gridXml, spPrTag);
+  if (!spPr) return majorGridlinesXml(qualify, color);
+  const patched = withLineStroke(gridXml.slice(spPr.start, spPr.end), color);
+  return replaceSpan(gridXml, spPr, patched);
+}
+
+/** Applies a default gridline colour to every axis that already has gridlines; axes without gridlines are left alone. */
+export function applyDefaultGridlineColor(xml: string, color: string): string {
+  const hex = normalizeColour(color);
+  if (hex === undefined) return xml;
+  const scope = chartNamespaceScopeFromXml(xml);
+  let out = xml;
+  for (const kind of ['catAx', 'valAx', 'dateAx']) {
+    const spans = chartSpans(out, kind, scope);
+    for (const span of [...spans].reverse()) {
+      const axisXml = out.slice(span.start, span.end);
+      const grid = findDirectChild(axisXml, chartQualifiedName(axisXml, 'majorGridlines'));
+      if (!grid) continue;
+      const patched = replaceSpan(axisXml, grid, gridlinesWithColor(axisXml.slice(grid.start, grid.end), hex, (local) => chartQualifiedName(axisXml, local)));
+      out = replaceSpan(out, span, patched);
+    }
+  }
+  return out;
 }
 
 function axisSpan(block: string, kind: 'category' | 'value', context: ChartStyleContext, scope: ChartNamespaceScope): Span | null {
@@ -615,7 +789,15 @@ function patchAxes(
           : 'Re-read the chart via inspect_document; if malformed, delete and re-insert it.'
       );
     }
-    const axisXml = patchAxis(block.slice(axis.start, axis.end), axisStyle);
+    const axisXml = patchAxis(
+      block.slice(axis.start, axis.end),
+      axisStyle,
+      () => styleRefusal(
+        context,
+        `axes.${kind}.gridlineColor needs gridlines, and they are off on this axis`,
+        'Set majorGridlines:true in the same call to turn them on in that colour.'
+      )
+    );
     out = replaceSpan(out, { start: chart.start + axis.start, end: chart.start + axis.end }, axisXml);
     const numberFormat = kind === 'value' ? style.value?.numberFormat : undefined;
     if (kind === 'value' && context.chartType === 'combo' && numberFormat !== undefined) {
@@ -629,6 +811,159 @@ function patchAxes(
       }
     }
   }
+  return out;
+}
+
+
+const TITLE_ORDER = ['tx', 'layout', 'overlay', 'spPr', 'txPr', 'extLst'] as const;
+
+/** Changes how the existing chart title looks. The title text is never touched here. */
+function patchTitleFormat(xml: string, format: ChartTitleFormatStyle, scope: ChartNamespaceScope, context: ChartStyleContext): string {
+  const chart = findChartElement(xml, 'chart', scope);
+  const title = chart ? findDirectChartTitleSpan(xml, chart, scope) : null;
+  if (!title) {
+    throw styleRefusal(context, 'this chart has no title, so there is nothing to format', 'Set the title text first (the top-level title key), then titleFormat.');
+  }
+  const props: RunProps = {
+    ...(format.sizePt !== undefined ? { sz: Math.round(format.sizePt * 100) } : {}),
+    ...(format.bold !== undefined ? { bold: format.bold } : {}),
+    ...(format.color !== undefined ? { color: normalizeColour(format.color) as string } : {}),
+  };
+  let titleXml = xml.slice(title.start, title.end);
+  if (findChartElement(titleXml, 'rich', scope)) {
+    // A run without its own properties would ignore the format; give it an empty rPr first.
+    titleXml = titleXml.replace(/<a:r>(?!<a:rPr)/g, '<a:r><a:rPr lang="en-US"/>');
+    titleXml = applyRunPropsDeep(titleXml, props);
+  }
+  const txPrTag = chartQualifiedName(titleXml, 'txPr');
+  const existingTxPr = findDirectChild(titleXml, txPrTag);
+  if (existingTxPr) {
+    titleXml = replaceSpan(titleXml, existingTxPr, applyRunPropsDeep(titleXml.slice(existingTxPr.start, existingTxPr.end), props));
+  } else if (!findChartElement(titleXml, 'rich', scope)) {
+    titleXml = insertOrderedChild(titleXml, TITLE_ORDER, 'txPr', textPropertiesXml((local) => chartQualifiedName(titleXml, local), props));
+  }
+  return replaceSpan(xml, title, titleXml);
+}
+
+/** Default title size for a new chart (style guide). Only applies when the chart has a title. */
+export function applyDefaultTitleSize(xml: string, sizePt: number): string {
+  const scope = chartNamespaceScopeFromXml(xml);
+  const chart = findChartElement(xml, 'chart', scope);
+  if (!chart || !findDirectChartTitleSpan(xml, chart, scope)) return xml;
+  return patchTitleFormat(xml, { sizePt }, scope, { chartPath: 'new chart', chartType: 'column', seriesCount: 0, is3D: false });
+}
+
+const SERIES_PLOTS_WITH_POINTS = ['barChart', 'lineChart', 'pieChart', 'doughnutChart', 'scatterChart', 'bar3DChart', 'line3DChart', 'pie3DChart', 'areaChart'] as const;
+const DPT_FOLLOWERS = ['dLbls', 'trendline', 'errBars', 'cat', 'val', 'xVal', 'yVal', 'shape', 'smooth', 'bubbleSize', 'bubble3D', 'extLst'] as const;
+
+function pointCountOf(serXml: string, scope: ChartNamespaceScope): number {
+  for (const tag of ['val', 'yVal']) {
+    const val = findChartDirectChild(serXml, tag, scope);
+    if (!val) continue;
+    const valXml = serXml.slice(val.start, val.end);
+    const count = findChartElement(valXml, 'ptCount', scope);
+    if (count) {
+      const n = Number(attrValue(valXml.slice(count.start, count.end), 'val'));
+      if (Number.isInteger(n) && n >= 0) return n;
+    }
+    return chartSpans(valXml, 'pt', scope).length;
+  }
+  return 0;
+}
+
+function dPtIndexOf(dPtXml: string): number {
+  const m = /<(?:[\w.-]+:)?idx\s+val="(\d+)"/.exec(dPtXml);
+  return m ? Number(m[1]) : -1;
+}
+
+function newPointXml(serXml: string, plotTag: string, index: number, color: string, scope: ChartNamespaceScope): string {
+  const c = (local: string): string => chartQualifiedName(serXml, local);
+  const fill = solidFillXml(color);
+  if (plotTag === 'lineChart' || plotTag === 'scatterChart' || plotTag === 'line3DChart') {
+    const marker = findChartDirectChild(serXml, 'marker', scope);
+    const markerXml = marker ? serXml.slice(marker.start, marker.end) : '';
+    const symbol = /<(?:[\w.-]+:)?symbol\s+val="([^"]+)"/.exec(markerXml)?.[1] ?? 'circle';
+    const size = /<(?:[\w.-]+:)?size\s+val="([^"]+)"/.exec(markerXml)?.[1];
+    return `<${c('dPt')}><${c('idx')} val="${index}"/>` +
+      `<${c('marker')}><${c('symbol')} val="${symbol}"/>${size ? `<${c('size')} val="${size}"/>` : ''}` +
+      `<${c('spPr')}>${fill}<a:ln w="9525">${fill}</a:ln></${c('spPr')}></${c('marker')}>` +
+      `<${c('bubble3D')} val="0"/>` +
+      `<${c('spPr')}><a:ln w="28575" cap="rnd">${fill}<a:round/></a:ln></${c('spPr')}></${c('dPt')}>`;
+  }
+  const invert = plotTag === 'barChart' ? `<${c('invertIfNegative')} val="0"/>` : '';
+  return `<${c('dPt')}><${c('idx')} val="${index}"/>${invert}<${c('bubble3D')} val="0"/><${c('spPr')}>${fill}</${c('spPr')}></${c('dPt')}>`;
+}
+
+/** Colours single points (bars, slices, markers) of numbered series. Numbers count from 1 in document order. */
+function patchSeriesPoints(xml: string, entries: ChartSeriesStyle[], context: ChartStyleContext, scope: ChartNamespaceScope): string {
+  const chart = findChartElement(xml, 'chart', scope);
+  if (!chart) return xml;
+  const block = xml.slice(chart.start, chart.end);
+  const plotArea = findChartDirectChild(block, 'plotArea', scope);
+  if (!plotArea) return xml;
+  const areaXml = block.slice(plotArea.start, plotArea.end);
+  const all: Array<{ span: Span; plotTag: string }> = [];
+  for (const tag of SERIES_PLOTS_WITH_POINTS) {
+    for (const plot of findChartDirectChildren(areaXml, tag, scope)) {
+      const plotXml = areaXml.slice(plot.start, plot.end);
+      for (const ser of findChartDirectChildren(plotXml, 'ser', scope)) {
+        all.push({ span: { start: chart.start + plotArea.start + plot.start + ser.start, end: chart.start + plotArea.start + plot.start + ser.end }, plotTag: tag });
+      }
+    }
+  }
+  all.sort((a, b) => a.span.start - b.span.start);
+  if (all.length === 0) {
+    throw styleRefusal(context, 'this chart has no series to colour', 'Add series data first, or omit style.series.');
+  }
+  const edits: Array<{ span: Span; text: string }> = [];
+  for (const entry of entries) {
+    const target = all[entry.seriesNumber - 1];
+    if (!target) {
+      throw styleRefusal(context, `seriesNumber ${entry.seriesNumber} is outside 1..${all.length}`, 'Series are numbered from 1, in the order the chart lists them.');
+    }
+    let serXml = xml.slice(target.span.start, target.span.end);
+    const count = pointCountOf(serXml, scope);
+    for (const point of entry.points ?? []) {
+      if (point.pointNumber > count) {
+        throw styleRefusal(context, `series ${entry.seriesNumber} has ${count} points, so pointNumber ${point.pointNumber} is outside 1..${count}`, 'Points are numbered from 1: the first category is point 1.');
+      }
+      const index = point.pointNumber - 1;
+      const color = normalizeColour(point.color) as string;
+      const existing = findChartDirectChildren(serXml, 'dPt', scope).find((span) => dPtIndexOf(serXml.slice(span.start, span.end)) === index);
+      if (existing) {
+        const dPtXml = serXml.slice(existing.start, existing.end);
+        const line = target.plotTag === 'lineChart' || target.plotTag === 'scatterChart' || target.plotTag === 'line3DChart';
+        const spPr = findChartDirectChild(dPtXml, 'spPr', scope);
+        let patched: string;
+        if (spPr) {
+          const spPrXml = dPtXml.slice(spPr.start, spPr.end);
+          patched = dPtXml.slice(0, spPr.start) + (line ? withLineStroke(spPrXml, color) : withSolidFill(spPrXml, color)) + dPtXml.slice(spPr.end);
+        } else {
+          const tag = chartQualifiedName(dPtXml, 'spPr');
+          const fresh = line ? `<${tag}><a:ln w="28575" cap="rnd">${solidFillXml(color)}<a:round/></a:ln></${tag}>` : `<${tag}>${solidFillXml(color)}</${tag}>`;
+          patched = insertBeforeClose(dPtXml, fresh);
+        }
+        serXml = replaceSpan(serXml, existing, patched);
+        continue;
+      }
+      const fresh = newPointXml(serXml, target.plotTag, index, color, scope);
+      const dPts = findChartDirectChildren(serXml, 'dPt', scope);
+      const before = dPts.find((span) => dPtIndexOf(serXml.slice(span.start, span.end)) > index);
+      let at: number | undefined = before?.start;
+      if (at === undefined && dPts.length > 0) at = dPts[dPts.length - 1].end;
+      if (at === undefined) {
+        for (const tag of DPT_FOLLOWERS) {
+          const span = findChartDirectChild(serXml, tag, scope);
+          if (span) { at = span.start; break; }
+        }
+      }
+      if (at === undefined) at = serXml.lastIndexOf('</');
+      serXml = serXml.slice(0, at) + fresh + serXml.slice(at);
+    }
+    edits.push({ span: target.span, text: serXml });
+  }
+  let out = xml;
+  for (const edit of edits.sort((a, b) => b.span.start - a.span.start)) out = replaceSpan(out, edit.span, edit.text);
   return out;
 }
 
@@ -658,10 +993,10 @@ function patchTrendlines(
     throw styleRefusal(context, 'chart has no series to attach a trendline to', 'Add series data first, or omit style.trendline.');
   }
   // Callers count series from 1; the chart part's c:idx values count from 0.
-  const selected = (style.series ?? Array.from({ length: sers.length }, (_, i) => i + 1)).map((n) => n - 1);
+  const selected = (style.seriesNumbers ?? Array.from({ length: sers.length }, (_, i) => i + 1)).map((n) => n - 1);
   for (const index of selected) {
     if (index < 0 || index >= sers.length) {
-      throw styleRefusal(context, `trendline.series index ${index + 1} is outside 1..${sers.length}`, 'Series are numbered from 1; use the number of a series that exists in the chart part.');
+      throw styleRefusal(context, `trendline.seriesNumbers entry ${index + 1} is outside 1..${sers.length}`, 'Series are numbered from 1; use the number of a series that exists in the chart part.');
     }
   }
   const selectedSet = new Set(selected);
@@ -760,7 +1095,7 @@ function readTrendlineStyle(block: string, scope: ChartNamespaceScope): ChartTre
       const type = attrValue(trendXml.slice(typeEl.start, typeEl.end), 'val');
       if (!type || !TRENDLINE_TYPES.has(type)) continue;
       if (result === undefined) {
-        result = { type: type as ChartTrendlineType, series: [] };
+        result = { type: type as ChartTrendlineType, seriesNumbers: [] };
         const order = findDirectChild(trendXml, chartQualifiedName(trendXml, 'order'));
         const period = findDirectChild(trendXml, chartQualifiedName(trendXml, 'period'));
         const rsq = findDirectChild(trendXml, chartQualifiedName(trendXml, 'dispRSqr'));
@@ -785,7 +1120,7 @@ function readTrendlineStyle(block: string, scope: ChartNamespaceScope): ChartTre
     }
   }
   if (!result || ambiguousType) return undefined;
-  result.series = [...seriesIndexes].sort((a, b) => a - b);
+  result.seriesNumbers = [...seriesIndexes].sort((a, b) => a - b);
   return result;
 }
 
@@ -848,13 +1183,20 @@ export function applyChartStyle(xml: string, style: ChartStyle | undefined, cont
     throw styleRefusal(context, 'chart part has no <chart> root child', 'Re-read the chart via inspect_document; if malformed, delete and re-insert it.');
   }
   let out = xml;
+  if (style.chartFont !== undefined) out = applyChartFont(out, style.chartFont, scope);
   let block = out.slice(chart.start, chart.end);
   if (style.legend !== undefined) {
     out = patchLegend(out, chart, block, style.legend, scope);
     block = out.slice(chart.start, chart.end);
   }
+  if (style.titleFormat !== undefined) {
+    out = patchTitleFormat(out, style.titleFormat, scope, context);
+  }
   if (style.axes !== undefined) {
     out = patchAxes(out, style.axes, context, scope);
+  }
+  if (style.series !== undefined) {
+    out = patchSeriesPoints(out, style.series, context, scope);
   }
   if (style.trendline !== undefined) {
     out = patchTrendlines(out, style.trendline, context, scope);
@@ -866,6 +1208,10 @@ export function applyChartStyle(xml: string, style: ChartStyle | undefined, cont
       out = patchDataLabels(out, current, block, style.dataLabels, scope);
     }
   }
+  if (style.bars !== undefined) out = patchBars(out, style.bars, scope);
+  if (style.lines !== undefined) out = patchLines(out, style.lines, scope);
+  if (style.plotArea !== undefined) out = patchPlotArea(out, style.plotArea, scope);
+  if (style.chartArea !== undefined) out = patchChartArea(out, style.chartArea, scope);
   return out;
 }
 
@@ -1145,4 +1491,304 @@ export function readChartFloating(nodeXml: Element): ChartFloatingStyle | undefi
   if (directChildByLocal(anchor, 'wrapNone')) out.wrap = 'none';
   else if (directChildByLocal(anchor, 'wrapSquare')) out.wrap = 'square';
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Tier 2 (0.5.3): chart-wide font, bars, lines, area fills, axis label settings.
+// ---------------------------------------------------------------------------
+
+const CHARTSPACE_ORDER = [
+  'date1904', 'lang', 'roundedCorners', 'AlternateContent', 'style', 'clrMapOvr', 'pivotSource', 'protection',
+  'chart', 'spPr', 'txPr', 'externalData', 'printSettings', 'userShapes', 'extLst',
+] as const;
+const PLOTAREA_TAIL = ['spPr', 'extLst'] as const;
+const BAR_GROUP_ORDER = ['barDir', 'grouping', 'varyColors', 'ser', 'dLbls', 'gapWidth', 'overlap', 'serLines', 'axId', 'extLst'] as const;
+const BAR3D_ORDER = ['barDir', 'grouping', 'varyColors', 'ser', 'dLbls', 'gapWidth', 'gapDepth', 'shape', 'axId', 'extLst'] as const;
+const SER_ORDER = ['idx', 'order', 'tx', 'spPr', 'invertIfNegative', 'pictureOptions', 'marker', 'dPt', 'dLbls', 'trendline', 'errBars', 'cat', 'val', 'smooth', 'extLst'] as const;
+const AFTER_LN = ['a:effectLst', 'a:effectDag', 'a:scene3d', 'a:sp3d', 'a:extLst'] as const;
+const AFTER_AREA_FILL = ['a:ln', ...AFTER_LN] as const;
+const AFTER_LN_FILL = ['a:prstDash', 'a:custDash', 'a:round', 'a:bevel', 'a:miter', 'a:headEnd', 'a:tailEnd', 'a:extLst'] as const;
+
+function isColourOrNone(value: unknown): boolean {
+  return value === 'none' || (typeof value === 'string' && normalizeColour(value) !== undefined);
+}
+
+function isNumberIn(value: unknown, min: number, max: number): boolean {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
+}
+
+function validateTier2(style: ChartStyle, context: ChartStyleContext): void {
+  const object = (value: unknown, name: string, keys: string[]): void => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || keys.every((key) => (value as Record<string, unknown>)[key] === undefined)) {
+      throw styleRefusal(context, `${name} needs at least one of ${keys.join(', ')}`, `Pass ${name} with one of those keys.`);
+    }
+  };
+  if (style.chartFont !== undefined) {
+    const f = style.chartFont;
+    object(f, 'chartFont', ['family', 'sizePt', 'color']);
+    if (f.family !== undefined && (typeof f.family !== 'string' || f.family.trim() === '' || f.family.length > 100)) {
+      throw styleRefusal(context, 'chartFont.family must be a font name of 1 to 100 characters', 'Pass a font name such as "Calibri".');
+    }
+    if (f.sizePt !== undefined && !isNumberIn(f.sizePt, 1, 400)) {
+      throw styleRefusal(context, `chartFont.sizePt ${String(f.sizePt)} must be a number from 1 to 400`, 'Pass the size in points, for example 10.');
+    }
+    if (f.color !== undefined && normalizeColour(f.color) === undefined) {
+      throw styleRefusal(context, `chartFont.color "${String(f.color)}" is not a colour`, 'Use six hex digits such as 1E293B.');
+    }
+  }
+  if (style.bars !== undefined) {
+    const b = style.bars;
+    object(b, 'bars', ['gapPercent', 'overlapPercent']);
+    if (b.gapPercent !== undefined && !isNumberIn(b.gapPercent, 0, 500)) {
+      throw styleRefusal(context, `bars.gapPercent ${String(b.gapPercent)} must be a number from 0 to 500`, 'Use 0 to 500; 150 is the Word default.');
+    }
+    if (b.overlapPercent !== undefined && !isNumberIn(b.overlapPercent, -100, 100)) {
+      throw styleRefusal(context, `bars.overlapPercent ${String(b.overlapPercent)} must be a number from -100 to 100`, 'Use -100 to 100; 100 puts the bars of a group on top of each other.');
+    }
+    if (b.overlapPercent !== undefined && context.is3D) {
+      throw styleRefusal(context, 'bars.overlapPercent does not exist on 3D bar charts', 'Use bars.gapPercent only, or use a 2D bar chart.');
+    }
+  }
+  if (style.lines !== undefined) {
+    const l = style.lines;
+    object(l, 'lines', ['widthPt', 'smooth', 'showMarkers']);
+    if (l.widthPt !== undefined && !isNumberIn(l.widthPt, 0.25, 20)) {
+      throw styleRefusal(context, `lines.widthPt ${String(l.widthPt)} must be a number from 0.25 to 20`, 'Pass the line width in points, for example 2.25.');
+    }
+    for (const key of ['smooth', 'showMarkers'] as const) {
+      if (l[key] !== undefined && typeof l[key] !== 'boolean') {
+        throw styleRefusal(context, `lines.${key} must be true or false`, `Pass ${key}: true or ${key}: false.`);
+      }
+    }
+  }
+  for (const [name, area] of [['chartArea', style.chartArea], ['plotArea', style.plotArea]] as const) {
+    if (area === undefined) continue;
+    object(area, name, ['fillColor', 'borderColor']);
+    for (const key of ['fillColor', 'borderColor'] as const) {
+      if (area[key] !== undefined && !isColourOrNone(area[key])) {
+        throw styleRefusal(context, `${name}.${key} "${String(area[key])}" is not a colour`, 'Use six hex digits such as F8FAFC, or "none".');
+      }
+    }
+  }
+  for (const [axisName, axis] of [['category', style.axes?.category], ['value', style.axes?.value]] as const) {
+    if (axis?.labelSizePt !== undefined && !isNumberIn(axis.labelSizePt, 1, 400)) {
+      throw styleRefusal(context, `axes.${axisName}.labelSizePt ${String(axis.labelSizePt)} must be a number from 1 to 400`, 'Pass the size in points, for example 9.');
+    }
+    if (axis?.labelRotationDeg !== undefined && !isNumberIn(axis.labelRotationDeg, -90, 90)) {
+      throw styleRefusal(context, `axes.${axisName}.labelRotationDeg ${String(axis.labelRotationDeg)} must be a number from -90 to 90`, 'Pass degrees, for example -45.');
+    }
+    if (axis?.showAxisLine !== undefined && typeof axis.showAxisLine !== 'boolean') {
+      throw styleRefusal(context, `axes.${axisName}.showAxisLine must be true or false`, 'Pass showAxisLine: true or false.');
+    }
+  }
+}
+
+/** Sets the chart-wide font on the chart-space text properties and on every text run already in the part. */
+export function applyChartFont(xml: string, font: ChartFontStyle, scope: ChartNamespaceScope = chartNamespaceScopeFromXml(xml)): string {
+  const props: RunProps = {
+    ...(font.family !== undefined ? { family: font.family } : {}),
+    ...(font.color !== undefined ? { color: normalizeColour(font.color) as string } : {}),
+  };
+  const withSize: RunProps = { ...props, ...(font.sizePt !== undefined ? { sz: Math.round(font.sizePt * 100) } : {}) };
+  const chart = findChartElement(xml, 'chart', scope);
+  if (!chart) return xml;
+  const title = findDirectChartTitleSpan(xml, chart, scope);
+  const deep = (part: string, p: RunProps): string => (Object.keys(p).length > 0 ? applyRunPropsDeep(part, p) : part);
+  let out = title
+    ? deep(xml.slice(0, title.start), withSize) + deep(xml.slice(title.start, title.end), props) + deep(xml.slice(title.end), withSize)
+    : deep(xml, withSize);
+  // Chart-space default for text without its own properties.
+  const root = findChartElement(out, 'chartSpace', scope);
+  if (!root) return out;
+  const rootXml = out.slice(root.start, root.end);
+  const existing = findDirectChild(rootXml, chartQualifiedName(rootXml, 'txPr'));
+  const patched = existing
+    ? replaceSpan(rootXml, existing, applyRunPropsDeep(rootXml.slice(existing.start, existing.end), withSize))
+    : insertOrderedChild(rootXml, CHARTSPACE_ORDER, 'txPr', textPropertiesXml((local) => chartQualifiedName(rootXml, local), withSize));
+  out = out.slice(0, root.start) + patched + out.slice(root.end);
+  return out;
+}
+
+function groupSpans(xml: string, kinds: readonly string[], scope: ChartNamespaceScope): Span[] {
+  const found: Span[] = [];
+  for (const kind of kinds) found.push(...chartSpans(xml, kind, scope));
+  return found.sort((a, b) => b.start - a.start);
+}
+
+function setScalarChild(parentXml: string, order: readonly string[], local: string, value: string): string {
+  const tag = chartQualifiedName(parentXml, local);
+  const child = findDirectChild(parentXml, tag);
+  if (child) return replaceSpan(parentXml, child, setAttribute(parentXml.slice(child.start, child.end), 'val', value));
+  return insertOrderedChild(parentXml, order, local, `<${tag} val="${value}"/>`);
+}
+
+function patchBars(xml: string, bars: ChartBarsStyle, scope: ChartNamespaceScope): string {
+  const groups = groupSpans(xml, ['barChart', 'bar3DChart'], scope);
+  if (groups.length === 0) {
+    throw Object.assign(new Error('E_VALIDATION: bars needs a bar or column group, and this chart has none.'), {
+      code: 'E_VALIDATION', retryable: false, remedy: 'Remove style.bars, or use a column/bar chart.',
+    });
+  }
+  let out = xml;
+  for (const span of groups) {
+    let group = out.slice(span.start, span.end);
+    const order = /^<(?:[\w.-]+:)?bar3DChart[\s>]/.test(group) ? BAR3D_ORDER : BAR_GROUP_ORDER;
+    if (bars.gapPercent !== undefined) group = setScalarChild(group, order, 'gapWidth', String(Math.round(bars.gapPercent)));
+    if (bars.overlapPercent !== undefined && order === BAR_GROUP_ORDER) group = setScalarChild(group, order, 'overlap', String(Math.round(bars.overlapPercent)));
+    out = replaceSpan(out, span, group);
+  }
+  return out;
+}
+
+function withLineWidth(spPrXml: string, widthEmu: number): string {
+  const ln = findDirectChild(spPrXml, 'a:ln');
+  if (ln) return replaceSpan(spPrXml, ln, setAttribute(spPrXml.slice(ln.start, ln.end), 'w', String(widthEmu)));
+  const block = `<a:ln w="${widthEmu}" cap="rnd"><a:round/></a:ln>`;
+  for (const tag of AFTER_LN) {
+    const later = findDirectChild(spPrXml, tag);
+    if (later) return spPrXml.slice(0, later.start) + block + spPrXml.slice(later.start);
+  }
+  return insertBeforeClose(spPrXml, block);
+}
+
+function patchLines(xml: string, lines: ChartLinesStyle, scope: ChartNamespaceScope): string {
+  const groups = groupSpans(xml, ['lineChart', 'line3DChart'], scope);
+  if (groups.length === 0) {
+    throw Object.assign(new Error('E_VALIDATION: lines needs a line group, and this chart has none.'), {
+      code: 'E_VALIDATION', retryable: false, remedy: 'Remove style.lines, or use a line chart (or a combo with line series).',
+    });
+  }
+  let out = xml;
+  for (const span of groups) {
+    let group = out.slice(span.start, span.end);
+    for (const ser of [...chartSpans(group, 'ser', scope)].reverse()) {
+      let serXml = group.slice(ser.start, ser.end);
+      if (lines.widthPt !== undefined) {
+        const tag = chartQualifiedName(serXml, 'spPr');
+        const sp = findDirectChild(serXml, tag);
+        const widthEmu = Math.round(lines.widthPt * 12700);
+        serXml = sp
+          ? replaceSpan(serXml, sp, withLineWidth(serXml.slice(sp.start, sp.end), widthEmu))
+          : insertOrderedChild(serXml, SER_ORDER, 'spPr', `<${tag}><a:ln w="${widthEmu}" cap="rnd"><a:round/></a:ln></${tag}>`);
+      }
+      if (lines.showMarkers !== undefined) {
+        const tag = chartQualifiedName(serXml, 'marker');
+        const marker = findDirectChild(serXml, tag);
+        const symbolTag = chartQualifiedName(serXml, 'symbol');
+        const hidden = `<${tag}><${symbolTag} val="none"/></${tag}>`;
+        const shown = `<${tag}><${symbolTag} val="circle"/><${chartQualifiedName(serXml, 'size')} val="5"/></${tag}>`;
+        const isHidden = marker ? /<(?:[\w.-]+:)?symbol\s+val="none"/.test(serXml.slice(marker.start, marker.end)) : false;
+        if (lines.showMarkers === false) {
+          serXml = marker ? replaceSpan(serXml, marker, hidden) : insertOrderedChild(serXml, SER_ORDER, 'marker', hidden);
+        } else if (marker && isHidden) {
+          serXml = replaceSpan(serXml, marker, shown);
+        } else if (!marker) {
+          serXml = insertOrderedChild(serXml, SER_ORDER, 'marker', shown);
+        }
+      }
+      if (lines.smooth !== undefined) serXml = setScalarChild(serXml, SER_ORDER, 'smooth', lines.smooth ? '1' : '0');
+      group = group.slice(0, ser.start) + serXml + group.slice(ser.end);
+    }
+    if (lines.smooth !== undefined) {
+      // A group-level smooth (the combo generator writes one) overrides the series in LibreOffice, so keep them equal.
+      const g = findDirectChild(group, chartQualifiedName(group, 'smooth'));
+      if (g) group = replaceSpan(group, g, setAttribute(group.slice(g.start, g.end), 'val', lines.smooth ? '1' : '0'));
+    }
+    if (lines.showMarkers !== undefined) {
+      const m = findDirectChild(group, chartQualifiedName(group, 'marker'));
+      if (m && !/^<(?:[\w.-]+:)?marker\s+val=/.test(group.slice(m.start, m.end))) { /* series-level marker, not group-level */ }
+      else if (m) group = replaceSpan(group, m, setAttribute(group.slice(m.start, m.end), 'val', lines.showMarkers ? '1' : '0'));
+    }
+    out = replaceSpan(out, span, group);
+  }
+  return out;
+}
+
+/** Applies fill and border to a shape-properties block, creating it when missing. */
+function areaProps(spPrXml: string, area: ChartAreaStyle): string {
+  let out = spPrXml;
+  if (area.fillColor !== undefined) {
+    const fill = area.fillColor === 'none' ? '<a:noFill/>' : solidFillXml(normalizeColour(area.fillColor) as string);
+    out = setFillChild(out, fill, AFTER_AREA_FILL);
+  }
+  if (area.borderColor !== undefined) {
+    const fill = area.borderColor === 'none' ? '<a:noFill/>' : solidFillXml(normalizeColour(area.borderColor) as string);
+    const ln = findDirectChild(out, 'a:ln');
+    if (ln) {
+      out = replaceSpan(out, ln, setFillChild(out.slice(ln.start, ln.end), fill, AFTER_LN_FILL));
+    } else {
+      const block = `<a:ln w="9525">${fill}</a:ln>`;
+      const later = AFTER_LN.map((tag) => findDirectChild(out, tag)).find((span) => span !== null);
+      out = later ? out.slice(0, later.start) + block + out.slice(later.start) : insertBeforeClose(out, block);
+    }
+  }
+  return out;
+}
+
+function patchSpPrOf(parentXml: string, area: ChartAreaStyle, order: readonly string[]): string {
+  const tag = chartQualifiedName(parentXml, 'spPr');
+  const existing = findDirectChild(parentXml, tag);
+  if (existing) return replaceSpan(parentXml, existing, areaProps(parentXml.slice(existing.start, existing.end), area));
+  return insertOrderedChild(parentXml, order, 'spPr', areaProps(`<${tag}></${tag}>`, area));
+}
+
+function patchPlotArea(xml: string, area: ChartAreaStyle, scope: ChartNamespaceScope): string {
+  const plot = chartSpans(xml, 'plotArea', scope)[0];
+  if (!plot) return xml;
+  return replaceSpan(xml, plot, patchSpPrOf(xml.slice(plot.start, plot.end), area, PLOTAREA_TAIL));
+}
+
+function patchChartArea(xml: string, area: ChartAreaStyle, scope: ChartNamespaceScope): string {
+  const root = findChartElement(xml, 'chartSpace', scope);
+  if (!root) return xml;
+  return replaceSpan(xml, root, patchSpPrOf(xml.slice(root.start, root.end), area, CHARTSPACE_ORDER));
+}
+
+function patchAxisText(axisXml: string, style: ChartCategoryAxisStyle | ChartValueAxisStyle): string {
+  if (style.labelSizePt === undefined && style.labelRotationDeg === undefined) return axisXml;
+  const tag = chartQualifiedName(axisXml, 'txPr');
+  const existing = findDirectChild(axisXml, tag);
+  const props: RunProps = style.labelSizePt !== undefined ? { sz: Math.round(style.labelSizePt * 100) } : {};
+  if (!existing) {
+    return insertOrderedChild(axisXml, AXIS_ORDER, 'txPr', textPropertiesXml((local) => chartQualifiedName(axisXml, local), props, style.labelRotationDeg));
+  }
+  let txPr = axisXml.slice(existing.start, existing.end);
+  if (style.labelSizePt !== undefined) {
+    txPr = /<a:defRPr[\s/>]/.test(txPr)
+      ? applyRunPropsDeep(txPr, props)
+      : txPr.replace(/<a:pPr\s*\/>/, `<a:pPr>${applyRunProps('<a:defRPr/>', props)}</a:pPr>`).replace(/<a:pPr>(?![\s\S]*<a:defRPr)/, `<a:pPr>${applyRunProps('<a:defRPr/>', props)}`);
+  }
+  if (style.labelRotationDeg !== undefined) {
+    const body = /<a:bodyPr(?:\s[^>]*)?\/?>/.exec(txPr);
+    const rot = String(Math.round(style.labelRotationDeg * 60000));
+    if (body) {
+      let patched = setAttribute(body[0], 'rot', rot);
+      patched = setAttribute(patched, 'vert', 'horz');
+      txPr = txPr.replace(body[0], patched);
+    }
+  }
+  return replaceSpan(axisXml, existing, txPr);
+}
+
+function patchAxisLine(axisXml: string, style: ChartCategoryAxisStyle | ChartValueAxisStyle): string {
+  if (style.showAxisLine === undefined) return axisXml;
+  const tag = chartQualifiedName(axisXml, 'spPr');
+  const existing = findDirectChild(axisXml, tag);
+  const spPr = existing ? axisXml.slice(existing.start, existing.end) : `<${tag}></${tag}>`;
+  const ln = findDirectChild(spPr, 'a:ln');
+  const lnXml = ln ? spPr.slice(ln.start, ln.end) : '';
+  const visible = ln !== null && !/<a:noFill\s*\/>/.test(lnXml);
+  let next: string;
+  if (style.showAxisLine === false) {
+    next = areaProps(spPr, { borderColor: 'none' });
+  } else if (visible) {
+    return axisXml;
+  } else {
+    next = areaProps(spPr, { borderColor: 'BFBFBF' });
+    const lnAfter = findDirectChild(next, 'a:ln');
+    if (lnAfter && !/\sw="/.test(next.slice(lnAfter.start, lnAfter.end).split('>')[0])) {
+      next = replaceSpan(next, lnAfter, setAttribute(next.slice(lnAfter.start, lnAfter.end), 'w', '9525'));
+    }
+  }
+  return existing ? replaceSpan(axisXml, existing, next) : insertOrderedChild(axisXml, AXIS_ORDER, 'spPr', next);
 }

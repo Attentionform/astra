@@ -239,7 +239,7 @@ describe('combo style integration', () => {
 
   it('applies a trendline to the selected combo series by global idx', async () => {
     const { xml } = await insertCombo('combo_trend', SERIES, {
-      style: { trendline: { type: 'linear', series: [2] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [2] } },
     });
     const blocks = xml.match(/<c:ser>[\s\S]*?<\/c:ser>/g)!;
     expect(blocks[0]).not.toContain('<c:trendline>');
@@ -425,13 +425,13 @@ describe('combo data labels and trendlines across plots', () => {
 
   it('reads a trendline from the secondary line by its c:idx', async () => {
     const { parser } = await insertCombo('combo_trend_secondary', SERIES, {
-      style: { trendline: { type: 'linear', series: [2] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [2] } },
     });
     const reopened = new DocxParser(parser.rezip());
     const reopenedAst = await reopened.getAST();
     const chart = reopenedAst.sections[0].nodes.find((n) => n.type === 'chart')!;
     expect(chart.metadata.chartData).toMatchObject({
-      style: { trendline: { type: 'linear', series: [2] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [2] } },
     });
   });
 
@@ -442,19 +442,19 @@ describe('combo data labels and trendlines across plots', () => {
       { name: 'Rate', values: [1, 2], chartType: 'line' as const, axis: 'secondary' as const },
     ];
     const { parser } = await insertCombo('combo_trend_first_plot', interleaved, {
-      style: { trendline: { type: 'linear', series: [2] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [2] } },
     });
     const reopened = new DocxParser(parser.rezip());
     const reopenedAst = await reopened.getAST();
     const chart = reopenedAst.sections[0].nodes.find((n) => n.type === 'chart')!;
     expect(chart.metadata.chartData).toMatchObject({
-      style: { trendline: { type: 'linear', series: [2] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [2] } },
     });
   });
 
   it('keeps the previous trendline metadata and XML when distinct types coexist', async () => {
     const { parser, ast, id, xml } = await insertCombo('combo_trend_mixed', THREE_SERIES, {
-      style: { trendline: { type: 'linear', series: [2] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [2] } },
     });
     const segments = xml.split('</c:ser>');
     segments[2] = segments[2].replace(
@@ -471,7 +471,7 @@ describe('combo data labels and trendlines across plots', () => {
     expect(after).toContain('<c:trendlineType val="linear"/>');
     expect(after).toContain('<c:trendlineType val="exponential"/>');
     expect(nodeById(ast, id).metadata.chartData).toMatchObject({
-      style: { trendline: { type: 'linear', series: [2] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [2] } },
     });
   });
 });

@@ -276,7 +276,7 @@ describe('chart style: axes and trendlines', () => {
         },
         trendline: {
           type: 'polynomial',
-          series: [2],
+          seriesNumbers: [2],
           order: 3,
           displayEquation: true,
           displayRSquared: true,
@@ -299,7 +299,7 @@ describe('chart style: axes and trendlines', () => {
           category: { title: 'Quarter' },
           value: { title: 'Revenue', min: 0, max: 100, numberFormat: '$#,##0' },
         },
-        trendline: { type: 'polynomial', series: [2], order: 3, displayEquation: true, displayRSquared: true },
+        trendline: { type: 'polynomial', seriesNumbers: [2], order: 3, displayEquation: true, displayRSquared: true },
       },
     });
 
@@ -309,49 +309,49 @@ describe('chart style: axes and trendlines', () => {
     expect(chart.metadata.chartData).toMatchObject({
       style: {
         axes: { category: { title: 'Quarter' }, value: { title: 'Revenue', min: 0, max: 100 } },
-        trendline: { type: 'polynomial', series: [2], order: 3 },
+        trendline: { type: 'polynomial', seriesNumbers: [2], order: 3 },
       },
     });
   });
 
   it('numbers series from 1: 1 is the first series, 0 is refused, and the number reads back', async () => {
     const { parser, ast, id } = await insertChart('trend_one_based', {
-      style: { trendline: { type: 'linear', series: [1] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [1] } },
     });
     const blocks = (): string[] => parser.getZipAdapter().readText('word/charts/chart1.xml').match(/<c:ser>[\s\S]*?<\/c:ser>/g)!;
     expect(blocks()[0]).toContain('<c:trendline>');
     expect(blocks()[1]).not.toContain('<c:trendline>');
-    expect(nodeById(ast, id).metadata.chartData).toMatchObject({ style: { trendline: { type: 'linear', series: [1] } } });
+    expect(nodeById(ast, id).metadata.chartData).toMatchObject({ style: { trendline: { type: 'linear', seriesNumbers: [1] } } });
 
     const before = hash(parser.rezip());
     let failure: unknown;
     try {
-      executeChart({ action: 'chart', operation: 'update', target: id, style: { trendline: { type: 'linear', series: [0] } } }, ast, parser);
+      executeChart({ action: 'chart', operation: 'update', target: id, style: { trendline: { type: 'linear', seriesNumbers: [0] } } }, ast, parser);
     } catch (error) {
       failure = error;
     }
-    expect(String(failure)).toMatch(/trendline\.series index 0 is outside 1\.\.2/);
+    expect(String(failure)).toMatch(/trendline\.seriesNumbers entry 0 is outside 1\.\.2/);
     expect((failure as { remedy?: string }).remedy).toMatch(/numbered from 1/);
     expect(hash(parser.rezip())).toBe(before);
 
     const past = (): unknown => {
       try {
-        executeChart({ action: 'chart', operation: 'update', target: id, style: { trendline: { type: 'linear', series: [3] } } }, ast, parser);
+        executeChart({ action: 'chart', operation: 'update', target: id, style: { trendline: { type: 'linear', seriesNumbers: [3] } } }, ast, parser);
       } catch (error) {
         return error;
       }
       return undefined;
     };
-    expect(String(past())).toMatch(/index 3 is outside 1\.\.2/);
+    expect(String(past())).toMatch(/entry 3 is outside 1\.\.2/);
 
     const reopened = await new DocxParser(parser.rezip()).getAST();
     const chart = reopened.sections[0].nodes.find((n) => n.type === 'chart')!;
-    expect(chart.metadata.chartData).toMatchObject({ style: { trendline: { type: 'linear', series: [1] } } });
+    expect(chart.metadata.chartData).toMatchObject({ style: { trendline: { type: 'linear', seriesNumbers: [1] } } });
   });
 
   it('removes a trendline with type none without touching other series', async () => {
     const { parser, ast, id, xml } = await insertChart('axes_trend_none', {
-      style: { trendline: { type: 'linear', series: [1, 2] } },
+      style: { trendline: { type: 'linear', seriesNumbers: [1, 2] } },
     });
     expect(xml.match(/<c:trendline>/g)).toHaveLength(2);
     executeChart(
@@ -359,7 +359,7 @@ describe('chart style: axes and trendlines', () => {
         action: 'chart',
         operation: 'update',
         target: id,
-        style: { trendline: { type: 'none', series: [2] } },
+        style: { trendline: { type: 'none', seriesNumbers: [2] } },
       },
       ast,
       parser
@@ -442,11 +442,11 @@ describe('chart style: axes and trendlines', () => {
   it('refuses polynomial without order, movingAvg without period and out-of-range series before mutation', async () => {
     const { parser, ast, id } = await insertChart('axes_refuse');
     for (const trendline of [
-      { type: 'polynomial' as const, series: [1] },
-      { type: 'movingAvg' as const, series: [1] },
-      { type: 'linear' as const, series: [9] },
-      { type: 'linear' as const, series: [0] },
-      { type: 'linear' as const, series: [1, 1] },
+      { type: 'polynomial' as const, seriesNumbers: [1] },
+      { type: 'movingAvg' as const, seriesNumbers: [1] },
+      { type: 'linear' as const, seriesNumbers: [9] },
+      { type: 'linear' as const, seriesNumbers: [0] },
+      { type: 'linear' as const, seriesNumbers: [1, 1] },
     ]) {
       const before = hash(parser.rezip());
       expect(() => executeChart(
