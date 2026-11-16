@@ -59,10 +59,23 @@ export interface ScanResult {
 
 const DECLARATION = /\sxmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 
+/** True when some start or end tag in `xml` writes a name or an attribute with this prefix ('' is the default namespace). */
+function prefixIsUsed(xml: string, prefix: string): boolean {
+  const tags = /<[^<>!?][^<>]*>/g;
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // For a prefix: `<p:x`, `</p:x` or ` p:x=` inside a tag. For the default namespace: an unprefixed element name.
+  const test = prefix === '' ? /^<\/?[A-Za-z_][\w.-]*(?:[\s/>]|$)/ : new RegExp(`^<\\/?${escaped}:[A-Za-z_]|\\s${escaped}:[A-Za-z_][\\w.-]*\\s*=`);
+  for (let m = tags.exec(xml); m !== null; m = tags.exec(xml)) {
+    if (test.test(m[0])) return true;
+  }
+  return false;
+}
+
 /**
- * Cheap text scan, no parse: null when every table namespace is bound to its canonical prefix everywhere,
- * otherwise the bindings that need a rewrite. Also reports a canonical prefix bound to a different namespace
- * only through the rewrite (a conflict is found there, where scope is known).
+ * Cheap text scan, no parse: null when nothing needs a rewrite, otherwise the bindings that do. A table namespace
+ * bound to a non-canonical prefix needs a rewrite only when some tag still writes a name with that prefix. A part
+ * that was rewritten before keeps its original declaration (so values that name it still resolve); on the next open
+ * that declaration is unused, so the part is left alone and the second open reports and rewrites nothing.
  */
 export function scanPart(xml: string): ScanResult | null {
   const found = new Map<string, Rename>();
@@ -75,7 +88,9 @@ export function scanPart(xml: string): ScanResult | null {
     if (canonical === undefined || prefix === canonical) continue;
     found.set(`${prefix}|${uri}`, { from: prefix, to: canonical, uri });
   }
-  return found.size === 0 ? null : { nonCanonical: [...found.values()] };
+  if (found.size === 0) return null;
+  const used = [...found.values()].filter((r) => prefixIsUsed(xml, r.from));
+  return used.length === 0 ? null : { nonCanonical: used };
 }
 
 const TAG = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[A-Za-z_][\w.:-]*\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/y;

@@ -10,6 +10,7 @@ import {
   getHistory,
   getTemplatePalette,
   summarizeStyleGuide,
+  packageNotes,
   type StyleGuideSummary,
 } from '@attentionform/astra-engine';
 import type { McpSessionStore } from '../../session-store';
@@ -66,7 +67,7 @@ export function extractStylePalette(parser: DocxParser): StylePalette {
 export async function handleOpenDocument(
   store: McpSessionStore,
   input: unknown
-): Promise<{ ok: true; sessionId: string; revision: number; summary: unknown; evicted: string[]; pendingNormalizations: string[]; validation: OpenValidationField; original?: import('@attentionform/astra-engine').OriginalInfo; originalWarning?: string } | McpErrorShape> {
+): Promise<{ ok: true; sessionId: string; revision: number; summary: unknown; evicted: string[]; pendingNormalizations: string[]; validation: OpenValidationField; original?: import('@attentionform/astra-engine').OriginalInfo; originalWarning?: string; packageNotes?: import('@attentionform/astra-engine').PackageReport & { warnings: string[] } } | McpErrorShape> {
   const parsed = OpenDocumentSchema.safeParse(input);
   if (!parsed.success) {
     const detail = parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
@@ -143,7 +144,8 @@ export async function handleOpenDocument(
     const pendingNormalizations = readPendingNormalizations(handle);
     // Validate the file as opened, so a later save can tell errors it already had from new ones.
     const validation = await validateAtOpen(handle, parsed.data.validationTimeoutMs ?? openValidationTimeoutMs());
-    return { ok: true, sessionId: handle.sessionId, revision: handle.revision, summary, evicted, pendingNormalizations, validation, original: handle.originalInfo, ...(handle.originalWarning ? { originalWarning: handle.originalWarning } : {}) };
+    const notes = packageNotes(handle.parser.getPackageReport());
+    return { ok: true, sessionId: handle.sessionId, revision: handle.revision, summary, evicted, pendingNormalizations, validation, original: handle.originalInfo, ...(handle.originalWarning ? { originalWarning: handle.originalWarning } : {}), ...(notes ? { packageNotes: notes } : {}) };
   } catch (err: unknown) {
     return mcpErrorFrom(err, 'E_IO', 'Check the .docx path is readable and retry open_document.');
   }

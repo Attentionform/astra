@@ -43,6 +43,7 @@ import {
 import { readDocxFileBuffer, getMimeType } from './parser/io';
 import { toError } from './errors';
 import { assertWordPrefix } from './ooxml/word-prefix-guard';
+import type { PackageReport } from './package-report';
 import { upsertSectPrChild } from './parser/sect-pr';
 import { addNodeInDocumentOrder, bodySectPr, listFileSections, splitIntoSections } from './parser/sections';
 import {
@@ -265,6 +266,19 @@ function canonicaliseText(xml: string, part: string): string {
 export class DocxParser {
   /** Parts rewritten to the usual prefixes at open (DN3). Empty for a canonical package. */
   public canonicalisedParts: Array<{ part: string; renames: Rename[] }> = [];
+  private packageSigned = false;
+
+  /** What the open found out about the package: rewritten prefixes and a digital signature. Empty for a canonical, unsigned package. */
+  public getPackageReport(): PackageReport {
+    return {
+      canonicalised: this.canonicalisedParts.map((p) => ({
+        part: p.part,
+        from: [...new Set(p.renames.map((r) => r.from))],
+        to: [...new Set(p.renames.map((r) => r.to))],
+      })),
+      signed: this.packageSigned,
+    };
+  }
   private builtinSeedSnapshot?: Map<string, Buffer>;
 
   /** True only while the entire internally generated seed package remains unchanged. */
@@ -743,6 +757,7 @@ export class DocxParser {
         assertNoXxeAdjacent(text, name);
       }
     }
+    this.packageSigned = this.zip.getEntries().some((e) => /^_xmlsignatures\//i.test(e.entryName));
     this.canonicalisedParts = canonicalisePackageParts(this.zip);
     this.parser = new DOMParser({
       errorHandler: {

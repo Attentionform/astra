@@ -40,6 +40,29 @@ describe('scanPart', () => {
   });
 });
 
+describe('scanPart: a retained alias is not work (idempotence)', () => {
+  it('a declaration that no tag uses needs no rewrite', () => {
+    expect(scanPart(`<w:document xmlns:w="${W}" xmlns:x="${W}"><w:body/></w:document>`)).toBeNull();
+  });
+  it('the same declaration used by an element name, a closing tag or an attribute does', () => {
+    expect(scanPart(`<w:document xmlns:w="${W}" xmlns:x="${W}"><x:body/></w:document>`)).not.toBeNull();
+    expect(scanPart(`<w:document xmlns:w="${W}" xmlns:x="${W}"><w:body x:val="1"></w:body></w:document>`)).not.toBeNull();
+  });
+  it('text, comments and values that merely contain "x:name" do not count as use', () => {
+    expect(scanPart(`<w:document xmlns:w="${W}" xmlns:x="${W}"><w:t>see x:body here</w:t><!-- <x:body/> --><w:p e="a x:b"/></w:document>`)).toBeNull();
+  });
+  it('a default-namespace declaration that no unprefixed element uses needs no rewrite; one that is used does', () => {
+    expect(scanPart(`<w:document xmlns="${W}" xmlns:w="${W}"><w:body/></w:document>`)).toBeNull();
+    expect(scanPart(`<document xmlns="${W}"><body/></document>`)).not.toBeNull();
+  });
+  it('canonicalising twice changes nothing the second time, and the second scan finds nothing', () => {
+    const xml = doc(`xmlns:x="${W}"`, '<x:p x:rsidR="1"><x:r/></x:p>', 'x');
+    const once = canonicalisePart(xml).xml;
+    expect(scanPart(once)).toBeNull();
+    expect(canonicalisePart(once)).toEqual({ xml: once, renames: [] });
+  });
+});
+
 describe('canonicalisePrefixes: what it rewrites', () => {
   it('renames elements and attributes, keeps the old declaration and adds the canonical one', () => {
     const xml = doc(`xmlns:x="${W}" xmlns:rel="${R}"`, '<x:p><x:r x:rsidR="00AB"><x:t>hi</x:t></x:r><x:drawing rel:id="rId1"/></x:p>', 'x');

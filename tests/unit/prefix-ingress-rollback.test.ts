@@ -173,3 +173,40 @@ describe('the open-time guard and the unsupported arrangements (release gate)', 
     });
   }
 });
+
+describe('values the canonicaliser does not interpret survive a rewrite and a save (DN3 4.1, class 2)', () => {
+  const WNS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const XSI = 'http://www.w3.org/2001/XMLSchema-instance';
+  function withValues(): Buffer {
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    zip.updateFile('word/document.xml', Buffer.from(renameW(zip.readAsText('word/document.xml')).replace('<x:body>',
+      `<x:body><x:p xmlns:e="urn:example:ext" xmlns:xsi="${XSI}" xsi:type="x:CT_P" e:ref="x:name"><x:r><x:t>kept</x:t></x:r></x:p>`), 'utf8'));
+    zip.addFile('customXml/item1.xml', Buffer.from(`<?xml version="1.0"?><root xmlns:x="${WNS}" xmlns:xsi="${XSI}"><item xsi:type="x:T"/></root>`, 'utf8'));
+    return zip.toBuffer();
+  }
+
+  it('document part: xsi:type and an extension value naming the old prefix are unchanged and the old binding is still declared after a save', () => {
+    const parser = new DocxParser(withValues());
+    const saved = new AdmZip(parser.rezip()).readAsText('word/document.xml');
+    expect(saved).toContain('xsi:type="x:CT_P"');
+    expect(saved).toContain('e:ref="x:name"');
+    expect(saved).toMatch(new RegExp(`xmlns:x="${WNS}"`)); // the original binding is still in scope
+    expect(saved).toMatch(new RegExp(`xmlns:w="${WNS}"`)); // and the usual one was added
+    expect(saved).toContain('<w:p ');
+  });
+
+  it('a part that is rewritten but not otherwise touched keeps its values and bindings', () => {
+    const parser = new DocxParser(withValues());
+    const part = new AdmZip(parser.rezip()).readAsText('customXml/item1.xml');
+    expect(part).toContain('xsi:type="x:T"');
+    expect(part).toContain(`xmlns:x="${WNS}"`);
+  });
+
+  it('after open, edit, save and a second open, nothing drifts: the second open rewrites nothing', () => {
+    const first = new DocxParser(withValues());
+    const saved = first.rezip();
+    const second = new DocxParser(saved);
+    expect(second.canonicalisedParts).toEqual([]);
+    expect(new AdmZip(second.rezip()).readAsText('word/document.xml')).toContain('xsi:type="x:CT_P"');
+  });
+});
