@@ -34,7 +34,7 @@ describe('drawing lookup by namespace', () => {
     const res = await s.run([{ action: 'chart', operation: 'update', target: chartId(s), widthIn: 5, altText: 'test' }]);
     expect(res.success, JSON.stringify(res.errors)).toBe(true);
     const out = new AdmZip(s.parser.rezip(s.ast)).readAsText('word/document.xml');
-    expect(out).toMatch(/<zz:extent cx="4572000"/);
+    expect(out).toMatch(/<wp:extent cx="4572000"/); // the ingress rewrote zz to the usual prefix at open
     expect(out).toContain('descr="test"');
   });
 });
