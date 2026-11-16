@@ -140,13 +140,27 @@ const borderSizeSchema = z
   .describe('Border width in eighths of a point (8 is 1 pt), a whole number from 1 to 96.');
 
 /** A colour field: the accepted forms are checked with the same helper the writers use. */
-function colourField(options: ColourOptions = {}, max = 32) {
+const colourFieldCache = new Map<string, ReturnType<typeof buildColourField>>();
+function buildColourField(options: ColourOptions, max: number) {
   return z
     .string()
     .max(max)
     .regex(new RegExp(colourPattern(options)), `color must be ${colourForms(options)}`)
     .describe(colourDescription(options));
 }
+// One shared instance per option set: the published catalog then holds each colour pattern once, as a shared definition.
+function colourField(options: ColourOptions = {}, max = 32) {
+  const key = `${JSON.stringify(options)}|${max}`;
+  let field = colourFieldCache.get(key);
+  if (!field) {
+    field = buildColourField(options, max);
+    colourFieldCache.set(key, field);
+  }
+  return field;
+}
+
+/** Paragraph flag: true on, false explicitly off, null back to the paragraph style's setting. */
+const paragraphFlag = z.boolean().nullable().describe('true on, false off, null back to the style.');
 
 const styleProperties = z.object({
   bold: z.boolean().optional(),
@@ -156,6 +170,10 @@ const styleProperties = z.object({
   doubleStrikethrough: z.boolean().optional(),
   vertAlign: z.enum(['superscript', 'subscript', 'baseline']).optional(),
   alignment: z.enum(['left', 'center', 'right', 'both', 'justify']).optional(),
+  keepWithNext: paragraphFlag.optional(),
+  keepLines: paragraphFlag.optional(),
+  pageBreakBefore: paragraphFlag.optional(),
+  contextualSpacing: paragraphFlag.optional(),
   color: colourField({ allowAuto: true }).optional(),
   fontSize: fontSizeOrSzSchema.optional(),
   sz: fontSizeOrSzSchema.optional(),
@@ -325,6 +343,10 @@ const styleOp = z.object({
   doubleStrikethrough: z.boolean().optional(),
   vertAlign: z.enum(['superscript', 'subscript', 'baseline']).optional(),
   alignment: z.enum(['left', 'center', 'right', 'both', 'justify']).optional(),
+  keepWithNext: paragraphFlag.optional(),
+  keepLines: paragraphFlag.optional(),
+  pageBreakBefore: paragraphFlag.optional(),
+  contextualSpacing: paragraphFlag.optional(),
   color: colourField({ allowAuto: true }).optional(),
   fontSize: fontSizeOrSzSchema.optional(),
   sz: fontSizeOrSzSchema.optional(),
@@ -389,6 +411,8 @@ const tableSubOp = z.enum([
   'setVerticalAlign',
   'setCellShading',
   'setRowHeight',
+  'setRowHeights',
+  'setTableWidth',
   'setCellAlignment',
   'setTableAlignment',
   'setCellPadding',
@@ -433,6 +457,13 @@ const tableOp = z.object({
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   rule: z.enum(['atLeast', 'exact', 'auto']).optional(),
+  // 0.5.3 whole-table layout. Ranges are checked by the engine with a remedy.
+  widthIn: z.number().describe('setTableWidth: inches; give one of widthIn, widthPercent, widthTwips.').optional(),
+  widthPercent: z.number().describe('setTableWidth: 1 to 100, of the text width.').optional(),
+  widthTwips: z.number().int().optional(),
+  columns: z.enum(['scale', 'keep']).describe('setTableWidth: scale (default) resizes columns in proportion; keep changes only the table width.').optional(),
+  heightIn: z.number().describe('setRowHeights: inches; or heightTwips; none with rule auto.').optional(),
+  heightTwips: z.number().int().optional(),
   border: z.string().max(32).optional(),
   color: colourField({ allowAuto: true }).optional(),
   sz: borderSizeSchema.optional(),
@@ -653,9 +684,9 @@ const chartOp = z.object({
   id: z.string().min(1).max(256).optional(),
   widthEmu: z.number().positive().max(100_000_000).optional(),
   heightEmu: z.number().positive().max(100_000_000).optional(),
-  widthIn: z.number().optional().describe('Chart width in inches, 0.1 to 22. Use widthIn or widthEmu, not both.'),
-  heightIn: z.number().optional().describe('Chart height in inches, 0.1 to 22. Use heightIn or heightEmu, not both.'),
-  altText: z.string().max(5_000).optional().describe('Alternative text of the chart drawing. On update an empty string clears it.'),
+  widthIn: z.number().optional().describe('Inches, 0.1 to 22 (or widthEmu, not both).'),
+  heightIn: z.number().optional().describe('Inches, 0.1 to 22 (or heightEmu, not both).'),
+  altText: z.string().max(5_000).optional().describe('Alt text; update with "" clears it.'),
   expectedVersion,
   params: nestedParams,
 }).strict();

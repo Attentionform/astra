@@ -9,6 +9,7 @@ import { createWordElement } from '../ooxml/ns';
 import { emitTrackedCellReplace, resolveRevisionStamp } from '../ooxml/track-changes-emitter';
 import { toError } from '../errors';
 import { takeRevisionId } from '../ooxml/revision-ids';
+import { applyRowHeights, applyTableWidth, parseRowHeights, parseTableWidth } from './table-layout';
 import { colourForms, requireBorderSize, requireColour, resolveColourInput } from './colour';
 
 function isTableReproducible(): boolean {
@@ -1728,6 +1729,23 @@ export async function executeTable(opIn: TableOperation, ast: DocumentAST, guide
       trHeight.setAttribute('w:val', String(height));
       trHeight.setAttribute('w:hRule', rule);
       sortChildrenBySchema(trPr, TRPR_CHILD_ORDER);
+      await refreshTableNode(tableNode, tblEl);
+      break;
+    }
+    case 'setTableWidth': {
+      // Whole-table width (0.5.3). Every check runs before the first change; see operations/table-layout.ts.
+      const request = parseTableWidth((key) => pick(key, undefined));
+      const owner = ast.sections.find((section) => section.nodes.includes(tableNode as Node));
+      const outcome = applyTableWidth(tblEl, rows, request, owner?.pageSetup);
+      warnings.push(...outcome.warnings);
+      await refreshTableNode(tableNode, tblEl);
+      break;
+    }
+    case 'setRowHeights': {
+      // Every row of this table (nested tables untouched); `auto` clears the height. See operations/table-layout.ts.
+      const request = parseRowHeights((key) => pick(key, undefined));
+      const outcome = applyRowHeights(tblEl, rows, request);
+      warnings.push(...outcome.warnings);
       await refreshTableNode(tableNode, tblEl);
       break;
     }

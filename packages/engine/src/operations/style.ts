@@ -32,6 +32,12 @@ export interface StyleProperties {
   borderLeft?: { style?: string; sz?: number; color?: string };
   borderRight?: { style?: string; sz?: number; color?: string };
   borderBox?: { style?: string; sz?: number; color?: string };
+  /** Paragraph flags: true = on, false = explicitly off (overrides the paragraph style), null = remove the direct setting so the style applies again. */
+  keepWithNext?: boolean | null;
+  keepLines?: boolean | null;
+  pageBreakBefore?: boolean | null;
+  /** Ignore the space between paragraphs of the same style (list items use it). */
+  contextualSpacing?: boolean | null;
   // Word-level span gate: when set, run props apply only to the matched
   // substring (via in-place run splitting); paragraph props still apply
   // paragraph-wide. Omitted = legacy whole-node styling.
@@ -196,8 +202,18 @@ const READ_STYLE_KEYS = new Set<string>([
   'alignment', 'lineSpacing', 'spacingBefore', 'spacingAfter',
   'indentLeft', 'indentRight', 'indentFirstLine', 'indentHanging',
   'borderBottom', 'borderTop', 'borderLeft', 'borderRight', 'borderBox',
+  'keepWithNext', 'keepLines', 'pageBreakBefore', 'contextualSpacing',
   'match', 'matchAll', 'matchCase',
 ]);
+
+/** Paragraph flags: `null` is a meaningful value (back to the style's setting), not a mistake. */
+const FLAG_KEYS = ['keepWithNext', 'keepLines', 'pageBreakBefore', 'contextualSpacing'] as const;
+const FLAG_ELEMENT: Record<(typeof FLAG_KEYS)[number], string> = {
+  keepWithNext: 'w:keepNext',
+  keepLines: 'w:keepLines',
+  pageBreakBefore: 'w:pageBreakBefore',
+  contextualSpacing: 'w:contextualSpacing',
+};
 
 /** Keys that select text but change nothing on their own. */
 const SELECTOR_ONLY_KEYS = new Set<string>(['match', 'matchAll', 'matchCase']);
@@ -256,7 +272,7 @@ function findUnreadStyleKeyPath(owner: unknown, prefix: string, skipBagKeys: boo
     const here = prefix ? `${prefix}.${key}` : key;
     if (READ_STYLE_KEYS.has(key)) {
       if (insideUnread) return { path: here, kind: 'nested' };
-      if (value === null && key !== 'match') return { path: here, kind: 'null' };
+      if (value === null && key !== 'match' && !(FLAG_KEYS as readonly string[]).includes(key)) return { path: here, kind: 'null' };
       continue;
     }
     if (skipBagKeys && (key === 'properties' || key === 'params')) continue;
@@ -638,11 +654,18 @@ export function executeStyle(op: StyleOperation, ast: DocumentAST): void {
   };
   const matchOpts = resolveMatchOpts(op);
 
+  for (const key of FLAG_KEYS) {
+    const value = (props as Record<string, unknown>)[key];
+    if (value !== undefined && value !== null && typeof value !== 'boolean') {
+      throw toError('E_VALIDATION', `style ${key} must be true, false or null (got ${JSON.stringify(value)}).`, `Pass ${key}: true to turn it on, false to turn it off, or null to go back to the paragraph style's setting.`);
+    }
+  }
+
   // Nothing-to-apply gate: match/matchAll/matchCase only select text, so an op
   // with no real style key would report success while changing nothing.
   const sentinel = props as unknown as Record<string, unknown>;
   const appliesSomething = [...READ_STYLE_KEYS].some(
-    (key) => !SELECTOR_ONLY_KEYS.has(key) && sentinel[key] !== undefined && sentinel[key] !== null
+    (key) => !SELECTOR_ONLY_KEYS.has(key) && sentinel[key] !== undefined && (sentinel[key] !== null || (FLAG_KEYS as readonly string[]).includes(key))
   );
   if (!appliesSomething) {
     const unknownKeys = unknownStyleBagKeys(op);
@@ -727,7 +750,8 @@ export function executeStyle(op: StyleOperation, ast: DocumentAST): void {
       props.indentRight !== undefined ||
       props.indentFirstLine !== undefined ||
       props.indentHanging !== undefined ||
-      hasBorders;
+      hasBorders ||
+      FLAG_KEYS.some((k) => props[k] !== undefined);
 
     if (hasPPr) {
       let pPr = targetNode.xml.getElementsByTagName('w:pPr')[0];
@@ -812,7 +836,26 @@ export function executeStyle(op: StyleOperation, ast: DocumentAST): void {
         applyBdr('right', props.borderRight);
       }
 
+      // Paragraph flags: on = element, off = element with val 0, null = no direct setting.
+      for (const key of FLAG_KEYS) {
+        const value = props[key];
+        if (value === undefined) continue;
+        const tag = FLAG_ELEMENT[key];
+        let el = pPr.getElementsByTagName(tag)[0];
+        if (value === null) {
+          if (el) el.parentNode?.removeChild(el);
+          continue;
+        }
+        if (!el) {
+          el = createWordElement(doc, tag);
+          appendInSchemaOrder(pPr, el, PPR_CHILD_ORDER);
+        }
+        if (value) el.removeAttribute('w:val');
+        else el.setAttribute('w:val', '0');
+      }
+
       sortChildrenBySchema(pPr, PPR_CHILD_ORDER);
+      if (!pPr.firstChild) pPr.parentNode?.removeChild(pPr);
     }
 
     // Apply Run Properties (Bold, Italic, Underline, Strikethrough, Color, FontSize, FontFamily, Highlight, VertAlign)

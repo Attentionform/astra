@@ -780,6 +780,16 @@ export function compileMarkdownDetailed(
   let underTitle = false;
 
   let lastBlockKind: 'none' | 'paragraph' | 'heading' | 'list' | 'table' | 'code' | 'image' | 'chart' | 'divider' | 'callout' | 'equation' | 'quote' = 'none';
+  /**
+   * Space before the first block that follows a table or a callout, in twips. Guide `tables.spaceAfterPt` and
+   * `callouts.spaceAfterPt` set it; the built-in values are 12 pt after a table and 8 pt after a callout. It is
+   * applied only to blocks this compose call creates, never to anything already in the document.
+   */
+  const spaceAfterPreviousBlock = (): number | undefined => {
+    if (lastBlockKind === 'table') return Math.round((styleGuide?.tables?.spaceAfterPt ?? 12) * 20);
+    if (lastBlockKind === 'callout') return Math.round((styleGuide?.callouts?.spaceAfterPt ?? 8) * 20);
+    return undefined;
+  };
 
   /** Compiles one Markdown list. Inside a quote (quoteLevel 1-3) each item also takes the Quote style and that level's indent. */
   const compileList = (token: BlockToken, line: number, quoteLevel = 0): void => {
@@ -837,8 +847,17 @@ export function compileMarkdownDetailed(
       itemIds.push(id);
     }
     ops.push({ action: 'list', operation: 'create', target: itemIds, listType } as Operation);
-    if (lastBlockKind === 'table' && itemIds.length > 0) {
-      ops.push({ action: 'style', target: itemIds[0], spacingBefore: 240 } as Operation);
+    const gapAfterPrevious = spaceAfterPreviousBlock();
+    if (gapAfterPrevious !== undefined && itemIds.length > 0) {
+      // List items ignore space between paragraphs of one style, which would swallow this gap in Word.
+      // With contextual spacing off, the item's own space after would also open a gap to the second item.
+      ops.push({
+        action: 'style',
+        target: itemIds[0],
+        spacingBefore: gapAfterPrevious,
+        contextualSpacing: false,
+        ...(itemIds.length > 1 ? { spacingAfter: 0 } : {}),
+      } as Operation);
     }
     if (quoteLevel > 0) {
       for (const itemId of itemIds) {
@@ -871,8 +890,9 @@ export function compileMarkdownDetailed(
       params: { codeBlock: true, ...(lang ? { codeLanguage: lang } : {}) },
     } as Operation);
     lastInsertId = id;
-    if (lastBlockKind === 'table') {
-      ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
+    const gapAfterPrevious = spaceAfterPreviousBlock();
+    if (gapAfterPrevious !== undefined) {
+      ops.push({ action: 'style', target: id, spacingBefore: gapAfterPrevious } as Operation);
     }
     if (quoteLevel > 0) {
       ops.push({ action: 'style', target: id, indentLeft: quoteLevel * QUOTE_INDENT + CODE_BLOCK_BASE_INDENT } as Operation);
@@ -936,8 +956,9 @@ export function compileMarkdownDetailed(
           if (effective > 1) {
             ops.push({ action: 'style', target: id, indentLeft: effective * QUOTE_INDENT } as Operation);
           }
-          if (lastBlockKind === 'table') {
-            ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
+          const gapAfterPrevious = spaceAfterPreviousBlock();
+          if (gapAfterPrevious !== undefined) {
+            ops.push({ action: 'style', target: id, spacingBefore: gapAfterPrevious } as Operation);
           }
           lastBlockKind = 'quote';
           underTitle = false;
@@ -1008,9 +1029,14 @@ export function compileMarkdownDetailed(
         trackRefs(id, inline.footnoteEntries ?? inline.footnoteRefs, line);
         const styleName = depth === 1 ? 'Heading1' : depth === 2 ? 'Heading2' : 'Heading3';
         ops.push({ action: 'namedStyle', operation: 'apply', styleName, target: id } as Operation);
+        // The heading styles keep a heading with the next paragraph; a guide that turns this off says so on the heading itself.
+        if (styleGuide?.layout?.preventOrphanHeadings === false) {
+          ops.push({ action: 'style', target: id, keepWithNext: false } as Operation);
+        }
         underTitle = depth === 1 && lastBlockKind === 'none';
-        if (lastBlockKind === 'table' && depth === 3) {
-          ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
+        const gapAfterPrevious = spaceAfterPreviousBlock();
+        if (gapAfterPrevious !== undefined && depth === 3) {
+          ops.push({ action: 'style', target: id, spacingBefore: gapAfterPrevious } as Operation);
         }
         lastBlockKind = 'heading';
         break;
@@ -1051,8 +1077,9 @@ export function compileMarkdownDetailed(
         if (inlineTokens.length === 1 && inlineTokens[0].type === 'image') {
           const img = inlineTokens[0] as InlineToken & { href?: string };
           const imgRes = handleBlockImage(String(img.href ?? ''), String(img.text ?? ''), line);
-          if (lastBlockKind === 'table') {
-            ops.push({ action: 'style', target: imgRes.id, spacingBefore: 240 } as Operation);
+          const gapAfterPrevious = spaceAfterPreviousBlock();
+          if (gapAfterPrevious !== undefined) {
+            ops.push({ action: 'style', target: imgRes.id, spacingBefore: gapAfterPrevious } as Operation);
           }
           lastBlockKind = imgRes.kind;
           break;
@@ -1092,8 +1119,9 @@ export function compileMarkdownDetailed(
           ops.push({ action: 'namedStyle', operation: 'apply', styleName: 'Subtitle', target: id } as Operation);
         }
         underTitle = false;
-        if (lastBlockKind === 'table') {
-          ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
+        const gapAfterPrevious = spaceAfterPreviousBlock();
+        if (gapAfterPrevious !== undefined) {
+          ops.push({ action: 'style', target: id, spacingBefore: gapAfterPrevious } as Operation);
         }
         lastBlockKind = 'paragraph';
         break;
@@ -1198,8 +1226,9 @@ export function compileMarkdownDetailed(
           id,
         } as Operation);
         lastInsertId = id;
-        if (lastBlockKind === 'table') {
-          ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
+        const gapAfterPrevious = spaceAfterPreviousBlock();
+        if (gapAfterPrevious !== undefined) {
+          ops.push({ action: 'style', target: id, spacingBefore: gapAfterPrevious } as Operation);
         }
         lastBlockKind = 'equation';
         break;
@@ -1215,8 +1244,9 @@ export function compileMarkdownDetailed(
           id,
         } as Operation);
         lastInsertId = id;
-        if (lastBlockKind === 'table') {
-          ops.push({ action: 'style', target: id, spacingBefore: 240 } as Operation);
+        const gapAfterPrevious = spaceAfterPreviousBlock();
+        if (gapAfterPrevious !== undefined) {
+          ops.push({ action: 'style', target: id, spacingBefore: gapAfterPrevious } as Operation);
         }
         lastBlockKind = 'divider';
         break;
@@ -1258,8 +1288,9 @@ export function compileMarkdownDetailed(
         const href = String((img as { href?: unknown }).href ?? '');
         const alt = String(token.text ?? '');
         const imgRes = handleBlockImage(href, alt, line);
-        if (lastBlockKind === 'table') {
-          ops.push({ action: 'style', target: imgRes.id, spacingBefore: 240 } as Operation);
+        const gapAfterPrevious = spaceAfterPreviousBlock();
+        if (gapAfterPrevious !== undefined) {
+          ops.push({ action: 'style', target: imgRes.id, spacingBefore: gapAfterPrevious } as Operation);
         }
         lastBlockKind = imgRes.kind;
         break;

@@ -21,6 +21,8 @@ export interface StyleGuideTables {
   alternatingFill?: string; // zebra-striping fill
   borderColor?: string;
   keepTogether?: boolean; // cantSplit rows + tblHeader/keepNext header
+  /** Space before the first block a compose call creates after a table, in points (0 to 72; built-in 12). */
+  spaceAfterPt?: number;
 }
 
 /**
@@ -70,6 +72,8 @@ export interface StyleGuideCallouts {
   defaultTheme?: StyleGuideCalloutTheme;
   preferredThemes?: StyleGuideCalloutTheme[];
   tagThemes?: Partial<Record<StyleGuideCalloutTag, StyleGuideCalloutTheme>>;
+  /** Space before the first block a compose call creates after a callout, in points (0 to 72; built-in 8). */
+  spaceAfterPt?: number;
 }
 
 export interface StyleGuideCodeBlocks {

@@ -39,6 +39,8 @@ export const TABLE_SUBOP_KEYS: Readonly<Record<string, readonly string[]>> = {
   setVerticalAlign: ['vAlign', 'alignment', ...ROW, ...COL],
   setCellShading: [...ROW, ...COL, 'fill', 'textColor'],
   setRowHeight: ['height', 'rule', ...ROW],
+  setRowHeights: ['heightIn', 'heightTwips', 'rule'],
+  setTableWidth: ['widthIn', 'widthPercent', 'widthTwips', 'columns'],
   setCellAlignment: ['align', 'alignment', ...ROW, ...COL],
   setTableAlignment: ['align', 'alignment'],
   setCellPadding: ['padding', ...ROW, ...COL],
