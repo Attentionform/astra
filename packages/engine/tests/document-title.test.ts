@@ -117,3 +117,44 @@ describe('the creator follows a configured author, and only replaces the tool de
     expect(dcCreator(parser)).toBe('Grace Hopper');
   });
 });
+
+describe('a title the file already has is kept unless ASTra wrote it as a placeholder', () => {
+  /** A new template document re-labelled as written by another application, with the given dc:title. */
+  async function importedWith(application: string, title: string) {
+    const zip = new AdmZip(DocxParser.createNewDocument('blank').rezip());
+    zip.updateFile('docProps/app.xml', Buffer.from(zip.readAsText('docProps/app.xml').replace(/<Application>[^<]*<\/Application>/, `<Application>${application}</Application>`)));
+    zip.updateFile('docProps/core.xml', Buffer.from(zip.readAsText('docProps/core.xml').replace(/<dc:title>[^<]*<\/dc:title>|<dc:title\/>/, `<dc:title>${title}</dc:title>`)));
+    const parser = new DocxParser(zip.toBuffer());
+    const ast = await parser.getAST();
+    const first = ast.sections[0].nodes[0].id;
+    await new OperationEngine(ast, parser).executeBatch({
+      operations: [
+        { action: 'insert', type: 'paragraph', id: 'h1', anchor: first, position: 'after', text: 'Quarterly Review' },
+        { action: 'namedStyle', operation: 'apply', target: 'h1', styleName: 'Heading1' },
+      ] as never,
+      sequential: true,
+    });
+    return { parser, ast };
+  }
+
+  for (const title of ['Report', 'Memo', 'Blank Document']) {
+    it(`an imported document titled "${title}" keeps it on save`, async () => {
+      const { parser, ast } = await importedWith('Microsoft Office Word', title);
+      const result = applyDocumentIdentity(ast, parser);
+      expect(result.titleSetFrom).toBeUndefined();
+      expect(dcTitle(parser)).toBe(title);
+    });
+  }
+
+  it('a document ASTra created from a template still gets its placeholder replaced', async () => {
+    const { parser, ast } = await importedWith('ASTra', 'Report');
+    expect(applyDocumentIdentity(ast, parser).titleSetFrom).toBe('Heading 1');
+    expect(dcTitle(parser)).toBe('Quarterly Review');
+  });
+
+  it('an imported document with no title at all is still given one from its content', async () => {
+    const { parser, ast } = await importedWith('Microsoft Office Word', '');
+    expect(applyDocumentIdentity(ast, parser).titleSetFrom).toBe('Heading 1');
+    expect(dcTitle(parser)).toBe('Quarterly Review');
+  });
+});
