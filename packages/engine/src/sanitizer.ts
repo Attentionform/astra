@@ -261,12 +261,13 @@ function resolveOptions(opts?: SanitizeOptions): Required<SanitizeOptions> {
 
 // Matches any revision-save id attribute: w:rsidR, w:rsidRPr, w:rsidP,
 // w:rsidRDefault, w:rsidTr, w:rsidTc, w:rsidSect, … (case-sensitive per OOXML).
-const RSID_ATTR_RE = /\s+w:rsid[A-Za-z]*="[^"]*"/g;
+// XML allows single quotes and white space around "=", so every attribute pattern below accepts both.
+const RSID_ATTR_RE = /\s+w:rsid[A-Za-z]*\s*=\s*(?:"[^"]*"|'[^']*')/g;
 // word/settings.xml carries the rsid history as elements, not attributes:
 // <w:rsids><w:rsid w:val="00A1B2C3"/>…</w:rsids>. These carry no content value
 // (document bytes are identical without them) and must be purged alongside
 // the rsid* attributes above. Includes <w:rsidRoot w:val="…"/> (creation RSID).
-const RSID_ELEM_RE = /<w:rsid(?:Root)?\s+w:val="[^"]*"\s*\/>/g;
+const RSID_ELEM_RE = /<w:rsid(?:Root)?\s+w:val\s*=\s*(?:"[^"]*"|'[^']*')\s*\/>/g;
 // After purging rsid elements the <w:rsids> wrapper is left empty — strip it
 // cleanly so no empty revision container leaks structure.
 const RSIDS_EMPTY_RE = /<w:rsids>\s*<\/w:rsids>/g;
@@ -275,11 +276,11 @@ const RSIDS_SELF_CLOSING_RE = /<w:rsids\s*\/>/g;
 // Word 2013+/365 in word/people.xml (<w15:person w15:author="…">).
 // F3: capture the prefix so the replacement preserves w: vs w15: (hardcoding
 // w:author leaves an undeclared w15: prefix use / drops the w15 binding).
-const AUTHOR_ATTR_RE = /\s+(w|w15):author="[^"]*"/g;
-const INITIALS_ATTR_RE = /\s+w:initials="[^"]*"/g;
+const AUTHOR_ATTR_RE = /\s+(w|w15):author\s*=\s*(?:"[^"]*"|'[^']*')/g;
+const INITIALS_ATTR_RE = /\s+w:initials\s*=\s*(?:"[^"]*"|'[^']*')/g;
 const PRESENCE_INFO_TAG_RE = /<w15:presenceInfo\b(?:[^>"']|"[^"]*"|'[^']*')*>/g;
-const PRESENCE_PROVIDER_NONE_RE = /\sw15:providerId=(["'])None\1/;
-const PRESENCE_USERID_RE = /(\sw15:userId=)(?:"[^"]*"|'[^']*')/;
+const PRESENCE_PROVIDER_NONE_RE = /\sw15:providerId\s*=\s*(["'])None\1/;
+const PRESENCE_USERID_RE = /(\sw15:userId\s*=\s*)(?:"[^"]*"|'[^']*')/;
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // Phone matcher (conservative scope, documented): covers leading-+ international,
@@ -1143,13 +1144,15 @@ export function redactTextNodePii(xml: string, redact: boolean): { xml: string; 
  * label stay intact. Body `w:t` prose never takes this path.
  */
 export function redactAttributePii(xml: string, redact: boolean): { xml: string; count: number } {
-  if (!xml.includes('="')) return { xml, count: 0 };
+  if (!/=\s*["']/.test(xml)) return { xml, count: 0 };
   let totalCount = 0;
-  const out = xml.replace(/="([^"]*)"/g, (_match, value: string) => {
-    if (isDecimalNumberValue(value)) return `="${value}"`;
+  const out = xml.replace(/(=\s*)(?:"([^"]*)"|'([^']*)')/g, (_match, eq: string, dq: string | undefined, sq: string | undefined) => {
+    const quote = dq !== undefined ? '"' : "'";
+    const value = dq ?? sq ?? '';
+    if (isDecimalNumberValue(value)) return `${eq}${quote}${value}${quote}`;
     const { text: clean, count } = scanAndRedactAttributeValue(value, redact);
     totalCount += count;
-    return `="${clean}"`;
+    return `${eq}${quote}${clean}${quote}`;
   });
   return { xml: out, count: totalCount };
 }
@@ -1185,13 +1188,14 @@ function isChartOrCustomXmlPartName(name: string): boolean {
  */
 export function redactDrawingAltPii(xml: string, redact: boolean): { xml: string; count: number } {
   if (!xml.includes('docPr') && !xml.includes('cNvPr')) return { xml, count: 0 };
-  if (!xml.includes('="')) return { xml, count: 0 };
+  if (!/=\s*["']/.test(xml)) return { xml, count: 0 };
   let totalCount = 0;
-  const out = xml.replace(/<(?:wp:docPr|pic:cNvPr|cNvPr)\b[^>]*>/g, (tag: string) => {
-    return tag.replace(/\s+(descr|title|name)="([^"]*)"/g, (_m: string, attr: string, value: string) => {
-      const { text: clean, count } = scanAndRedactAttributeValue(value, redact);
+  const out = xml.replace(/<(?:wp:docPr|pic:cNvPr|cNvPr)\b(?:[^>"']|"[^"]*"|'[^']*')*>/g, (tag: string) => {
+    return tag.replace(/\s+(descr|title|name)(\s*=\s*)(?:"([^"]*)"|'([^']*)')/g, (_m: string, attr: string, eq: string, dq: string | undefined, sq: string | undefined) => {
+      const quote = dq !== undefined ? '"' : "'";
+      const { text: clean, count } = scanAndRedactAttributeValue(dq ?? sq ?? '', redact);
       totalCount += count;
-      return ` ${attr}="${clean}"`;
+      return ` ${attr}${eq}${quote}${clean}${quote}`;
     });
   });
   return { xml: out, count: totalCount };
@@ -2473,7 +2477,7 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
   const fail = (option: string, part: string, what: string): never => {
     throw new Error(`E_VALIDATION: sanitize could not finish "${option}": ${part} still has ${what}. Nothing was written. Open the file in Word, save it again, then retry.`);
   };
-  const authorAttr = /\sw:author="([^"]*)"/g;
+  const authorAttr = /\s(?:w|w15):author\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   for (const [name, data] of out) {
     if (!name.toLowerCase().endsWith('.xml') || !name.startsWith('word/')) continue;
     const xml = data.toString('utf8');
@@ -2486,7 +2490,7 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
     if (o.purgeAuthors) {
       authorAttr.lastIndex = 0;
       for (let m = authorAttr.exec(xml); m !== null; m = authorAttr.exec(xml)) {
-        if (decodeXmlEntities(m[1]) !== o.replacementAuthor) fail('purgeAuthors', name, 'an author name');
+        if (decodeXmlEntities(m[1] ?? m[2] ?? '') !== o.replacementAuthor) fail('purgeAuthors', name, 'an author name');
       }
     }
     if (o.acceptAllRevisions) assertOnlyReportedRevisions(name, xml, unresolved);

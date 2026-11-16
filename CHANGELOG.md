@@ -33,6 +33,7 @@ Charts, tables and page layout. Charts can be sized, restyled and changed in str
 ### Fixed
 
 - `sanitize` on a file with other namespace prefixes used to leave revision marks, authors and RSIDs in place without saying so. Every `word/*.xml` part (including glossary parts) now goes through the prefix rewrite first, and after each option ASTra checks that nothing it promised to remove is left. A tracked change that the report does not list stops the run with `E_VALIDATION` and nothing is written.
+- `sanitize` removed authors, revision-save ids (RSIDs) and personal data only from attributes written with double quotes and no space around `=`. XML allows single quotes and spaces, and a file written that way kept `w:author`, `w:rsid*`, `w:initials`, the settings RSID list and e-mail addresses in alternative text and person ids, while the report said `ok`. The scrubs and the post-condition now read both quote styles and spaced `=`.
 - A signed package written by `System.IO.Packaging` (which stores the empty part `_xmlsignatures/origin.sigs` with a 2-byte deflate stream) was refused by the zip size check as a lying-size entry. An entry that declares size 0 with up to 8 bytes of compressed data now opens; a size-0 entry with a larger payload is still refused.
 - A part nested tens of thousands of levels deep no longer overflows the stack while the prefix rewrite checks it.
 
