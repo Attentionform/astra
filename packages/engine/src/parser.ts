@@ -23,7 +23,7 @@ import { deterministicRevisionIso, resolveDefaultAuthor } from './ooxml/track-ch
 import { newDocumentParts, newDocumentTitle, NEW_DOCUMENT_CONTENT_TYPE_OVERRIDES, NEW_DOCUMENT_ROOT_RELS, NEW_DOCUMENT_DOCUMENT_RELS } from './ooxml/new-document-parts';
 import { assertNoXxe, assertNoXxeAdjacent } from './ooxml/xxe-guard';
 import { decodeXmlPart } from './ooxml/part-text';
-import { PrefixRefusal, canonicalisePart, ingestPrefixes, type Rename } from './ooxml/prefix-canonicaliser';
+import { PrefixRefusal, canonicaliseBufferMap, canonicalisePart, ingestPrefixes, type Rename } from './ooxml/prefix-canonicaliser';
 import { headerFooterRefIds, pruneOrphanedHeaderFooters, type PruneResult } from './parser/header-footer-prune';
 import {
   pruneUnusedDrawingParts,
@@ -249,24 +249,12 @@ function canonicalisePackageParts(zip: AdmZip): Array<{ part: string; renames: R
 
 /** Stages the snapshot through the ingress; returns the same map when nothing needs a rewrite, else a copy. */
 function canonicaliseSnapshot(snapshot: Map<string, Buffer>): Map<string, Buffer> {
-  const parts: Array<[string, string]> = [];
-  const utf16 = new Set<string>();
-  for (const [name, data] of snapshot) {
-    if (!name.endsWith('.xml') || isRogueZipEntry(name) || isBlockedExecutableEntry(name)) continue;
-    if (data.length >= 2 && ((data[0] === 0xff && data[1] === 0xfe) || (data[0] === 0xfe && data[1] === 0xff) || data[0] === 0 || data[1] === 0)) utf16.add(name);
-    parts.push([name, decodeXmlPart(data)]);
-  }
-  let result;
   try {
-    result = ingestPrefixes(parts, utf16);
+    return canonicaliseBufferMap(snapshot, (name) => isRogueZipEntry(name) || isBlockedExecutableEntry(name)).files;
   } catch (err) {
     if (err instanceof PrefixRefusal) throw toError('E_VALIDATION', err.message.replace(/^E_VALIDATION: /, ''), 'open the file in Word and save it again, then retry');
     throw err;
   }
-  if (result.changed.size === 0) return snapshot;
-  const copy = new Map(snapshot);
-  for (const [name, text] of result.changed) copy.set(name, Buffer.from(text, 'utf8'));
-  return copy;
 }
 
 function canonicaliseText(xml: string, part: string): string {

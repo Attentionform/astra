@@ -16,6 +16,7 @@
  *    namespace-resolved forms and binding scopes). It does not trust the rewriter.
  */
 import { DOMParser } from './dom-parser';
+import { decodeXmlPart } from './part-text';
 
 export const CANONICAL_PREFIXES: Readonly<Record<string, string>> = {
   'http://schemas.openxmlformats.org/wordprocessingml/2006/main': 'w',
@@ -411,4 +412,30 @@ export function ingestPrefixes(parts: Iterable<[string, string]>, utf16: Readonl
     report.push({ part: name, renames: result.renames });
   }
   return { changed, report };
+}
+
+const looksUtf16 = (data: Buffer): boolean =>
+  data.length >= 2 && ((data[0] === 0xff && data[1] === 0xfe) || (data[0] === 0xfe && data[1] === 0xff) || data[0] === 0 || data[1] === 0);
+
+/**
+ * `ingestPrefixes` over a map of part bytes (a package snapshot, the entries a sanitizer is about to read). Returns
+ * the same map when nothing needs a rewrite, else a copy with the rewritten parts. Throws `PrefixRefusal`.
+ * `skip` names entries that are not read as parts (rogue or blocked names).
+ */
+export function canonicaliseBufferMap(
+  files: Map<string, Buffer>,
+  skip: (name: string) => boolean = () => false
+): { files: Map<string, Buffer>; report: IngestResult['report'] } {
+  const parts: Array<[string, string]> = [];
+  const utf16 = new Set<string>();
+  for (const [name, data] of files) {
+    if (!name.toLowerCase().endsWith('.xml') || skip(name)) continue;
+    if (looksUtf16(data)) utf16.add(name);
+    parts.push([name, decodeXmlPart(data)]);
+  }
+  const result = ingestPrefixes(parts, utf16);
+  if (result.changed.size === 0) return { files, report: [] };
+  const copy = new Map(files);
+  for (const [name, text] of result.changed) copy.set(name, Buffer.from(text, 'utf8'));
+  return { files: copy, report: result.report };
 }

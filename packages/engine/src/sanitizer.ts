@@ -8,6 +8,7 @@ import { DOMParser } from './ooxml/dom-parser';
 import { checkZipBombCeilings, clampZipEntryTimes } from './zip-hardening';
 import { assertNoForbiddenMarkup, stripSvgActiveContent } from './ooxml/xxe-guard';
 import { decodePartUri, decodeXmlEntities } from './ooxml/xml-entities';
+import { PrefixRefusal, canonicaliseBufferMap } from './ooxml/prefix-canonicaliser';
 
 export { assertNoForbiddenMarkup } from './ooxml/xxe-guard';
 
@@ -2219,6 +2220,14 @@ export function sanitizePackageEntries(
   opts?: SanitizeOptions
 ): { files: Map<string, Buffer>; report: SanitizeReport } {
   const o = resolveOptions(opts);
+  // The scrubbing below reads parts by the usual prefixes. A part that binds a table namespace to another prefix is
+  // rewritten first, in a staging copy; if any part cannot be rewritten safely the whole run is refused.
+  try {
+    files = canonicaliseBufferMap(files, (name) => isDroppedEntry(name)).files;
+  } catch (err) {
+    if (err instanceof PrefixRefusal) throw new Error(err.message);
+    throw err;
+  }
   // Macro/active-content gate runs FIRST (fail-closed before any other
   // work): default refuses naming the parts, allow preserves them verbatim,
   // strip removes them with per-entry accounting below.
@@ -2425,6 +2434,8 @@ export function sanitizePackageEntries(
     strippedComments += deleteRemovedComments(out, removedCommentIds, touched);
   }
 
+  assertSanitizePostconditions(out, o, unresolvedRevisions.length > 0);
+
   return {
     files: out,
     report: {
@@ -2449,6 +2460,42 @@ export function sanitizePackageEntries(
       strippedSvgActive: [...strippedSvg].sort(),
     },
   };
+}
+
+/**
+ * A scrub that reports success must have done what its option says. After the per-part pass the output is checked
+ * by the usual prefixes (the ingress at the top of the run guarantees them): a leftover is a failure of the whole
+ * run, never a quiet success. Covers body, headers, footers, notes, comments and extension parts alike, because it
+ * looks at every XML part in the output.
+ */
+function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick<SanitizeOptions, 'purgeRSIDs' | 'purgeAuthors' | 'acceptAllRevisions' | 'stripComments'>> & { replacementAuthor: string }, hasUnresolvedRevisions: boolean): void {
+  const fail = (option: string, part: string, what: string): never => {
+    throw new Error(`E_VALIDATION: sanitize could not finish "${option}": ${part} still has ${what}. Nothing was written. Open the file in Word, save it again, then retry.`);
+  };
+  const authorAttr = /\sw:author="([^"]*)"/g;
+  for (const [name, data] of out) {
+    if (!name.toLowerCase().endsWith('.xml') || !name.startsWith('word/')) continue;
+    const xml = data.toString('utf8');
+    if (o.purgeRSIDs) {
+      RSID_ATTR_RE.lastIndex = 0;
+      if (RSID_ATTR_RE.test(xml)) fail('purgeRSIDs', name, 'revision-save ids (w:rsid*)');
+      RSID_ELEM_RE.lastIndex = 0;
+      if (RSID_ELEM_RE.test(xml)) fail('purgeRSIDs', name, 'the rsid list');
+    }
+    if (o.purgeAuthors) {
+      authorAttr.lastIndex = 0;
+      for (let m = authorAttr.exec(xml); m !== null; m = authorAttr.exec(xml)) {
+        if (decodeXmlEntities(m[1]) !== o.replacementAuthor) fail('purgeAuthors', name, 'an author name');
+      }
+    }
+    if (o.acceptAllRevisions && !hasUnresolvedRevisions && /<w:(ins|del|moveFrom|moveTo)[\s>]/.test(xml)) {
+      fail('acceptAllRevisions', name, 'unresolved tracked changes');
+    }
+    if (o.stripComments && /<w:comment(RangeStart|RangeEnd|Reference)[\s/>]/.test(xml)) {
+      fail('stripComments', name, 'comment anchors');
+    }
+  }
+  if (o.stripComments && out.has('word/comments.xml')) fail('stripComments', 'word/comments.xml', 'the comments part');
 }
 
 /**
