@@ -18,8 +18,10 @@
  * whose only sectPr besides the body's sits inside a table cell, the page setup
  * used to come from that stray element and now comes from the body's. A second value
  * changed because a save keeps word/numbering.xml byte for byte when no list changed
- * (python-docx/three-sections: the saved bytes, "noop"). To rewrite
- * it after an intended change: ASTRA_UPDATE_GOLDEN=1 npx vitest run tests/unit/sections-characterization.test.ts
+ * (python-docx/three-sections: the saved bytes, "noop"). A third value changed on purpose: `firstSectionPageSetup`
+ * now also holds the page size exactly as the file gives it (pageWidthTwips, pageHeightTwips) and the column count
+ * when there is more than one, so width arithmetic uses the real page; no other output changed. To rewrite the
+ * golden file after an intended change: ASTRA_UPDATE_GOLDEN=1 npx vitest run tests/unit/sections-characterization.test.ts
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import * as crypto from 'crypto';

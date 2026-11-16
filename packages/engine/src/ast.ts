@@ -85,7 +85,11 @@ export interface PageSetupProperties {
   footerDistance?: number;
   orientation?: 'portrait' | 'landscape';
   paperSize?: 'A4' | 'Letter' | 'Legal' | 'A3';
+  /** Number of text columns; present only when the section has more than one. */
   columns?: number;
+  /** The page size exactly as the section's `w:pgSz` gives it (already turned to the orientation in use). */
+  pageWidthTwips?: number;
+  pageHeightTwips?: number;
 }
 
 export interface Section {

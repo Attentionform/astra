@@ -3,6 +3,7 @@ import { BaseOperation } from './base';
 import { DocxParser, upsertSectPrChild } from '../parser';
 import { sectionPosition } from './section-number';
 import { orientPageDimensions, readPageDimensions, readPageOrientation } from '../ooxml/page-size';
+import { pageSetupFromSectPr } from '../parser/sections';
 
 export interface PageSetupOperation extends BaseOperation {
   action: 'pageSetup';
@@ -127,6 +128,17 @@ export function executePageSetup(op: PageSetupOperation, ast: DocumentAST, parse
     if (orientation !== undefined) section.pageSetup.orientation = orientation;
     if (paperSize !== undefined) section.pageSetup.paperSize = paperSize;
     if (columns !== undefined) section.pageSetup.columns = columns;
+    // The page size and column count the file now has, read back from the section's own properties.
+    const sectPr = sectPrs[ast.sections.indexOf(section)];
+    if (sectPr) {
+      const fresh = pageSetupFromSectPr(sectPr);
+      section.pageSetup.pageWidthTwips = fresh.pageWidthTwips;
+      section.pageSetup.pageHeightTwips = fresh.pageHeightTwips;
+      if (columns === undefined) {
+        if (fresh.columns !== undefined) section.pageSetup.columns = fresh.columns;
+        else delete section.pageSetup.columns;
+      }
+    }
     section.version += 1;
   }
 }

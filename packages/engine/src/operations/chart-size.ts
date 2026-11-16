@@ -140,7 +140,19 @@ function fmtIn(emu: number): string {
   return String(Math.round((emu / EMU_PER_INCH) * 100) / 100);
 }
 
-/** Text width and usable page height in EMU for a section's page setup (Letter, 1 in margins when unknown). */
+/** Page sizes in twips (portrait) for the paper names a section can carry. */
+const PAPER_TWIPS: Record<string, { width: number; height: number }> = {
+  Letter: { width: 12240, height: 15840 },
+  A4: { width: 11906, height: 16838 },
+  Legal: { width: 12240, height: 20160 },
+  A3: { width: 16838, height: 23811 },
+};
+
+/**
+ * Text width and usable page height in EMU for a section's page setup. The size comes from the section's own
+ * `w:pgSz` when it is known (any paper, any custom size, already in the orientation in use); otherwise from the
+ * paper name (Letter when there is none), turned to the orientation. Margins default to 1 in.
+ */
 export function usableAreaOf(pageSetup: {
   orientation?: string;
   paperSize?: string;
@@ -148,11 +160,20 @@ export function usableAreaOf(pageSetup: {
   marginBottom?: number;
   marginLeft?: number;
   marginRight?: number;
+  pageWidthTwips?: number;
+  pageHeightTwips?: number;
 } | null | undefined): UsableArea {
-  const a4 = pageSetup?.paperSize === 'A4';
-  let widthTw = a4 ? 11906 : 12240;
-  let heightTw = a4 ? 16838 : 15840;
-  if (pageSetup?.orientation === 'landscape') [widthTw, heightTw] = [heightTw, widthTw];
+  let widthTw: number;
+  let heightTw: number;
+  if (pageSetup?.pageWidthTwips && pageSetup.pageWidthTwips > 0 && pageSetup.pageHeightTwips && pageSetup.pageHeightTwips > 0) {
+    widthTw = pageSetup.pageWidthTwips;
+    heightTw = pageSetup.pageHeightTwips;
+  } else {
+    const paper = PAPER_TWIPS[pageSetup?.paperSize ?? 'Letter'] ?? PAPER_TWIPS.Letter;
+    widthTw = paper.width;
+    heightTw = paper.height;
+    if (pageSetup?.orientation === 'landscape') [widthTw, heightTw] = [heightTw, widthTw];
+  }
   const left = pageSetup?.marginLeft ?? 1440;
   const right = pageSetup?.marginRight ?? 1440;
   const top = pageSetup?.marginTop ?? 1440;

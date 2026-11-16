@@ -87,16 +87,24 @@ export function pageSetupFromSectPr(sectPr: Element | null): PageSetupProperties
       orientation = 'landscape';
     }
 
-    let paperSize: 'A4' | 'Letter' = 'Letter';
-    const isA4Dimensions =
-      (Math.abs(wVal - 11906) < 200 && Math.abs(hVal - 16838) < 200) ||
-      (Math.abs(wVal - 16838) < 200 && Math.abs(hVal - 11906) < 200);
-
-    if (codeAttr === '9' || isA4Dimensions) {
-      paperSize = 'A4';
-    }
+    const near = (w: number, h: number): boolean =>
+      (Math.abs(wVal - w) < 200 && Math.abs(hVal - h) < 200) || (Math.abs(wVal - h) < 200 && Math.abs(hVal - w) < 200);
+    let paperSize: 'A4' | 'Letter' | 'Legal' | 'A3' = 'Letter';
+    if (codeAttr === '9' || near(11906, 16838)) paperSize = 'A4';
+    else if (near(16838, 23811)) paperSize = 'A3';
+    else if (near(12240, 20160)) paperSize = 'Legal';
 
     resolved = { ...resolved, orientation, paperSize };
+    // The real page size, so width and height arithmetic does not depend on the label above.
+    if (wVal > 0 && hVal > 0) resolved = { ...resolved, pageWidthTwips: wVal, pageHeightTwips: hVal };
+  }
+
+  const cols = sectPr.getElementsByTagName('w:cols')[0];
+  if (cols) {
+    const listed = cols.getElementsByTagName('w:col').length;
+    const num = parseInt(cols.getAttribute('w:num') || '1', 10);
+    const count = listed > 0 ? listed : Number.isFinite(num) ? num : 1;
+    if (count > 1) resolved.columns = count;
   }
 
   const pgMar = sectPr.getElementsByTagName('w:pgMar')[0];
