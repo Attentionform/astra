@@ -18,6 +18,7 @@ import AdmZip from '../adm-zip-safe';
 import { generateEmbeddedWorkbook } from '../manipulators/chart3d';
 import type { DocxZipAdapter } from '../parser/types';
 import { decodePartUri, decodeXmlEntities } from '../ooxml/xml-entities';
+import { checkZipBombCeilings } from '../zip-hardening';
 
 export interface StoredChartData {
   categories: string[];
@@ -104,6 +105,9 @@ function sourceDirOf(relsPath: string): string {
 function entriesOf(buffer: Buffer): Map<string, Buffer> | null {
   try {
     const zip = new AdmZip(buffer);
+    // The workbook is untrusted and is itself a zip: check the declared sizes and ratios before any entry is
+    // inflated. One that breaks a ceiling is not a workbook ASTra generated, so it is never read.
+    checkZipBombCeilings(zip, { sourceCompressedBytes: buffer.length });
     const map = new Map<string, Buffer>();
     for (const entry of zip.getEntries()) {
       if (entry.isDirectory) continue;

@@ -2121,18 +2121,22 @@ export function sanitizeEmbeddedWorkbookBytes(
     return none;
   }
   if (!Array.isArray(entries) || entries.length === 0) return none;
+  // The workbook is a zip inside the package: apply the same size and ratio ceilings as the outer file before any
+  // entry is inflated. Over a ceiling the run fails (E_LIMIT) rather than passing the workbook through unread.
+  checkZipBombCeilings(inner, { sourceCompressedBytes: buf.length });
   let purgedPII = 0;
   let changed = false;
   for (const entry of entries) {
     if (!entry || entry.isDirectory) continue;
     const innerName = entry.entryName;
+    // Only XML entries are read; a binary entry is not inflated at all.
+    if (!isXmlPart(innerName)) continue;
     let data: Buffer;
     try {
       data = Buffer.from(entry.getData());
     } catch {
       continue;
     }
-    if (!isXmlPart(innerName)) continue;
     const xml = data.toString('utf8');
     assertNoForbiddenMarkup(xml, `${outerName}!${innerName}`);
     const textRes = redactTextNodePii(xml, true);
