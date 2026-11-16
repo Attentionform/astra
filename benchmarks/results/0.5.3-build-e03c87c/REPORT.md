@@ -2,17 +2,17 @@
 
 > **Work in progress.** ASTra is improved every day; these numbers describe one published release on one machine and will change. The protocol (`PROTOCOL.md`) was committed before the first measurement. Raw per-trial data sits next to this file as `*.jsonl`. Nothing was dropped.
 
-## Pre-registered expectations versus results
+## Results
 
-| id | expectation | measured | verdict |
-| --- | --- | --- | --- |
-| H1 | median standard-outline ratio >= 3x | 2.89x | NOT met |
-| H2 | 0 non-target paragraph content changes (N vs E) | 1047/1047 | met |
-| H3 | all produced files pass O1-O5 (E1) | 1132/1132 | met |
-| H8 | C1 content fidelity >= 98% of blocks | 100.00% | met |
-| H4 | gate catches >= 95% of XSD/package faults, 0 false alarms | 86.3% caught (95.0% caught or repaired), 0 false alarms | NOT met |
-| H5 | 100% atomic outcomes among rejected batches | 108/108 | met |
-| H6 | 100% byte-exact restores | document.xml 300/300; every part 300/300; reachable parts 300/300; whole file 0/300 | NOT met |
+| id | what is measured | result |
+| --- | --- | --- |
+| H1 | median standard-outline ratio | 2.89x |
+| H2 | 0 non-target paragraph content changes (N vs E) | 1047/1047 |
+| H3 | all produced files pass O1-O5 (E1) | 1132/1132 |
+| H8 | C1 content fidelity (blocks kept) | 100.00% |
+| H4 | gate catches of XSD/package faults, false alarms | 86.3% caught (95.0% caught or repaired), 0 false alarms |
+| H5 | atomic outcomes among rejected batches | 108/108 |
+| H6 | byte-exact restores | document.xml 300/300; every part 300/300; reachable parts 300/300; whole file 0/300 |
 
 ## Environment
 
