@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { DocxParser } from '@attentionform/astra-engine';
 import {
   CANONICAL_PREFIXES, PrefixRefusal, canonicalisePart, canonicalisePrefixes, scanPart, verifyEquivalent,
 } from '../../packages/engine/src/ooxml/prefix-canonicaliser';
@@ -325,6 +326,36 @@ describe('real documents: independent renamer, then canonicalise, then compare w
     // eslint-disable-next-line no-console
     console.log(`SPIKE parts=${parts} canonicalUntouched=${canonicalUntouched} renamedTwins=${renamedTwins} problems=${problems.length}`);
     for (const p of problems.slice(0, 15)) console.log('SPIKE problem', p);
+    expect(problems).toEqual([]);
+  }, 300000);
+});
+
+describe('real documents opened whole: renamed twin gives the same document as the original', () => {
+  it('readDocumentXml and structural summary are equal for every sampled document', () => {
+    let compared = 0;
+    const problems: string[] = [];
+    for (const file of WORD_FILES.slice(0, 80)) {
+      let buf: Buffer;
+      try { buf = readFileSync(file); new AdmZip(buf); } catch { continue; }
+      let original: DocxParser;
+      try { original = new DocxParser(buf); } catch { continue; } // encrypted, macro, invalid: not this test's business
+      const zip = new AdmZip(buf);
+      for (const e of zip.getEntries()) {
+        if (e.isDirectory || !/^(word|customXml)\/.*\.xml$/.test(e.entryName)) continue;
+        try { zip.updateFile(e.entryName, Buffer.from(renameWithDom(e.getData().toString('utf8'), '9'), 'utf8')); } catch { /* leave the part as it is */ }
+      }
+      let twin: DocxParser;
+      try { twin = new DocxParser(zip.toBuffer()); } catch (err) { problems.push(`${file}: twin refused: ${(err as Error).message.slice(0, 120)}`); continue; }
+      compared++;
+      const a = original.getStructuralSummary();
+      const b = twin.getStructuralSummary();
+      if (a.nodes.length !== b.nodes.length) problems.push(`${file}: ${a.nodes.length} nodes became ${b.nodes.length}`);
+      else if (JSON.stringify(a.nodes.map((n) => n.text)) !== JSON.stringify(b.nodes.map((n) => n.text))) problems.push(`${file}: node text differs`);
+    }
+    // eslint-disable-next-line no-console
+    console.log(`SPIKEWHOLE compared=${compared} problems=${problems.length}`);
+    for (const p of problems.slice(0, 10)) console.log('SPIKEWHOLE problem', p);
+    expect(compared).toBeGreaterThan(20);
     expect(problems).toEqual([]);
   }, 300000);
 });
