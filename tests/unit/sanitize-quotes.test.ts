@@ -72,3 +72,14 @@ describe('example markup inside an XML comment or CDATA section', () => {
     expect(allXml(r.buffer)).toContain('kept');
   });
 });
+
+describe('example attributes inside an XML comment or CDATA section of a part the scrub does not rewrite', () => {
+  for (const [label, part] of [['a custom XML part', 'word/customXml/item9.xml'], ['an unlisted word part', 'word/notes-example.xml']] as const) {
+    it(`${label}: text such as w:author="Alice" or w:rsidR="1234" is not treated as an attribute`, () => {
+      const zip = new AdmZip(createBlankDocxBuffer('blank'));
+      zip.addFile(part, Buffer.from('<root><!-- example: <w:p w:rsidR="1234" w:author="Alice"/> --><note><![CDATA[<w:ins w:author="Alice" w:rsidR="5678"/>]]></note></root>'));
+      const r = sanitizeDocxBuffer(zip.toBuffer(), { purgeRSIDs: true, purgeAuthors: true, purgePII: false, acceptAllRevisions: false, stripComments: false });
+      expect(r.report.ok).toBe(true);
+    });
+  }
+});

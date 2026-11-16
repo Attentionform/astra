@@ -2480,7 +2480,8 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
   const authorAttr = /\s(?:w|w15):author\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   for (const [name, data] of out) {
     if (!name.toLowerCase().endsWith('.xml') || !name.startsWith('word/')) continue;
-    const xml = data.toString('utf8');
+    // Comments, CDATA sections and processing instructions can hold example markup; it is not an attribute.
+    const xml = data.toString('utf8').replace(OPAQUE_RE, '');
     if (o.purgeRSIDs) {
       RSID_ATTR_RE.lastIndex = 0;
       if (RSID_ATTR_RE.test(xml)) fail('purgeRSIDs', name, 'revision-save ids (w:rsid*)');
@@ -2494,8 +2495,7 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
       }
     }
     if (o.acceptAllRevisions) assertOnlyReportedRevisions(name, xml, unresolved);
-    // Example text inside an XML comment or CDATA section is not an anchor.
-    if (o.stripComments && /<w:comment(RangeStart|RangeEnd|Reference)[\s/>]/.test(xml.replace(OPAQUE_RE, ''))) {
+    if (o.stripComments && /<w:comment(RangeStart|RangeEnd|Reference)[\s/>]/.test(xml)) {
       fail('stripComments', name, 'comment anchors');
     }
   }
