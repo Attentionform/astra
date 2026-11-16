@@ -1,0 +1,23 @@
+faults applied 158/180; controls applied 58/60
+  not applicable: lo-mixed-010p A03
+  not applicable: lo-mixed-010p E01
+  not applicable: lo-mixed-010p E02
+  not applicable: lo-mixed-010p F01
+  not applicable: lo-mixed-010p F02
+  not applicable: lo-mixed-010p F07
+  not applicable: pd-comments-005p A03
+  not applicable: pd-comments-005p A04
+  not applicable: pd-comments-005p A08
+  not applicable: pd-comments-005p A09
+  not applicable: pd-comments-005p B05
+  not applicable: pd-comments-005p B09
+  not applicable: pd-comments-005p C05
+  not applicable: pd-comments-005p C09
+  not applicable: pd-comments-005p D01
+  not applicable: pd-comments-005p D02
+  not applicable: pd-comments-005p D03
+  not applicable: pd-comments-005p E01
+  not applicable: pd-comments-005p E02
+  not applicable: pd-comments-005p F01
+  not applicable: pd-comments-005p F02
+  not applicable: pd-comments-005p F07
