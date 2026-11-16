@@ -2,7 +2,7 @@
 
 > **Work in progress.** ASTra is improved every day; these numbers describe one published release on one machine and will change. The protocol (`PROTOCOL.md`) was committed before the first measurement. Raw per-trial data sits next to this file as `*.jsonl`. Nothing was dropped.
 
-> **Which code was measured.** The server under test is the build of commit e03c87c (`local_build` in the environment record below, run 43848385189). `packages_under_test` lists the npm packages installed in the benchmark folder (version 0.4.2); this run did not start them and the harness code does not import them.
+> **Which code was measured.** The server under test is the build of commit e03c87c (`local_build` in the environment record below, run 43848385189). `packages_under_test` lists the npm packages installed in the benchmark folder; this run did not start them and the harness code does not import them.
 
 ## Results
 
