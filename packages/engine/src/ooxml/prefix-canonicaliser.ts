@@ -380,3 +380,35 @@ export function canonicalisePart(xml: string, partName = 'part'): { xml: string;
   }
   return result;
 }
+
+export interface IngestResult {
+  /** Replacement text for each part that needed a rewrite. Parts that were already canonical are absent. */
+  changed: Map<string, string>;
+  /** Parts that were rewritten, with the renames applied. For the open summary. */
+  report: Array<{ part: string; renames: Rename[] }>;
+}
+
+/**
+ * Staging ingress: canonicalises every part in `parts` (name to decoded text). Nothing is written by this
+ * function. It either returns the replacements for all parts that need one, or throws `PrefixRefusal` for the
+ * first part that cannot be rewritten safely; the caller writes the replacements only after it returns.
+ * `utf16` names parts stored as UTF-16: a part like that is refused instead of rewritten, because the rewrite
+ * would write it back as UTF-8 under a declaration that says otherwise.
+ */
+export function ingestPrefixes(parts: Iterable<[string, string]>, utf16: ReadonlySet<string> = new Set()): IngestResult {
+  const changed = new Map<string, string>();
+  const report: IngestResult['report'] = [];
+  for (const [name, text] of parts) {
+    if (scanPart(text) === null) continue;
+    if (utf16.has(name)) {
+      throw new PrefixRefusal(
+        `E_VALIDATION: ${name} is stored as UTF-16 and uses a prefix other than the usual one; ASTra does not rewrite it. Open the file in Word, save it again, then retry.`,
+        'malformed'
+      );
+    }
+    const result = canonicalisePart(text, name);
+    changed.set(name, result.xml);
+    report.push({ part: name, renames: result.renames });
+  }
+  return { changed, report };
+}

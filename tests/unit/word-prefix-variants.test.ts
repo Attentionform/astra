@@ -66,7 +66,7 @@ describe.each(['w', 'x'])('table layout with the WordprocessingML prefix "%s"', 
   });
 });
 
-describe('a main document that does not write the "w" prefix is refused at open', () => {
+describe('a main document that does not write the "w" prefix is rewritten to "w" at open (DN3 ingress)', () => {
   const blankDocument = (): { zip: AdmZip; xml: string } => {
     const zip = new AdmZip(createBlankDocxBuffer('blank'));
     return { zip, xml: zip.readAsText('word/document.xml') };
@@ -82,32 +82,32 @@ describe('a main document that does not write the "w" prefix is refused at open'
     expect(ast.sections.flatMap((s: any) => s.nodes).length).toBeGreaterThan(0);
   });
 
-  it('refuses a renamed prefix with the reason and a remedy', () => {
+  it('rewrites a renamed prefix and reads the body', async () => {
     const { zip, xml } = blankDocument();
     const renamed = xml.replace(/<(\/?)w:/g, '<$1x:').replace(/ w:/g, ' x:').replace(/xmlns:w=/, 'xmlns:x=');
     expect(renamed).toContain('<x:body>');
-    let error: any;
-    try { reopen(zip, renamed); } catch (e) { error = e; }
-    expect(error?.message).toMatch(/prefix "x" instead of "w"/);
-    expect(error?.remedy ?? error?.message).toMatch(/save it again/);
+    const parser = reopen(zip, renamed);
+    expect(parser.canonicalisedParts.map((p) => p.part)).toContain('word/document.xml');
+    const ast: any = await parser.getAST();
+    expect(ast.sections.flatMap((s: any) => s.nodes).length).toBeGreaterThan(0);
   });
 
-  it('refuses the default namespace', () => {
+  it('rewrites the default namespace', async () => {
     const { zip, xml } = blankDocument();
     const dflt = xml.replace(/<(\/?)w:/g, '<$1').replace(/ w:/g, ' ').replace(/xmlns:w=/, 'xmlns=');
-    let error: any;
-    try { reopen(zip, dflt); } catch (e) { error = e; }
-    expect(error?.message).toMatch(/default namespace/);
+    const parser = reopen(zip, dflt);
+    const ast: any = await parser.getAST();
+    expect(ast.sections.flatMap((s: any) => s.nodes).length).toBeGreaterThan(0);
   });
 
-  it('refuses a single table that uses another prefix inside a "w" document', () => {
+  it('rewrites a single table that uses another prefix inside a "w" document', async () => {
     const { zip, xml } = blankDocument();
     const table = `<x:tbl xmlns:x="${WNS}"><x:tblPr/><x:tblGrid><x:gridCol x:w="2000"/></x:tblGrid><x:tr><x:tc><x:p/></x:tc></x:tr></x:tbl>`;
     const mixed = xml.replace('<w:body>', `<w:body>${table}`);
     expect(mixed).toContain('<x:tbl ');
-    let error: any;
-    try { reopen(zip, mixed); } catch (e) { error = e; }
-    expect(error?.message).toMatch(/prefix "x"/);
+    const parser = reopen(zip, mixed);
+    expect(parser.readDocumentXml()).not.toContain('<x:tbl');
+    expect(parser.readDocumentXml()).toContain('<w:tbl');
   });
 
   it('the engine still works end to end on the usual form', async () => {

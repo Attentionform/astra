@@ -23,6 +23,7 @@ import { deterministicRevisionIso, resolveDefaultAuthor } from './ooxml/track-ch
 import { newDocumentParts, newDocumentTitle, NEW_DOCUMENT_CONTENT_TYPE_OVERRIDES, NEW_DOCUMENT_ROOT_RELS, NEW_DOCUMENT_DOCUMENT_RELS } from './ooxml/new-document-parts';
 import { assertNoXxe, assertNoXxeAdjacent } from './ooxml/xxe-guard';
 import { decodeXmlPart } from './ooxml/part-text';
+import { PrefixRefusal, canonicalisePart, ingestPrefixes, type Rename } from './ooxml/prefix-canonicaliser';
 import { headerFooterRefIds, pruneOrphanedHeaderFooters, type PruneResult } from './parser/header-footer-prune';
 import {
   pruneUnusedDrawingParts,
@@ -220,6 +221,63 @@ export { headingLevelOfStyle };
  * to another prefix (or to the default namespace) would load as an empty document and every edit would miss it, so
  * it is refused at open with the reason, not read as empty.
  */
+/**
+ * DN3 spike ingress: rewrites every XML part that binds a table namespace to a non-canonical prefix, in a staging
+ * map, and writes the replacements only when every part passed. Throws `E_VALIDATION` (nothing written) otherwise.
+ */
+function canonicalisePackageParts(zip: AdmZip): Array<{ part: string; renames: Rename[] }> {
+  const parts: Array<[string, string]> = [];
+  const utf16 = new Set<string>();
+  for (const entry of zip.getEntries()) {
+    const name = entry.entryName;
+    if (entry.isDirectory || isRogueZipEntry(name) || isBlockedExecutableEntry(name) || !name.endsWith('.xml')) continue;
+    const data = readPartData(entry, name);
+    const text = decodeXmlPart(data);
+    if (data.length >= 2 && ((data[0] === 0xff && data[1] === 0xfe) || (data[0] === 0xfe && data[1] === 0xff) || data[0] === 0 || data[1] === 0)) utf16.add(name);
+    parts.push([name, text]);
+  }
+  let result;
+  try {
+    result = ingestPrefixes(parts, utf16);
+  } catch (err) {
+    if (err instanceof PrefixRefusal) throw toError('E_VALIDATION', err.message.replace(/^E_VALIDATION: /, ''), 'open the file in Word and save it again, then retry');
+    throw err;
+  }
+  for (const [name, text] of result.changed) zip.updateFile(name, Buffer.from(text, 'utf8'));
+  return result.report;
+}
+
+/** Stages the snapshot through the ingress; returns the same map when nothing needs a rewrite, else a copy. */
+function canonicaliseSnapshot(snapshot: Map<string, Buffer>): Map<string, Buffer> {
+  const parts: Array<[string, string]> = [];
+  const utf16 = new Set<string>();
+  for (const [name, data] of snapshot) {
+    if (!name.endsWith('.xml') || isRogueZipEntry(name) || isBlockedExecutableEntry(name)) continue;
+    if (data.length >= 2 && ((data[0] === 0xff && data[1] === 0xfe) || (data[0] === 0xfe && data[1] === 0xff) || data[0] === 0 || data[1] === 0)) utf16.add(name);
+    parts.push([name, decodeXmlPart(data)]);
+  }
+  let result;
+  try {
+    result = ingestPrefixes(parts, utf16);
+  } catch (err) {
+    if (err instanceof PrefixRefusal) throw toError('E_VALIDATION', err.message.replace(/^E_VALIDATION: /, ''), 'open the file in Word and save it again, then retry');
+    throw err;
+  }
+  if (result.changed.size === 0) return snapshot;
+  const copy = new Map(snapshot);
+  for (const [name, text] of result.changed) copy.set(name, Buffer.from(text, 'utf8'));
+  return copy;
+}
+
+function canonicaliseText(xml: string, part: string): string {
+  try {
+    return canonicalisePart(xml, part).xml;
+  } catch (err) {
+    if (err instanceof PrefixRefusal) throw toError('E_VALIDATION', err.message.replace(/^E_VALIDATION: /, ''), 'open the file in Word and save it again, then retry');
+    throw err;
+  }
+}
+
 function assertWordPrefix(doc: Document): void {
   const all = doc.getElementsByTagNameNS(WORD_NS, '*');
   for (let i = 0; i < all.length; i++) {
@@ -235,6 +293,8 @@ function assertWordPrefix(doc: Document): void {
 }
 
 export class DocxParser {
+  /** Parts rewritten to the usual prefixes at open (DN3 spike). Empty for a canonical package. */
+  public canonicalisedParts: Array<{ part: string; renames: Rename[] }> = [];
   private builtinSeedSnapshot?: Map<string, Buffer>;
 
   /** True only while the entire internally generated seed package remains unchanged. */
@@ -713,6 +773,7 @@ export class DocxParser {
         assertNoXxeAdjacent(text, name);
       }
     }
+    this.canonicalisedParts = canonicalisePackageParts(this.zip);
     this.parser = new DOMParser({
       errorHandler: {
         warning: (w) => { throw invalidXmlError(w) },
@@ -749,6 +810,7 @@ export class DocxParser {
   }
 
   public reloadDocumentXml(xmlStr: string): void {
+    xmlStr = canonicaliseText(xmlStr, 'word/document.xml');
     assertNoXxe(xmlStr, 'word/document.xml');
     assertNoXxeAdjacent(xmlStr, 'word/document.xml');
     const newDoc = this.parser.parseFromString(xmlStr, "text/xml");
@@ -996,6 +1058,7 @@ export class DocxParser {
    * only a restore that mixes a pre-0.4.2 commit with live parts passes `registerCoreProperties`.
    */
   public restorePackageSnapshot(snapshot: Map<string, Buffer>, options?: { registerCoreProperties?: boolean }): void {
+    snapshot = canonicaliseSnapshot(snapshot);
     // Remove entries added since the snapshot
     for (const entry of [...this.zip.getEntries()]) {
       if (!snapshot.has(entry.entryName)) {
