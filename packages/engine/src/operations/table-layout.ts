@@ -5,7 +5,7 @@
  * `pct`, `dxa`, `auto` or `nil`; they are never converted into numbers, only rewritten from the grid. ASTra never
  * invents a width: when the grid or the container cannot be trusted the operation is refused with a remedy.
  */
-import { createWordElement } from '../ooxml/ns';
+import { createWordLike, getWordAttr, isWordElement, setWordAttr, wordChildren } from '../ooxml/word-dom';
 import { ensureTableGrid, sortChildrenBySchema, TBLPR_CHILD_ORDER, TCPR_CHILD_ORDER, TRPR_CHILD_ORDER } from '../ooxml/schema-order';
 import { toError } from '../errors';
 import { usableAreaOf, EMU_PER_INCH } from './chart-size';
@@ -19,21 +19,16 @@ const MIN_COLUMN_TWIPS = 20;
 /** Word's default left and right cell margin. */
 const DEFAULT_CELL_MARGIN_TWIPS = 108;
 
-function directChildren(parent: Element, tagName: string): Element[] {
-  const out: Element[] = [];
-  for (let c = parent.firstChild; c; c = c.nextSibling) {
-    if (c.nodeType === 1 && (c as Element).tagName === tagName) out.push(c as Element);
-  }
-  return out;
-}
+/** Direct children by namespace and local name (`w:tc` finds `<x:tc>` too). */
+const directChildren = wordChildren;
 
 const fail = (message: string, remedy: string): never => {
   throw toError('E_VALIDATION', message, remedy);
 };
 
 function intAttr(el: Element | undefined, name: string): number | null {
-  const raw = el?.getAttribute(name);
-  if (raw === null || raw === undefined || !/^\d+$/.test(raw.trim())) return null;
+  const raw = getWordAttr(el, name);
+  if (raw === null || !/^\d+$/.test(raw.trim())) return null;
   return Number(raw.trim());
 }
 
@@ -178,7 +173,7 @@ function rebuiltGrid(rows: Element[]): number[] | null {
       const tcPr = directChildren(tc, 'w:tcPr')[0];
       const merged = !!tcPr && (directChildren(tcPr, 'w:gridSpan').length > 0 || directChildren(tcPr, 'w:vMerge').length > 0 || directChildren(tcPr, 'w:hMerge').length > 0);
       const tcW = tcPr ? directChildren(tcPr, 'w:tcW')[0] : undefined;
-      const w = tcW && tcW.getAttribute('w:type') === 'dxa' ? intAttr(tcW, 'w:w') : null;
+      const w = tcW && getWordAttr(tcW, 'w:type') === 'dxa' ? intAttr(tcW, 'w:w') : null;
       if (merged || w === null || w <= 0) {
         ok = false;
         break;
@@ -208,7 +203,7 @@ function marginOf(el: Element | undefined, side: 'left' | 'right'): number | nul
   if (!el) return null;
   const m = directChildren(el, `w:${side}`)[0] ?? directChildren(el, side === 'left' ? 'w:start' : 'w:end')[0];
   if (!m) return null;
-  const t = m.getAttribute('w:type');
+  const t = getWordAttr(m, 'w:type');
   if (t && t !== 'dxa') return null;
   return intAttr(m, 'w:w');
 }
@@ -216,11 +211,11 @@ function marginOf(el: Element | undefined, side: 'left' | 'right'): number | nul
 /** The width available to the table: the section's text width, or the width of the cell a nested table sits in. */
 export function containerWidth(tbl: Element, pageSetup: PageSetupProperties | null | undefined): WidthContainer {
   let node: Node | null = tbl.parentNode;
-  while (node && node.nodeType === 1 && (node as Element).tagName !== 'w:tc' && (node as Element).tagName !== 'w:body') {
+  while (node && node.nodeType === 1 && !isWordElement(node, 'w:tc') && !isWordElement(node, 'w:body')) {
     node = node.parentNode;
   }
-  const parent = node && node.nodeType === 1 ? (node as Element) : null;
-  if (!parent || parent.tagName === 'w:body') {
+  const parent: Element | null = node && node.nodeType === 1 ? (node as Element) : null;
+  if (!parent || isWordElement(parent, 'w:body')) {
     if ((pageSetup?.columns ?? 1) > 1) {
       return { twips: null, reason: 'the section has several text columns, so the width of one column is not known', label: 'the text width' };
     }
@@ -230,7 +225,7 @@ export function containerWidth(tbl: Element, pageSetup: PageSetupProperties | nu
   // A nested table: the parent cell's width from the parent grid, less the cell margins.
   const parentRow = parent.parentNode as Element | null;
   const parentTbl = parentRow?.parentNode as Element | null;
-  if (!parentRow || parentRow.tagName !== 'w:tr' || !parentTbl || parentTbl.tagName !== 'w:tbl') {
+  if (!parentRow || !parentTbl || !isWordElement(parentRow, 'w:tr') || !isWordElement(parentTbl, 'w:tbl')) {
     return { twips: null, reason: 'the table sits in a structure other than a body or a table cell', label: 'its container' };
   }
   const grid = readGrid(parentTbl);
@@ -258,7 +253,7 @@ export function containerWidth(tbl: Element, pageSetup: PageSetupProperties | nu
 function ensureTblPr(tbl: Element): Element {
   let tblPr = directChildren(tbl, 'w:tblPr')[0];
   if (!tblPr) {
-    tblPr = createWordElement(tbl.ownerDocument, 'w:tblPr');
+    tblPr = createWordLike(tbl, 'w:tblPr');
     tbl.insertBefore(tblPr, tbl.firstChild);
   }
   return tblPr;
@@ -268,11 +263,11 @@ function setTblW(tbl: Element, spec: { w: number; type: 'dxa' | 'pct' }): void {
   const tblPr = ensureTblPr(tbl);
   let tblW = directChildren(tblPr, 'w:tblW')[0];
   if (!tblW) {
-    tblW = createWordElement(tbl.ownerDocument, 'w:tblW');
+    tblW = createWordLike(tbl, 'w:tblW');
     tblPr.appendChild(tblW);
   }
-  tblW.setAttribute('w:w', String(spec.w));
-  tblW.setAttribute('w:type', spec.type);
+  setWordAttr(tblW, 'w:w', String(spec.w));
+  setWordAttr(tblW, 'w:type', spec.type);
   sortChildrenBySchema(tblPr, TBLPR_CHILD_ORDER);
 }
 
@@ -351,36 +346,36 @@ export function applyTableWidth(
     // Apply: grid, every cell width from the grid, table width, fixed layout.
     let tblGrid = directChildren(tbl, 'w:tblGrid')[0];
     if (!tblGrid) {
-      ensureTableGrid(tbl, tbl.ownerDocument);
+      ensureTableGrid(tbl);
       tblGrid = directChildren(tbl, 'w:tblGrid')[0];
     }
     const gridCols = directChildren(tblGrid, 'w:gridCol');
     if (gridCols.length !== scaled.length) {
       while (tblGrid.firstChild) tblGrid.removeChild(tblGrid.firstChild);
       for (const w of scaled) {
-        const col = createWordElement(tbl.ownerDocument, 'w:gridCol');
-        col.setAttribute('w:w', String(w));
+        const col = createWordLike(tbl, 'w:gridCol');
+        setWordAttr(col, 'w:w', String(w));
         tblGrid.appendChild(col);
       }
     } else {
-      gridCols.forEach((col, i) => col.setAttribute('w:w', String(scaled[i])));
+      gridCols.forEach((col, i) => setWordAttr(col, 'w:w', String(scaled[i])));
     }
     for (const row of laid) {
       for (const cell of row.cells) {
         let tcPr = directChildren(cell.tc, 'w:tcPr')[0];
         if (!tcPr) {
-          tcPr = createWordElement(tbl.ownerDocument, 'w:tcPr');
+          tcPr = createWordLike(tbl, 'w:tcPr');
           cell.tc.insertBefore(tcPr, cell.tc.firstChild);
         }
         let tcW = directChildren(tcPr, 'w:tcW')[0];
         if (!tcW) {
-          tcW = createWordElement(tbl.ownerDocument, 'w:tcW');
+          tcW = createWordLike(tbl, 'w:tcW');
           tcPr.appendChild(tcW);
         }
         let width = 0;
         for (let i = cell.start; i < cell.start + cell.span; i++) width += scaled[i];
-        tcW.setAttribute('w:w', String(width));
-        tcW.setAttribute('w:type', 'dxa');
+        setWordAttr(tcW, 'w:w', String(width));
+        setWordAttr(tcW, 'w:type', 'dxa');
         sortChildrenBySchema(tcPr, TCPR_CHILD_ORDER);
       }
     }
@@ -388,10 +383,10 @@ export function applyTableWidth(
     const tblPr = ensureTblPr(tbl);
     let layout = directChildren(tblPr, 'w:tblLayout')[0];
     if (!layout) {
-      layout = createWordElement(tbl.ownerDocument, 'w:tblLayout');
+      layout = createWordLike(tbl, 'w:tblLayout');
       tblPr.appendChild(layout);
     }
-    layout.setAttribute('w:type', 'fixed');
+    setWordAttr(layout, 'w:type', 'fixed');
     sortChildrenBySchema(tblPr, TBLPR_CHILD_ORDER);
   }
 
@@ -461,16 +456,16 @@ export function applyRowHeights(tbl: Element, rows: Element[], request: RowHeigh
       continue;
     }
     if (!trPr) {
-      trPr = createWordElement(tbl.ownerDocument, 'w:trPr');
+      trPr = createWordLike(tbl, 'w:trPr');
       tr.insertBefore(trPr, tr.firstChild);
     }
     let h = directChildren(trPr, 'w:trHeight')[0];
     if (!h) {
-      h = createWordElement(tbl.ownerDocument, 'w:trHeight');
+      h = createWordLike(tbl, 'w:trHeight');
       trPr.appendChild(h);
     }
-    h.setAttribute('w:val', String(request.twips));
-    h.setAttribute('w:hRule', request.rule);
+    setWordAttr(h, 'w:val', String(request.twips));
+    setWordAttr(h, 'w:hRule', request.rule);
     sortChildrenBySchema(trPr, TRPR_CHILD_ORDER);
   }
   if (request.rule === 'exact') {

@@ -11,6 +11,7 @@
  * A shape that cannot be changed safely throws E_VALIDATION with a remedy and
  * writes nothing; the caller decides whether `allowRebuild` offers a way out.
  */
+import { decodeXmlEntities } from '../ooxml/xml-entities';
 import { chartNamespaceScopeFromXml, findChartNamespaceElementsScoped } from '../parser/factory';
 import {
   attrValue,
@@ -633,7 +634,38 @@ const WORTH_REPORTING = new Set([
   'majorUnit', 'minorUnit', 'minorGridlines', 'dispUnits', 'title', 'spPr', 'effectLst', 'gradFill', 'pattFill', 'blipFill',
 ]);
 
-/** Names of the elements in `before` that `after` no longer contains, plus rel targets the new part cannot use. */
+/** Colours, font sizes, typefaces and line widths written in a chart part, as readable facts (`colour F2F2F2`). */
+function formattingValues(xml: string): Set<string> {
+  const out = new Set<string>();
+  const attrOf = (tag: string, name: string): string | undefined => {
+    const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(tag);
+    const raw = m ? (m[1] ?? m[2]) : undefined;
+    return raw === undefined ? undefined : decodeXmlEntities(raw);
+  };
+  for (const m of xml.matchAll(/<(?:[\w.-]+:)?(srgbClr|schemeClr|sysClr|prstClr|latin|ln|defRPr|rPr|endParaRPr)\b[^>]*>/g)) {
+    const tag = m[0];
+    const kind = m[1];
+    if (kind === 'srgbClr') {
+      const v = attrOf(tag, 'val');
+      if (v) out.add(`colour ${v.toUpperCase()}`);
+    } else if (kind === 'schemeClr' || kind === 'prstClr' || kind === 'sysClr') {
+      const v = attrOf(tag, 'val');
+      if (v) out.add(`colour ${v}`);
+    } else if (kind === 'latin') {
+      const v = attrOf(tag, 'typeface');
+      if (v) out.add(`typeface ${v}`);
+    } else if (kind === 'ln') {
+      const w = attrOf(tag, 'w');
+      if (w) out.add(`line width ${w} EMU`);
+    } else {
+      const sz = attrOf(tag, 'sz');
+      if (sz) out.add(`font size ${Number(sz) / 100} pt`);
+    }
+  }
+  return out;
+}
+
+/** Names of the elements in `before` that `after` no longer contains, plus values they carried and rel targets the new part cannot use. */
 export function describeLoss(beforeXml: string, afterXml: string, relsXml: string | null): string[] {
   const names = (xml: string): Set<string> => {
     const out = new Set<string>();
@@ -649,9 +681,17 @@ export function describeLoss(beforeXml: string, afterXml: string, relsXml: strin
   const afterNames = new Set([...names(afterXml)].map(strip));
   const lost = [...names(beforeXml)].map(strip).filter((n) => WORTH_REPORTING.has(n) && !afterNames.has(n));
   const unique = [...new Set(lost)].sort();
+  // An element can survive a rebuild with a different value (the plot area fill is rewritten, the font size reset),
+  // so the names above are not enough: name every colour, font size, typeface and line width that is gone.
+  const afterValues = formattingValues(afterXml);
+  for (const fact of [...formattingValues(beforeXml)].sort()) {
+    if (!afterValues.has(fact)) unique.push(fact);
+  }
   if (relsXml) {
-    for (const [, type] of relsXml.matchAll(/<Relationship\b[^>]*\sType="[^"]*\/([A-Za-z]+)"/g)) {
-      if (/^(chartStyle|chartColorStyle|themeOverride|userShapes|image)$/.test(type) && !unique.includes(`rel:${type}`)) {
+    for (const tag of relsXml.match(/<(?:[\w.-]+:)?Relationship\b[^>]*>/g) ?? []) {
+      const relType = /\sType\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(tag);
+      const type = /\/([A-Za-z]+)$/.exec(decodeXmlEntities(relType?.[1] ?? relType?.[2] ?? ''))?.[1];
+      if (type && /^(chartStyle|chartColorStyle|themeOverride|userShapes|image)$/.test(type) && !unique.includes(`rel:${type}`)) {
         unique.push(`rel:${type}`);
       }
     }

@@ -2,7 +2,7 @@ import { chartNamespaceScopeFromXml } from '../parser/factory';
 import { majorGridlinesXml } from '../manipulators/chart-parts';
 import { withLineStroke, withSolidFill } from './chart-merge';
 import { normalizeColour } from './colour';
-import { applyRunProps, applyRunPropsDeep, setFillChild, solidFillXml, textPropertiesXml, type RunProps } from './chart-text';
+import { applyRunProps, applyRunPropsDeep, drawingPrefixOf, setFillChild, solidFillXml, textPropertiesXml, type RunProps } from './chart-text';
 import {
   type ChartNamespaceScope,
   type Span,
@@ -166,6 +166,9 @@ export interface ChartStyleContext {
 const LEGEND_POSITIONS = new Set(['b', 't', 'l', 'r', 'tr', 'none']);
 const LABEL_POSITIONS = new Set(['ctr', 'inBase', 'inEnd', 'outEnd', 'bestFit', 'b', 't', 'l', 'r']);
 const TICK_LABEL_POSITIONS = new Set(['nextTo', 'high', 'low', 'none']);
+/** The schema's names for three trendline types (ST_TrendlineType: exp, log, poly). */
+const TRENDLINE_FILE_VALUE: Record<string, string> = { exponential: 'exp', logarithmic: 'log', polynomial: 'poly' };
+const TRENDLINE_FROM_FILE: Record<string, string> = { exp: 'exponential', log: 'logarithmic', poly: 'polynomial' };
 const TRENDLINE_TYPES = new Set(['linear', 'exponential', 'logarithmic', 'movingAvg', 'polynomial', 'power', 'none']);
 const PIE_TYPES = new Set(['pie', 'doughnut', 'pie3D']);
 const PLOT_TAGS = [
@@ -520,11 +523,23 @@ function patchDataLabels(xml: string, chart: Span, block: string, style: ChartDa
 
     if (dLbls) {
       let labelsXml = plotXml.slice(dLbls.start, dLbls.end);
-      for (const [flag, value] of requestedFlags) labelsXml = setBoolFlag(labelsXml, flag, value);
-      if (style.show === true && findDirectChild(labelsXml, chartQualifiedName(labelsXml, 'delete'))) {
-        labelsXml = setBoolFlag(labelsXml, 'delete', false);
+      const deleteTag = chartQualifiedName(labelsXml, 'delete');
+      const existingDelete = findDirectChild(labelsXml, deleteTag);
+      const turnsOn = style.show === true || requestedFlags.some(([, value]) => value);
+      if (style.show === false) {
+        // CT_DLbls: `delete` replaces the whole group of show/position/format children, so nothing else stays beside it.
+        const open = labelsXml.slice(0, tagEnd(labelsXml, 0) + 1).replace(/\/>$/, '>');
+        const kept = findChartDirectChildren(labelsXml, 'dLbl', scope).map((span) => labelsXml.slice(span.start, span.end)).join('');
+        plotXml = replaceSpan(plotXml, dLbls, `${open}${kept}<${deleteTag} val="1"/></${tagNameOf(labelsXml)}>`);
+        patchedBlock = replaceSpan(patchedBlock, plot.span, plotXml);
+        continue;
       }
-      if (style.show === false) labelsXml = setBoolFlag(labelsXml, 'delete', true);
+      if (existingDelete && !turnsOn) {
+        patchedBlock = replaceSpan(patchedBlock, plot.span, plotXml);
+        continue;
+      }
+      if (existingDelete) labelsXml = replaceSpan(labelsXml, existingDelete, '');
+      for (const [flag, value] of requestedFlags) labelsXml = setBoolFlag(labelsXml, flag, value);
       if (style.position !== undefined) {
         const pos = findDirectChild(labelsXml, chartQualifiedName(labelsXml, 'dLblPos'));
         if (pos) {
@@ -550,9 +565,12 @@ function patchDataLabels(xml: string, chart: Span, block: string, style: ChartDa
       const tag = chartQualifiedName(plotXml, 'dLbls');
       const numFmtTag = chartQualifiedName(plotXml, 'numFmt');
       const byTag = new Map<string, string>();
-      if (style.show === false) byTag.set('delete', `<${chartQualifiedName(plotXml, 'delete')} val="1"/>`);
-      if (style.numberFormat !== undefined) byTag.set('numFmt', `<${numFmtTag} formatCode="${escapeXml(style.numberFormat)}" sourceLinked="0"/>`);
-      if (style.position !== undefined) byTag.set('dLblPos', `<${chartQualifiedName(plotXml, 'dLblPos')} val="${style.position}"/>`);
+      if (style.show === false) {
+        byTag.set('delete', `<${chartQualifiedName(plotXml, 'delete')} val="1"/>`);
+        requestedFlags.length = 0;
+      }
+      if (style.show !== false && style.numberFormat !== undefined) byTag.set('numFmt', `<${numFmtTag} formatCode="${escapeXml(style.numberFormat)}" sourceLinked="0"/>`);
+      if (style.show !== false && style.position !== undefined) byTag.set('dLblPos', `<${chartQualifiedName(plotXml, 'dLblPos')} val="${style.position}"/>`);
       for (const [flag, value] of requestedFlags) byTag.set(flag, `<${chartQualifiedName(plotXml, flag)} val="${value ? '1' : '0'}"/>`);
       const parts = DLABELS_ORDER.filter((name) => byTag.has(name)).map((name) => byTag.get(name)!);
       const labelsXml = `<${tag}>${parts.join('')}</${tag}>`;
@@ -971,7 +989,7 @@ const TRENDLINE_AFTER_TAGS = ['errBars', 'cat', 'val', 'xVal', 'yVal', 'shape', 
 
 function trendlineBlock(seriesXml: string, style: ChartTrendlineStyle): string {
   const c = (localName: string): string => chartQualifiedName(seriesXml, localName);
-  const parts = [`<${c('trendlineType')} val="${style.type}"/>`];
+  const parts = [`<${c('trendlineType')} val="${TRENDLINE_FILE_VALUE[style.type] ?? style.type}"/>`];
   if (style.order !== undefined) parts.push(`<${c('order')} val="${style.order}"/>`);
   if (style.period !== undefined) parts.push(`<${c('period')} val="${style.period}"/>`);
   if (style.displayRSquared !== undefined) parts.push(`<${c('dispRSqr')} val="${style.displayRSquared ? '1' : '0'}"/>`);
@@ -1092,7 +1110,8 @@ function readTrendlineStyle(block: string, scope: ChartNamespaceScope): ChartTre
       const trendXml = serXml.slice(trend.start, trend.end);
       const typeEl = findDirectChild(trendXml, chartQualifiedName(trendXml, 'trendlineType'));
       if (!typeEl) continue;
-      const type = attrValue(trendXml.slice(typeEl.start, typeEl.end), 'val');
+      const rawType = attrValue(trendXml.slice(typeEl.start, typeEl.end), 'val');
+      const type = rawType === undefined ? undefined : (TRENDLINE_FROM_FILE[rawType] ?? rawType);
       if (!type || !TRENDLINE_TYPES.has(type)) continue;
       if (result === undefined) {
         result = { type: type as ChartTrendlineType, seriesNumbers: [] };
@@ -1177,13 +1196,21 @@ function commonDataLabels(styles: Array<ChartDataLabelStyle | undefined>): Chart
 export function applyChartStyle(xml: string, style: ChartStyle | undefined, context: ChartStyleContext): string {
   if (style === undefined) return xml;
   validateChartStyle(style, context);
+  const drawingPrefix = drawingPrefixOf(xml);
+  if (drawingPrefix !== undefined && drawingPrefix !== 'a') {
+    throw styleRefusal(
+      context,
+      `this chart part binds the DrawingML namespace to ${drawingPrefix === '' ? 'the default namespace' : `the prefix "${drawingPrefix}"`}, and style writes use the prefix "a"`,
+      'Change the chart in Word (it rewrites the part with the usual prefixes), or delete it and re-insert it with ASTra.'
+    );
+  }
   const scope = chartNamespaceScopeFromXml(xml);
-  const chart = findChartElement(xml, 'chart', scope);
-  if (!chart) {
+  if (!findChartElement(xml, 'chart', scope)) {
     throw styleRefusal(context, 'chart part has no <chart> root child', 'Re-read the chart via inspect_document; if malformed, delete and re-insert it.');
   }
-  let out = xml;
-  if (style.chartFont !== undefined) out = applyChartFont(out, style.chartFont, scope);
+  // The chart-wide font changes the text length, so it goes first and the chart span is read after it.
+  let out = style.chartFont !== undefined ? applyChartFont(xml, style.chartFont, scope) : xml;
+  const chart = findChartElement(out, 'chart', scope) as Span;
   let block = out.slice(chart.start, chart.end);
   if (style.legend !== undefined) {
     out = patchLegend(out, chart, block, style.legend, scope);

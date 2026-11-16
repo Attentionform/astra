@@ -17,6 +17,7 @@
 import AdmZip from '../adm-zip-safe';
 import { generateEmbeddedWorkbook } from '../manipulators/chart3d';
 import type { DocxZipAdapter } from '../parser/types';
+import { decodePartUri, decodeXmlEntities } from '../ooxml/xml-entities';
 
 export interface StoredChartData {
   categories: string[];
@@ -52,12 +53,13 @@ interface RelEntry {
 
 function attr(tag: string, name: string): string | undefined {
   const m = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(tag);
-  return m ? (m[1] ?? m[2]) : undefined;
+  const raw = m ? (m[1] ?? m[2]) : undefined;
+  return raw === undefined ? undefined : decodeXmlEntities(raw);
 }
 
 function parseRels(xml: string): RelEntry[] {
   const out: RelEntry[] = [];
-  const re = /<Relationship\b[^>]*>/g;
+  const re = /<(?:[\w.-]+:)?Relationship\b[^>]*>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) {
     const id = attr(m[0], 'Id');
@@ -75,7 +77,8 @@ function parseRels(xml: string): RelEntry[] {
 
 /** Resolves a relationship target against the directory of its source part. */
 function resolveTarget(sourceDir: string, target: string): string {
-  const parts = (target.startsWith('/') ? target.slice(1) : `${sourceDir}${target}`).split('/');
+  const uri = decodePartUri(target);
+  const parts = (uri.startsWith('/') ? uri.slice(1) : `${sourceDir}${uri}`).split('/');
   const out: string[] = [];
   for (const part of parts) {
     if (part === '' || part === '.') continue;
@@ -266,7 +269,7 @@ export function applyWorkbookDecision(zip: DocxZipAdapter, decision: WorkbookDec
   if (decision.privateCopy) {
     const copy = decision.privateCopy;
     const relsXml = zip.readText(copy.relsPath);
-    const next = relsXml.replace(/<Relationship\b[^>]*>/g, (tag) => {
+    const next = relsXml.replace(/<(?:[\w.-]+:)?Relationship\b[^>]*>/g, (tag) => {
       if (attr(tag, 'Id') !== copy.relId) return tag;
       const target = attr(tag, 'Target');
       if (target === undefined) return tag;

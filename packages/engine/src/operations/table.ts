@@ -254,7 +254,7 @@ function paintCellTextColor(tc: Element, doc: Document, normColor: string): void
 async function refreshTableNode(node: Node, tblEl: Element): Promise<void> {
   // Ensure ECMA-376 compliant tblGrid exists
   if (tblEl.ownerDocument) {
-    ensureTableGrid(tblEl, tblEl.ownerDocument);
+    ensureTableGrid(tblEl);
   }
   const textNodes = tblEl.getElementsByTagName('w:t');
   let text = '';

@@ -194,6 +194,69 @@ describe('workbook policy: shared and linked workbooks', () => {
     expect(s.zip.readText('word/charts/_rels/chart1.xml.rels')).toContain(first.split('/').pop()!);
   });
 
+  /** The same relationships file with the namespace bound to a prefix (`<p:Relationship>`), valid OOXML. */
+  const prefixed = (xml: string): string => xml
+    .replace(/<Relationships\b/, '<p:Relationships').replace(/<\/Relationships>/, '</p:Relationships>')
+    .replace(/xmlns=/, 'xmlns:p=')
+    .replace(/<Relationship\b/g, '<p:Relationship');
+
+  it('shared workbook behind a prefixed relationship in the other chart is still refused', async () => {
+    const { s, first } = await sharedPair();
+    const rels1 = 'word/charts/_rels/chart1.xml.rels';
+    s.zip.writeText(rels1, prefixed(s.zip.readText(rels1)));
+    expect(s.zip.readText(rels1)).toContain('<p:Relationship ');
+    const before = Buffer.from(wb(s, first));
+    await refused(s, [{ action: 'chart', operation: 'update', target: 'c2', categories: ['a', 'b', 'c'] }], /also used by/);
+    expect(wb(s, first).equals(before)).toBe(true);
+  });
+
+  it('a prefixed relationship in the updated chart still gets the private copy and keeps the other chart intact', async () => {
+    const { s, first } = await sharedPair();
+    const rels2 = 'word/charts/_rels/chart2.xml.rels';
+    s.zip.writeText(rels2, prefixed(s.zip.readText(rels2)));
+    const before = Buffer.from(wb(s, first));
+    const res = await s.run([{ action: 'chart', operation: 'update', target: 'c2', allowRebuild: true, categories: ['a', 'b', 'c'] }]);
+    expect(res.success).toBe(true);
+    expect(wb(s, first).equals(before)).toBe(true);
+    const target = /Target="\.\.\/embeddings\/([^"]+)"/.exec(s.zip.readText(rels2))![1];
+    expect(`word/embeddings/${target}`).not.toBe(first);
+    expect(s.zip.readText(rels2)).toContain('<p:Relationship ');
+  });
+
+  /** The other chart names the same workbook with an escaped spelling: character reference or percent-escape. */
+  const escapedSpellings: Array<[string, (name: string) => string]> = [
+    ['decimal character reference', (n) => n.replace(/(\d)(?=\.xlsx$)/, (d) => `&#${d.charCodeAt(0)};`)],
+    ['hexadecimal character reference', (n) => n.replace(/(\d)(?=\.xlsx$)/, (d) => `&#x${d.charCodeAt(0).toString(16)};`)],
+    ['percent-escape', (n) => n.replace(/(\d)(?=\.xlsx$)/, (d) => `%${d.charCodeAt(0).toString(16)}`)],
+  ];
+  for (const [label, spell] of escapedSpellings) {
+    it(`shared workbook named with a ${label} in the other chart is still refused`, async () => {
+      const { s, first } = await sharedPair();
+      const rels1 = 'word/charts/_rels/chart1.xml.rels';
+      const name = first.split('/').pop()!;
+      const escaped = spell(name);
+      expect(escaped).not.toBe(name);
+      s.zip.writeText(rels1, s.zip.readText(rels1).replace(`embeddings/${name}`, `embeddings/${escaped}`));
+      expect(s.zip.readText(rels1)).toContain(escaped);
+      const before = Buffer.from(wb(s, first));
+      await refused(s, [{ action: 'chart', operation: 'update', target: 'c2', categories: ['a', 'b', 'c'] }], /also used by/);
+      expect(wb(s, first).equals(before)).toBe(true);
+    });
+
+    it(`with allowRebuild the ${label} sharer keeps its workbook and the updated chart gets a private copy`, async () => {
+      const { s, first } = await sharedPair();
+      const rels1 = 'word/charts/_rels/chart1.xml.rels';
+      const name = first.split('/').pop()!;
+      s.zip.writeText(rels1, s.zip.readText(rels1).replace(`embeddings/${name}`, `embeddings/${spell(name)}`));
+      const before = Buffer.from(wb(s, first));
+      const res = await s.run([{ action: 'chart', operation: 'update', target: 'c2', allowRebuild: true, categories: ['a', 'b', 'c'] }]);
+      expect(res.success).toBe(true);
+      expect(wb(s, first).equals(before)).toBe(true);
+      const target = /Target="\.\.\/embeddings\/([^"]+)"/.exec(s.zip.readText('word/charts/_rels/chart2.xml.rels'))![1];
+      expect(`word/embeddings/${target}`).not.toBe(first);
+    });
+  }
+
   it('shared workbook: a no-data update (title) is allowed and writes nothing', async () => {
     const { s, first } = await sharedPair();
     const before = Buffer.from(wb(s, first));

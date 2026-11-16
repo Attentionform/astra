@@ -1,5 +1,7 @@
 import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from './dom-parser';
+import { relationshipElements } from './relationships-dom';
+import { decodePartUri } from './xml-entities';
 
 /**
  * Removes chart and image parts that an edit left unreachable (0.5.3, DN2).
@@ -55,6 +57,14 @@ export interface DrawingPruneResult {
   existingDefects: string[];
 }
 
+
+/** Elements by local name: a package may bind the relationships or content-types namespace to a prefix (`<p:Relationship>`). */
+function elementsByLocalName(doc: Document, local: string): Element[] {
+  return Array.from(doc.getElementsByTagNameNS('*', local));
+}
+
+
+
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 export const CHART_REL_TYPE = `${REL_NS}/chart`;
 export const IMAGE_REL_TYPE = `${REL_NS}/image`;
@@ -62,16 +72,51 @@ const DOC_RELS = 'word/_rels/document.xml.rels';
 const TYPES_PATH = '[Content_Types].xml';
 const MAX_DEPTH = 4;
 
-/** Relationship types of a chart part that go away with it, and the name shape each target must have. */
-const CHART_CHILD_TYPES: ReadonlyArray<{ type: string; name: RegExp }> = [
-  { type: `${REL_NS}/package`, name: /^word\/embeddings\/[^/]+$/i },
-  { type: 'http://schemas.microsoft.com/office/2011/relationships/chartStyle', name: /^word\/charts\/style\d+\.xml$/i },
-  { type: 'http://schemas.microsoft.com/office/2011/relationships/chartColorStyle', name: /^word\/charts\/colors\d+\.xml$/i },
-  { type: `${REL_NS}/chartUserShapes`, name: /^word\/drawings\/[^/]+\.xml$/i },
-  { type: `${REL_NS}/themeOverride`, name: /^word\/theme\/themeOverride\d+\.xml$/i },
+/**
+ * A part is removed with a chart or image when it has the usual name or, for a part Word did not name, the content
+ * type of that kind. The name alone says little (a chart may be `word/charts/financial-chart.xml`); the content
+ * type, with the relationship that points at it and the proof that nothing else reaches it, says what it is.
+ */
+const CT = {
+  chart: 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
+  chartStyle: 'application/vnd.ms-office.chartstyle+xml',
+  chartColors: 'application/vnd.ms-office.chartcolorstyle+xml',
+  chartShapes: 'application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml',
+  themeOverride: 'application/vnd.openxmlformats-officedocument.themeOverride+xml',
+  workbook: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+/** Relationship types of a chart part that go away with it, and the content type each target must have. */
+const CHART_CHILD_TYPES: ReadonlyArray<{ type: string; accepts: (name: string, contentType: string | undefined) => boolean }> = [
+  { type: `${REL_NS}/package`, accepts: (name, ct) => /^word\/embeddings\/[^/]+$/i.test(name) || ct === CT.workbook },
+  { type: 'http://schemas.microsoft.com/office/2011/relationships/chartStyle', accepts: (n, ct) => ct === CT.chartStyle || /^word\/charts\/style\d+\.xml$/i.test(n) },
+  { type: 'http://schemas.microsoft.com/office/2011/relationships/chartColorStyle', accepts: (n, ct) => ct === CT.chartColors || /^word\/charts\/colors\d+\.xml$/i.test(n) },
+  { type: `${REL_NS}/chartUserShapes`, accepts: (n, ct) => ct === CT.chartShapes || /^word\/drawings\/[^/]+\.xml$/i.test(n) },
+  { type: `${REL_NS}/themeOverride`, accepts: (n, ct) => ct === CT.themeOverride || /^word\/theme\/themeOverride\d+\.xml$/i.test(n) },
 ];
-const CHART_NAME = /^word\/charts\/chart\d+\.xml$/i;
-const IMAGE_NAME = /^word\/media\/[^/]+$/i;
+
+type Accepts = (name: string, contentType: string | undefined) => boolean;
+const inWordFolder = (name: string): boolean => /^word\/(?!_rels\/).+/i.test(name) && !/\.rels$/i.test(name);
+const isChartPart: Accepts = (name, ct) => /^word\/charts\/chart\d+\.xml$/i.test(name) || (inWordFolder(name) && ct === CT.chart);
+const isImagePart: Accepts = (name, ct) => /^word\/media\/[^/]+$/i.test(name) || (inWordFolder(name) && (ct ?? '').startsWith('image/'));
+
+/** Content type per part name from `[Content_Types].xml` (override first, then the extension default). */
+function contentTypeIndex(typesXml: Buffer | null): (name: string) => string | undefined {
+  const overrides = new Map<string, string>();
+  const defaults = new Map<string, string>();
+  if (typesXml) {
+    const doc = parseStrict(typesXml.toString('utf8'));
+    for (const el of elementsByLocalName(doc, 'Override')) overrides.set((el.getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase(), el.getAttribute('ContentType') ?? '');
+    for (const el of elementsByLocalName(doc, 'Default')) defaults.set((el.getAttribute('Extension') ?? '').toLowerCase(), el.getAttribute('ContentType') ?? '');
+  }
+  return (name) => {
+    const lower = name.toLowerCase();
+    const override = overrides.get(lower);
+    if (override !== undefined) return override;
+    const dot = lower.lastIndexOf('.');
+    return dot >= 0 ? defaults.get(lower.slice(dot + 1)) : undefined;
+  };
+}
 
 /** Parses XML or throws on any error: xmldom otherwise repairs broken input. */
 const parseStrict = (xml: string): Document => {
@@ -89,7 +134,8 @@ const relsPartOf = (part: string): string => {
 };
 
 /** Package name a relationship target points at, resolved from the source part's folder; null for anything that is not a plain internal path. */
-export function resolvePartName(target: string, sourcePart: string): string | null {
+export function resolvePartName(rawTarget: string, sourcePart: string): string | null {
+  const target = decodePartUri(rawTarget);
   if (!target || target.includes('\\') || /^[a-z][a-z0-9+.-]*:/i.test(target)) return null;
   const base = target.startsWith('/') ? [] : sourcePart.split('/').slice(0, -1);
   for (const seg of target.replace(/^\//, '').split('/')) {
@@ -168,7 +214,7 @@ function defectsOf(view: Overlay, docRels: Record<string, RelationshipView>): Se
     if (name === DOC_RELS) continue; // the model view below is authoritative for the main document
     const data = view.read(name);
     if (!data) continue;
-    for (const el of Array.from(parseStrict(data.toString('utf8')).getElementsByTagName('Relationship'))) {
+    for (const el of Array.from(relationshipElements(parseStrict(data.toString('utf8'))))) {
       if (el.getAttribute('TargetMode') === 'External') continue;
       const where = resolvePartName(el.getAttribute('Target') ?? '', source);
       if (where && !lower.has(where.toLowerCase())) out.add(`missing target: ${name} ${el.getAttribute('Id')} -> ${where}`);
@@ -184,8 +230,8 @@ function defectsOf(view: Overlay, docRels: Record<string, RelationshipView>): Se
     const types = parseStrict(typesData.toString('utf8'));
     const defaults = new Set<string>();
     const overrides = new Set<string>();
-    for (const el of Array.from(types.getElementsByTagName('Default'))) defaults.add((el.getAttribute('Extension') ?? '').toLowerCase());
-    for (const el of Array.from(types.getElementsByTagName('Override'))) overrides.add((el.getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase());
+    for (const el of elementsByLocalName(types, 'Default')) defaults.add((el.getAttribute('Extension') ?? '').toLowerCase());
+    for (const el of elementsByLocalName(types, 'Override')) overrides.add((el.getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase());
     for (const name of names) {
       if (name === TYPES_PATH || name.endsWith('/')) continue;
       const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
@@ -231,6 +277,7 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
       read: (name) => (overlay.has(name) ? overlay.get(name)! : parts.read(name)),
       names: () => names.filter((n) => !(overlay.has(n) && overlay.get(n) === null)),
     };
+    const contentTypeOf = contentTypeIndex(parts.read(TYPES_PATH));
     const lowerCount = new Map<string, number>();
     for (const n of names) lowerCount.set(n.toLowerCase(), (lowerCount.get(n.toLowerCase()) ?? 0) + 1);
     const ambiguous = (n: string) => (lowerCount.get(n.toLowerCase()) ?? 0) > 1;
@@ -247,8 +294,8 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
       const where = resolvePartName(rel.target, 'word/document.xml');
       if (!where) continue;
       if (ambiguous(where)) continue;
-      const shape = rel.type === CHART_REL_TYPE ? CHART_NAME : IMAGE_NAME;
-      if (!shape.test(where)) continue;
+      const accepts = rel.type === CHART_REL_TYPE ? isChartPart : isImagePart;
+      if (!accepts(where, contentTypeOf(where))) continue;
       delete remaining[id];
       removedRelIds.push(id);
       removedTargets.push({ target: where, type: rel.type });
@@ -259,7 +306,7 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
     if (relsData) {
       const doc = parseStrict(relsData.toString('utf8'));
       let changed = false;
-      for (const el of Array.from(doc.getElementsByTagName('Relationship'))) {
+      for (const el of Array.from(relationshipElements(doc))) {
         if (removedRelIds.includes(el.getAttribute('Id') ?? '')) {
           el.parentNode?.removeChild(el);
           changed = true;
@@ -276,7 +323,7 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
         const data = view.read(name);
         if (!data) continue;
         const source = sourceOfRels(name);
-        for (const el of Array.from(parseStrict(data.toString('utf8')).getElementsByTagName('Relationship'))) {
+        for (const el of Array.from(relationshipElements(parseStrict(data.toString('utf8'))))) {
           if (el.getAttribute('TargetMode') === 'External') continue;
           const where = resolvePartName(el.getAttribute('Target') ?? '', source);
           if (where) hit.add(where.toLowerCase());
@@ -296,27 +343,27 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
       overlay.set(name, null);
       removedParts.push(name);
     };
-    const visit = (name: string, nameShape: RegExp, depth: number) => {
-      if (depth > MAX_DEPTH || !nameShape.test(name) || ambiguous(name) || !view.read(name)) return;
+    const visit = (name: string, accepts: Accepts, depth: number) => {
+      if (depth > MAX_DEPTH || !accepts(name, contentTypeOf(name)) || ambiguous(name) || !view.read(name)) return;
       if (reachable().has(name.toLowerCase())) return;
       removePart(name);
       const relsName = relsPartOf(name);
       const childRels = view.read(relsName);
       if (!childRels) return;
-      const children: Array<{ where: string; shape: RegExp }> = [];
-      for (const el of Array.from(parseStrict(childRels.toString('utf8')).getElementsByTagName('Relationship'))) {
+      const children: Array<{ where: string; accepts: Accepts }> = [];
+      for (const el of Array.from(relationshipElements(parseStrict(childRels.toString('utf8'))))) {
         if (el.getAttribute('TargetMode') === 'External') continue;
         const where = resolvePartName(el.getAttribute('Target') ?? '', name);
         if (!where) continue;
         const type = el.getAttribute('Type') ?? '';
         const child = CHART_CHILD_TYPES.find((c) => c.type === type);
-        if (child) children.push({ where, shape: child.name });
-        else if (type === IMAGE_REL_TYPE) children.push({ where, shape: IMAGE_NAME });
+        if (child) children.push({ where, accepts: child.accepts });
+        else if (type === IMAGE_REL_TYPE) children.push({ where, accepts: isImagePart });
       }
       removePart(relsName);
-      for (const c of children) visit(c.where, c.shape, depth + 1);
+      for (const c of children) visit(c.where, c.accepts, depth + 1);
     };
-    for (const t of removedTargets) visit(t.target, t.type === CHART_REL_TYPE ? CHART_NAME : IMAGE_NAME, 0);
+    for (const t of removedTargets) visit(t.target, t.type === CHART_REL_TYPE ? isChartPart : isImagePart, 0);
 
     // 5. Content-type overrides of the parts that went.
     const typesData = parts.read(TYPES_PATH);
@@ -324,7 +371,7 @@ export function pruneUnusedDrawingParts(input: DrawingPruneInput): DrawingPruneR
       const doc = parseStrict(typesData.toString('utf8'));
       const gone = new Set(removedParts.map((n) => n.toLowerCase()));
       let changed = false;
-      for (const el of Array.from(doc.getElementsByTagName('Override'))) {
+      for (const el of elementsByLocalName(doc, 'Override')) {
         if (gone.has((el.getAttribute('PartName') ?? '').replace(/^\//, '').toLowerCase())) {
           el.parentNode?.removeChild(el);
           changed = true;

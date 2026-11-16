@@ -10,6 +10,7 @@ import {
   allocateNextBookmarkId,
   allocateSafeHyperlinkRId,
 } from '../manipulators/relationships';
+import { relationshipsRoot, createRelationshipElement } from '../ooxml/relationships-dom';
 
 export const HYPERLINK_REL_TYPE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
@@ -169,9 +170,9 @@ export function executeHyperlink(op: HyperlinkOperation, ast: DocumentAST, parse
       const relsRaw = zipAdapter.readText(relsPath);
       assertNoXxe(relsRaw, relsPath);
       const relsDoc = new DOMParser().parseFromString(relsRaw, 'text/xml');
-      const relsEl = relsDoc.getElementsByTagName('Relationships')[0];
+      const relsEl = relationshipsRoot(relsDoc);
       if (relsEl) {
-        const rel = relsDoc.createElement('Relationship');
+        const rel = createRelationshipElement(relsDoc);
         rel.setAttribute('Id', relId);
         rel.setAttribute('Type', HYPERLINK_REL_TYPE);
         rel.setAttribute('Target', url);

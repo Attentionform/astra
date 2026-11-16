@@ -1,4 +1,5 @@
 import AdmZip from '../adm-zip-safe';
+import { decodePartUri, decodeXmlEntities } from '../ooxml/xml-entities';
 
 export type PreflightSeverity = 'blocker' | 'warning';
 
@@ -51,18 +52,18 @@ function collectAttrRefs(xml: string, tag: string, attr: string): string[] {
 
 function parseRels(xml: string): Map<string, string> {
   const map = new Map<string, string>();
-  const re = /<Relationship\b[^>]*>/g;
+  const re = /<(?:[\w.-]+:)?Relationship\b[^>]*>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) {
-    const id = /Id="([^"]+)"/.exec(m[0]);
-    const target = /Target="([^"]+)"/.exec(m[0]);
-    if (id && target) map.set(id[1], target[1]);
+    const id = /\sId\s*=\s*(?:"([^"]+)"|'([^']+)')/.exec(m[0]);
+    const target = /\sTarget\s*=\s*(?:"([^"]+)"|'([^']+)')/.exec(m[0]);
+    if (id && target) map.set(decodeXmlEntities(id[1] ?? id[2]), decodeXmlEntities(target[1] ?? target[2]));
   }
   return map;
 }
 
 function resolvePart(baseDir: string, target: string): string {
-  const clean = target.split('#')[0];
+  const clean = decodePartUri(target.split('#')[0]);
   if (clean.startsWith('/')) return clean.slice(1);
   return `${baseDir}/${clean}`;
 }

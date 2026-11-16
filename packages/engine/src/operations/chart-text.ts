@@ -15,13 +15,31 @@ export interface RunProps {
   family?: string;
 }
 
-const FILL_TAGS = ['a:noFill', 'a:solidFill', 'a:gradFill', 'a:blipFill', 'a:pattFill', 'a:grpFill'];
+const DRAWINGML_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+
+/** The prefix a part binds to the DrawingML main namespace ('' for the default namespace); undefined when it declares none. */
+export function drawingPrefixOf(xml: string): string | undefined {
+  const m = new RegExp(`xmlns(?::([\\w.-]+))?\\s*=\\s*["']${DRAWINGML_NS.replace(/[.]/g, '\\.')}["']`).exec(xml);
+  return m ? (m[1] ?? '') : undefined;
+}
+
+/** A DrawingML name in the given prefix: `q('d', 'rPr')` is `d:rPr`, `q('', 'rPr')` is `rPr`. */
+const q = (prefix: string, local: string): string => (prefix ? `${prefix}:${local}` : local);
+
+const FILL_LOCALS = ['noFill', 'solidFill', 'gradFill', 'blipFill', 'pattFill', 'grpFill'];
 // Children that must come after the fill in CT_TextCharacterProperties.
-const AFTER_FILL = [
-  'a:effectLst', 'a:effectDag', 'a:highlight', 'a:uLnTx', 'a:uLn', 'a:uFillTx', 'a:uFill',
-  'a:latin', 'a:ea', 'a:cs', 'a:sym', 'a:hlinkClick', 'a:hlinkMouseOver', 'a:rtl', 'a:extLst',
+const AFTER_FILL_LOCALS = [
+  'effectLst', 'effectDag', 'highlight', 'uLnTx', 'uLn', 'uFillTx', 'uFill',
+  'latin', 'ea', 'cs', 'sym', 'hlinkClick', 'hlinkMouseOver', 'rtl', 'extLst',
 ];
-const AFTER_LATIN = ['a:ea', 'a:cs', 'a:sym', 'a:hlinkClick', 'a:hlinkMouseOver', 'a:rtl', 'a:extLst'];
+const AFTER_LATIN_LOCALS = ['ea', 'cs', 'sym', 'hlinkClick', 'hlinkMouseOver', 'rtl', 'extLst'];
+const withPrefix = (prefix: string, locals: readonly string[]): string[] => locals.map((l) => q(prefix, l));
+/** The prefix of an element's own tag name. */
+const prefixOfElement = (elementXml: string): string => {
+  const name = tagNameOf(elementXml);
+  const colon = name.indexOf(':');
+  return colon > 0 ? name.slice(0, colon) : '';
+};
 
 export function expand(elementXml: string): string {
   const gt = tagEnd(elementXml, 0);
@@ -39,50 +57,52 @@ export function insertBefore(elementXml: string, laterTags: readonly string[], c
 }
 
 /** Replaces the direct fill child of a DrawingML properties element, or inserts one before the first of `laterTags`. */
-export function setFillChild(elementXml: string, fillXml: string, laterTags: readonly string[]): string {
+export function setFillChild(elementXml: string, fillXml: string, laterTags: readonly string[], prefix = 'a'): string {
   const out = expand(elementXml);
-  const existing = FILL_TAGS.map((tag) => findDirectChild(out, tag)).find((span) => span !== null);
+  const existing = withPrefix(prefix, FILL_LOCALS).map((tag) => findDirectChild(out, tag)).find((span) => span !== null);
   return existing
     ? out.slice(0, existing.start) + fillXml + out.slice(existing.end)
     : insertBefore(out, laterTags, fillXml);
 }
 
-export function solidFillXml(color: string): string {
-  return `<a:solidFill><a:srgbClr val="${color}"/></a:solidFill>`;
+export function solidFillXml(color: string, prefix = 'a'): string {
+  return `<${q(prefix, 'solidFill')}><${q(prefix, 'srgbClr')} val="${color}"/></${q(prefix, 'solidFill')}>`;
 }
 
 /** Sets the given properties on one `a:rPr`, `a:defRPr` or `a:endParaRPr` element; omitted properties stay. */
 export function applyRunProps(elementXml: string, props: RunProps): string {
+  const prefix = prefixOfElement(elementXml);
   let out = elementXml;
   if (props.sz !== undefined) out = setAttribute(out, 'sz', String(props.sz));
   if (props.bold !== undefined) out = setAttribute(out, 'b', props.bold ? '1' : '0');
   if (props.color === undefined && props.family === undefined) return out;
   out = expand(out);
   if (props.color !== undefined) {
-    const existing = FILL_TAGS.map((tag) => findDirectChild(out, tag)).find((span) => span !== null);
+    const existing = withPrefix(prefix, FILL_LOCALS).map((tag) => findDirectChild(out, tag)).find((span) => span !== null);
     out = existing
-      ? out.slice(0, existing.start) + solidFillXml(props.color) + out.slice(existing.end)
-      : insertBefore(out, AFTER_FILL, solidFillXml(props.color));
+      ? out.slice(0, existing.start) + solidFillXml(props.color, prefix) + out.slice(existing.end)
+      : insertBefore(out, withPrefix(prefix, AFTER_FILL_LOCALS), solidFillXml(props.color, prefix));
   }
   if (props.family !== undefined) {
-    const latin = `<a:latin typeface="${props.family.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}"/>`;
-    const existing = findDirectChild(out, 'a:latin');
+    const latin = `<${q(prefix, 'latin')} typeface="${props.family.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}"/>`;
+    const existing = findDirectChild(out, q(prefix, 'latin'));
     out = existing
       ? out.slice(0, existing.start) + latin + out.slice(existing.end)
-      : insertBefore(out, AFTER_LATIN, latin);
+      : insertBefore(out, withPrefix(prefix, AFTER_LATIN_LOCALS), latin);
   }
   return out;
 }
 
-/** Applies run properties to every `a:rPr` and `a:defRPr` inside a block (a title, a text-properties block). */
-export function applyRunPropsDeep(blockXml: string, props: RunProps): string {
-  const re = /<a:(?:rPr|defRPr)(?=[\s/>])/g;
+/** Applies run properties to every `rPr` and `defRPr` of the DrawingML prefix inside a block (a title, a text-properties block). */
+export function applyRunPropsDeep(blockXml: string, props: RunProps, prefix = 'a'): string {
+  const escaped = prefix.replace(/[.]/g, '\\.');
+  const re = new RegExp(`<${prefix ? `${escaped}:` : ''}(?:rPr|defRPr)(?=[\\s/>])`, 'g');
   const starts: number[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(blockXml)) !== null) starts.push(m.index);
   let out = blockXml;
   for (const start of starts.reverse()) {
-    const name = out.startsWith('<a:rPr', start) ? 'a:rPr' : 'a:defRPr';
+    const name = out.startsWith(`<${q(prefix, 'rPr')}`, start) && /[\s/>]/.test(out[start + q(prefix, 'rPr').length + 1] ?? '') ? q(prefix, 'rPr') : q(prefix, 'defRPr');
     const gt = tagEnd(out, start);
     let end: number;
     if (gt >= 0 && out[gt - 1] === '/') {
@@ -98,8 +118,8 @@ export function applyRunPropsDeep(blockXml: string, props: RunProps): string {
 }
 
 /** `c:txPr` holding one default run-properties element, for elements that carry no rich text of their own. */
-export function textPropertiesXml(qualify: (local: string) => string, props: RunProps, rotationDeg?: number): string {
-  const defRPr = applyRunProps('<a:defRPr/>', props);
+export function textPropertiesXml(qualify: (local: string) => string, props: RunProps, rotationDeg?: number, prefix = 'a'): string {
+  const defRPr = applyRunProps(`<${q(prefix, 'defRPr')}/>`, props);
   const rot = rotationDeg === undefined ? '' : ` rot="${Math.round(rotationDeg * 60000)}" vert="horz"`;
-  return `<${qualify('txPr')}><a:bodyPr${rot}/><a:lstStyle/><a:p><a:pPr>${defRPr}</a:pPr><a:endParaRPr lang="en-US"/></a:p></${qualify('txPr')}>`;
+  return `<${qualify('txPr')}><${q(prefix, 'bodyPr')}${rot}/><${q(prefix, 'lstStyle')}/><${q(prefix, 'p')}><${q(prefix, 'pPr')}>${defRPr}</${q(prefix, 'pPr')}><${q(prefix, 'endParaRPr')} lang="en-US"/></${q(prefix, 'p')}></${qualify('txPr')}>`;
 }

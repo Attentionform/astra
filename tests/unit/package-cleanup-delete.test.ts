@@ -46,6 +46,78 @@ describe('deleting a chart removes the parts only it used', () => {
     expect(docx.errors).toEqual([]);
   });
 
+  it('prunes a deleted chart when the main document relationships use a namespace prefix', async () => {
+    const first = await session();
+    await first.run([chartOp(first.anchor, 'c1'), chartOp(first.anchor, 'c2')]);
+    const zip = new AdmZip(first.parser.rezip(first.ast));
+    const relsPath = 'word/_rels/document.xml.rels';
+    const plain = zip.readAsText(relsPath);
+    const prefixed = plain
+      .replace(/<Relationships\b/, '<p:Relationships').replace(/<\/Relationships>/, '</p:Relationships>')
+      .replace(/xmlns=/, 'xmlns:p=').replace(/<Relationship\b/g, '<p:Relationship');
+    expect(prefixed).toContain('<p:Relationship ');
+    zip.updateFile(relsPath, Buffer.from(prefixed, 'utf8'));
+    const s = await session(zip.toBuffer());
+    const before = s.names();
+    const charts = s.ast.sections.flatMap((sec: any) => sec.nodes).filter((n: any) => n.type === 'chart');
+    expect(charts).toHaveLength(2);
+    const res: any = await s.run([{ action: 'delete', target: charts[0].id }]);
+    expect(res.success).toBe(true);
+    expect(res.skippedIds ?? []).toEqual([]);
+    const after = s.names();
+    expect(after.filter((n) => /charts\/chart1\.xml$|chart1\.xml\.rels$/.test(n))).toEqual([]);
+    expect(after.some((n) => n.endsWith('chart2.xml'))).toBe(true);
+    expect(chartParts(after).length).toBeLessThan(chartParts(before).length);
+    expect(s.zip().readAsText('[Content_Types].xml')).not.toContain('/word/charts/chart1.xml');
+    expect((await validateDocxBuffer(s.parser.rezip(s.ast))).errors).toEqual([]);
+  });
+
+  /** The package with chart 1 renamed to `word/charts/financial-chart.xml` everywhere it is named. */
+  async function renamedChartPackage(): Promise<Buffer> {
+    const s = await session();
+    await s.run([chartOp(s.anchor, 'c1'), chartOp(s.anchor, 'c2')]);
+    const source = s.zip();
+    const out = new AdmZip();
+    for (const entry of source.getEntries()) {
+      let name = entry.entryName;
+      let data = entry.getData();
+      if (name === 'word/charts/chart1.xml') name = 'word/charts/financial-chart.xml';
+      else if (name === 'word/charts/_rels/chart1.xml.rels') name = 'word/charts/_rels/financial-chart.xml.rels';
+      else if (/\.(xml|rels)$/.test(name)) data = Buffer.from(data.toString('utf8').replace(/charts\/chart1\.xml/g, 'charts/financial-chart.xml'), 'utf8');
+      out.addFile(name, data);
+    }
+    return out.toBuffer();
+  }
+
+  it('deleting a chart whose part has another name removes the chart, its workbook, rels file and override', async () => {
+    const s = await session(await renamedChartPackage());
+    const charts = s.ast.sections.flatMap((sec: any) => sec.nodes).filter((n: any) => n.type === 'chart');
+    expect(charts).toHaveLength(2);
+    const before = s.names();
+    expect(before).toContain('word/charts/financial-chart.xml');
+    const res: any = await s.run([{ action: 'delete', target: charts[0].id }]);
+    expect(res.success).toBe(true);
+    expect(res.skippedIds ?? []).toEqual([]);
+    const after = s.names();
+    expect(after.filter((n) => /financial-chart/.test(n))).toEqual([]);
+    expect(chartParts(after).length).toBe(chartParts(before).length - 3);
+    expect(after).toContain('word/charts/chart2.xml');
+    expect(s.zip().readAsText('[Content_Types].xml')).not.toContain('financial-chart');
+    expect(s.zip().readAsText('word/_rels/document.xml.rels')).not.toContain('financial-chart');
+    expect((await validateDocxBuffer(s.parser.rezip(s.ast))).errors).toEqual([]);
+  });
+
+  it('updating a chart whose part has another name says why and changes nothing', async () => {
+    const s = await session(await renamedChartPackage());
+    const chart = s.ast.sections.flatMap((sec: any) => sec.nodes).find((n: any) => n.type === 'chart');
+    const before = s.names();
+    const res: any = await s.run([{ action: 'chart', operation: 'update', target: chart.id, title: 'New' }]);
+    expect(res.success).toBe(false);
+    expect(JSON.stringify(res)).toMatch(/financial-chart\.xml.*does not edit|name ASTra does not edit/);
+    expect(JSON.stringify(res)).not.toMatch(/unknown relationship/);
+    expect(s.names()).toEqual(before);
+  });
+
   it('works when the chart is inserted and deleted in the same batch', async () => {
     const s = await session();
     const res: any = await s.run([chartOp(s.anchor, 'c1'), { action: 'delete', target: 'c1' }]);
@@ -223,6 +295,37 @@ describe('pruneUnusedDrawingParts (package level)', () => {
     expect(out.parts).not.toContain('word/embeddings/w1.xlsx');
   });
 
+  it('a workbook still referenced through a prefixed relationship stays when the other chart goes', () => {
+    const files = baseFiles('<w:p><c:chart r:id="rId2"/></w:p>');
+    files['word/charts/_rels/chart2.xml.rels'] = `<?xml version="1.0"?><p:Relationships xmlns:p="http://schemas.openxmlformats.org/package/2006/relationships"><p:Relationship Id="rId1" Type="${REL}/package" Target="../embeddings/w1.xlsx"/></p:Relationships>`;
+    const p = store(files);
+    const out = run(p, model(relMap()), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+    expect(out.relationshipIds).toEqual(['rId1']);
+    expect(p.files.has('word/embeddings/w1.xlsx')).toBe(true);
+    expect(out.parts).not.toContain('word/embeddings/w1.xlsx');
+  });
+
+  it('a chart removed with a prefixed rels file takes its own workbook with it', () => {
+    const files = baseFiles('<w:p><c:chart r:id="rId2"/></w:p>');
+    files['word/charts/_rels/chart1.xml.rels'] = `<?xml version="1.0"?><p:Relationships xmlns:p="http://schemas.openxmlformats.org/package/2006/relationships"><p:Relationship Id="rId1" Type="${REL}/package" Target="../embeddings/w1.xlsx"/></p:Relationships>`;
+    const p = store(files);
+    const out = run(p, model(relMap()), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+    expect(out.parts.sort()).toEqual(['word/charts/_rels/chart1.xml.rels', 'word/charts/chart1.xml', 'word/embeddings/w1.xlsx']);
+  });
+
+  it('a prefixed content-types file loses the override of a removed chart', () => {
+    const body = '<w:p><c:chart r:id="rId2"/></w:p>';
+    const files = baseFiles(body);
+    files['[Content_Types].xml'] = CT.replace('<Types xmlns=', '<t:Types xmlns:t=').replace('</Types>', '</t:Types>').replace(/<(Default|Override)\b/g, '<t:$1');
+    expect(files['[Content_Types].xml']).toContain('<t:Override ');
+    const p = store(files);
+    const out = run(p, model(relMap()), ['rId1', 'rId2'], body);
+    expect(out.parts).toContain('word/charts/chart1.xml');
+    const types = p.files.get('[Content_Types].xml')!.toString();
+    expect(types).not.toContain('/word/charts/chart1.xml');
+    expect(types).toContain('/word/charts/chart2.xml');
+  });
+
   it('a relationship that was unused before the edit is never touched', () => {
     const body = '<w:p><c:chart r:id="rId2"/></w:p>';
     const p = store(baseFiles(body));
@@ -271,6 +374,8 @@ describe('pruneUnusedDrawingParts (package level)', () => {
 
   it('upper and lower case names and .. segments resolve to the same part', () => {
     expect(resolvePartName('../embeddings/W1.xlsx', 'word/charts/chart1.xml')).toBe('word/embeddings/W1.xlsx');
+    expect(resolvePartName('../embeddings/W%31.xlsx', 'word/charts/chart1.xml')).toBe('word/embeddings/W1.xlsx');
+    expect(resolvePartName('../embeddings/bad%ZZ.xlsx', 'word/charts/chart1.xml')).toBe('word/embeddings/bad%ZZ.xlsx');
     expect(resolvePartName('/word/charts/chart1.xml', 'word/document.xml')).toBe('word/charts/chart1.xml');
     expect(resolvePartName('./charts//chart1.xml', 'word/document.xml')).toBe('word/charts/chart1.xml');
     expect(resolvePartName('../../../x', 'word/document.xml')).toBeNull();
@@ -285,6 +390,70 @@ describe('pruneUnusedDrawingParts (package level)', () => {
     const out = run(p, model(relMap()), ['rId1', 'rId2'], body);
     // the workbook name differs only by case from the target: it must still be found as the same part
     expect(out.skipped).toBeUndefined();
+  });
+
+  describe('a chart part with a name Word did not give it', () => {
+    const CHART_CT = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+    const customFiles = (contentType: string | null, targetPath = 'word/charts/financial-chart.xml') => {
+      const types = CT.replace('</Types>', `${contentType ? `<Override PartName="/${targetPath}" ContentType="${contentType}"/>` : ''}</Types>`);
+      return {
+        '[Content_Types].xml': types,
+        'word/document.xml': doc('<w:p><c:chart r:id="rId2"/></w:p>'),
+        'word/_rels/document.xml.rels': rels([rel('rId1', `${REL}/chart`, targetPath.replace(/^word\//, '')), rel('rId2', `${REL}/chart`, 'charts/chart2.xml')]),
+        [targetPath]: '<c:chartSpace xmlns:c="c"/>',
+        'word/charts/chart2.xml': '<c:chartSpace xmlns:c="c"/>',
+        [`${targetPath.replace(/([^/]+)$/, '_rels/$1')}.rels`]: rels([rel('rId1', `${REL}/package`, '../embeddings/w1.xlsx')]),
+        'word/charts/_rels/chart2.xml.rels': rels([rel('rId1', `${REL}/package`, '../embeddings/w2.xlsx')]),
+        'word/embeddings/w1.xlsx': 'x1', 'word/embeddings/w2.xlsx': 'x2',
+      };
+    };
+    const customModel = (target = 'charts/financial-chart.xml') => ({
+      rId1: { type: `${REL}/chart`, target }, rId2: { type: `${REL}/chart`, target: 'charts/chart2.xml' },
+    });
+
+    it('is removed with its workbook, rels file and override when it has the chart content type', () => {
+      const p = store(customFiles(CHART_CT));
+      const out = run(p, model(customModel()), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+      expect(out.skipped).toBeUndefined();
+      expect(out.relationshipIds).toEqual(['rId1']);
+      expect(out.parts).toEqual(expect.arrayContaining(['word/charts/financial-chart.xml', 'word/charts/_rels/financial-chart.xml.rels', 'word/embeddings/w1.xlsx']));
+      expect(p.files.has('word/charts/chart2.xml')).toBe(true);
+      expect(p.files.has('word/embeddings/w2.xlsx')).toBe(true);
+      expect(p.files.get('[Content_Types].xml')!.toString()).not.toContain('financial-chart');
+    });
+
+    it('is left alone when its content type is not the chart type', () => {
+      const p = store(customFiles('application/xml'));
+      const out = run(p, model(customModel()), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+      expect(out.parts).toEqual([]);
+      expect(p.files.has('word/charts/financial-chart.xml')).toBe(true);
+      expect(out.skipped).toMatch(/plain, unambiguous target/);
+    });
+
+    it('is left alone when it has no content type at all', () => {
+      const p = store(customFiles(null));
+      const out = run(p, model(customModel()), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+      expect(out.parts).toEqual([]);
+      expect(p.files.has('word/charts/financial-chart.xml')).toBe(true);
+    });
+
+    it('stays when another part still points at it', () => {
+      const files: Record<string, string> = customFiles(CHART_CT);
+      files['word/_rels/footer1.xml.rels'] = rels([rel('rId1', `${REL}/chart`, 'charts/financial-chart.xml')]);
+      files['word/footer1.xml'] = '<w:ftr xmlns:w="w"/>';
+      const p = store(files);
+      const out = run(p, model(customModel()), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+      expect(p.files.has('word/charts/financial-chart.xml')).toBe(true);
+      expect(out.parts).not.toContain('word/charts/financial-chart.xml');
+    });
+
+    it('a crafted chart target outside the word folder is still never removed, whatever its content type', () => {
+      const files: Record<string, string> = customFiles(CHART_CT, 'customXml/item1.xml');
+      const p = store(files);
+      const out = run(p, model(customModel('../customXml/item1.xml')), ['rId1', 'rId2'], '<w:p><c:chart r:id="rId2"/></w:p>');
+      expect(p.files.has('customXml/item1.xml')).toBe(true);
+      expect(out.parts).not.toContain('customXml/item1.xml');
+    });
   });
 
   it('names that differ only by case are ambiguous: nothing is removed', () => {

@@ -292,7 +292,7 @@ describe('chart style: axes and trendlines', () => {
     expect(valAx).not.toContain('<c:majorGridlines/>');
     const seriesBlocks = xml.match(/<c:ser>[\s\S]*?<\/c:ser>/g)!;
     expect(seriesBlocks[0]).not.toContain('<c:trendline>');
-    expect(seriesBlocks[1]).toContain('<c:trendline><c:trendlineType val="polynomial"/><c:order val="3"/><c:dispRSqr val="1"/><c:dispEq val="1"/></c:trendline>');
+    expect(seriesBlocks[1]).toContain('<c:trendline><c:trendlineType val="poly"/><c:order val="3"/><c:dispRSqr val="1"/><c:dispEq val="1"/></c:trendline>');
     expect(nodeById(ast, id).metadata.chartData).toMatchObject({
       style: {
         axes: {
@@ -632,7 +632,7 @@ describe('chart style: schema-correct legend and label patching', () => {
       parser
     );
     const after = parser.getZipAdapter().readText('word/charts/chart1.xml');
-    expect(after).toContain('<c:delete val="0"/>');
+    expect(after).not.toMatch(/<c:dLbls>[\s\S]*?<c:delete/);
     expect(after).toContain('<c:showVal val="1"/>');
   });
 
@@ -657,9 +657,8 @@ describe('chart style: schema-correct legend and label patching', () => {
       parser
     );
     const after = parser.getZipAdapter().readText('word/charts/chart1.xml');
-    expect(after).toContain('<c:delete val="1"/>');
+    expect(after).toMatch(/<c:dLbls>(<c:dLbl>[\s\S]*?<\/c:dLbl>)*<c:delete val="1"\/><\/c:dLbls>/);
     expect(after).not.toContain('<c:showVal val="1"/>');
-    expect(after).toContain('<c:showPercent val="0"/>');
   });
 });
 

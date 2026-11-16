@@ -22,6 +22,7 @@ import { COMPOSE_CODE_FONT } from '../compose/constants';
 import { unescapeMarkedText } from '../compose/text-spans';
 import { takeRevisionId } from '../ooxml/revision-ids';
 import { requireColour } from './colour';
+import { relationshipsRoot, createRelationshipElement } from '../ooxml/relationships-dom';
 
 export interface InsertOperation extends BaseOperation {
   action: 'insert';
@@ -616,9 +617,9 @@ function populateTableCell(
             const relsRaw = zipAdapter.readText(relsPath);
             assertNoXxe(relsRaw, relsPath);
             const relsDoc = new DOMParser().parseFromString(relsRaw, 'text/xml');
-            const relsEl = relsDoc.getElementsByTagName('Relationships')[0];
+            const relsEl = relationshipsRoot(relsDoc);
             if (relsEl) {
-              const rel = relsDoc.createElement('Relationship');
+              const rel = createRelationshipElement(relsDoc);
               rel.setAttribute('Id', relId);
               rel.setAttribute('Type', HYPERLINK_REL_TYPE);
               rel.setAttribute('Target', targetUrl);

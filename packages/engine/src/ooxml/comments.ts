@@ -30,6 +30,7 @@ const PEOPLE_XML_TEMPLATE =
   `<w15:people xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml"/>`;
 
 import { generateValidParaId } from './schema-order';
+import { createRelationshipElement, relationshipElements } from './relationships-dom';
 
 let commentParaSeq = 0;
 
@@ -354,7 +355,6 @@ function ensureRelationships(zip: DocxZipAdapter, newParts: string[]): void {
   
   const relsDoc = parseXml(relsXml);
   const relsEl = relsDoc.documentElement;
-  const relNs = 'http://schemas.openxmlformats.org/package/2006/relationships';
 
   const partToRelType: Record<string, string> = {
     'word/comments.xml': REL_TYPE_COMMENTS,
@@ -362,7 +362,7 @@ function ensureRelationships(zip: DocxZipAdapter, newParts: string[]): void {
     'word/people.xml': REL_TYPE_PEOPLE,
   };
 
-  const existingRels = Array.from(relsEl.getElementsByTagNameNS(relNs, 'Relationship'));
+  const existingRels = relationshipElements(relsEl);
   const existingTypes = new Set(existingRels.map((r) => r.getAttribute('Type')));
 
   // BX-05: seed from canonical rIdN ids only (timestamp/rId_link_* bypass ids
@@ -389,7 +389,7 @@ function ensureRelationships(zip: DocxZipAdapter, newParts: string[]): void {
     if (!relType || existingTypes.has(relType)) continue;
 
     const freshId = nextFreeRId();
-    const rel = relsDoc.createElementNS(relNs, 'Relationship');
+    const rel = createRelationshipElement(relsDoc);
     rel.setAttribute('Id', freshId);
     rel.setAttribute('Type', relType);
     rel.setAttribute('Target', part.replace('word/', ''));

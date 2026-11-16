@@ -1,5 +1,6 @@
 import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from '../ooxml/dom-parser';
+import { relationshipElements } from '../ooxml/relationships-dom';
 
 /**
  * Removes header and footer parts that an edit left with no reference.
@@ -216,7 +217,7 @@ export function pruneOrphanedHeaderFooters(input: PruneInput): PruneResult {
     for (const name of removeMedia) remember(name);
 
     const relsDoc = parseStrict(relsText);
-    for (const rel of Array.from(relsDoc.getElementsByTagName('Relationship'))) {
+    for (const rel of relationshipElements(relsDoc)) {
       if (removeIds.has(rel.getAttribute('Id') ?? '')) rel.parentNode?.removeChild(rel);
     }
     parts.write(RELS_PATH, Buffer.from(new XMLSerializer().serializeToString(relsDoc), 'utf8'));
