@@ -1,6 +1,10 @@
 import type { UnresolvedRevision } from './ooxml/revisions';
 
-const REVISION_ELEMENT_RE = /<w:(ins|del|moveFrom|moveTo)(\s[^>]*)?>/g;
+/** Parts are canonicalised before the sanitizer reads them, so tracked-change elements are always written with `w:`. */
+const REVISION_ELEMENT_RE = /<w:(ins|del|moveFrom|moveTo)(?=[\s/>])((?:[^<>"']|"[^"]*"|'[^']*')*?)>/g;
+const REVISION_ID_RE = /\sw:id\s*=\s*(?:"([^"]*)"|'([^']*)')/;
+/** Comments, CDATA sections and processing instructions can hold text that looks like a tag. */
+const OPAQUE_RE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/g;
 
 /**
  * After accept-all, the only tracked-change elements allowed in a part are the ones the report lists as unresolved.
@@ -10,7 +14,8 @@ const REVISION_ELEMENT_RE = /<w:(ins|del|moveFrom|moveTo)(\s[^>]*)?>/g;
  * revisions of the same kind in one part apart, so a reported revision that vanished while an unreported one of the
  * same kind stayed still balances.
  */
-export function assertOnlyReportedRevisions(part: string, xml: string, unresolved: readonly UnresolvedRevision[]): void {
+export function assertOnlyReportedRevisions(part: string, source: string, unresolved: readonly UnresolvedRevision[]): void {
+  const xml = source.replace(OPAQUE_RE, '');
   const withId = new Map<string, number>(); // `${kind}|${id}` -> entries that carry that id
   const idless = new Map<string, number>(); // kind -> entries without an id (count level)
   for (const u of unresolved) {
@@ -27,7 +32,8 @@ export function assertOnlyReportedRevisions(part: string, xml: string, unresolve
   REVISION_ELEMENT_RE.lastIndex = 0;
   for (let m = REVISION_ELEMENT_RE.exec(xml); m !== null; m = REVISION_ELEMENT_RE.exec(xml)) {
     const kind = m[1];
-    const id = /\sw:id="([^"]*)"/.exec(m[2] ?? '')?.[1];
+    const idMatch = REVISION_ID_RE.exec(m[2] ?? '');
+    const id = idMatch ? (idMatch[1] ?? idMatch[2]) : undefined;
     let allowed = false;
     if (id !== undefined) {
       const key = `${kind}|${id}`;

@@ -23,7 +23,7 @@ import { deterministicRevisionIso, resolveDefaultAuthor } from './ooxml/track-ch
 import { newDocumentParts, newDocumentTitle, NEW_DOCUMENT_CONTENT_TYPE_OVERRIDES, NEW_DOCUMENT_ROOT_RELS, NEW_DOCUMENT_DOCUMENT_RELS } from './ooxml/new-document-parts';
 import { assertNoXxe, assertNoXxeAdjacent } from './ooxml/xxe-guard';
 import { decodeXmlPart } from './ooxml/part-text';
-import { PrefixRefusal, canonicaliseBufferMap, canonicalisePart, ingestPrefixes, type Rename } from './ooxml/prefix-canonicaliser';
+import { PrefixRefusal, canonicaliseBufferMap, canonicalisePart, ingestPrefixes, looksUtf16, type Rename } from './ooxml/prefix-canonicaliser';
 import { headerFooterRefIds, pruneOrphanedHeaderFooters, type PruneResult } from './parser/header-footer-prune';
 import {
   pruneUnusedDrawingParts,
@@ -227,10 +227,10 @@ function canonicalisePackageParts(zip: AdmZip): Array<{ part: string; renames: R
   const utf16 = new Set<string>();
   for (const entry of zip.getEntries()) {
     const name = entry.entryName;
-    if (entry.isDirectory || isRogueZipEntry(name) || isBlockedExecutableEntry(name) || !name.endsWith('.xml')) continue;
+    if (entry.isDirectory || isRogueZipEntry(name) || isBlockedExecutableEntry(name) || !name.toLowerCase().endsWith('.xml')) continue;
     const data = readPartData(entry, name);
     const text = decodeXmlPart(data);
-    if (data.length >= 2 && ((data[0] === 0xff && data[1] === 0xfe) || (data[0] === 0xfe && data[1] === 0xff) || data[0] === 0 || data[1] === 0)) utf16.add(name);
+    if (looksUtf16(data)) utf16.add(name);
     parts.push([name, text]);
   }
   let result;

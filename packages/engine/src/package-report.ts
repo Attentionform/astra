@@ -18,8 +18,10 @@ export function packageWarnings(report: PackageReport): string[] {
   const warnings: string[] = [];
   if (report.signed) warnings.push(SIGNED_WARNING);
   if (report.canonicalised.length > 0) {
-    const first = report.canonicalised[0];
-    const example = `${first.part}: ${first.from.map((f, i) => `${label(f)} to ${first.to[i]}`).join(', ')}`;
+    const shown = report.canonicalised.filter((c) => c.from.length > 0);
+    const first = shown[0] ?? report.canonicalised[0];
+    const pairs = first.from.map((f, i) => `${label(f)} to ${first.to[i]}`).join(', ');
+    const example = pairs === '' ? first.part : `${first.part}: ${pairs}`;
     const n = report.canonicalised.length;
     warnings.push(
       `${n} part${n === 1 ? '' : 's'} used namespace prefixes other than the usual ones and ${n === 1 ? 'was' : 'were'} rewritten in memory (for example ${example}). Saving writes the usual prefixes.`

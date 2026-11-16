@@ -39,3 +39,22 @@ describe('part and kind scoping', () => {
     expect(run(ins('3'), [])).toThrow(/word\/document\.xml.*\(<w:ins w:id="3">\).*Nothing was written/);
   });
 });
+
+describe('revision element matching', () => {
+  const none: never[] = [];
+  it('an attribute-less self-closing tracked change is not allowed', () => {
+    expect(() => assertOnlyReportedRevisions('word/document.xml', '<w:p><w:ins/></w:p>', none)).toThrow(/still has a tracked change/);
+  });
+  it('a single-quoted id is read as an id', () => {
+    expect(() => assertOnlyReportedRevisions('word/document.xml', "<w:ins w:id='7' w:author='a'/>", [{ part: 'word/document.xml', kind: 'ins', count: 1, revisionId: '7' } as never])).not.toThrow();
+  });
+  it('a > inside an attribute value does not end the tag early', () => {
+    expect(() => assertOnlyReportedRevisions('word/document.xml', '<w:ins w:author="a>b" w:id="9"/>', [{ part: 'word/document.xml', kind: 'ins', count: 1, revisionId: '9' } as never])).not.toThrow();
+  });
+  it('tracked-change text inside a comment or CDATA is not counted', () => {
+    expect(() => assertOnlyReportedRevisions('word/document.xml', '<w:p><!-- <w:ins w:id="1"> --><![CDATA[<w:del w:id="2">]]></w:p>', none)).not.toThrow();
+  });
+  it('a longer element name that starts the same is not a tracked change', () => {
+    expect(() => assertOnlyReportedRevisions('word/document.xml', '<w:insideText w:id="1"/>', none)).not.toThrow();
+  });
+});

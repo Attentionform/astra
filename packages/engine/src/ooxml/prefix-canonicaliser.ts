@@ -58,47 +58,74 @@ export interface ScanResult {
   nonCanonical: Rename[];
 }
 
-const DECLARATION = /\sxmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-
-/** True when some start or end tag in `xml` writes a name or an attribute with this prefix ('' is the default namespace). */
-function prefixIsUsed(source: string, prefix: string): boolean {
-  // Comments, CDATA sections and processing instructions can hold anything, including text that looks like a tag.
-  const xml = source.replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/g, '');
-  const tags = /<[^<>!?][^<>]*>/g;
-  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // For a prefix: `<p:x`, `</p:x` or ` p:x=` inside a tag. For the default namespace: an unprefixed element name.
-  const test = prefix === '' ? /^<\/?[A-Za-z_][\w.-]*(?:[\s/>]|$)/ : new RegExp(`^<\\/?${escaped}:[A-Za-z_]|\\s${escaped}:[A-Za-z_][\\w.-]*\\s*=`);
-  for (let m = tags.exec(xml); m !== null; m = tags.exec(xml)) {
-    if (test.test(m[0])) return true;
-  }
-  return false;
-}
+const NAME_CHARS = '[\\p{L}_][\\p{L}\\p{N}._:\\u00B7-]*';
+const DECLARATION = /\sxmlns(?::([\p{L}_][\p{L}\p{N}._\u00B7-]*))?\s*=\s*(?:"([^"]*)"|'([^']*)')/gu;
+const STRIP_OPAQUE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/g;
+/** One start, end or empty tag, quote-aware (a `>` inside an attribute value does not end it). */
+const SCAN_TAG = /<(\/?)([^\s<>/!?=]+)((?:[^<>"']|"[^"]*"|'[^']*')*?)(\/?)>/g;
+const DEFAULT_DECL = /\sxmlns\s*=\s*(?:"([^"]*)"|'([^']*)')/;
+const ATTR_PREFIX = /\s([^\s=:<>"']+):[^\s=:<>"']+\s*=/g;
 
 /**
  * Cheap text scan, no parse: null when nothing needs a rewrite, otherwise the bindings that do. A table namespace
- * bound to a non-canonical prefix needs a rewrite only when some tag still writes a name with that prefix. A part
- * that was rewritten before keeps its original declaration (so values that name it still resolve); on the next open
- * that declaration is unused, so the part is left alone and the second open reports and rewrites nothing.
+ * bound to a non-canonical prefix needs a rewrite only when some tag still writes a name with that prefix, or (for
+ * the default namespace) an unprefixed element sits in that default namespace. A part that was rewritten before
+ * keeps its original declaration (so values that name it still resolve); on the next open that declaration is
+ * unused, so the part is left alone and the second open reports and rewrites nothing. Comments, CDATA and
+ * processing instructions are ignored throughout.
  */
-export function scanPart(xml: string): ScanResult | null {
-  const found = new Map<string, Rename>();
-  DECLARATION.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = DECLARATION.exec(xml)) !== null) {
-    const prefix = m[1] ?? '';
-    // A namespace written with a character reference (`&#104;ttp://...`) is the same namespace once parsed.
-    const uri = decodeXmlEntities(m[2] ?? m[3] ?? '');
-    const canonical = CANONICAL_PREFIXES[uri];
-    if (canonical === undefined || prefix === canonical) continue;
-    found.set(`${prefix}|${uri}`, { from: prefix, to: canonical, uri });
-  }
+export function scanPart(source: string): ScanResult | null {
+  const declarationsIn = (text: string): Map<string, Rename> => {
+    const out = new Map<string, Rename>();
+    DECLARATION.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = DECLARATION.exec(text)) !== null) {
+      const prefix = m[1] ?? '';
+      // A namespace written with a character reference (`&#104;ttp://...`) is the same namespace once parsed.
+      const uri = decodeXmlEntities(m[2] ?? m[3] ?? '');
+      const canonical = CANONICAL_PREFIXES[uri];
+      if (canonical === undefined || prefix === canonical) continue;
+      out.set(`${prefix}|${uri}`, { from: prefix, to: canonical, uri });
+    }
+    return out;
+  };
+  // Fast path for the usual case: no non-canonical declaration anywhere in the raw text, so nothing else to read.
+  if (declarationsIn(source).size === 0) return null;
+  const xml = source.replace(STRIP_OPAQUE, '');
+  const found = declarationsIn(xml);
   if (found.size === 0) return null;
-  const used = [...found.values()].filter((r) => prefixIsUsed(xml, r.from));
+
+  const usedPrefixes = new Set<string>();
+  const usedDefaults = new Set<string>();
+  const defaults: string[] = [];
+  let currentDefault = '';
+  SCAN_TAG.lastIndex = 0;
+  for (let t = SCAN_TAG.exec(xml); t !== null; t = SCAN_TAG.exec(xml)) {
+    const closing = t[1] === '/';
+    if (closing) {
+      currentDefault = defaults.pop() ?? '';
+      continue;
+    }
+    const attrs = t[3] ?? '';
+    const selfClosing = t[4] === '/';
+    defaults.push(currentDefault);
+    const decl = DEFAULT_DECL.exec(attrs);
+    if (decl) currentDefault = decodeXmlEntities(decl[1] ?? decl[2] ?? '');
+    const name = t[2];
+    const colon = name.indexOf(':');
+    if (colon < 0) usedDefaults.add(currentDefault);
+    else usedPrefixes.add(name.slice(0, colon));
+    const bare = attrs.replace(/"[^"]*"|'[^']*'/g, '""');
+    ATTR_PREFIX.lastIndex = 0;
+    for (let a = ATTR_PREFIX.exec(bare); a !== null; a = ATTR_PREFIX.exec(bare)) usedPrefixes.add(a[1]);
+    if (selfClosing) currentDefault = defaults.pop() ?? '';
+  }
+  const used = [...found.values()].filter((r) => (r.from === '' ? usedDefaults.has(r.uri) : usedPrefixes.has(r.from)));
   return used.length === 0 ? null : { nonCanonical: used };
 }
 
-const TAG = /<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[A-Za-z_][\w.:-]*\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/y;
-const ATTR = /(\s+)([A-Za-z_][\w.:-]*)(\s*=\s*)(?:"([^"]*)"|'([^']*)')/g;
+const TAG = new RegExp(`<(/?)(${NAME_CHARS})((?:\\s+${NAME_CHARS}\\s*=\\s*(?:"[^"]*"|'[^']*'))*)\\s*(/?)>`, 'uy');
+const ATTR = new RegExp(`(\\s+)(${NAME_CHARS})(\\s*=\\s*)(?:"([^"]*)"|'([^']*)')`, 'gu');
 
 /** The text outside tags that must not be tokenised: comments, CDATA, processing instructions. */
 const OPAQUE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/y;
@@ -153,8 +180,8 @@ function declare(scope: Scope, prefix: string, uri: string): void {
  * Rewrites `xml` so every table namespace uses its canonical prefix. Returns the new text and the renames
  * applied. Throws `PrefixRefusal` (nothing is written anywhere) on a conflict or an unresolvable value.
  */
-export function canonicalisePrefixes(xml: string, partName = 'part'): { xml: string; renames: Rename[] } {
-  if (scanPart(xml) === null) return { xml, renames: [] };
+export function canonicalisePrefixes(xml: string, partName = 'part', alreadyScanned = false): { xml: string; renames: Rename[] } {
+  if (!alreadyScanned && scanPart(xml) === null) return { xml, renames: [] };
   const out: string[] = [];
   const renames = new Map<string, Rename>();
   const scopeStack: Scope[] = []; // declarations as they are in the INPUT, per open element
@@ -267,7 +294,8 @@ export function canonicalisePrefixes(xml: string, partName = 'part'): { xml: str
       const { prefix, local } = splitName(attrQName);
       const toCanonical = (p: string): string => {
         const uri = lookup(scopeStack, p);
-        if (uri === undefined) return refuse('unresolved', `${attrQName} names the undeclared prefix "${p}"`);
+        // A list that names a prefix declared nowhere is left as written: it was readable before and stays so.
+        if (uri === undefined) return p;
         const canonical = CANONICAL_PREFIXES[uri];
         if (canonical === undefined || canonical === p) return p;
         return lookup(planned, canonical) === uri ? canonical : p;
@@ -292,10 +320,13 @@ export function canonicalisePrefixes(xml: string, partName = 'part'): { xml: str
     };
 
     const newName = rewriteName(qname, false);
+    const seenAttributes = new Set<string>();
     const rebuilt = attrs
       .map((a) => {
         if (a.name === 'xmlns' || a.name.startsWith('xmlns:')) return `${a.ws}${a.name}${a.eq}${a.quote}${a.value}${a.quote}`;
         const n = rewriteName(a.name, true);
+        if (seenAttributes.has(n)) refuse('conflict', `two attributes of <${qname}> would both be written as "${n}"`);
+        seenAttributes.add(n);
         const v = rewriteMcValue(a.name, a.value);
         return `${a.ws}${n}${a.eq}${a.quote}${v}${a.quote}`;
       })
@@ -451,8 +482,8 @@ export function verifyEquivalent(before: string, after: string): Equivalence {
 }
 
 /** Canonicalises and proves the result. Throws `PrefixRefusal` if the check fails. */
-export function canonicalisePart(xml: string, partName = 'part'): { xml: string; renames: Rename[] } {
-  const result = canonicalisePrefixes(xml, partName);
+export function canonicalisePart(xml: string, partName = 'part', alreadyScanned = false): { xml: string; renames: Rename[] } {
+  const result = canonicalisePrefixes(xml, partName, alreadyScanned);
   if (result.renames.length === 0) return result;
   const check = verifyEquivalent(xml, result.xml);
   if (!check.ok) {
@@ -486,14 +517,16 @@ export function ingestPrefixes(parts: Iterable<[string, string]>, utf16: Readonl
         'malformed'
       );
     }
-    const result = canonicalisePart(text, name);
+    const result = canonicalisePart(text, name, true);
+    // The scan is a cheap text test; when the parser-level rewrite finds nothing to rename, leave the part alone.
+    if (result.renames.length === 0) continue;
     changed.set(name, result.xml);
     report.push({ part: name, renames: result.renames });
   }
   return { changed, report };
 }
 
-const looksUtf16 = (data: Buffer): boolean =>
+export const looksUtf16 = (data: Buffer): boolean =>
   data.length >= 2 && ((data[0] === 0xff && data[1] === 0xfe) || (data[0] === 0xfe && data[1] === 0xff) || data[0] === 0 || data[1] === 0);
 
 /**

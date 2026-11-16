@@ -276,14 +276,14 @@ export function clampCorePropertiesDates(zip: CorePropsZipLike, at?: Date): bool
   }
 }
 
+/** Largest compressed payload an entry that declares size 0 may carry: an empty deflate stream (2 bytes) or an empty stored block (5). */
+const EMPTY_ENTRY_MAX_COMPRESSED_BYTES = 8;
+
 /**
  * Inspect central-directory headers BEFORE inflation and throw fail-closed
  * (`[E_LIMIT]`) when either ceiling is exceeded. Never calls `getData()`,
  * so no entry payload is inflated by this check.
  */
-/** Largest compressed payload an entry that declares size 0 may carry: an empty deflate stream (2 bytes) or an empty stored block (5). */
-const EMPTY_ENTRY_MAX_COMPRESSED_BYTES = 8;
-
 export function checkZipBombCeilings(
   zip: ZipLike,
   opts?: ZipBombCeilingOptions

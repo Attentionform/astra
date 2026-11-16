@@ -8,7 +8,7 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { DocxParser } from '@attentionform/astra-engine';
 import {
-  CANONICAL_PREFIXES, PrefixRefusal, canonicalisePart, canonicalisePrefixes, scanPart, verifyEquivalent,
+  CANONICAL_PREFIXES, PrefixRefusal, canonicalisePart, canonicalisePrefixes, ingestPrefixes, scanPart, verifyEquivalent,
 } from '../../packages/engine/src/ooxml/prefix-canonicaliser';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -191,9 +191,9 @@ describe('markup compatibility values', () => {
     expect(verifyEquivalent(xml, out).ok).toBe(true);
   });
 
-  it('an Ignorable that names an undeclared prefix is refused, nothing is returned', () => {
+  it('an Ignorable that names an undeclared prefix is left as written (it was readable before and stays so)', () => {
     const xml = doc(`xmlns:q="${W}" xmlns:m="${MC}" m:Ignorable="ghost"`, '<q:p/>', 'q');
-    expect(refusalOf(() => canonicalisePart(xml)).reason).toBe('unresolved');
+    expect(canonicalisePart(xml).xml).toContain('Ignorable="ghost"');
   });
 
   it('a prefix used only by Ignorable keeps its declaration', () => {
@@ -427,3 +427,45 @@ describe('real documents opened whole: renamed twin gives the same document as t
     expect(problems).toEqual([]);
   }, 300000);
 });
+
+describe('review fixes (second self-review)', () => {
+  it('a default-namespace rewrite is idempotent even when a child sits in another default namespace', () => {
+    const xml = `<root xmlns="${W}"><child xmlns="urn:other"><leaf/></child></root>`;
+    const once = canonicalisePart(xml, 'p.xml');
+    expect(once.renames.length).toBe(1);
+    expect(scanPart(once.xml)).toBeNull();
+    expect(canonicalisePrefixes(once.xml).renames).toEqual([]);
+  });
+  it('a declaration that exists only inside a comment neither triggers nor reports a rewrite', () => {
+    const xml = `<r xmlns:x="urn:other"><!-- xmlns:x="${W}" --><x:p/></r>`;
+    expect(scanPart(xml)).toBeNull();
+    const out = ingestPrefixesFor(xml);
+    expect(out.changed.size).toBe(0);
+    expect(out.report).toEqual([]);
+  });
+  it('a name outside ASCII does not make the part unreadable', () => {
+    const xml = `<x:document xmlns:x="${W}"><é/><x:p x:val="1"/></x:document>`;
+    const out = canonicalisePart(xml, 'u.xml');
+    expect(out.xml).toContain('<é/>');
+    expect(out.xml).toContain('<w:p w:val="1"/>');
+  });
+  it('two attributes that would both become w:val are refused as a conflict with the standard text', () => {
+    const xml = `<x:document xmlns:x="${W}" xmlns:y="${W}"><x:p x:val="1" y:val="2"/></x:document>`;
+    const r = refusalOf(() => canonicalisePart(xml, 'd.xml'));
+    expect(r.reason).toBe('conflict');
+    expect(r.message).toMatch(/^E_VALIDATION: d\.xml cannot be canonicalised safely/);
+    expect(r.message).toMatch(/Open the file in Word/);
+  });
+  it('mc:Ignorable that names a prefix declared nowhere is left as written, not refused', () => {
+    const xml = `<x:document xmlns:x="${W}" xmlns:mc="${MC}" mc:Ignorable="w14 wp14"><x:body/></x:document>`;
+    const out = canonicalisePart(xml, 'i.xml');
+    expect(out.xml).toContain('mc:Ignorable="w14 wp14"');
+  });
+  it('a > inside an attribute value does not hide a tag from the scan', () => {
+    expect(scanPart(`<x:document xmlns:x="${W}" title="a>b"><x:p/></x:document>`)).not.toBeNull();
+  });
+});
+
+function ingestPrefixesFor(xml: string) {
+  return ingestPrefixes([['p.xml', xml]]);
+}
