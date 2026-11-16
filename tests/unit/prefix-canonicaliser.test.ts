@@ -108,6 +108,17 @@ describe('a namespace written with character references', () => {
   });
 });
 
+describe('a part written by a real producer', () => {
+  it('pandoc writes word/webSettings.xml with the prefix ns0: it is rewritten and a second pass leaves it alone', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<ns0:webSettings xmlns:ns0="${W}">\n  <ns0:allowPNG />\n  <ns0:doNotSaveAsSingleFile />\n</ns0:webSettings>`;
+    const once = canonicalisePart(xml, 'word/webSettings.xml');
+    expect(once.renames).toEqual([{ from: 'ns0', to: 'w', uri: W }]);
+    expect(once.xml).toContain('<w:webSettings ');
+    expect(once.xml).toContain('<w:allowPNG/>');
+    expect(scanPart(once.xml)).toBeNull();
+  });
+});
+
 describe('canonicalisePrefixes: what it rewrites', () => {
   it('renames elements and attributes, keeps the old declaration and adds the canonical one', () => {
     const xml = doc(`xmlns:x="${W}" xmlns:rel="${R}"`, '<x:p><x:r x:rsidR="00AB"><x:t>hi</x:t></x:r><x:drawing rel:id="rId1"/></x:p>', 'x');

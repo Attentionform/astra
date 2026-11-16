@@ -3,8 +3,8 @@ import type { UnresolvedRevision } from './ooxml/revisions';
 /** Parts are canonicalised before the sanitizer reads them, so tracked-change elements are always written with `w:`. */
 const REVISION_ELEMENT_RE = /<w:(ins|del|moveFrom|moveTo)(?=[\s/>])((?:[^<>"']|"[^"]*"|'[^']*')*?)>/g;
 const REVISION_ID_RE = /\sw:id\s*=\s*(?:"([^"]*)"|'([^']*)')/;
-/** Comments, CDATA sections and processing instructions can hold text that looks like a tag. */
-const OPAQUE_RE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/g;
+/** Comments, CDATA sections and processing instructions can hold text that looks like a tag; the post-conditions ignore it. */
+export const OPAQUE_RE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/g;
 
 /**
  * After accept-all, the only tracked-change elements allowed in a part are the ones the report lists as unresolved.
@@ -61,4 +61,3 @@ export function assertOnlyReportedRevisions(part: string, source: string, unreso
     }
   }
 }
-
