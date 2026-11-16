@@ -61,4 +61,3 @@ export function assertOnlyReportedRevisions(part: string, source: string, unreso
     }
   }
 }
-
