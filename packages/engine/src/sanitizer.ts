@@ -9,7 +9,7 @@ import { checkZipBombCeilings, clampZipEntryTimes } from './zip-hardening';
 import { assertNoForbiddenMarkup, stripSvgActiveContent } from './ooxml/xxe-guard';
 import { decodePartUri, decodeXmlEntities } from './ooxml/xml-entities';
 import { PrefixRefusal, canonicaliseBufferMap } from './ooxml/prefix-canonicaliser';
-import { assertOnlyReportedRevisions } from './sanitizer-postconditions';
+import { assertOnlyReportedRevisions, OPAQUE_RE } from './sanitizer-postconditions';
 
 export { assertNoForbiddenMarkup } from './ooxml/xxe-guard';
 
@@ -2494,7 +2494,8 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
       }
     }
     if (o.acceptAllRevisions) assertOnlyReportedRevisions(name, xml, unresolved);
-    if (o.stripComments && /<w:comment(RangeStart|RangeEnd|Reference)[\s/>]/.test(xml)) {
+    // Example text inside an XML comment or CDATA section is not an anchor.
+    if (o.stripComments && /<w:comment(RangeStart|RangeEnd|Reference)[\s/>]/.test(xml.replace(OPAQUE_RE, ''))) {
       fail('stripComments', name, 'comment anchors');
     }
   }

@@ -60,3 +60,15 @@ describe('sanitize with every XML spelling of an attribute', () => {
     });
   }
 });
+
+describe('example markup inside an XML comment or CDATA section', () => {
+  it('is not mistaken for a comment anchor, a revision or a leftover when stripping comments', () => {
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const doc = zip.readAsText('word/document.xml').replace('<w:body>',
+      '<w:body><!-- example: <w:commentReference w:id="1"/> and <w:ins w:id="5"> --><w:p><w:r><w:t>kept</w:t></w:r></w:p><w:p><w:r><w:t><![CDATA[<w:commentRangeStart w:id="2"/>]]></w:t></w:r></w:p>');
+    zip.updateFile('word/document.xml', Buffer.from(doc));
+    const r = sanitizeDocxBuffer(zip.toBuffer(), { stripComments: true, acceptAllRevisions: true, purgeAuthors: true, purgeRSIDs: true });
+    expect(r.report.ok).toBe(true);
+    expect(allXml(r.buffer)).toContain('kept');
+  });
+});
