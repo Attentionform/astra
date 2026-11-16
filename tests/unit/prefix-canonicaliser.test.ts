@@ -96,6 +96,18 @@ describe('deeply nested parts (no stack overflow)', () => {
   }, 120000);
 });
 
+describe('a namespace written with character references', () => {
+  const spelled = W.replace('http', '&#104;ttp').replace('wordprocessingml', 'wordprocessing&#x6D;l');
+  it('is the same namespace: scanned, rewritten and verified like the plain spelling', () => {
+    const xml = `<x:document xmlns:x="${spelled}"><x:body><x:p/></x:body></x:document>`;
+    expect(scanPart(xml)).not.toBeNull();
+    const out = canonicalisePart(xml, 'spelled.xml');
+    expect(out.xml).toContain('<w:body>');
+    expect(out.xml).toContain(`xmlns:w="${W}"`);
+    expect(verifyEquivalent(xml, out.xml).ok).toBe(true);
+  });
+});
+
 describe('canonicalisePrefixes: what it rewrites', () => {
   it('renames elements and attributes, keeps the old declaration and adds the canonical one', () => {
     const xml = doc(`xmlns:x="${W}" xmlns:rel="${R}"`, '<x:p><x:r x:rsidR="00AB"><x:t>hi</x:t></x:r><x:drawing rel:id="rId1"/></x:p>', 'x');

@@ -17,6 +17,7 @@
  */
 import { DOMParser } from './dom-parser';
 import { decodeXmlPart } from './part-text';
+import { decodeXmlEntities } from './xml-entities';
 
 export const CANONICAL_PREFIXES: Readonly<Record<string, string>> = {
   'http://schemas.openxmlformats.org/wordprocessingml/2006/main': 'w',
@@ -85,7 +86,8 @@ export function scanPart(xml: string): ScanResult | null {
   let m: RegExpExecArray | null;
   while ((m = DECLARATION.exec(xml)) !== null) {
     const prefix = m[1] ?? '';
-    const uri = m[2] ?? m[3] ?? '';
+    // A namespace written with a character reference (`&#104;ttp://...`) is the same namespace once parsed.
+    const uri = decodeXmlEntities(m[2] ?? m[3] ?? '');
     const canonical = CANONICAL_PREFIXES[uri];
     if (canonical === undefined || prefix === canonical) continue;
     found.set(`${prefix}|${uri}`, { from: prefix, to: canonical, uri });
@@ -211,8 +213,8 @@ export function canonicalisePrefixes(xml: string, partName = 'part'): { xml: str
     }
     const declaredHere: Array<[string, string]> = [];
     for (const a of attrs) {
-      if (a.name === 'xmlns') declaredHere.push(['', a.value]);
-      else if (a.name.startsWith('xmlns:')) declaredHere.push([a.name.slice(6), a.value]);
+      if (a.name === 'xmlns') declaredHere.push(['', decodeXmlEntities(a.value)]);
+      else if (a.name.startsWith('xmlns:')) declaredHere.push([a.name.slice(6), decodeXmlEntities(a.value)]);
     }
     const extraDecls: string[] = [];
     const parentIn = scopeStack.length > 0 ? scopeStack[scopeStack.length - 1] : null;
