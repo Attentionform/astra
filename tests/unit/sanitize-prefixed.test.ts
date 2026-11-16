@@ -84,6 +84,6 @@ describe('sanitizer post-conditions', () => {
   it('fails, naming the part and the element, when a tracked change stays in a part the scrub does not reach', () => {
     const zip = new AdmZip(build(null));
     zip.addFile('word/unlisted/odd.xml', Buffer.from(ROOT('x', '<w:p><w:ins w:id="41" w:author="A" w:date="2024-01-01T00:00:00Z"><w:r><w:t>t</w:t></w:r></w:ins></w:p>')));
-    expect(() => sanitizeDocxBuffer(zip.toBuffer(), { acceptAllRevisions: true })).toThrow(/acceptAllRevisions.*word\/unlisted\/odd\.xml.*<w:ins w:id="41">/);
+    expect(() => sanitizeDocxBuffer(zip.toBuffer(), { acceptAllRevisions: true, purgeAuthors: false, purgeRSIDs: false, purgePII: false })).toThrow(/acceptAllRevisions.*word\/unlisted\/odd\.xml.*<w:ins w:id="41">/);
   });
 });
