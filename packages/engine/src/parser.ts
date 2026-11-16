@@ -273,8 +273,8 @@ export class DocxParser {
     return {
       canonicalised: this.canonicalisedParts.map((p) => ({
         part: p.part,
-        from: [...new Set(p.renames.map((r) => r.from))],
-        to: [...new Set(p.renames.map((r) => r.to))],
+        from: p.renames.map((r) => r.from),
+        to: p.renames.map((r) => r.to),
       })),
       signed: this.packageSigned,
     };

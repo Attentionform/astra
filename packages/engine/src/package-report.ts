@@ -3,7 +3,7 @@
  * Present only when there is something to say: a canonical, unsigned package has an empty report.
  */
 export interface PackageReport {
-  /** Parts whose namespace prefixes were rewritten to the usual ones at open. `from` and `to` are prefixes ('' is the default namespace). */
+  /** Parts whose namespace prefixes were rewritten to the usual ones at open. `from[i]` was rewritten to `to[i]` (prefixes; '' is the default namespace). */
   canonicalised: Array<{ part: string; from: string[]; to: string[] }>;
   /** True when the package carries a digital signature (entries under `_xmlsignatures/`). */
   signed: boolean;
@@ -19,7 +19,7 @@ export function packageWarnings(report: PackageReport): string[] {
   if (report.signed) warnings.push(SIGNED_WARNING);
   if (report.canonicalised.length > 0) {
     const first = report.canonicalised[0];
-    const example = `${first.part}: ${first.from.map(label).join(', ')} to ${first.to.join(', ')}`;
+    const example = `${first.part}: ${first.from.map((f, i) => `${label(f)} to ${first.to[i]}`).join(', ')}`;
     const n = report.canonicalised.length;
     warnings.push(
       `${n} part${n === 1 ? '' : 's'} used namespace prefixes other than the usual ones and ${n === 1 ? 'was' : 'were'} rewritten in memory (for example ${example}). Saving writes the usual prefixes.`
