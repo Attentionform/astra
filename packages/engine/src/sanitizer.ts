@@ -2144,7 +2144,7 @@ export function sanitizeEmbeddedWorkbookBytes(
 }
 
 const XML_PART_RE =
-  /^(word\/document\.xml|word\/styles\.xml|word\/stylesWithEffects\.xml|word\/numbering\.xml|word\/comments\.xml|word\/commentsExtended\.xml|word\/footnotes\.xml|word\/endnotes\.xml|word\/settings\.xml|word\/header.*\.xml|word\/footer.*\.xml|word\/people\.xml|word\/customXml\/.*\.xml|word\/charts\/.*\.xml|word\/embeddings\/.*\.xml)$/i;
+  /^(word\/document\.xml|word\/styles\.xml|word\/stylesWithEffects\.xml|word\/numbering\.xml|word\/comments\.xml|word\/commentsExtended\.xml|word\/footnotes\.xml|word\/endnotes\.xml|word\/settings\.xml|word\/header.*\.xml|word\/footer.*\.xml|word\/people\.xml|word\/glossary\/.*\.xml|word\/customXml\/.*\.xml|word\/charts\/.*\.xml|word\/embeddings\/.*\.xml)$/i;
 
 /** A read/write view of a package map, so the comment helpers that work on a parser's zip can work on it. */
 function bufferZipAdapter(files: Map<string, Buffer>, touched?: Set<string>): DocxZipAdapter {

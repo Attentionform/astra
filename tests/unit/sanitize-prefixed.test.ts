@@ -59,10 +59,25 @@ describe('sanitizer on a package with another WordprocessingML prefix', () => {
   });
 });
 
+describe('glossary parts are scrubbed like the main document', () => {
+  const opts = { purgeRSIDs: true, purgeAuthors: true, acceptAllRevisions: true };
+  for (const prefix of [null, 'x']) {
+    it(`building-block revisions by a named author are resolved and the author is gone (prefix ${prefix ?? 'w'})`, () => {
+      const zip = new AdmZip(build(null));
+      const part = ROOT('document', '<w:body><w:p w:rsidR="00AB00CD"><w:ins w:id="1" w:author="Survivor" w:date="2024-01-01T00:00:00Z"><w:r><w:t>block</w:t></w:r></w:ins></w:p></w:body>');
+      zip.addFile('word/glossary/document.xml', Buffer.from(prefix ? rename(part, prefix) : part));
+      const out = parts(sanitizeDocxBuffer(zip.toBuffer(), opts).buffer);
+      expect(out).not.toContain('Survivor');
+      expect(out).not.toMatch(/rsidR="00AB00CD"/);
+      expect(out).toContain('block');
+    });
+  }
+});
+
 describe('sanitizer post-conditions', () => {
   it('fails, naming option and part, when an author name survives in a part the scrub does not reach', () => {
     const zip = new AdmZip(build(null));
-    zip.addFile('word/glossary/odd.xml', Buffer.from(ROOT('x', '<w:p><w:ins w:id="1" w:author="Survivor" w:date="2024-01-01T00:00:00Z"/></w:p>')));
-    expect(() => sanitizeDocxBuffer(zip.toBuffer(), { purgeAuthors: true })).toThrow(/purgeAuthors.*word\/glossary\/odd\.xml/);
+    zip.addFile('word/unlisted/odd.xml', Buffer.from(ROOT('x', '<w:p><w:ins w:id="1" w:author="Survivor" w:date="2024-01-01T00:00:00Z"/></w:p>')));
+    expect(() => sanitizeDocxBuffer(zip.toBuffer(), { purgeAuthors: true })).toThrow(/purgeAuthors.*word\/unlisted\/odd\.xml/);
   });
 });
