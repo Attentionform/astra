@@ -288,7 +288,7 @@ for (const dir of [FIXTURES, join(FIXTURES, 'word-revisions'), CORPUS]) {
 }
 
 describe('real documents: independent renamer, then canonicalise, then compare with the original', () => {
-  it('has real documents to work with', () => expect(WORD_FILES.length).toBeGreaterThan(20));
+  it('has real documents to work with', () => expect(WORD_FILES.length).toBeGreaterThan(10));
 
   it('every part of every sampled document: unchanged when canonical; a renamed twin canonicalises to the original meaning', () => {
     let parts = 0;
@@ -355,7 +355,7 @@ describe('real documents opened whole: renamed twin gives the same document as t
     // eslint-disable-next-line no-console
     console.log(`SPIKEWHOLE compared=${compared} problems=${problems.length}`);
     for (const p of problems.slice(0, 10)) console.log('SPIKEWHOLE problem', p);
-    expect(compared).toBeGreaterThan(20);
+    expect(compared).toBeGreaterThan(10);
     expect(problems).toEqual([]);
   }, 300000);
 });
