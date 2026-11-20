@@ -318,13 +318,17 @@ describe('a bookmark that someone added to the placeholder body is never deleted
     const withBookmark = `${f.before}<w:bookmarkStart w:id="910" w:name="${name}"/>${f.after.replace('</w:p>', '<w:bookmarkEnd w:id="910"/></w:p>')}`;
     // The paragraph that holds the link goes before the first body paragraph, outside the replaceable region.
     const body = withBookmark.indexOf('<w:body>') + '<w:body>'.length;
-    return `${withBookmark.slice(0, body)}<w:p>${link(target)}</w:p>${withBookmark.slice(body)}`;
+    // A table of contents entry points at the bookmark as well, as it does for a heading that Word wrote.
+    const tocEntry = `<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr><w:hyperlink w:anchor="${name}" w:history="1"><w:r><w:t>Entry</w:t></w:r></w:hyperlink></w:p>`;
+    return `${withBookmark.slice(0, body)}${tocEntry}<w:p>${link(target)}</w:p>${withBookmark.slice(body)}`;
   };
   const referenced: Array<[string, (x: string) => string]> = [
     ['a _Toc bookmark that a hyperlink in the text points at', outside('_Toc987654', '_Toc987654', (n) => `<w:hyperlink w:anchor="${n}" w:history="1"><w:r><w:t>see below</w:t></w:r></w:hyperlink>`)],
     ['a _Toc bookmark that a REF field in the text points at', outside('_Toc987654', '_Toc987654', (n) => `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> REF ${n} \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>x</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`)],
     ['a _Ref bookmark that a REF field in the text points at', outside('_Ref123456789', '_Ref123456789', (n) => `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> REF ${n} \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>x</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`)],
     ['a _GoBack bookmark that a hyperlink points at', outside('_GoBack', '_GoBack', (n) => `<w:hyperlink w:anchor="${n}" w:history="1"><w:r><w:t>back</w:t></w:r></w:hyperlink>`)],
+    ['a _Toc bookmark that a simple REF field in the text points at', outside('_Toc987654', '_Toc987654', (n) => `<w:fldSimple w:instr=" REF ${n} \\h "><w:r><w:t>x</w:t></w:r></w:fldSimple>`)],
+    ['a _Toc bookmark that a simple PAGEREF field in the text points at, beside a table of contents link', outside('_Toc987654', '_Toc987654', (n) => `<w:fldSimple w:instr=" PAGEREF ${n} \\h "><w:r><w:t>2</w:t></w:r></w:fldSimple>`)],
   ];
   for (const [label, inject] of referenced) {
     it(`${label}: compose appends and keeps both the bookmark and the link`, async () => {
@@ -335,9 +339,25 @@ describe('a bookmark that someone added to the placeholder body is never deleted
       expect(res.warnings.some((w) => w.startsWith('TEMPLATE_REGION_EDITED'))).toBe(true);
       const out = part(parser.rezip(), 'word/document.xml');
       expect(out).toMatch(/<w:bookmarkStart [^>]*w:name="_(Toc987654|Ref123456789|GoBack)"/);
-      expect(out).toMatch(/w:anchor="_(Toc987654|GoBack)"|REF _(Toc987654|Ref123456789)/);
+      expect(out).toMatch(/w:anchor="_(Toc987654|GoBack)"|REF _(Toc987654|Ref123456789)|w:instr=" (PAGE)?REF _Toc987654/);
     });
   }
+  it('a _Toc bookmark that a field in a header points at: compose appends and keeps it', async () => {
+    const zip = new AdmZip(DocxParser.createNewDocument('report').rezip());
+    const xml = part(zip.toBuffer(), 'word/document.xml');
+    const f = firstHeadingRun(xml);
+    const withBookmark = `${f.before}<w:bookmarkStart w:id="920" w:name="_Toc987654"/>${f.after.replace('</w:p>', '<w:bookmarkEnd w:id="920"/></w:p>')}`;
+    const body = withBookmark.indexOf('<w:body>') + '<w:body>'.length;
+    const tocEntry = '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr><w:hyperlink w:anchor="_Toc987654" w:history="1"><w:r><w:t>Entry</w:t></w:r></w:hyperlink></w:p>';
+    zip.updateFile('word/document.xml', Buffer.from(`${withBookmark.slice(0, body)}${tocEntry}${withBookmark.slice(body)}`));
+    const header = part(zip.toBuffer(), 'word/header1.xml');
+    zip.updateFile('word/header1.xml', Buffer.from(header.replace(/<\/w:p>/, '<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> REF _Toc987654 </w:instrText></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>')));
+    const parser = new DocxParser(zip.toBuffer());
+    const res = await composeDocument(parser, '# Title\n\nBody.\n');
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    expect(res.warnings.some((w) => w.startsWith('TEMPLATE_REGION_EDITED'))).toBe(true);
+    expect(part(parser.rezip(), 'word/document.xml')).toMatch(/w:name="_Toc987654"/);
+  });
   it('an empty _GoBack pair, which Word adds where the cursor was, is still ignored', async () => {
     const buf = withBookmarks(part(DocxParser.createNewDocument('report').rezip(), 'word/document.xml'), (x) => { const f = firstHeadingRun(x); return `${f.before}<w:bookmarkStart w:id="905" w:name="_GoBack"/><w:bookmarkEnd w:id="905"/>${f.after}`; });
     const parser = new DocxParser(buf);

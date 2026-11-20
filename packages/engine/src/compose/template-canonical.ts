@@ -110,17 +110,31 @@ function paragraphStyleOf(node: Node): string {
 }
 
 /**
- * What points at bookmarks in the document: from the entries of a table of contents (paragraphs in a TOC style) and from
- * everything else, as text to search for a name. A reference counts as the second kind unless it is in a table of contents.
+ * What mentions a hidden bookmark by name, as text to search: the entries of a table of contents (paragraphs in a TOC style)
+ * and everything else. Every attribute value and text node of the document is read, so a hyperlink anchor, a field
+ * instruction (complex or simple) and anything else that carries the name count; nothing is looked up by element type.
+ * `external` is text from other parts of the package (headers, footers, notes), which count as everything else.
  */
-function bookmarkReferences(root: Element): { toc: string; other: string } {
+function bookmarkReferences(root: Element, external: string): { toc: string; other: string } {
   const toc: string[] = [];
   const other: string[] = [];
   const add = (node: Node, value: string): void => {
+    if (!/_(Toc|GoBack)/.test(value)) return;
     (/^TOC/i.test(paragraphStyleOf(node)) ? toc : other).push(value);
   };
-  for (const h of Array.from(root.getElementsByTagName('w:hyperlink'))) add(h, h.getAttribute('w:anchor') ?? '');
-  for (const i of Array.from(root.getElementsByTagName('w:instrText'))) add(i, i.textContent ?? '');
+  const walk = (el: Element): void => {
+    for (let i = 0; i < el.attributes.length; i++) {
+      const a = el.attributes[i];
+      if (el.tagName === 'w:bookmarkStart' && a.name === 'w:name') continue;
+      add(el, a.value);
+    }
+    for (let c = el.firstChild; c; c = c.nextSibling) {
+      if (c.nodeType === 1) walk(c as Element);
+      else if (c.nodeType === 3) add(c, c.nodeValue ?? '');
+    }
+  };
+  walk(root);
+  other.push(external);
   return { toc: toc.join('\n'), other: other.join('\n') };
 }
 
@@ -152,10 +166,10 @@ function isWordHiddenBookmark(start: Element, refs: { toc: string; other: string
 }
 
 /** The canonical XML of each node of a run of siblings. The boundary bookmarks and the hidden bookmarks that Word adds itself are left out. */
-export function canonicalNodes(nodes: Node[]): string[] {
+export function canonicalNodes(nodes: Node[], externalText = ''): string[] {
   const skip = new Set<string>();
   const root = nodes.find((n) => n.ownerDocument)?.ownerDocument?.documentElement;
-  const refs = root ? bookmarkReferences(root) : { toc: '', other: '' };
+  const refs = root ? bookmarkReferences(root, externalText) : { toc: '', other: externalText };
   for (const n of nodes) {
     if (n.nodeType !== 1) continue;
     for (const b of Array.from((n as Element).getElementsByTagName('w:bookmarkStart'))) {
@@ -166,8 +180,9 @@ export function canonicalNodes(nodes: Node[]): string[] {
   return nodes.map((n) => canonicalXml(n, skip));
 }
 
-export function hashNodes(nodes: Node[]): string {
-  return createHash('sha256').update(canonicalNodes(nodes).join('')).digest('hex');
+/** `externalText` is the text of the other parts of the package (headers, footers, notes), which may point at a bookmark in these nodes. */
+export function hashNodes(nodes: Node[], externalText = ''): string {
+  return createHash('sha256').update(canonicalNodes(nodes, externalText).join('')).digest('hex');
 }
 
 export const REGION_START = 'astra_body_start';
