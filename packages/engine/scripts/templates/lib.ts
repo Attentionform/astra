@@ -71,9 +71,41 @@ export function pageBreak(): string {
   return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
 }
 
-/** Empty bookmark pair at body level. `id` must be unique in the document. */
+/**
+ * Empty bookmark pair, written at body level between two blocks. `id` must be unique in the document. `placeMarkers` moves
+ * each pair into the paragraph next to it, which is where Word keeps it when it saves the file.
+ */
 export function marker(id: number, name: string): string {
   return `<w:bookmarkStart w:id="${id}" w:name="${name}"/><w:bookmarkEnd w:id="${id}"/>`;
+}
+
+/**
+ * Moves the region boundary pairs into paragraphs: the start pair to the beginning of the paragraph that follows it, the end
+ * pair to the end of the paragraph that precedes it. Word does not keep a bookmark between two body-level blocks; it moves it
+ * into a neighbouring paragraph, and which one it picks depends on what follows. Writing the pair there already makes the file
+ * Word saves identical in structure. A boundary next to a table is an error: the region must start and end with a paragraph.
+ */
+export function placeMarkers(body: string): string {
+  const pair = (name: string): RegExp => new RegExp(`<w:bookmarkStart w:id="(\\d+)" w:name="${name}"/><w:bookmarkEnd w:id="\\1"/>`);
+  const start = pair('astra_body_start').exec(body);
+  const end = pair('astra_body_end').exec(body);
+  if (!start || !end) return body;
+  const afterStart = body.slice(start.index + start[0].length);
+  // The first paragraph after the start pair: the next block, or the first paragraph in the first cell when that block is a table.
+  const open = /<w:p(?: [^>]*)?>(<w:pPr>.*?<\/w:pPr>)?/.exec(afterStart);
+  if (!open || afterStart.slice(0, open.index).includes('</w:p>')) throw new Error('the placeholder body must start with a paragraph or a table');
+  const beforeEnd = body.slice(0, end.index);
+  // The last paragraph before the end pair: the previous block, or the last paragraph in the last cell when that block is a table.
+  const lastClose = beforeEnd.lastIndexOf('</w:p>');
+  if (lastClose < 0 || beforeEnd.slice(lastClose + '</w:p>'.length).replace(/<\/(w:tc|w:tr|w:tbl)>/g, '') !== '') {
+    throw new Error('the placeholder body must end with a paragraph or a table');
+  }
+  const cut = open.index + open[0].length;
+  let out = body.slice(0, start.index) + afterStart.slice(0, cut) + start[0] + afterStart.slice(cut);
+  const e = pair('astra_body_end').exec(out)!;
+  const close = out.slice(0, e.index).lastIndexOf('</w:p>');
+  out = out.slice(0, close) + e[0] + out.slice(close, e.index) + out.slice(e.index + e[0].length);
+  return out;
 }
 
 // ---- tables -------------------------------------------------------------------------------------
@@ -261,7 +293,7 @@ export function buildPackage(inp: BuildInput): Buffer {
   };
 
   const document =
-    `${XML_DECL}<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}"><w:body>${inp.body}${sectPr(inp.page, refs)}</w:body></w:document>`;
+    `${XML_DECL}<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}"><w:body>${placeMarkers(inp.body)}${sectPr(inp.page, refs)}</w:body></w:document>`;
 
   const core =
     `${XML_DECL}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" ` +

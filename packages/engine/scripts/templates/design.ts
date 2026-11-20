@@ -375,24 +375,24 @@ export function stylesXml(t: Theme): string {
       '<w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>' +
       '<w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tblBorders></w:tblPr></w:style>',
     // Clean: hairline horizontal rules, tinted header row.
-    '<w:style w:type="table" w:styleId="AstraTable"><w:name w:val="ASTra Table"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="59"/><w:qFormat/>' +
+    '<w:style w:type="table" w:styleId="AstraTable"><w:name w:val="Astra Table"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="59"/><w:qFormat/>' +
       `<w:pPr><w:spacing w:before="40" w:after="40" w:line="252" w:lineRule="auto"/></w:pPr>` +
       `<w:tblPr><w:tblBorders>${hairline('top')}${hairline('bottom')}${hairline('insideH')}</w:tblBorders>` +
       '<w:tblCellMar><w:top w:w="60" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tblCellMar></w:tblPr>' +
       `<w:tblStylePr w:type="firstRow"><w:rPr><w:b/><w:color w:val="${c.ink}"/></w:rPr><w:tcPr><w:tcBorders><w:bottom w:val="single" w:sz="12" w:space="0" w:color="${c.accent}"/></w:tcBorders><w:shd w:val="clear" w:color="auto" w:fill="${c.accentSoft}"/></w:tcPr></w:tblStylePr>` +
       '</w:style>',
     // Banded: the clean table plus alternate row tint.
-    '<w:style w:type="table" w:styleId="AstraTableBanded"><w:name w:val="ASTra Table Banded"/><w:basedOn w:val="AstraTable"/><w:uiPriority w:val="60"/><w:qFormat/>' +
+    '<w:style w:type="table" w:styleId="AstraTableBanded"><w:name w:val="Astra Table Banded"/><w:basedOn w:val="AstraTable"/><w:uiPriority w:val="60"/><w:qFormat/>' +
       `<w:tblPr><w:tblStyleRowBandSize w:val="1"/></w:tblPr>` +
       `<w:tblStylePr w:type="band2Horz"><w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${c.wash}"/></w:tcPr></w:tblStylePr>` +
       '</w:style>',
     // Minimal: no vertical or inner rules, only a rule under the header. For invoices and form blocks.
-    '<w:style w:type="table" w:styleId="AstraTableMinimal"><w:name w:val="ASTra Table Minimal"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="61"/><w:qFormat/>' +
+    '<w:style w:type="table" w:styleId="AstraTableMinimal"><w:name w:val="Astra Table Minimal"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="61"/><w:qFormat/>' +
       '<w:tblPr><w:tblCellMar><w:top w:w="50" w:type="dxa"/><w:left w:w="80" w:type="dxa"/><w:bottom w:w="50" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr>' +
       `<w:tblStylePr w:type="firstRow"><w:rPr><w:b/><w:color w:val="${c.muted}"/></w:rPr><w:tcPr><w:tcBorders><w:bottom w:val="single" w:sz="8" w:space="0" w:color="${c.ink}"/></w:tcBorders></w:tcPr></w:tblStylePr>` +
       '</w:style>',
     // Borderless layout grid for memo and letter header blocks (no tblHeader: not a data table).
-    '<w:style w:type="table" w:styleId="AstraTableGrid"><w:name w:val="ASTra Layout Grid"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="62"/>' +
+    '<w:style w:type="table" w:styleId="AstraTableGrid"><w:name w:val="Astra Table Grid"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="62"/>' +
       '<w:tblPr><w:tblCellMar><w:top w:w="30" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="30" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>',
   ];
 
