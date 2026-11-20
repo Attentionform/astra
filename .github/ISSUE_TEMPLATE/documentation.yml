@@ -1,0 +1,34 @@
+name: Documentation problem
+description: A page is wrong, unclear, missing or out of date
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping us improve the documentation. Please do not paste documents with real personal or confidential data.
+  - type: input
+    id: page
+    attributes:
+      label: Page or file
+      description: "The address of the page, or the path of the file in the repository."
+      placeholder: "https://attentionform.com/docs/start/cli-quickstart"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is the problem?
+      options:
+        - A step or a command does not work as written
+        - The page is wrong or out of date
+        - The page is unclear
+        - Something I looked for is missing
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: "What did you do, what happened, and what did you expect? Include the exact command or error code if there was one."
+    validations:
+      required: true
