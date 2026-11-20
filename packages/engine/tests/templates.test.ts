@@ -282,3 +282,68 @@ describe('compose never deletes what the user changed (R3: append plus a warning
     expect(part(parser.rezip(), 'word/document.xml')).toBe(part(before, 'word/document.xml'));
   });
 });
+
+describe('a bookmark that someone added to the placeholder body is never deleted', () => {
+  // Word adds _Toc bookmarks to headings and _Ref bookmarks to cross-reference targets by itself. A bookmark with one of those
+  // names that did not come from Word must make the body count as edited, so that compose appends and deletes nothing.
+  const withBookmarks = (xml: string, inject: (xml: string) => string): Buffer => {
+    const zip = new AdmZip(DocxParser.createNewDocument('report').rezip());
+    zip.updateFile('word/document.xml', Buffer.from(inject(xml)));
+    return zip.toBuffer();
+  };
+  const firstHeadingRun = (xml: string): { before: string; after: string; start: number } => {
+    const at = xml.indexOf('<w:r>', xml.indexOf('astra_body_start'));
+    return { before: xml.slice(0, at), after: xml.slice(at), start: at };
+  };
+  const cases: Array<[string, (xml: string) => string]> = [
+    ['an unreferenced _Toc pair inside one paragraph', (x) => { const f = firstHeadingRun(x); return `${f.before}<w:bookmarkStart w:id="901" w:name="_Toc987654"/>${f.after.replace('</w:p>', '<w:bookmarkEnd w:id="901"/></w:p>')}`; }],
+    ['an unreferenced _Ref pair inside one paragraph', (x) => { const f = firstHeadingRun(x); return `${f.before}<w:bookmarkStart w:id="902" w:name="_Ref123456789"/>${f.after.replace('</w:p>', '<w:bookmarkEnd w:id="902"/></w:p>')}`; }],
+    ['a _Toc pair that starts in one paragraph and ends in the next', (x) => { const f = firstHeadingRun(x); const i = f.after.indexOf('</w:p>'); const j = f.after.indexOf('</w:p>', i + 6); return `${f.before}<w:bookmarkStart w:id="903" w:name="_Toc555"/>${f.after.slice(0, j)}<w:bookmarkEnd w:id="903"/>${f.after.slice(j)}`; }],
+    ['a _GoBack pair that wraps text', (x) => { const f = firstHeadingRun(x); return `${f.before}<w:bookmarkStart w:id="904" w:name="_GoBack"/>${f.after.replace('</w:p>', '<w:bookmarkEnd w:id="904"/></w:p>')}`; }],
+  ];
+  for (const [label, inject] of cases) {
+    it(`${label}: compose appends and keeps it`, async () => {
+      const buf = withBookmarks(part(DocxParser.createNewDocument('report').rezip(), 'word/document.xml'), inject);
+      expect(part(buf, 'word/document.xml')).toMatch(/w:name="_(Toc|Ref|GoBack)/);
+      const parser = new DocxParser(buf);
+      const res = await composeDocument(parser, '# Title\n\nBody.\n');
+      expect(res.success, JSON.stringify(res.errors)).toBe(true);
+      expect(res.warnings.some((w) => w.startsWith('TEMPLATE_REGION_EDITED'))).toBe(true);
+      expect(part(parser.rezip(), 'word/document.xml')).toMatch(/w:name="_(Toc|Ref|GoBack)/);
+    });
+  }
+  it('an empty _GoBack pair, which Word adds where the cursor was, is still ignored', async () => {
+    const buf = withBookmarks(part(DocxParser.createNewDocument('report').rezip(), 'word/document.xml'), (x) => { const f = firstHeadingRun(x); return `${f.before}<w:bookmarkStart w:id="905" w:name="_GoBack"/><w:bookmarkEnd w:id="905"/>${f.after}`; });
+    const parser = new DocxParser(buf);
+    const res = await composeDocument(parser, '# Title\n\nBody.\n');
+    expect(res.warnings.filter((w) => w.startsWith('TEMPLATE_'))).toEqual([]);
+  });
+});
+
+describe('a leading heading reads Markdown entities as the compiler does', () => {
+  const heading = async (template: string, markdown: string): Promise<string> => {
+    const parser = new DocxParser(DocxParser.createNewDocument(template).rezip());
+    const res = await composeDocument(parser, markdown);
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    const xml = part(parser.rezip(), 'word/document.xml');
+    const match = /Heading1|Title/.test(xml) ? Array.from(xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g), (m) => m[1]) : [];
+    return match.join('|');
+  };
+  const entities: Array<[string, string]> = [
+    ['# Sales &amp; Growth', 'Sales &amp; Growth'],
+    ['# R &copy; 2026', 'R © 2026'],
+    ['# Code &#65;&#x42;', 'Code AB'],
+    ['# AT&T', 'AT&amp;T'],
+    ['# Q&A &unknownname; end', 'Q&amp;A &amp;unknownname; end'],
+  ];
+  for (const [source, expectedXml] of entities) {
+    it(`${source} gives the same title on a report as on a blank document`, async () => {
+      const md = `${source}\n\nBody.\n`;
+      const onBlank = await heading('blank', md);
+      const onReport = await heading('report', md);
+      expect(onBlank).toContain(expectedXml);
+      expect(onReport).toContain(expectedXml);
+      expect(onReport).not.toMatch(/&amp;amp;|&amp;copy;|&amp;#/);
+    });
+  }
+});

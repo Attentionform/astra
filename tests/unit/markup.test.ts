@@ -358,7 +358,7 @@ describe('the result block and the notes', () => {
     expect(n[0]).toBe(MARKUP_CONTRACT_NOTE);
     expect(n[1]).toBe(MARKUP_PRIVACY_NOTE);
     expect(n[2]).toMatch(/Word setting X/);
-    expect(MARKUP_PRIVACY_NOTE).toMatch(/reviewer names, deleted text and comments/);
+    expect(MARKUP_PRIVACY_NOTE).toMatch(/author names, deleted text and comments/);
     expect(MARKUP_CONTRACT_NOTE).toMatch(/page numbers refer to this render/);
   });
 });

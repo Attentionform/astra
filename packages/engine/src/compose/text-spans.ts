@@ -50,21 +50,28 @@ export function failOnImageOrHtml(text: string, line: number, what: string): voi
   }
 }
 
-const MARKED_ENTITIES: Record<string, string> = {
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
+// The entities that marked leaves in text tokens, plus the named entities that are common in prose. Markdown allows any HTML entity;
+// an entity that is not listed stays as typed.
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', copy: '\u00a9', reg: '\u00ae', trade: '\u2122', sect: '\u00a7',
+  deg: '\u00b0', plusmn: '\u00b1', times: '\u00d7', divide: '\u00f7', middot: '\u00b7', bull: '\u2022', hellip: '\u2026',
+  ndash: '\u2013', mdash: '\u2014', lsquo: '\u2018', rsquo: '\u2019', ldquo: '\u201c', rdquo: '\u201d', laquo: '\u00ab',
+  raquo: '\u00bb', euro: '\u20ac', pound: '\u00a3', yen: '\u00a5', cent: '\u00a2',
 };
 
 /**
- * marked HTML-escapes inline text tokens (`'` -> `&#39;`, `&` -> `&amp;`, ...).
- * Run emission escapes again for XML, so the entities are decoded here, in one
- * pass, matching CommonMark (authored `&lt;` reads as `<`).
+ * Text tokens from marked keep the characters as the author typed them, so an entity such as `&amp;` or `&#169;` is still in the
+ * text. Run emission escapes the text again for XML, so the entities are decoded here, in one pass, as CommonMark reads them
+ * (authored `&lt;` reads as `<`). A heading that fills a template's title slot is decoded with this function too, so that a title
+ * reads the same in a template and in a blank document.
  */
 export function unescapeMarkedText(text: string): string {
-  return text.replace(/&(?:amp|lt|gt|quot|#39);/g, (m) => MARKED_ENTITIES[m]);
+  return text.replace(/&(?:#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6})|([A-Za-z][A-Za-z0-9]{1,31}));/g, (whole, dec?: string, hex?: string, name?: string) => {
+    if (name !== undefined) return NAMED_ENTITIES[name] ?? whole;
+    const code = dec !== undefined ? Number(dec) : parseInt(hex as string, 16);
+    // CommonMark turns an invalid code point, NUL and a surrogate into U+FFFD.
+    return code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ? '\ufffd' : String.fromCodePoint(code);
+  });
 }
 
 export function plainJoin(text: string): string {

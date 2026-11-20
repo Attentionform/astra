@@ -82,7 +82,7 @@ describe('showMarkup schema', () => {
     expect(ExportDocumentSchema.safeParse({ sessionId: 's', format: 'pdf', showMarkup: true }).success).toBe(true);
     expect(ExportDocumentSchema.safeParse({ sessionId: 's', format: 'pdf', showMarkup: 1 }).success).toBe(false);
     for (const description of [VISUAL_INSPECT_DESCRIPTION, ExportDocumentSchema.shape.showMarkup.description ?? '']) {
-      expect(description).toMatch(/shows reviewer names, deleted text and comments; check it before sharing it/);
+      expect(description).toMatch(/shows author names, deleted text and comments; check it before sharing it/);
       expect(description).toMatch(/does not check the image/);
     }
   });

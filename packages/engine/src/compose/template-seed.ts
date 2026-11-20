@@ -1,6 +1,7 @@
 import type { DocxParser } from '../parser';
 import { REGION_END, REGION_START, findRegion, findSlot, hashNodes } from './template-canonical';
 import { TEMPLATE_MANIFEST } from './template-manifest.generated';
+import { unescapeMarkedText } from './text-spans';
 
 /**
  * What the compose shortcut may do with a document that came from a built-in template.
@@ -114,7 +115,8 @@ export function splitLeadingTitle(markdown: string): { title: string; rest: stri
   if (!m) return null;
   const title = m[1].trim();
   if (title === '' || /[*_`[\]<>\\|]/.test(title)) return null;
-  return { title, rest: markdown.slice(m[0].length) };
+  // The compiler reads entities such as `&amp;` in a heading; the title slot must read them the same way.
+  return { title: unescapeMarkedText(title), rest: markdown.slice(m[0].length) };
 }
 
 /** Replaces the placeholder run(s) of the slot with plain text, keeping any direct run formatting such as bold. */
