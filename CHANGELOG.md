@@ -27,6 +27,8 @@ Library use, designed templates and the validator for other Office files. There 
 
 ### Fixed
 
+- A heading that is the whole input now fills a template's title, as a leading heading does. Before, the template kept its title placeholder and the heading went into the body. The placeholder body is removed and nothing takes its place. Input with no content block at all is still refused.
+- Composing onto a blank document with an explicit `anchor` no longer deletes the blank paragraph. An explicit anchor only appends, so the anchor keeps its node id.
 - A Markdown entity such as `&amp;`, `&copy;` or `&#169;` is now read as the character it stands for in composed text, and a leading heading that fills a template's title reads the same as a heading in a blank document. Before, the title kept the entity as typed, and `&copy;` and the numeric forms stayed literal everywhere. Named entities that are not in the built-in list of common ones stay as typed.
 - The bundled command-line tool finds the template files when the engine is installed beside it.
 - The XML check in `rezip()` now refuses a part that has no root element or has text outside the root. The XML parser accepted these without an error, so a package with such a part was written. A mismatched closing tag still passes `rezip()`; `validateDocxBuffer()` reports it. The engine README lists every `rezip()` option and what it skips.

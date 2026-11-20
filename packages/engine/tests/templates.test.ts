@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src/internal';
-import { findRegion, hashNodes } from '../src/compose/template-canonical';
+import { findRegion, findSlot, hashNodes } from '../src/compose/template-canonical';
 import { TEMPLATE_MANIFEST } from '../src/compose/template-manifest.generated';
 import { DOMParser } from '../src/ooxml/dom-parser';
 import { contrastChecks } from '../scripts/templates/design';
@@ -392,4 +392,43 @@ describe('a leading heading reads Markdown entities as the compiler does', () =>
       expect(onReport).not.toMatch(/&amp;amp;|&amp;copy;|&amp;#/);
     });
   }
+});
+
+describe('input that is only a heading, and an explicit anchor', () => {
+  const visible = (buf: Buffer): string[] => Array.from(part(buf, 'word/document.xml').matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g), (m) => m[1]);
+  for (const name of DESIGNED.filter((n) => TEMPLATE_MANIFEST[`${n}@1`]?.slots.title !== undefined)) {
+    it(`${name}: a heading that is the whole input fills the title slot and removes the placeholder body`, async () => {
+      const fresh = DocxParser.createNewDocument(name);
+      const slot = findSlot(fresh.getDocumentDom().getElementsByTagName('w:body')[0], 'title');
+      const placeholder = (slot?.nodes ?? []).map((n) => n.textContent ?? '').join('').trim();
+      expect(placeholder, 'the template has a title placeholder').not.toBe('');
+      const parser = new DocxParser(fresh.rezip());
+      const res = await composeDocument(parser, '# Quarterly Review\n');
+      expect(res.success, JSON.stringify(res.errors)).toBe(true);
+      expect(res.warnings.filter((w) => w.startsWith('TEMPLATE_'))).toEqual([]);
+      const out = parser.rezip();
+      const text = visible(out);
+      expect(text.filter((x) => x.includes('Quarterly Review'))).toHaveLength(1);
+      expect(text.join('')).not.toContain(placeholder);
+      const valid = await validateDocxBuffer(out);
+      expect(valid.ok, JSON.stringify(valid.errors)).toBe(true);
+      const again = await composeDocument(parser, 'Next.\n');
+      expect(again.warnings.some((w) => w.startsWith('TEMPLATE_ALREADY_COMPOSED'))).toBe(true);
+    });
+  }
+  it('input with no content block at all is still refused', async () => {
+    await expect(composeDocument(new DocxParser(DocxParser.createNewDocument('report').rezip()), '\n')).rejects.toThrow(/no content blocks found/);
+  });
+  it('an explicit anchor on a blank document appends and keeps the blank paragraph and its id', async () => {
+    const parser = new DocxParser(DocxParser.createNewDocument('blank').rezip());
+    const ids = Array.from(parser.nodeMap.keys());
+    expect(ids).toHaveLength(1);
+    const res = await composeDocument(parser, 'Hello.\n', { anchor: ids[0], position: 'after' });
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    expect(parser.nodeMap.has(ids[0])).toBe(true);
+    expect(visible(parser.rezip())).toContain('Hello.');
+    // The id is still usable by a later operation.
+    const next = await composeDocument(parser, 'After the anchor.\n', { anchor: ids[0], position: 'after' });
+    expect(next.success, JSON.stringify(next.errors)).toBe(true);
+  });
 });
