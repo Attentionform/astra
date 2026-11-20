@@ -22,7 +22,7 @@ async function openBlankSession() {
 
 function mathCount(store: ReturnType<typeof createMcpSessionStore>, sessionId: string): number {
   const xml = new AdmZip(store.get(sessionId).parser.rezip()).readAsText('word/document.xml');
-  return (xml.match(/<m:oMath>/g) ?? []).length;
+  return (xml.match(/<m:oMath[ >]/g) ?? []).length;
 }
 
 const SOURCE = 'We have $x^2$ here, and \\(y_1\\) there. It costs $5 and $10.\n';

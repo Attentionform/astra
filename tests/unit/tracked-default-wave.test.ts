@@ -9,7 +9,6 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import {
   DocxParser,
-  createBlankDocxBuffer,
   executeDelete,
   executeHyperlink,
   executeInsert,

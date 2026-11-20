@@ -38,7 +38,6 @@ import {
 } from '@attentionform/astra-engine';
 import { useReproducibleOutput } from '../helpers/reproducible';
 import { SECTION_SHAPES } from '../helpers/section-docs';
-import { seededBlank } from '../helpers/seeded-blank';
 
 useReproducibleOutput();
 
@@ -63,7 +62,7 @@ const corpus = (): Source[] => {
     out.push({ name: `gallery/${file}`, kind: 'single', load: read(`test-gallery/${file}`) });
   }
   out.push({ name: 'validator/valid.docx', kind: 'single', load: read('packages/ooxml-validator/tests/fixtures/valid.docx') });
-  out.push({ name: 'new/blank', kind: 'single', load: () => seededBlank() });
+  out.push({ name: 'new/blank', kind: 'single', load: () => createBlankDocxBuffer('blank') });
   for (const [key, shape] of Object.entries(SECTION_SHAPES)) {
     out.push({ name: `shape/${key}`, kind: shape.sections === 1 ? 'single' : 'multi', load: shape.build });
   }

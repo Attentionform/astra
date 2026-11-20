@@ -12,7 +12,7 @@ import { DEFAULT_STYLE_GUIDE } from '../src/style-guide/defaults';
 import { summarizeStyleGuide } from '../src/style-guide/summary';
 import { compileMarkdown } from '../src/compose/compile';
 import { composeDocument } from '../src/compose/markdown';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import type { StyleGuideConfig } from '../src/style-guide/types';
 import type { Node } from '../src/ast';

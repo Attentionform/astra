@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
-import { DocxParser, SIGNED_WARNING, createBlankDocxBuffer } from '@attentionform/astra-engine';
+import { DocxParser, SIGNED_WARNING } from '@attentionform/astra-engine';
 import { EXIT_OK, run as runCli } from '../../packages/cli/src/cli';
 import { seededBlank } from '../helpers/seeded-blank';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { validateDocxBuffer } from '../src/ooxml/validator-gate';
 import type { Node } from '../src/ast';

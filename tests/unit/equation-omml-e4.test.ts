@@ -14,7 +14,6 @@ import { describe, it, expect } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
 import {
   DocxParser,
-  createBlankDocxBuffer,
   createMathElement,
   executeEquation,
   executeCallout,

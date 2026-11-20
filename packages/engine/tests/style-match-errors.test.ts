@@ -9,7 +9,7 @@
  * snapshots the discoverability annotations.
  */
 import { describe, it, expect } from 'vitest';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { OperationSchema } from '../src/operation-schema';
 import type { Node } from '../src/ast';

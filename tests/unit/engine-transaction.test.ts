@@ -7,11 +7,12 @@ import {
   ToonGenerator,
 } from '@attentionform/astra-engine';
 import { useReproducibleOutput } from '../helpers/reproducible';
+import { seededBlank } from '../helpers/seeded-blank';
 
 useReproducibleOutput();
 
 async function setup(template: string = 'blank') {
-  const parser = DocxParser.createNewDocument(template);
+  const parser = template === 'blank' ? new DocxParser(seededBlank()) : DocxParser.createNewDocument(template);
   const ast = await parser.getAST();
   const engine = new OperationEngine(ast, parser);
   return { parser, ast, engine };

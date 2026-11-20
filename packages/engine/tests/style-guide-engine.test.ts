@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { XMLSerializer } from '@xmldom/xmldom';
 import fs from 'fs';
 import path from 'path';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { DocumentManager } from '../src/document-manager';
 import { OperationEngine } from '../src/operation-engine';
 import { validateOperationsStrict } from '../src/operation-schema';

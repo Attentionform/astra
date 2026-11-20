@@ -231,13 +231,14 @@ Closes the active session and releases all in-memory resources.
 ---
 
 ### `new_document`
-Creates a fresh `.docx` file from an executive template and opens it into a session.
+Creates a fresh `.docx` file from a template and opens it into a session. `blank` is one empty paragraph; the other nine templates are designed starting documents.
 
 **Parameters:**
 | Parameter | Type | Required | Description |
 |---|---|:---:|---|
 | `outPath` | `string` | Yes | Destination file path inside an allowed directory. |
-| `template` | `string` | No | Template type: `"report"`, `"memo"`, or `"blank"` (default: `"blank"`). |
+| `template` | `string` | No | One of `blank` (default), `report`, `memo`, `letter`, `proposal`, `invoice`, `technical-spec`, `research-paper`, `novel`, `newsletter`. |
+| `pageSize` | `string` | No | `letter` (default) or `a4`. |
 | `force` | `boolean` | No | Overwrite existing file if it exists (default: `false`). |
 | `styleGuide` | `string` | No | Bundled guide name or guide `.md` path to attach. |
 | `author` | `string` | No | Default author for tracked changes and comments in this session that do not name one (falls back to the server's `ASTRA_AUTHOR`, then `ASTra`). An operation's own `author` wins. |
@@ -256,7 +257,7 @@ Compiles a Markdown string into OOXML structures and applies them cleanly to the
 | `sessionId` | `string` | Yes | Active session identifier. |
 | `markdown` | `string` | Yes | Markdown source text to compile and apply. |
 | `allowedDir` | `string` | No | Jail directory for resolving relative images and charts. |
-| `template` | `string` | No | Replace seed content for `"report"`, `"memo"`, or `"blank"`. First compose of a session only. |
+| `template` | `string` | No | A template name, to check that the placeholder body of that template is still untouched; the content then replaces it. |
 | `styleGuide` | `string` | No | Bundled guide name or guide `.md` path to skin composition. |
 | `dollarMath` | `boolean` | No | Treat `$...$` syntax as inline math (default: `false`). |
 | `anchor` | `string` | No | Where the blocks go: a node id, `"start"` or `"end"` (default: after the last node). |
@@ -266,7 +267,7 @@ Compiles a Markdown string into OOXML structures and applies them cleanly to the
 
 ---
 
-An unchanged built-in template created in the current session has its sample content replaced when composed. If the template was edited, loaded from an external template, or reopened in a later session, compose preserves its existing content and appends the new content.
+The placeholder body of a built-in template is replaced when composed, but only while it still matches what shipped with the template. If it was edited, or content was already composed into the document, compose keeps the existing content, appends the new content and returns a warning code.
 
 ### `import_document`
 Ingests an on-disk Markdown file into an open session under directory sandboxing.
@@ -277,7 +278,7 @@ Ingests an on-disk Markdown file into an open session under directory sandboxing
 | `sessionId` | `string` | Yes | Active session identifier. |
 | `path` | `string` | Yes | Path to on-disk Markdown file inside allowed directory. |
 | `allowedDir` | `string` | No | Jail directory for resolving relative images and charts. |
-| `template` | `string` | No | Verify template seed disposition (`"report"`, `"memo"`, `"blank"`). |
+| `template` | `string` | No | A template name, to check that the placeholder body of that template is still untouched. |
 | `styleGuide` | `string` | No | Style guide attach (bundled name or guide `.md` path). |
 | `dollarMath` | `boolean` | No | Treat `$...$` syntax as inline math (default: `false`). |
 

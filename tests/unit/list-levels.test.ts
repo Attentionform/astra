@@ -18,7 +18,6 @@ import {
   NumberingManipulator,
   assertValidDocx,
   convertDocxToPdf,
-  createBlankDocxBuffer,
   type DocumentAST,
 } from '@attentionform/astra-engine';
 import { withLoSlot } from '../helpers/lo-slot';

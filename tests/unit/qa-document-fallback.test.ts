@@ -186,7 +186,7 @@ describe('QA Verification Suite: Document Fallbacks & Engine Lifecycle', () => {
       await docManager.createNewDocument('blank', docPath);
 
       const summary = docManager.getParser().getStructuralSummary();
-      expect(summary.nodes.length).toBeGreaterThanOrEqual(2);
+      expect(summary.nodes.length).toBeGreaterThanOrEqual(1);
 
       // Delete all nodes one by one
       const parser = docManager.getParser();

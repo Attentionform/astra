@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { compileMarkdown, composeDocument } from '../src/compose/markdown';
 import { createWordElement } from '../src/ooxml/ns';

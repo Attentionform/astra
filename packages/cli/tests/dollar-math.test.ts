@@ -20,7 +20,7 @@ afterEach(() => {
 
 function mathCount(docx: string): number {
   const xml = new AdmZip(fs.readFileSync(docx)).readAsText('word/document.xml');
-  return (xml.match(/<m:oMath>/g) ?? []).length;
+  return (xml.match(/<m:oMath[ >]/g) ?? []).length;
 }
 
 describe('--dollar-math', () => {

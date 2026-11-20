@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { AdmZip, DocxParser, OperationEngine, createBlankDocxBuffer, resolveStyleGuide } from '@attentionform/astra-engine';
+import { AdmZip, DocxParser, OperationEngine, resolveStyleGuide } from '@attentionform/astra-engine';
 import { createMcpSessionStore } from '../../src/lib/session-store';
 import { LEAN6_HANDLERS } from '../../src/lib/mcp-tool-adapter';
 import { handleNewDocument } from '../../src/tools/new-document';

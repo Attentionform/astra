@@ -257,15 +257,15 @@
     },
     "new/blank": {
       "kind": "single",
-      "inputSha": "20e7f4a0bf1b1a45",
+      "inputSha": "aa9b4ef28f2c6956",
       "frozen": {
-        "flat": "20abf0b4ec1cba46",
-        "markdown": "cb3810d132a47695",
-        "html": "155eacc6419d1ac9",
-        "stats": "fc46275e119c1715",
-        "noop": "20e7f4a0bf1b1a45",
-        "toon": "b178fd845df0c3e3",
-        "wireframe": "c6a8b94dd4e7245b",
+        "flat": "271f96b175ffac1e",
+        "markdown": "e3b0c44298fc1c14",
+        "html": "edbf41fa6420eab7",
+        "stats": "b8820da85db3382d",
+        "noop": "aa9b4ef28f2c6956",
+        "toon": "ed981e61204bcaa4",
+        "wireframe": "386ffe83da52ac48",
         "firstSectionPageSetup": "78cce46ab6dfef81",
         "sectionId": "sec_root"
       },
@@ -275,9 +275,9 @@
           "sec_root"
         ],
         "nodesPerSection": [
-          2
+          1
         ],
-        "nodeCount": 2
+        "nodeCount": 1
       }
     },
     "python-docx/three-sections": {

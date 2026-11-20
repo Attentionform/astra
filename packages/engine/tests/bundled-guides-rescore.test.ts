@@ -27,7 +27,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { DocumentManager } from '../src/document-manager';
 import { OperationEngine } from '../src/operation-engine';
 import { composeDocument } from '../src/compose/markdown';

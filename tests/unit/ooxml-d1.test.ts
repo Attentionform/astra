@@ -15,7 +15,6 @@ import {
   allocateSafeHyperlinkRId,
   bootstrapCommentParts,
   cloneAST,
-  createBlankDocxBuffer,
   DocumentAST,
   DocxParser,
   executeList,

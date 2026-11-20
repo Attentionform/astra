@@ -23,7 +23,6 @@ import {
   ZipLike,
 } from '@attentionform/astra-engine';
 import { run as runCli, EXIT_OK, EXIT_FAIL } from '../../packages/cli/src/cli';
-import { seededBlank } from '../helpers/seeded-blank';
 
 /**
  * Binary helper to patch Central Directory headers in a zip archive without inflating.
@@ -78,13 +77,13 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
   // Test 1: Byte-identical output across distinct saves at different wall-clock times
   describe('Test 1: Byte-identical output across distinct saves at different wall-clock times', () => {
     it('produces identical SHA-256 hashes and byte-identical buffers across saves at different times', async () => {
-      const docx1 = seededBlank();
+      const docx1 = createBlankDocxBuffer('blank');
       const hash1 = sha256(docx1);
 
       // Advance wall-clock time
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const docx2 = seededBlank();
+      const docx2 = createBlankDocxBuffer('blank');
       const hash2 = sha256(docx2);
 
       expect(hash1).toBe(hash2);
@@ -101,7 +100,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     });
 
     it('produces identical SHA-256 hashes for distinct parsers with identical mutations', async () => {
-      const baseBuffer = seededBlank();
+      const baseBuffer = createBlankDocxBuffer('blank');
 
       const p1 = new DocxParser(baseBuffer);
       const summary1 = p1.getStructuralSummary();
@@ -126,7 +125,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
       try {
         for (const tz of timezones) {
           process.env.TZ = tz;
-          const buf = seededBlank();
+          const buf = createBlankDocxBuffer('blank');
           hashes.add(sha256(buf));
         }
         expect(hashes.size).toBe(1);
@@ -148,7 +147,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
       try {
         for (const tz of timezones) {
           process.env.TZ = tz;
-          const parser = new DocxParser(seededBlank());
+          const parser = DocxParser.createNewDocument('blank');
           const buf = parser.rezip();
           hashes.add(sha256(buf));
         }
@@ -171,7 +170,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
   // Test 2: Entry timestamps clamped to 1980-01-01 UTC (DOS earliest representable time)
   describe('Test 2: Entry timestamps clamped to 1980-01-01 UTC', () => {
     it('clamps all zip entries to 1980-01-01T00:00:00Z on rezip', () => {
-      const docx = seededBlank();
+      const docx = createBlankDocxBuffer('blank');
       const zip = new AdmZip(docx);
       const entries = zip.getEntries();
 
@@ -193,7 +192,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     it('clamps all zip entries in DocxParser.createNewDocument and createEmptyDocument', () => {
       const expectedDosTime = toDosTimeUtc(new Date(ZIP_FIXED_EPOCH_MS));
 
-      const parser = new DocxParser(seededBlank());
+      const parser = DocxParser.createNewDocument('blank');
       const buf = parser.rezip();
       const zip = new AdmZip(buf);
       for (const entry of zip.getEntries()) {
@@ -243,7 +242,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
 
     it('applies SOURCE_DATE_EPOCH through rezip()', () => {
       process.env.SOURCE_DATE_EPOCH = '1700000000';
-      const docx = seededBlank();
+      const docx = createBlankDocxBuffer('blank');
       const zip = new AdmZip(docx);
       const entries = zip.getEntries();
       const expectedEpoch = new Date(1700000000 * 1000);
@@ -309,7 +308,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     });
 
     it('DocxParser fails closed on crafted zip bomb declaring > 200 MiB without inflating', () => {
-      const validDocx = seededBlank();
+      const validDocx = createBlankDocxBuffer('blank');
 
       // Craft a zip whose Central Directory declares uncompressedSize > 200 MiB
       const crafted = patchCentralDirectory(validDocx, (entry) => {
@@ -365,7 +364,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     });
 
     it('DocxParser fails closed when an entry exhibits ratio > 100:1', () => {
-      const validDocx = seededBlank();
+      const validDocx = createBlankDocxBuffer('blank');
 
       // Patch styles.xml in CD to claim ratio > 100:1
       const crafted = patchCentralDirectory(validDocx, (entry) => {
@@ -402,7 +401,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     });
 
     it('DocxParser fails closed when overall wire-to-uncompressed ratio > 100:1', () => {
-      const validDocx = seededBlank();
+      const validDocx = createBlankDocxBuffer('blank');
 
       // Patch entries so individual ratios are ~99:1 (< 100:1 ceiling) while the overall ratio is
       // above it: ten entries of 69,000 bytes against a wire size of about 5KB is ~136:1. The wire size
@@ -420,7 +419,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
   // Test 7: Standard valid docx packages load and save cleanly without false positives
   describe('Test 7: Standard valid docx packages load and save cleanly without false positives', () => {
     it('loads and rezips standard blank document without false positives', () => {
-      const buf = seededBlank();
+      const buf = createBlankDocxBuffer('blank');
       const parser = new DocxParser(buf);
       const summary = parser.getStructuralSummary();
       expect(summary.nodes.length).toBeGreaterThan(0);
@@ -456,7 +455,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     });
 
     it('supports AST node mutation and saves cleanly', () => {
-      const buf = seededBlank();
+      const buf = createBlankDocxBuffer('blank');
       const parser = new DocxParser(buf);
       const summary = parser.getStructuralSummary();
       const node0 = summary.nodes[0];
@@ -492,7 +491,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     });
 
     it('DocxParser fails closed when an entry declares uncompressed size 0 with non-zero compressed payload', () => {
-      const validDocx = seededBlank();
+      const validDocx = createBlankDocxBuffer('blank');
       const crafted = patchCentralDirectory(validDocx, (entry) => {
         if (entry.name === 'word/document.xml') {
           return { uncompressedSize: 0, compressedSize: 1024 };
@@ -642,7 +641,7 @@ describe('R-8: tunable zip-bomb ceilings (env + flags) and single-prefix E_LIMIT
       '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>' +
       '<w:pgMar w:top="1440" w:right="1800" w:bottom="1440" w:left="1800" w:header="720" w:footer="720" w:gutter="0"/>' +
       '</w:sectPr></w:body></w:document>';
-    const zip = new AdmZip(seededBlank());
+    const zip = new AdmZip(createBlankDocxBuffer('blank'));
     zip.deleteFile('word/document.xml');
     zip.addFile('word/document.xml', Buffer.from(minDoc, 'utf8'));
     return zip.toBuffer();

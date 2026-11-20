@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { executeCoverPage } from '../src/operations/coverPage';
 import { seededBlank } from '../../../tests/helpers/seeded-blank';
 

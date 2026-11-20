@@ -8,7 +8,6 @@
 import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import {
-  createBlankDocxBuffer,
   DocxParser,
   executeClearFormat,
   executeNamedStyle,

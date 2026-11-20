@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { DocxParser, createBlankDocxBuffer, executeInsert } from '@attentionform/astra-engine';
+import { DocxParser, executeInsert } from '@attentionform/astra-engine';
 import {
   normalizePackage,
   previewNormalizations,

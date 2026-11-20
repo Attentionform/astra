@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, createBlankDocxBuffer, latexToOmml } from '@attentionform/astra-engine';
+import { DocxParser, latexToOmml } from '@attentionform/astra-engine';
 import { DOMParser } from '@xmldom/xmldom';
 import { seededBlank } from '../helpers/seeded-blank';
 

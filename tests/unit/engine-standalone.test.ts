@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import {
   DocxParser,
-  createBlankDocxBuffer,
   OperationEngine,
   lintAndFixTypography,
   extractStylePalette,
