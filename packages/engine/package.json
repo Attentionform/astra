@@ -37,6 +37,21 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./history": {
+      "types": "./dist/api/history.d.ts",
+      "import": "./dist/api/history.js",
+      "default": "./dist/api/history.js"
+    },
+    "./ooxml": {
+      "types": "./dist/api/ooxml.d.ts",
+      "import": "./dist/api/ooxml.js",
+      "default": "./dist/api/ooxml.js"
+    },
+    "./search": {
+      "types": "./dist/api/search.d.ts",
+      "import": "./dist/api/search.js",
+      "default": "./dist/api/search.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js",
