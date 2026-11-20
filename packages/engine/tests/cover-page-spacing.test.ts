@@ -4,9 +4,10 @@ import { OperationEngine } from '../src/operation-engine';
 import { executeCoverPage } from '../src/operations/coverPage';
 import { validateOperationStrict, validateOperationsStrict } from '../src/operation-schema';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
-async function createFreshDoc(title: string = 'Cover Spacing Test') {
-  const parser = new DocxParser(createBlankDocxBuffer(title));
+async function createFreshDoc(_title: string = 'Cover Spacing Test') {
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }

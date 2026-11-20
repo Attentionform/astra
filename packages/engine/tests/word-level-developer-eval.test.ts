@@ -19,11 +19,12 @@ import { Operation, validateOperationStrict } from '../src/operation-schema';
 import { ToonGenerator } from '../src/toon';
 import { PPR_CHILD_ORDER, RPR_CHILD_ORDER } from '../src/ooxml/schema-order';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 const ser = new XMLSerializer();
 
-async function freshDoc(title = 'Dev Eval Test') {
-  const parser = new DocxParser(createBlankDocxBuffer(title));
+async function freshDoc(_title = 'Dev Eval Test') {
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   const engine = new OperationEngine(ast, parser);
   return { parser, ast, engine };
