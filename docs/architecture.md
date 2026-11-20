@@ -45,7 +45,7 @@ flowchart TD
     subgraph Quality["Validation & Canonicalization"]
         Canonicalizer["Namespace & Schema Canonicalizer<br/>(ECMA-376 Part 1 Element Ordering)"]
         Gate1["Layer 1: Structural Integrity Gate<br/>(Math, Citations, Relationships)"]
-        Gate2["Layer 2: Pre-Write Schema Gate<br/>(@attentionform/ooxml-validator)"]
+        Gate2["Layer 2: Schema Gate on MCP, CLI and DocumentManager writes<br/>(@attentionform/ooxml-validator)"]
     end
 
     subgraph Output["Output & Export Layer"]
@@ -181,7 +181,7 @@ A file may choose other prefixes (`x:`, a default namespace). At open, `ooxml/pr
 
 ## 6. Dual-Gate Validation Architecture
 
-To protect document integrity, ASTra runs every change through two independent validation layers:
+To protect document integrity, the MCP server, the CLI and `DocumentManager` run every write through two independent validation layers. The library's `parser.rezip()` does not run Layer 2: a library caller validates explicitly with `validateDocxBuffer()` before writing.
 
 ```text
 Mutation Candidate
@@ -199,7 +199,7 @@ Commit to Disk (.docx)
    - Prevents silent deletion of tracked revisions (`w:ins` / `w:del`).
 2. **Layer 2: ECMA-376 Schema Gate**
    - Invokes `@attentionform/ooxml-validator` across all modified XML parts via high-performance streaming worker IPC (with in-memory buffer validation and zero temp files on the buffer path).
-   - If any violation is detected, the engine aborts the commit and emits a structured error with a specific remediation path.
+   - If a violation is detected, the write is refused and a structured error carries a remediation path. By default the MCP server and the CLI still save a file that already had validator errors when the edit adds none (strict mode refuses every reported error); `DocumentManager` refuses any reported error.
 
 ---
 
