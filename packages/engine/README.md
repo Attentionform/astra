@@ -138,20 +138,20 @@ not a promise that it is safe to use: if a name you need is only in `/internal`,
 `getVisualBackendStatus()` reports what is installed: `renderers.word` (found, executable, version), `renderers.libreoffice` (found, path),
 `rasterizers.poppler` and `rasterizers.windows`, the order a default call would try (`plan`), and what is missing. Its `available` field means that a
 renderer **and** a page-image program were found. A machine with LibreOffice but without Poppler reports `available: false`, although a PDF can be made.
-Use `hasPdfBackend()` for that question. [`examples/10-render.mjs`](./examples/10-render.mjs) shows both.
+Use `hasPdfBackend()` for that question. The [render example](./examples/10-render.mjs) shows both.
 
 ### Handling errors
 
 Handle a failure by its code: `getEngineErrorCode(err)` returns one of `ENGINE_ERROR_CODES`, and `getEngineRemedy(err)` returns the text that tells the
 caller what to do next. The classes (`EngineQuotaError`, `EngineValidationError`, `OoxmlValidationError`, `PreflightError`, `RenderError`,
 `WordRenderError`, `WindowsPdfError`, `DependencyError`) are exported for `instanceof` checks, but the code is the contract.
-[`examples/08-validate.mjs`](./examples/08-validate.mjs) shows it.
+The [validation example](./examples/08-validate.mjs) shows it.
 
 ### Reading an older version
 
 Open a document with `DocumentManager` to get undo, redo, the version list and original recovery. To preview what a revert would change, or to read an
 older state as a document, use `getHistory`, `checkoutCommit` and `trackedPredicateFor` from `/history`.
-[`examples/09-history-older-version.mjs`](./examples/09-history-older-version.mjs) previews additions, removals and changes of every recorded part,
+The [history example](./examples/09-history-older-version.mjs) previews additions, removals and changes of every recorded part,
 including an image that a later state added, and reads the older document back and validates it.
 
 ### Reading inside a .docx
