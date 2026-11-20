@@ -224,7 +224,7 @@ describe('Engine transactional guarantees', () => {
       operations: [
         {
           action: 'pageSetup',
-          params: { paperSize: 'A4', orientation: 'landscape', marginTop: 720, columns: 2 }
+          params: { paperSize: 'A4', orientation: 'landscape', margins: { top: 720 }, columns: 2 }
         }
       ]
     });
@@ -232,7 +232,7 @@ describe('Engine transactional guarantees', () => {
 
     const xml = documentXmlOf(parser);
     // A4 landscape: width 16838 x height 11906 (swapped)
-    expect(xml).toContain('<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>');
+    expect(xml).toContain('<w:pgSz w:w="16838" w:h="11906" w:orient="landscape" w:code="9"/>');
     expect(xml).toContain('w:top="720"');
     expect(xml).toContain('<w:cols w:num="2"/>');
 

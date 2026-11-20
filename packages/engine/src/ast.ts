@@ -99,7 +99,10 @@ export interface PageSetupProperties {
   headerDistance?: number;
   footerDistance?: number;
   orientation?: 'portrait' | 'landscape';
-  paperSize?: 'A4' | 'Letter' | 'Legal' | 'A3';
+  /** The named paper that the page size matches (see `PAPER_NAMES`), or `Custom` when it matches none. */
+  paperSize?: string;
+  /** The extra space on the binding edge, in twips. */
+  gutter?: number;
   /** Number of text columns; present only when the section has more than one. */
   columns?: number;
   /** The page size exactly as the section's `w:pgSz` gives it (already turned to the orientation in use). */

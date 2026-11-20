@@ -510,8 +510,7 @@ describe('Sprint 1 Resilient Operations Unit Tests', () => {
 
       executePageSetup({
         action: 'pageSetup',
-        headerDistance: 720,
-        footerDistance: 720
+        margins: { header: 720, footer: 720 }
       }, ast, parser);
 
       const sectPr = parser.getSectPrElements()[0];
@@ -524,24 +523,6 @@ describe('Sprint 1 Resilient Operations Unit Tests', () => {
       expect(ast.sections[0].pageSetup?.footerDistance).toBe(720);
     });
 
-    it('sets header and footer aliases on <w:pgMar> via flat properties', async () => {
-      const buffer = createMockDocxWithTable('t_1');
-      const parser = new DocxParser(buffer);
-      const ast = await parser.getAST();
-
-      executePageSetup({
-        action: 'pageSetup',
-        header: 720,
-        footer: 720
-      } as any, ast, parser);
-
-      const sectPr = parser.getSectPrElements()[0];
-      const pgMar = sectPr.getElementsByTagName('w:pgMar')[0];
-      expect(pgMar).toBeDefined();
-      expect(pgMar.getAttribute('w:header')).toBe('720');
-      expect(pgMar.getAttribute('w:footer')).toBe('720');
-    });
-
     it('sets headerDistance: 720 and footerDistance: 720 through nested params object', async () => {
       const buffer = createMockDocxWithTable('t_1');
       const parser = new DocxParser(buffer);
@@ -550,10 +531,7 @@ describe('Sprint 1 Resilient Operations Unit Tests', () => {
       executePageSetup({
         action: 'pageSetup',
         params: {
-          headerDistance: 720,
-          footerDistance: 720,
-          marginTop: 1080,
-          marginBottom: 1080
+          margins: { header: 720, footer: 720, top: 1080, bottom: 1080 }
         }
       }, ast, parser);
 
@@ -575,10 +553,7 @@ describe('Sprint 1 Resilient Operations Unit Tests', () => {
         operations: [
           {
             action: 'pageSetup',
-            headerDistance: 720,
-            footerDistance: 720,
-            marginTop: 720,
-            marginBottom: 720
+            margins: { header: 720, footer: 720, top: 720, bottom: 720 }
           } as PageSetupOperation
         ]
       });
@@ -609,8 +584,7 @@ describe('Sprint 1 Resilient Operations Unit Tests', () => {
           {
             action: 'execute_operation',
             type: 'pageSetup',
-            headerDistance: 720,
-            footerDistance: 720
+            margins: { header: 720, footer: 720 }
           } as any
         ]
       });
@@ -634,8 +608,7 @@ describe('Sprint 1 Resilient Operations Unit Tests', () => {
         operations: [
           {
             action: 'pageSetup',
-            headerDistance: 720,
-            footerDistance: 720,
+            margins: { header: 720, footer: 720 },
             paperSize: 'A4',
             orientation: 'portrait',
             columns: 2

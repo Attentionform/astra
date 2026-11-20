@@ -77,6 +77,14 @@ const ACTION_WORDS: Record<string, string> = {
 
 /** Words people write for a key, mapped to the key, for the keys that are easy to misname. */
 export const KEY_WORDS: Record<string, string> = {
+  margintop: 'margins',
+  marginbottom: 'margins',
+  marginleft: 'margins',
+  marginright: 'margins',
+  headerdistance: 'margins',
+  footerdistance: 'margins',
+  margin: 'margins',
+  pagesize: 'paperSize',
   spaceafter: 'spacingAfter',
   spacebefore: 'spacingBefore',
   spacingafterpt: 'spacingAfter',
@@ -255,7 +263,7 @@ function hintFor(operations: unknown, issue: OperationIssue): string | undefined
   }
 
   // A key that the action does not accept.
-  if (issue.code === 'unrecognized_keys' && issue.path.length === 2 && issue.keys && issue.keys.length > 0) {
+  if (issue.code === 'unrecognized_keys' && (issue.path.length === 2 || (issue.path.length === 3 && issue.path[2] === 'params')) && issue.keys && issue.keys.length > 0) {
     const action = typeof op['action'] === 'string' ? (op['action'] as string) : undefined;
     const shape = shapes.find((s) => s.action === action);
     if (!shape) return undefined;

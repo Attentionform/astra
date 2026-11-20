@@ -49,7 +49,7 @@ export function batchSchemaPayload(): Record<string, unknown> {
     endnote_insert: { action: 'endnote', anchor: '<nodeId>', text: 'Note text' },
     headerFooter_set: { action: 'headerFooter', operation: 'set', targetType: 'footer', text: 'Confidential', alignment: 'center' },
     metadata_setProperties: { action: 'metadata', operation: 'setProperties', title: 'Quarterly report', creator: 'A. Writer' },
-    pageSetup: { action: 'pageSetup', orientation: 'landscape', paperSize: 'A4' },
+    pageSetup: { action: 'pageSetup', orientation: 'landscape', paperSize: 'A4', margins: '20mm' },
     section_setColumns: { action: 'section', operation: 'setColumns', columns: 2, spacing: 720 },
     hyperlink_insert: { action: 'hyperlink', operation: 'insert', target: '<nodeId>', text: 'Project page', url: 'https://example.com' },
     bookmark_insert: { action: 'bookmark', operation: 'insert', target: '<nodeId>', name: 'intro' },
