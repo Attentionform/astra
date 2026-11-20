@@ -1,46 +1,16 @@
 import type { DocxParser } from '../parser';
-import { BLANK_SEED_HINT, BLANK_SEED_TITLE } from './constants';
 
 // The pristine-seed check lives in its own module so the cover page operation can use it without
 // importing the whole compose pipeline (which imports the operation engine, which imports it).
 
 /**
- * Pristine blank-template heuristic. Returns the two seed node ids when the
- * open document is still exactly the fresh blank template, otherwise null.
- *
- * The check is deliberately narrow so a real user document can never match:
- * exactly two body nodes, both plain paragraphs, with the exact seed texts
- * (`Blank Document`, `Start typing your content here...`), the seed
- * paragraph styles still `Title`/`Subtitle`, no tracked changes anywhere,
- * and no headers, footers, charts, media parts, footnotes, endnotes, or
- * comments. Any edit (extra node, changed text, restyled seed, tracked
- * change, header/footer, image, note, comment) disables replacement and the
- * compose stays append-only. Report and memo seeds never match (different
- * texts and node counts), so they always keep append-only behavior.
- *
- * Notes guard: a two-node document that carries footnote, endnote, or
- * comment data still matches on text alone, so the guard explicitly requires
- * zero notes. Both the package parts (`word/footnotes.xml`,
- * `word/endnotes.xml`, `word/comments.xml`, `word/commentsExtended.xml`)
- * and in-node reference markup (`w:footnoteReference`,
- * `w:endnoteReference`, `w:commentReference`, `w:commentRangeStart`,
- * `w:commentRangeEnd`) must be absent; either presence keeps append-only so
- * seed deletion can never orphan note parts or leave dangling references.
- *
- * Styles note: the seeds must still carry their template paragraph styles
- * (`Title` on the first, `Subtitle` on the second), checked cheaply from the
- * seed `rawXml`. Extra entries left in `word/styles.xml` by other edits are
- * inert (no seed references them) and do not block replacement; only a
- * restyled seed blocks.
- */
-/**
  * Pristine template placeholder heuristic. Returns the seed node id(s) when the
  * open document is still a fresh pristine template seed, otherwise null.
  *
  * Recognizes:
- * 1. Single empty paragraph placeholder: `<w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr></w:p>`.
+ * 1. The blank template: one empty paragraph (`<w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr></w:p>`). It is also
+ *    recognised after the file was saved and opened again, because a lone empty paragraph holds nothing to lose.
  * 2. Two-node templates:
- *    - blank (`Blank Document` + `Start typing your content here...`)
  *    - memo (`MEMORANDUM`)
  *    - letter (`Letter`)
  *    - proposal (`Proposal`)
@@ -62,7 +32,9 @@ import { BLANK_SEED_HINT, BLANK_SEED_TITLE } from './constants';
  * no charts, no footnotes, no endnotes, no comments.
  */
 export function pristineTemplateSeedIds(parser: DocxParser, requestedTemplate?: string): string[] | null {
-  if (!parser.hasPristineBuiltinSeed()) return null;
+  // A package built in this session is recognised by its byte snapshot. A file that was saved and opened again has
+  // no snapshot, so only the one case with nothing to lose is accepted without it: a lone empty paragraph.
+  const snapshotPristine = parser.hasPristineBuiltinSeed();
   let summary: {
     hasTrackedChanges?: boolean;
     headers?: unknown[];
@@ -84,6 +56,7 @@ export function pristineTemplateSeedIds(parser: DocxParser, requestedTemplate?: 
   }
   const nodes = summary.nodes ?? [];
   if (![1, 2, 4, 5, 6].includes(nodes.length)) return null;
+  if (!snapshotPristine && nodes.length !== 1) return null;
   if (summary.hasTrackedChanges === true) return null;
   if (Object.keys(summary.mediaFiles ?? {}).length > 0) return null;
   if ((summary.headers ?? []).length > 0) return null;
@@ -137,20 +110,16 @@ export function pristineTemplateSeedIds(parser: DocxParser, requestedTemplate?: 
     const node = nodes[0];
     if (node.type !== 'paragraph') return null;
     if ((node.text ?? '').trim() !== '') return null;
+    // Without the snapshot the paragraph must be exactly the empty blank seed: no section break, bookmark,
+    // field, drawing or run inside it, and no paragraph properties beyond the Normal style.
+    if (!snapshotPristine && !/^<w:p(\s[^>]*)?>\s*(<w:pPr>\s*(<w:pStyle w:val="Normal"\s*\/>)?\s*<\/w:pPr>)?\s*<\/w:p>$|^<w:p(\s[^>]*)?\/>$/.test((node.rawXml ?? '').replace(/\sxmlns(:\w+)?="[^"]*"/g, '').trim())) return null;
     return ids;
   }
 
-  // Case 2: 2-node templates (blank, memo, letter, proposal, invoice)
+  // Case 2: 2-node templates (memo, letter, proposal, invoice)
   if (nodes.length === 2) {
-    const [first, second] = nodes;
+    const first = nodes[0];
     const t0 = (first.text ?? '').trim();
-    const t1 = (second.text ?? '').trim();
-    if (t0 === BLANK_SEED_TITLE && t1 === BLANK_SEED_HINT) {
-      const firstRaw = first.rawXml ?? '';
-      const secondRaw = second.rawXml ?? '';
-      if (!firstRaw.includes('w:val="Title"') || !secondRaw.includes('w:val="Subtitle"')) return null;
-      return ids;
-    }
     const tmpl = requestedTemplate?.toLowerCase();
     if (t0 === 'MEMORANDUM' && tmpl === 'memo') return ids;
     if (t0 === 'Letter' && tmpl === 'letter') return ids;

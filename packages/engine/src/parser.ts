@@ -19,7 +19,7 @@ import { RelationshipsManipulator } from './manipulators/relationships';
 import { CorePropertiesManipulator, parseCorePropertiesXml, registerExistingCorePropertiesPart } from './manipulators/core-properties';
 import { StylePalette, extractStylePalette } from './ooxml/styles';
 import { clampZipEntryTimes, checkZipBombCeilings, resolveDeterministicZipDate, clampCorePropertiesDates, resolveReproducibleMode } from './zip-hardening';
-import { deterministicRevisionIso, resolveDefaultAuthor } from './ooxml/track-changes-emitter';
+import { AUTHOR_ENV, deterministicRevisionIso, resolveDefaultAuthor } from './ooxml/track-changes-emitter';
 import { newDocumentParts, newDocumentTitle, NEW_DOCUMENT_CONTENT_TYPE_OVERRIDES, NEW_DOCUMENT_ROOT_RELS, NEW_DOCUMENT_DOCUMENT_RELS } from './ooxml/new-document-parts';
 import { assertNoXxe, assertNoXxeAdjacent } from './ooxml/xxe-guard';
 import { decodeXmlPart } from './ooxml/part-text';
@@ -148,14 +148,7 @@ export function createEmptyDocument(templateType: string = 'blank'): DocxParser 
 }
 
 export function createBlankDocxBuffer(templateType: string = 'blank'): Buffer {
-  const p = DocxParser.createNewDocument(templateType);
-  if (templateType === 'blank') {
-    const summary = p.getStructuralSummary();
-    if (summary.nodes[0]) {
-      p.updateNode(summary.nodes[0].id, '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>New Document</w:t></w:r></w:p>');
-    }
-  }
-  return p.rezip();
+  return DocxParser.createNewDocument(templateType).rezip();
 }
 
 /** Marker prop naming which fail-closed save guard refused (for ok:false mapping). */
@@ -4604,17 +4597,10 @@ switch (templateType.toLowerCase()) {
 
       case 'blank':
       default:
-        // FINDING-02: root legacy docs (demo.docx etc) carry non-hex paraId /
-        // missing tblGrid and are flagged by the validator; they are legacy
-        // binaries (DO NOT EDIT). Gallery T1-T9 are the canonical valid set.
+        // A blank document is one empty paragraph: no visible text, nothing to delete before typing.
         bodyContentXml = `
     <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Blank Document</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>Start typing your content here...</w:t></w:r>
+      <w:pPr><w:pStyle w:val="Normal"/></w:pPr>
     </w:p>`;
         break;
     }
@@ -4646,7 +4632,8 @@ switch (templateType.toLowerCase()) {
     const pinned = resolveReproducibleMode(undefined);
     const parts = newDocumentParts({
       title: newDocumentTitle(templateType),
-      author: resolveDefaultAuthor(),
+      // A new file carries no author unless the caller set ASTRA_AUTHOR: the starter is not signed by ASTra.
+      author: process.env[AUTHOR_ENV]?.trim() ? resolveDefaultAuthor() : '',
       at: pinned ? resolveDeterministicZipDate() : new Date(),
     });
     for (const [partName, xml] of Object.entries(parts)) zip.addFile(partName, Buffer.from(xml, 'utf8'));

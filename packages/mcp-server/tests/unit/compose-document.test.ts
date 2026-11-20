@@ -176,7 +176,7 @@ describe('compose_document handler', () => {
     expect(seeded.ok).toBe(true);
     const res = await handleComposeDocument(store, { sessionId, markdown: '# Appended\n\nNew body.\n' });
     expect(res.ok).toBe(true);
-    for (const query of ['Blank Document', 'User note stays', 'Appended']) {
+    for (const query of ['User note stays', 'Appended']) {
       const found = await LEAN6_HANDLERS.search_content(store, { sessionId, query });
       expect(found.ok).toBe(true);
       if (!found.ok) throw new Error(`search failed for ${query}`);

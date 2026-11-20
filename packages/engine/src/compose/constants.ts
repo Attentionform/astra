@@ -60,11 +60,9 @@ export const ALERT_TYPE_TO_THEME: Record<string, string> = {
 };
 export const ALERT_MARKER_PATTERN = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](.*)$/i;
 export const ALERT_TITLE_PATTERN = /^\*\*(.+)\*\*$/;
-/** Exact seed texts of the blank template placeholder paragraphs. */
-export const BLANK_SEED_TITLE = 'Blank Document';
-export const BLANK_SEED_HINT = 'Start typing your content here...';
+/** Seed text per template for the legacy text check. The blank template has no text: it is one empty paragraph. */
 export const TEMPLATE_SEEDS: Record<string, string> = {
-  blank: 'Blank Document',
+  blank: '',
   report: 'Q3 Executive',
   memo: 'MEMORANDUM',
 };

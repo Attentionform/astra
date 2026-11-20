@@ -26,9 +26,9 @@ function newFile(template: string): string {
 }
 
 describe('coverPage on a document opened from a template file keeps its content', () => {
-  it('a document opened from a file is not treated as a fresh template', async () => {
+  it('a report opened from a file is not treated as a fresh template', async () => {
     const store = createMcpSessionStore();
-    const opened = await LEAN6_HANDLERS.open_document(store, { path: newFile('blank') });
+    const opened = await LEAN6_HANDLERS.open_document(store, { path: newFile('report') });
     if (!opened.ok) throw new Error(JSON.stringify(opened));
     const out = await LEAN6_HANDLERS.execute_batch(store, {
       sessionId: opened.sessionId,
@@ -38,7 +38,20 @@ describe('coverPage on a document opened from a template file keeps its content'
     if (!out.ok) return;
     expect(out.results[0].removedSeedNodes).toBeUndefined();
     const inspect = await LEAN6_HANDLERS.inspect_document(store, { sessionId: opened.sessionId } as never);
-    expect(JSON.stringify(inspect)).toContain('Blank Document');
+    expect(JSON.stringify(inspect)).toContain('Q3 Executive');
+  });
+
+  it('a blank file that is still one empty paragraph has nothing to keep: the cover replaces it', async () => {
+    const store = createMcpSessionStore();
+    const opened = await LEAN6_HANDLERS.open_document(store, { path: newFile('blank') });
+    if (!opened.ok) throw new Error(JSON.stringify(opened));
+    const out = await LEAN6_HANDLERS.execute_batch(store, {
+      sessionId: opened.sessionId,
+      operations: [{ action: 'coverPage', title: 'Annual Report' }],
+    } as never);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.results[0].removedSeedNodes).toHaveLength(1);
   });
 });
 

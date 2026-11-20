@@ -344,6 +344,7 @@ describe('compose placement', () => {
 
   it('keeps append-only behavior once the blank template is no longer pristine', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const before = await parser.getAST();
     const seeder = new OperationEngine(before, parser);
     const seeded = await seeder.executeBatch({
@@ -358,7 +359,8 @@ describe('compose placement', () => {
     expect(result.success).toBe(true);
 
     const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     expect(texts).toContain('User note stays');
     expect(texts).toContain('Composed title');
     expect(texts).toContain('Composed body');
@@ -369,6 +371,7 @@ describe('compose placement', () => {
 
   it('keeps append-only behavior when a seed carries a footnote', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const ast = await parser.getAST();
     const seeder = new OperationEngine(ast, parser);
     const seedId = parser.getStructuralSummary().nodes[0].id;
@@ -381,7 +384,8 @@ describe('compose placement', () => {
     const result = await composeDocument(parser, '# Composed title\n\nComposed body\n');
     expect(result.success).toBe(true);
     const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     expect(texts).toContain('Composed title');
     const zip = new AdmZip(parser.rezip());
     expect(zip.getEntry('word/footnotes.xml')).not.toBeNull();
@@ -389,6 +393,7 @@ describe('compose placement', () => {
 
   it('keeps append-only behavior when a seed carries an endnote', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const ast = await parser.getAST();
     const seeder = new OperationEngine(ast, parser);
     const seedId = parser.getStructuralSummary().nodes[0].id;
@@ -401,13 +406,15 @@ describe('compose placement', () => {
     const result = await composeDocument(parser, '# Composed title\n\nComposed body\n');
     expect(result.success).toBe(true);
     const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     const zip = new AdmZip(parser.rezip());
     expect(zip.getEntry('word/endnotes.xml')).not.toBeNull();
   });
 
   it('keeps append-only behavior when a seed carries a comment', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const ast = await parser.getAST();
     const seeder = new OperationEngine(ast, parser);
     const seedId = parser.getStructuralSummary().nodes[0].id;
@@ -420,13 +427,15 @@ describe('compose placement', () => {
     const result = await composeDocument(parser, '# Composed title\n\nComposed body\n');
     expect(result.success).toBe(true);
     const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     const zip = new AdmZip(parser.rezip());
     expect(zip.getEntry('word/comments.xml')).not.toBeNull();
   });
 
   it('keeps append-only behavior when a seed paragraph style changes', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const ast = await parser.getAST();
     const seeder = new OperationEngine(ast, parser);
     const seedId = parser.getStructuralSummary().nodes[0].id;
@@ -439,7 +448,8 @@ describe('compose placement', () => {
     const result = await composeDocument(parser, '# Composed title\n\nComposed body\n');
     expect(result.success).toBe(true);
     const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     expect(texts).toContain('Composed title');
   });
 

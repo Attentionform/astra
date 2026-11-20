@@ -149,7 +149,7 @@
  * Template option: `composeDocument` accepts a template name
  * (`report`, `memo`, `blank`). When given, the open document must still hold
  * that template seed text (`Q3 Executive` for report, `MEMORANDUM` for memo,
- * `Blank Document` for blank); otherwise composition fails before any write.
+ * an empty paragraph for blank); otherwise composition fails before any write.
  * The check only gates the write: on a pristine blank template the seeds are
  * still replaced as described above, so a `{ template: 'blank' }` compose
  * proves the seed was present without leaving placeholder text behind.
@@ -283,6 +283,17 @@ function assertTemplateSeed(parser: DocxParser, template: string): void {
     }
   } catch {
     // ignore
+  }
+
+  // 1b. A blank document is one empty paragraph and an empty title.
+  if (!matched && template === 'blank') {
+    try {
+      const summary = parser.getStructuralSummary() as { nodes?: Array<{ text?: string }> };
+      const nodes = summary.nodes ?? [];
+      if (nodes.length === 1 && (nodes[0].text ?? '').trim() === '') matched = true;
+    } catch {
+      // ignore
+    }
   }
 
   // 2. Check legacy marker in node texts
@@ -752,7 +763,7 @@ export async function composeDocument(
     throw new Error(`E_VALIDATION: line 1: inline formatting failed (${detail}). Remedy: simplify bold, italic, code, or link spans and retry.`);
   }
   // A composed document has real content now, so a title that is still a template placeholder
-  // ("Blank Document") is replaced with the first Title or Heading 1. Never touches a real title.
+  // (empty, or the name of a template) is replaced with the first Title or Heading 1. Never touches a real title.
   try {
     const identity = applyDocumentIdentity(ast, parser);
     if (identity.titleSetFrom) aggregate.titleSetFrom = identity.titleSetFrom;

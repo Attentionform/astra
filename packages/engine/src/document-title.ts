@@ -3,7 +3,7 @@ import type { DocxParser } from './parser';
 import { CorePropertiesManipulator } from './manipulators/core-properties';
 import { newDocumentTitle } from './ooxml/new-document-parts';
 
-/** The names of the built-in templates; each one writes its own name into dc:title of a new document. */
+/** The names of the built-in templates; each one except blank writes its own name into dc:title of a new document. */
 const TEMPLATE_NAMES = [
   'blank', 'memo', 'report', 'letter', 'proposal', 'invoice', 'research', 'corporate', 'financial',
   'novel', 'academic', 'newsletter', 'api-spec', 'bar-chart-3d',
@@ -14,7 +14,7 @@ const PLACEHOLDER_TITLES: ReadonlySet<string> = new Set(TEMPLATE_NAMES.map((name
 /** The longest title written from the content (the Word Info panel shows one line). */
 export const DERIVED_TITLE_MAX = 200;
 
-/** The creator a new document carries when nobody configured an author. */
+/** The tool name: the application a file was made by, and the creator older files may carry. A new file carries no creator. */
 const DEFAULT_CREATOR = 'ASTra';
 
 /** True when docProps/app.xml names ASTra as the application: the file was created by ASTra, not imported from elsewhere. */
@@ -25,7 +25,7 @@ function createdByAstra(parser: DocxParser | undefined): boolean {
   return name !== undefined && name.trim().toLowerCase() === DEFAULT_CREATOR.toLowerCase();
 }
 
-/** True for an empty title and for the name of a built-in template ("Blank Document", "Report", "Memo"). */
+/** True for an empty title and for the name of a built-in template ("Report", "Memo"). */
 export function isPlaceholderTitle(title: unknown): boolean {
   if (typeof title !== 'string') return true;
   const clean = title.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -45,8 +45,7 @@ export interface DerivedTitle {
 
 /**
  * The title the content proposes: the cover page title, else the first paragraph in the Title style,
- * else the first Heading 1. Text that is itself a template placeholder (the "Blank Document" seed
- * paragraph) is no candidate.
+ * else the first Heading 1. Text that is itself a template placeholder is no candidate.
  */
 export function deriveTitleFromContent(ast: DocumentAST): DerivedTitle | null {
   const nodes = ast.sections.flatMap((section) => section.nodes);
@@ -111,7 +110,10 @@ export function applyDocumentIdentity(ast: DocumentAST, parser: DocxParser | und
   }
 
   const author = typeof ast.settings?.defaultAuthor === 'string' ? ast.settings.defaultAuthor.trim() : '';
-  if (author !== '' && author !== DEFAULT_CREATOR && ast.metadata?.creator === DEFAULT_CREATOR) {
+  const creator = typeof ast.metadata?.creator === 'string' ? ast.metadata.creator.trim() : '';
+  // A file ASTra made carries no creator (or the tool name): a configured author fills it. A creator somebody set is kept.
+  const creatorIsToolDefault = creator === DEFAULT_CREATOR || (creator === '' && createdByAstra(parser));
+  if (author !== '' && author !== DEFAULT_CREATOR && creatorIsToolDefault) {
     patch.creator = author;
     patch.lastModifiedBy = author;
     result.creatorSet = author;

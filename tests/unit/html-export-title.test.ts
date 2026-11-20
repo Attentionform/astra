@@ -26,7 +26,7 @@ describe('htmlDocumentTitle', () => {
   });
 
   it('treats the name of a template as no title', () => {
-    for (const placeholder of ['Blank Document', 'Report', 'Memo', 'Api Spec']) {
+    for (const placeholder of ['Report', 'Memo', 'Api Spec']) {
       expect(htmlDocumentTitle(astWith(placeholder), 'q3')).toBe('q3');
     }
     expect(htmlDocumentTitle(astWith('Report on cloud costs'), 'q3')).toBe('Report on cloud costs');

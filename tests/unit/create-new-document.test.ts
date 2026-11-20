@@ -31,10 +31,10 @@ describe('New Empty Document & Template Creation Suite', () => {
       const summary = parser.getStructuralSummary();
 
       expect(summary).toBeDefined();
-      expect(summary.nodes.length).toBeGreaterThanOrEqual(2);
-      expect(summary.nodes[0].text).toContain('Blank Document');
-      expect(summary.nodes[1].text).toContain('Start typing your content here');
-      
+      // A blank document is one empty paragraph: nothing visible, nothing to delete.
+      expect(summary.nodes).toHaveLength(1);
+      expect(summary.nodes[0].text).toBe('');
+
       const validation = parser.validateZipIntegrity();
       expect(validation.isValid).toBe(true);
       expect(validation.errors).toHaveLength(0);
@@ -44,7 +44,8 @@ describe('New Empty Document & Template Creation Suite', () => {
       const parser = DocxParser.createNewDocument('unknown-template-xyz');
       const summary = parser.getStructuralSummary();
 
-      expect(summary.nodes[0].text).toContain('Blank Document');
+      expect(summary.nodes).toHaveLength(1);
+      expect(summary.nodes[0].text).toBe('');
     });
 
     it('should produce a zip package with all required OOXML structures', async () => {
@@ -76,7 +77,9 @@ describe('New Empty Document & Template Creation Suite', () => {
 
       const parser = new DocxParser(blankBuf);
       const summary = parser.getStructuralSummary();
-      expect(summary.nodes[0].text).toContain('New Document');
+      // createBlankDocxBuffer and createNewDocument give the same blank document.
+      expect(summary.nodes).toHaveLength(1);
+      expect(summary.nodes[0].text).toBe('');
     });
 
     it('should generate template parsers for novel, financial, and api-spec', async () => {
@@ -105,24 +108,24 @@ describe('New Empty Document & Template Creation Suite', () => {
       expect(ast).toBeDefined();
       expect(ast.sections).toHaveLength(1);
       expect(ast.sections[0].id).toBe('sec_root');
-      expect(ast.sections[0].nodes.length).toBeGreaterThanOrEqual(2);
+      expect(ast.sections[0].nodes.length).toBeGreaterThanOrEqual(1);
     });
 
     it('should assign stable node IDs and data-astra-id attributes to document nodes', async () => {
       const parser = DocxParser.createNewDocument('blank');
       const summary = parser.getStructuralSummary();
 
+      const report = DocxParser.createNewDocument('report').getStructuralSummary();
       expect(summary.nodes[0].id).toBeDefined();
-      expect(summary.nodes[1].id).toBeDefined();
+      expect(report.nodes[1].id).toBeDefined();
       // A-4: ids are stable minted w14:paraIds (valid ST_LongHexNumber), not positional p_NNN
-      for (const n of [summary.nodes[0], summary.nodes[1]]) {
+      for (const n of [summary.nodes[0], report.nodes[0], report.nodes[1]]) {
         expect(/^[0-9A-Fa-f]{8}$/.test(n.id)).toBe(true);
       }
-      expect(summary.nodes[0].id).not.toBe(summary.nodes[1].id);
+      expect(report.nodes[0].id).not.toBe(report.nodes[1].id);
 
       const nodeXml = parser.readNode(summary.nodes[0].id);
       expect(nodeXml).toContain(`data-astra-id="${summary.nodes[0].id}"`);
-      expect(nodeXml).toContain('Blank Document');
     });
 
     it('should correctly build AST node metadata and checksums', async () => {
@@ -135,11 +138,12 @@ describe('New Empty Document & Template Creation Suite', () => {
       expect(firstNode.version).toBe(1);
       expect(firstNode.checksum).toBeDefined();
       expect(firstNode.checksum.length).toBeGreaterThan(0);
-      expect(firstNode.metadata.text).toContain('Blank Document');
+      expect(firstNode.metadata.text ?? '').toBe('');
     });
 
     it('should correctly classify heading nodes vs regular body text nodes', async () => {
-      const parser = DocxParser.createNewDocument('blank');
+      // The report template starts with a Title paragraph; the blank template has no heading at all.
+      const parser = DocxParser.createNewDocument('report');
       const engine = new OperationEngine(await parser.getAST(), parser);
       await engine.executeBatch({
         operations: [
@@ -248,7 +252,7 @@ describe('New Empty Document & Template Creation Suite', () => {
       }
       expect(result).toBeDefined();
       expect(result.astraDocPath).toBeDefined();
-      expect(result.summary.nodes.length).toBeGreaterThanOrEqual(2);
+      expect(result.summary.nodes.length).toBeGreaterThanOrEqual(1);
       expect(fs.existsSync(result.astraDocPath)).toBe(true);
       // Clean up fallback file if in documents or temp, plus its git sidecar
       // (.astra/<basename>) so shared dirs stay hermetic across runs.

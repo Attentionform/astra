@@ -37,15 +37,22 @@ describe('a cover page replaces the placeholder content of a fresh template', ()
     expect(out.success, JSON.stringify(out.errors)).toBe(true);
     const text = allText(ast);
     expect(text).toContain('My own paragraph');
-    expect(text).toContain('Blank Document');
   });
 
-  it('a document opened from bytes keeps all of its content', async () => {
-    const original = DocxParser.createNewDocument('blank');
+  it('a report opened from bytes keeps all of its content', async () => {
+    const original = DocxParser.createNewDocument('report');
     const reopened = new DocxParser(Buffer.from(original.rezip()));
     const ast = await reopened.getAST();
     const out = await new OperationEngine(ast, reopened).executeBatch({ operations: [cover] as never });
     expect(out.success, JSON.stringify(out.errors)).toBe(true);
-    expect(allText(ast)).toContain('Blank Document');
+    expect(allText(ast)).toContain('Q3 Executive');
+  });
+
+  it('a blank file opened from bytes is still one empty paragraph: the cover replaces it', async () => {
+    const reopened = new DocxParser(Buffer.from(DocxParser.createNewDocument('blank').rezip()));
+    const ast = await reopened.getAST();
+    const out = await new OperationEngine(ast, reopened).executeBatch({ operations: [cover] as never });
+    expect(out.success, JSON.stringify(out.errors)).toBe(true);
+    expect(ast.sections.flatMap((s) => s.nodes).every((n) => n.id.startsWith('cover_'))).toBe(true);
   });
 });

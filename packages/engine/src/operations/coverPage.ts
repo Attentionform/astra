@@ -112,9 +112,8 @@ export function executeCoverPage(op: CoverPageOperation, ast: DocumentAST, parse
     throw new Error("Cannot insert cover page into an empty document");
   }
 
-  // A document that is still a fresh built-in template holds placeholder content ("Blank Document",
-  // "Start typing your content here...", or the sample report's invented figures). A cover page on
-  // it would leave that text behind, after the page break. The check has to run before anything is
+  // A document that is still a fresh built-in template holds placeholder content (an empty paragraph, or a sample report's
+  // text). A cover page on it would leave that behind, after the page break. The check has to run before anything is
   // changed, because any edit makes the document stop being pristine. A document that was edited,
   // or opened from a file, never matches and keeps all of its content.
   const seedIds = parser ? pristineSeedIdsOfAnyTemplate(parser) : null;

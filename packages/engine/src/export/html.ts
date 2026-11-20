@@ -992,7 +992,7 @@ const TEMPLATE_PLACEHOLDER_TITLES: ReadonlySet<string> = new Set(
 /**
  * The `<title>` of an exported page: the document's own title (`dc:title` in `docProps/core.xml`) when it holds
  * text, else `fallback` (the callers pass the file name). Runs of white space, line breaks included, become one
- * space. A new document carries the name of its template as its title (`Blank Document`, `Report`); that is a
+ * space. A new document carries the name of its template as its title (`Report`, `Memo`); the blank template has an empty one; that is a
  * placeholder, not a title the author chose, so it counts as no title.
  */
 export function htmlDocumentTitle(ast: DocumentAST, fallback: string): string {

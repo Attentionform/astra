@@ -191,7 +191,7 @@ export async function executeSaveDocument(
       paraIdPolicy === 'renumber' && handle.parser.getDuplicateParaIds().length > 0
         ? { xml: handle.parser.readDocumentXml(), extras: collectTrackedExtrasForGit(handle.parser) }
         : null;
-    // A saved document never carries a template placeholder as its title ("Blank Document"): when
+    // A saved document never carries a template placeholder as its title (for example "Report"): when
     // dc:title still is one, it is written from the cover, the Title or the first Heading 1. The save
     // result names what was done (titleSetFrom), so the change is never hidden.
     let identity: DocumentIdentityResult = {};
