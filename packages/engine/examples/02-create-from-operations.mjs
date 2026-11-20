@@ -1,6 +1,6 @@
 // A new document built only from operations. A heading is a paragraph with a named style applied.
 import { join } from 'node:path';
-import { DocxParser, OperationEngine } from '@attentionform/astra-engine';
+import { AdmZip, DocxParser, OperationEngine } from '@attentionform/astra-engine';
 import { assertApplied, outputDir, writeValidated } from './_shared.mjs';
 
 const parser = DocxParser.createNewDocument('blank');
@@ -18,4 +18,10 @@ const result = await engine.executeBatch({
 assertApplied(result, 'batch');
 console.log(`applied ${result.appliedCount} operations`);
 
-await writeValidated(join(outputDir('02'), 'notes.docx'), parser.rezip());
+const bytes = parser.rezip();
+// The style is applied by the namedStyle operation. An insert takes no style field, so check the result rather than trust it.
+const documentXml = new AdmZip(bytes).readAsText('word/document.xml');
+if (!/<w:pStyle w:val="Heading1"\/>[\s\S]*?Project notes/.test(documentXml)) throw new Error('the first paragraph is not a Heading 1');
+console.log('the first paragraph is a Heading 1');
+
+await writeValidated(join(outputDir('02'), 'notes.docx'), bytes);
