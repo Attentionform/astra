@@ -2887,6 +2887,9 @@ export class DocxParser {
           const parserError = doc.getElementsByTagName('parsererror');
           if (hasError || parserError.length > 0) {
             errors.push(`XML Well-Formedness Error in ${name}: ${errorMessage || parserError[0]?.textContent || 'Invalid XML'}`);
+          } else if (!doc.documentElement || !/^\s*</.test(content.replace(/^\uFEFF/, '')) || !/>\s*$/.test(content)) {
+            // The parser is lenient: text with no element, or text before or after the root, parses without an error.
+            errors.push(`XML Well-Formedness Error in ${name}: the part is not one XML element (no root element, or text outside it)`);
           }
         } catch (err: unknown) {
           let msg: string;

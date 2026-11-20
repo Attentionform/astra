@@ -28,6 +28,7 @@ Library use, designed templates and the validator for other Office files. There 
 ### Fixed
 
 - The bundled command-line tool finds the template files when the engine is installed beside it.
+- The XML check in `rezip()` now refuses a part that has no root element or has text outside the root. The XML parser accepted these without an error, so a package with such a part was written. A mismatched closing tag still passes `rezip()`; `validateDocxBuffer()` reports it. The engine README lists every `rezip()` option and what it skips.
 
 ## [0.5.3] - 2026-11-16
 

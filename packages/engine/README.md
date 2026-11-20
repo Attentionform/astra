@@ -164,6 +164,26 @@ ASTra validates documents with `@attentionform/ooxml-validator` (the Microsoft O
 
 Passing means the selected Open XML SDK validation run reported no errors. It does not prove how the document renders or that its content is right.
 
+#### `rezip()` options
+
+`parser.rezip(options?)` writes the package to a `Buffer`. The forms are `rezip()`, `rezip(options)`, `rezip(ast)`, `rezip(ast, options)` and `rezip({ ast, ...options })`.
+
+Whatever the options, `rezip()` drops rogue zip entries, refuses macro parts under the default policy, and refuses an XML part that declares a DTD or entity (the XXE check).
+
+| Option | Effect |
+|--------|--------|
+| *(none)* | Refuses two paragraphs with the same `w14:paraId` (`E_VALIDATION`, naming the id). Refuses an XML part that does not parse, has no root element, or has text outside the root. It does not catch every malformation: a mismatched closing tag passes, and `validateDocxBuffer()` reports it. |
+| `validate: false` | Skips the duplicate-id check. The XML check still runs. |
+| `skipValidation: true` | Skips the duplicate-id check **and** the XML check. The XXE and macro checks still run. |
+| `duplicateParaIds: 'renumber'` | Repairs a repeated id and records the change, instead of refusing. The default is `'refuse'`. It has no effect with `validate: false` or `skipValidation: true`. |
+| `reproducible: true` | Pins the zip entry times, the `modified` date and the revision and comment stamps to `SOURCE_DATE_EPOCH`, or to 1980-01-01Z when that is not set. The same input bytes then give the same output bytes. The `created` date is left as it is, so documents that `createNewDocument` made at different times still differ by that date. |
+| `reproducible: false`, `noReproducible: true` | Real dates, even when `ASTRA_REPRODUCIBLE` or `SOURCE_DATE_EPOCH` is set. |
+
+Without a `reproducible` option, `ASTRA_REPRODUCIBLE=1` or `SOURCE_DATE_EPOCH` turns pinning on, `ASTRA_NO_REPRODUCIBLE=1` turns it off, and otherwise the dates are the real ones.
+
+None of these options runs the Microsoft schema validator. Call `validateDocxBuffer()` for that.
+
+
 ### 4. Token-Optimized Outline Notation (TOON)
 Converts verbose OpenXML markup into dense, tabular outlines tailored for LLM context windows:
 - **`compact`**: Terse pipe-delimited outline displaying node IDs, types, and text (about 89 % median reduction; 45 % of documents reach 90 %).
@@ -194,7 +214,7 @@ import { DocxParser } from '@attentionform/astra-engine';
 // From Buffer
 const parser = new DocxParser(buffer);
 
-// Create fresh document from template ('report' | 'memo' | 'blank')
+// Create a fresh document from a template: blank, report, memo, letter, proposal, invoice, technical-spec, research-paper, novel or newsletter
 const freshDoc = DocxParser.createNewDocument('report');
 
 // Retrieve typed AST
