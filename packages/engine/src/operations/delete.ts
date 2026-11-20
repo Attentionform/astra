@@ -17,7 +17,7 @@ export interface DeleteOperation extends BaseOperation {
 }
 
 /**
- * OX-04: idempotent delete reports what it skipped.
+ * A delete reports what it skipped.
  *
  * Policy (deliberate idempotency kept): a missing target WITHOUT strict:true
  * is a success with an entry in `skipped` — this masks nothing because the

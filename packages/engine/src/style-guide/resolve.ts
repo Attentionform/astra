@@ -110,7 +110,7 @@ function installedEngineDir(): string | undefined {
   return undefined;
 }
 
-/** Bundled names currently installed on disk (empty until guides ship). */
+/** The names of the style guides that ship with the engine: `report`, `legal` and `technical`. A name goes to `resolveStyleGuide`. */
 export function listBundledGuides(): string[] {
   const out = new Set<string>();
   const dirs = [

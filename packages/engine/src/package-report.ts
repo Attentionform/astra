@@ -1,5 +1,5 @@
 /**
- * What the engine tells a caller about the package it opened, beyond the document itself (DN3, 9.2).
+ * What the engine tells a caller about the package it opened, beyond the document itself.
  * Present only when there is something to say: a canonical, unsigned package has an empty report.
  */
 export interface PackageReport {

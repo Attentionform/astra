@@ -332,6 +332,10 @@ export function parseWordProtocol(lines: string[]): WordProtocol {
   return p;
 }
 
+/**
+ * Thrown when Microsoft Word could not draw the document (Windows only). `code` is `E_DEPENDENCY`, `E_VALIDATION` or `E_RENDER`,
+ * `failureClass` groups the cause, `hresult` and `exitCode` carry the Word error when there is one, and `remedy` says what to do next.
+ */
 export class WordRenderError extends Error {
   readonly code: 'E_DEPENDENCY' | 'E_VALIDATION' | 'E_RENDER';
   readonly remedy: string;

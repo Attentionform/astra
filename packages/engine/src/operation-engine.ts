@@ -59,6 +59,10 @@ export const ENGINE_MAX_BYTES = 200 * 1024 * 1024;
 /** Documented default hint only (25) — NOT an enforced ceiling. Omit maxSteps for unbounded. */
 export const ENGINE_MAX_STEPS = 25;
 
+/**
+ * Thrown when a request is over a limit that the engine enforces, such as the number of operations in a batch or the size of a document.
+ * `code` is `E_QUOTA`. `remedy` says what to change. It is never worth retrying unchanged.
+ */
 export class EngineQuotaError extends Error {
   readonly code = 'E_QUOTA' as const;
   readonly remedy: string;
@@ -70,6 +74,10 @@ export class EngineQuotaError extends Error {
   }
 }
 
+/**
+ * Thrown when an input is not valid: a malformed operation, an unknown template or an argument out of range.
+ * `code` is `E_VALIDATION`. `remedy` says how to fix the input. It is never worth retrying unchanged.
+ */
 export class EngineValidationError extends Error {
   readonly code = 'E_VALIDATION' as const;
   readonly remedy: string;
@@ -161,8 +169,7 @@ export interface BatchPayload {
    */
   operations: OperationInput[];
   /**
-   * Track-B: sequential defaults to TRUE (document order preserved).
-   * Pass sequential:false explicitly to opt into the legacy sort-order path.
+   * The operations run in the order that you list them. Pass `false` to run them in a fixed order that avoids conflicts between operation kinds instead.
    */
   sequential?: boolean;
   rollbackOnError?: boolean;
@@ -211,28 +218,28 @@ export interface ExecutionResult {
   appliedCount: number;
   errors: { operationIndex: number; error: string; hint?: string; remedy?: string; libraryRemedy?: string }[];
   rollbackTriggered: boolean;
-  /** OX-04: ids a delete op skipped (idempotent miss, non-strict) inside this batch. */
+  /** The ids that a delete skipped because they were not in the document. Without `strict`, a missing target is not a failure. */
   skippedIds: string[];
   /** Advisory table warnings (e.g. low-contrast fills). Additive, never a failure. */
   warnings: string[];
-  /** R-1: pending tracked revisions (w:ins + w:del) remaining in the doc after the batch. */
+  /** Tracked changes (insertions and deletions) that are still pending in the document after the batch. */
   revisionsPending: number;
   revisionResolution?: RevisionResolution;
   /** Every revision id created by tracked edits in this batch, in operation order. */
   revisionIds?: number[];
-  /** R-1: remedy, present only when revisionsPending > 0. Names acceptAll only when running it can still help. */
+  /** What to do about the pending tracked changes. Present only when `revisionsPending` is above 0. */
   revisionsRemedy?: string;
-  /** FX-07: revisions in `revisionsPending` that this batch's resolution tried and could not resolve. Absent when none. */
+  /** How many of the pending tracked changes this batch tried to accept or reject and could not. Absent when none. */
   revisionsUnresolved?: number;
-  /** 0.5.3: package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
+  /** package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
   prunedParts?: string[];
-  /** 0.5.3: why the package cleanup after a delete did not run or was refused. The save is unaffected. Absent when nothing went wrong. */
+  /** why the package cleanup after a delete did not run or was refused. The save is unaffected. Absent when nothing went wrong. */
   cleanupSkipped?: string;
-  /** 0.5.3: defects the file already had that the cleanup saw and left alone (a relationship to a missing part). Absent when none. */
+  /** defects the file already had that the cleanup saw and left alone (a relationship to a missing part). Absent when none. */
   existingDefects?: string[];
-  /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
+  /** Paragraphs that mention a chart that this batch changed, as `{ nodeId, preview }`. Advice only; it never fails a batch. */
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
-  /** 0.5.3: one entry per chart update: in-place or rebuilt, what happened to the workbook, and what a rebuild did not keep. Absent when no chart was updated. */
+  /** one entry per chart update: in-place or rebuilt, what happened to the workbook, and what a rebuild did not keep. Absent when no chart was updated. */
   chartUpdates?: ChartUpdateReport[];
   /** Compose: where the document title was taken from when it was still a template placeholder. */
   titleSetFrom?: string;
@@ -428,6 +435,18 @@ export interface OperationEngineOptions {
   styleGuide?: StyleGuideConfig;
 }
 
+/**
+ * Applies operations to an open document. Make one from the document's AST and its parser, then call `executeBatch`:
+ *
+ * ```ts
+ * const parser = new DocxParser(buffer);
+ * const engine = new OperationEngine(await parser.getAST(), parser);
+ * const result = await engine.executeBatch({ operations: [{ action: 'replace', target: id, text: 'New text' }] });
+ * ```
+ *
+ * A batch is all or nothing: when one operation fails, none of the batch is applied and `result.rollbackTriggered` is true.
+ * Pass `{ styleGuide }` as the third constructor argument to give omitted table, callout and chart parameters their values from a style guide.
+ */
 export class OperationEngine {
   private ast: DocumentAST;
   private parser?: DocxParser;
@@ -473,20 +492,38 @@ export class OperationEngine {
     this.activeGuide = options?.styleGuide;
   }
 
-  /** Active style guide (undefined = legacy built-ins, no defaulting). */
+  /**
+   * Active style guide (undefined = legacy built-ins, no defaulting).
+   *
+   * @public
+   */
   public getStyleGuide(): StyleGuideConfig | undefined {
     return this.activeGuide;
   }
 
-  /** Attaches (or clears, when omitted) the active style guide. */
+  /**
+   * Sets the style guide, or clears it when called without one.
+   *
+   * @public
+   */
   public setStyleGuide(guide?: StyleGuideConfig): void {
     this.activeGuide = guide;
   }
 
+  /**
+   * The operations that this engine has applied so far, in order.
+   *
+   * @public
+   */
   public getHistory(): BaseOperation[] {
     return this.history;
   }
 
+  /**
+   * Applies one operation. It throws when the operation cannot apply. Prefer `executeBatch`, which checks a whole list first and applies it as one unit.
+   *
+   * @public
+   */
   public async execute(op: BaseOperation): Promise<{ warnings: string[] }> {
     this.insertParaIds = null;
     this.validateOperation(op);
@@ -529,6 +566,13 @@ export class OperationEngine {
   }
 
   // 4.3 Batch Execution (Track-B: sequential defaults true; quotas throw E_QUOTA)
+  /**
+   * Applies a list of operations as one unit. They run in the order that you list them; set `sequential: false` in the batch to run them in a fixed order that avoids
+   * conflicts between operation kinds. When one fails, the document is restored to its state before the batch and the result lists each failure with a `hint` and a `remedy`.
+   * Check `result.success` before you save. Throws `EngineQuotaError` when the batch is over a limit.
+   *
+   * @public
+   */
   public async executeBatch(batch: BatchPayload): Promise<ExecutionResult> {
     this.insertParaIds = null;
     const result: ExecutionResult = {
@@ -844,10 +888,10 @@ export class OperationEngine {
   }
 
   /**
-   * R-1: counts pending tracked revisions (w:ins + w:del) in the live doc.
-   * Prefers the parser document DOM (complete); falls back to an AST XML
-   * scan for parser-less engines. Best-effort, never throws. Does NOT
-   * mutate, accept, or change any trackChanges default.
+   * Counts the tracked changes (insertions and deletions) that are still pending in the document. It reads the parser's document when there is one,
+   * and the AST otherwise. It never throws and changes nothing.
+   *
+   * @public
    */
   public countPendingRevisions(): number {
     try {

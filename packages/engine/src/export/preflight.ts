@@ -25,6 +25,10 @@ export interface PreflightCheck {
   run: (ctx: PreflightContext) => PreflightIssue[];
 }
 
+/**
+ * Thrown when PDF export is refused before it starts, because the document has a problem that would make the PDF wrong.
+ * `blockers` lists each problem with a code and a message. `code` is `E_PREFLIGHT`.
+ */
 export class PreflightError extends Error {
   code = 'E_PREFLIGHT';
   blockers: PreflightIssue[];

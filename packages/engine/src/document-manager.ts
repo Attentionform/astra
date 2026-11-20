@@ -217,6 +217,10 @@ export async function atomicWriteFile(
   }
 }
 
+/**
+ * Keeps one open document on disk together with its history. Use it when you need undo, redo, the list of versions, transactions or recovery of the original,
+ * and `DocxParser` alone when you only read or write bytes. Open a file with `openDocument(path)`, change it, then `saveDocument()`. Each save adds an entry to the history.
+ */
 export class DocumentManager {
   private activeDocPath: string | null = null;
   private parser: DocxParser | null = null;
@@ -242,7 +246,11 @@ export class DocumentManager {
   // Office version every validation of this manager runs against (undefined = the engine default).
   private officeVersion?: OfficeVersion;
 
-  /** Sets (or clears, when omitted) the Office version this manager validates against. */
+  /**
+   * Sets (or clears, when omitted) the Office version this manager validates against.
+   *
+   * @public
+   */
   public setOfficeVersion(version?: OfficeVersion): void {
     this.officeVersion = version;
   }
@@ -250,12 +258,18 @@ export class DocumentManager {
   /**
    * Attaches (or clears, when omitted) the style guide used for advisory
    * linting on save/validate paths.
+   *
+   * @public
    */
   public setStyleGuide(guide?: StyleGuideConfig): void {
     this.activeGuide = guide;
   }
 
-  /** Active style guide (undefined = no advisory linting). */
+  /**
+   * Active style guide (undefined = no advisory linting).
+   *
+   * @public
+   */
   public getStyleGuide(): StyleGuideConfig | undefined {
     return this.activeGuide;
   }
@@ -278,8 +292,10 @@ export class DocumentManager {
   }
 
   /**
-   * Opens a DOCX file. Automatically creates a shadow copy (.astra.docx) 
-   * if not already opening one, initializes the Git undo stack, and loads the DOM.
+   * Opens a .docx file for editing. The manager works on a copy next to it (`name.astra.docx`), starts the history and loads the document.
+   * Returns the path of the copy and the document structure.
+   *
+   * @public
    */
   public async openDocument(sourcePath: string): Promise<{ astraDocPath: string; summary: StructuralSummary }> {
     // S1b follow-up item 1: re-validate at USE time (TOCTOU narrowing) — the
@@ -319,6 +335,12 @@ export class DocumentManager {
     };
   }
 
+  /**
+   * Creates a document from a built-in template, validates it, opens it, and returns its path and structure. The file goes to `targetPath`, which must be inside
+   * the allowed folders, or into a `documents` folder under the current directory when there is none.
+   *
+   * @public
+   */
   public async createNewDocument(templateType: string = 'blank', targetPath?: string, opts?: { untitled?: boolean }): Promise<{ astraDocPath: string; summary: StructuralSummary; warnings: string[] }> {
     const docDir = path.join(process.cwd(), 'documents');
     if (!fs.existsSync(docDir)) {
@@ -439,6 +461,11 @@ export class DocumentManager {
     };
   }
 
+  /**
+   * Saves the open document to `targetPath` and returns its structure and any style warnings.
+   *
+   * @public
+   */
   public async saveAsDocument(
     targetPath: string,
     options?: { applyTypography?: boolean; typographyOptions?: TypographyOptions }
@@ -517,8 +544,9 @@ export class DocumentManager {
   }
 
   /**
-   * Validates the active document against official ECMA-376 XSD schemas.
-   * The advisory style pass rides along as styleWarnings (never a failure).
+   * Validates the open document against the Office schema. The result also carries `styleWarnings`: advisory notes from the style guide that never fail a document.
+   *
+   * @public
    */
   public async validateCurrentDocument(): Promise<ValidationResult & { styleWarnings: StyleWarning[] }> {
     if (!this.parser) throw new Error("No active document loaded.");
@@ -527,7 +555,9 @@ export class DocumentManager {
   }
 
   /**
-   * Creates an atomic snapshot of the document's current state.
+   * Records the current state of the document. `label` names the snapshot.
+   *
+   * @public
    */
   public createSnapshot(label: string = 'User Checkpoint'): DocumentSnapshot {
     if (!this.parser) throw new Error("No active document.");
@@ -569,7 +599,9 @@ export class DocumentManager {
   }
 
   /**
-   * Begins an atomic transaction, capturing a pre-transaction snapshot.
+   * Starts a group of changes that can be undone together. It remembers the state of the document before the group.
+   *
+   * @public
    */
   public beginTransaction(label: string = 'Batch Transaction'): void {
     if (!this.parser) throw new Error("No active document.");
@@ -577,7 +609,9 @@ export class DocumentManager {
   }
 
   /**
-   * Rolls back the current atomic transaction to pre-transaction state.
+   * Ends the transaction and returns the document to the state it had when `beginTransaction()` ran.
+   *
+   * @public
    */
   public rollbackTransaction(): void {
     if (!this.parser || !this.transactionSnapshot) return;
@@ -586,27 +620,9 @@ export class DocumentManager {
   }
 
   /**
-   * Commits the current atomic transaction, flushing file changes to disk and Git.
+   * Ends the transaction and writes its changes to the file and to the history. `commitMessage` is the text of the history entry.
    *
-   * UX-B autosave (`opts.autosave`): the file is ALWAYS atomically written and
-   * flags ALWAYS preserved dirty/untitled (autosave never clears
-   * `isUntitled`/`isDirty` — only explicit Save/Save-As do). Inside
-   * AUTOSAVE_GIT_COALESCE_MS of the previous autosave commit, BOTH the git
-   * commit AND the snapshot push are skipped with the SAME predicate
-   * (shouldCoalesceAutosaveCommit) so snapshotStack stays aligned with the git
-   * log and coalesced flushes (durability-only, ~2.5s cadence) cannot evict
-   * the 50-cap undo ring. A skipped snapshot also preserves redoStack (no new
-   * undo step). Manual calls (no opts) ALWAYS commit + push snapshot — never
-   * add default coalescing here (history-count suites depend on it).
-   *
-   * UX-C item 1 NO-OP GATE (documented decision): an AUTOSAVE whose live
-   * document.xml hashes identically to the last committed hash is a full
-   * no-op — no snapshot, no file write, no git commit, NO dirty flip, no
-   * coalesce-clock update. Rationale: an empty draft must stay at
-   * commitCount==1 (no noise banner) and stay clean so the close gate does
-   * not prompt on a pristine doc. Manual commits bypass the gate (explicit
-   * intent always commits). Coalescing is evaluated only for content-changed
-   * autosaves, so its window semantics are untouched.
+   * @public
    */
   public async commitTransaction(commitMessage: string = 'Commit Transaction', opts?: { autosave?: boolean }): Promise<void> {
     if (!this.parser || !this.activeDocPath) {
@@ -686,7 +702,9 @@ export class DocumentManager {
   }
 
   /**
-   * Saves the document in place to its current active path.
+   * Saves the open document to its current path and returns its structure and any style warnings.
+   *
+   * @public
    */
   public async saveDocument(
     options?: { applyTypography?: boolean; typographyOptions?: TypographyOptions }
@@ -698,16 +716,9 @@ export class DocumentManager {
   }
 
   /**
-   * UX-B close-gate Don't-Save path (UX-01 P0-2): deletes the untitled Drafts
-   * `.docx` AND its sibling `.astra/` git dir (privacy — no pristine/partial
-   * orphans left behind), then resets manager state so a dead path can never
-   * be flushed/saved afterwards.
+   * Deletes an untitled draft that was never saved, together with its history folder. A document that has a name is never deleted by this call.
    *
-   * SAFETY: only fires when `isUntitled && activeDocPath` are both set.
-   * Titled user files are NEVER deleted here — Don't-Save on a titled doc
-   * just closes (its last explicit save is already on disk). Missing files
-   * are tolerated (force-remove); deletion itself is best-effort but the
-   * state reset is unconditional.
+   * @public
    */
   public async discardUntitledDraft(): Promise<{ discarded: boolean; path: string | null }> {
     const doomed = this.activeDocPath;
@@ -745,7 +756,9 @@ export class DocumentManager {
   }
 
   /**
-   * Undoes the last operation using Git and atomic snapshot history.
+   * Undoes the last change, using the history. Returns `{ success }`, and `atInitialState` when there is nothing left to undo.
+   *
+   * @public
    */
   public async undoLastAction(): Promise<{ success: boolean; atInitialState?: boolean }> {
     if (!this.parser || !this.activeDocPath) {
@@ -847,6 +860,8 @@ export class DocumentManager {
   /**
    * Accepts or rejects every tracked change and persists the result through
    * the validated write. Without an active file path the change stays in memory.
+   *
+   * @public
    */
   public async applyTrackedChanges(mode: 'accept' | 'reject'): Promise<RevisionResolution> {
     if (!this.parser) throw new Error("No active document.");
@@ -891,11 +906,9 @@ export class DocumentManager {
   }
 
   /**
-   * OP-15: re-applies the most recently undone snapshot. Pops the redoStack,
-   * restores the parser to that snapshot, pushes it back onto the snapshot
-   * stack, persists to disk, and re-commits to git so undo/redo stay symmetric.
-   * (Git history cannot move forward after undo rewound the branch pointer, so
-   * redo re-commits the restored package as a new head commit.)
+   * Applies again the change that the last undo reverted. Returns `{ success }`, and `atLatestState` when there is nothing to redo.
+   *
+   * @public
    */
   public async redoLastAction(): Promise<{ success: boolean; atLatestState?: boolean }> {
     if (!this.parser || !this.activeDocPath) {

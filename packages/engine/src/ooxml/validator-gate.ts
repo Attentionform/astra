@@ -48,6 +48,10 @@ export function tableIndexHintForXPath(xPath: unknown): string | null {
   return null;
 }
 
+/**
+ * Thrown by `assertValidDocx`, and by PDF export, when a document fails Office schema validation.
+ * `errors` lists every schema error and `firstError` is the first one. `code` is `E_VALIDATION`. `remedy` says what to do next.
+ */
 export class OoxmlValidationError extends Error {
   public readonly errors: ValidationError[];
   public readonly firstError: ValidationError;

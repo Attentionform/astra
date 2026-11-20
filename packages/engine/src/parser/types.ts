@@ -29,14 +29,14 @@ export interface TableMetadata {
 export interface StructuralSummary {
   hasTrackedChanges: boolean;
   stylesXml?: string | null;
-  /** ST-04: word/theme/theme1.xml payload (accent map + fonts) for theme resolution. */
+  /** The theme (`word/theme/theme1.xml`): its accent colours and fonts. */
   themeXml?: string | null;
-  /** ST-05: word/numbering.xml payload (abstractNum→lvl) for list rendering. */
+  /** The numbering definitions (`word/numbering.xml`) that give lists their levels and bullets. */
   numberingXml?: string | null;
   pageSetup?: { rawXml?: string } & Record<string, unknown>;
   headers?: { id: string; type: string; xml: string }[];
   footers?: { id: string; type: string; xml: string }[];
-  /** ST-09 G1b: sectPr parity flags gating first/even use (w:titlePg, w:evenAndOddHeaders). */
+  /** Section flags that decide whether the first-page and even-page headers and footers apply (`w:titlePg`, `w:evenAndOddHeaders`). */
   sectPrFlags?: { titlePg: boolean; evenAndOddHeaders: boolean };
   charts?: { id: string; xml: string }[];
   mediaFiles?: Record<string, { base64: string; mimeType: string }>;

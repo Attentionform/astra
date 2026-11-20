@@ -5,8 +5,8 @@ import { hasListNumbering, isOrderedListItem } from './export/markdown';
 import { headingOfNode, ownParagraphStyleId } from './heading-style';
 
 /**
- * Track-B tiered TOON fidelity. outline=headings only, compact=every node with the minimal columns,
- * standard=default enriched, full=section-scoped dump.
+ * How much detail each row of the outline carries. `outline` is the headings only, `compact` is every node with the minimal columns,
+ * `standard` is the default and adds more, and `full` is a dump of one section.
  */
 export type ToonFidelity = 'outline' | 'compact' | 'standard' | 'full';
 
@@ -53,12 +53,10 @@ export interface ToonTable {
   headers: string[];
   rows: ToonRow[];
   /**
-   * ST-11: TOON is lossy by design — fidelity flag surfaced so AI consumers
-   * know style detail was collapsed. Always 'lossy' (never 'full').
-   * Docs/test only: no renderer change.
+   * Always `'lossy'`: the outline drops style detail on purpose, and this tells a reader so.
    */
   fidelity?: 'lossy';
-  /** Track-B tier that produced this table. Always set by generateToon/toon. */
+  /** The fidelity tier that produced this table. */
   tier: ToonFidelity;
 }
 
@@ -880,6 +878,10 @@ function escapeOutlinePathPart(value: string): string {
 /** A breadcrumb part (one ancestor heading) is cut here. */
 const OUTLINE_PATH_PART_LENGTH = 60;
 
+/**
+ * Builds the compact outline that an agent reads in place of the XML: one row per paragraph or table with its id, version, section path, style, text and flags.
+ * Call `toon(ast, { fidelity })` for a table and `renderToonText(table)` for the text form. Results are cached until the document changes.
+ */
 export class ToonGenerator {
   private cache: Map<string, ToonTable> = new Map();
   private checksumCache: Map<string, string> = new Map();
@@ -900,7 +902,11 @@ export class ToonGenerator {
     return this.revision;
   }
 
-  /** Drops all cached tables and checksums (forces recompute on next call). */
+  /**
+   * Drops all cached tables and checksums (forces recompute on next call).
+   *
+   * @public
+   */
   public invalidateCache(sectionId?: string): void {
     if (sectionId) {
       const prefixMatch: string[] = [];
@@ -959,9 +965,11 @@ export class ToonGenerator {
   }
 
   /**
-   * Track-B entry point: toon({ fidelity, sectionId, maxTextLength, useCache }).
+   * The main call: `toon(ast, { fidelity, sectionId, maxTextLength, useCache })`.
    * Default fidelity is 'standard'. Full tier requires a sectionId (throws with
    * remedy otherwise) and throws with remedy when the sectionId matches nothing.
+   *
+   * @public
    */
   public toon(ast: DocumentAST, req: ToonRequest = {}): ToonTable {
     const fidelity: ToonFidelity = req.fidelity ?? TOON_DEFAULT_FIDELITY;
@@ -975,6 +983,11 @@ export class ToonGenerator {
   }
 
   // 2.1 & 2.2 - Generate TOON and Extract Metadata Flags
+  /**
+   * Builds the table for a whole document or, with `sectionId`, for one section. `toon()` is the same call with the fidelity checked.
+   *
+   * @public
+   */
   public generateToon(ast: DocumentAST, sectionId?: string, options?: ToonGenerateOptions): ToonTable {
     const fidelity: ToonFidelity = options?.fidelity ?? TOON_DEFAULT_FIDELITY;
     assertToonFidelity(fidelity);
@@ -1493,6 +1506,11 @@ export class ToonGenerator {
     return output;
   }
 
+  /**
+   * Renders a table as pipe-separated text, the form that is sent to a model. `options` can leave columns out or shorten the output.
+   *
+   * @public
+   */
   public renderToonText(table: ToonTable, options?: ToonRenderOptions): string {
     if (table.tier === 'outline') return this.renderOutlineText(table, options);
     const omits = new Set<string>(options?.omitColumns ?? []);
@@ -1569,6 +1587,12 @@ export class ToonGenerator {
   }
 
   // 2.5 TOON Diffs
+  /**
+   * Compares two tables of the same document. The result holds the rows that were added, marked `[+ADDED]`, and the rows whose version, text or flags changed,
+   * marked `[~MODIFIED]`. Pass `showUnchangedStatus` to keep the unchanged rows.
+   *
+   * @public
+   */
   public generateDiff(oldTable: ToonTable, newTable: ToonTable, options?: ToonDiffOptions): ToonTable {
     const diffRows: ToonRow[] = [];
     const oldMap = new Map(oldTable.rows.map(r => [r.id, r]));
@@ -1599,12 +1623,22 @@ export class ToonGenerator {
   }
 
   // 2.6 Token Measurement
+  /**
+   * A rough token count of some text: its length divided by 3.8, rounded up. It is an estimate for budgeting, not a count from a real tokenizer.
+   *
+   * @public
+   */
   public estimateTokens(text: string): number {
     if (!text) return 0;
     // Subword estimation heuristic: ~3.8 characters per token for typical JSON/markdown/XML structured text
     return Math.ceil(text.length / 3.8);
   }
 
+  /**
+   * The estimated token count of a table once it is rendered with the same options.
+   *
+   * @public
+   */
   public estimateTableTokens(table: ToonTable, options?: ToonRenderOptions): number {
     const rendered = this.renderToonText(table, options);
     return this.estimateTokens(rendered);
@@ -1619,6 +1653,8 @@ export class ToonGenerator {
    * via options.offset. A single row bigger than budget is still returned
    * with truncated set so callers never page forever.
    * Fidelity-aware: defaults to standard; full requires sectionId (throws otherwise).
+   *
+   * @public
    */
   public generateTokenBudgetToon(
     ast: DocumentAST,

@@ -39,6 +39,10 @@ import {
 } from '../visual/markup';
 import type { VisualTestHooks } from '../visual/provider';
 
+/**
+ * Thrown when a program that the call needs is missing, such as LibreOffice or Poppler for PDF export. `code` is `E_DEPENDENCY`.
+ * The message names the program and how to install it.
+ */
 export class DependencyError extends Error {
   code = 'E_DEPENDENCY';
   constructor(message: string) {
@@ -47,6 +51,10 @@ export class DependencyError extends Error {
   }
 }
 
+/**
+ * Thrown when LibreOffice could not render the document. `stage` says which run failed, `exitCode` is the process exit code when it is known,
+ * and `remedy` says how to repair the document. `code` is `E_RENDER`.
+ */
 export class RenderError extends Error {
   code = 'E_RENDER';
   taggedDetail: string;
@@ -183,6 +191,10 @@ export function planPdfRenderers(
   return { plan, word };
 }
 
+/**
+ * True when a program that can draw a PDF from a .docx is installed. Use it to decide whether to offer PDF export.
+ * `getVisualBackendStatus()` says which programs were found, and which are missing.
+ */
 export function hasPdfBackend(): boolean {
   return getPdfBackendBinary() !== null;
 }

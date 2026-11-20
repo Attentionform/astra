@@ -120,6 +120,10 @@ export function parseWindowsPdfProtocol(lines: string[]): WindowsPdfProtocol {
   return p;
 }
 
+/**
+ * Thrown when the Windows PDF renderer fails. `code` is `E_DEPENDENCY` or `E_VALIDATION`, `failureClass` groups the cause,
+ * and `remedy` says what to do next.
+ */
 export class WindowsPdfError extends Error {
   readonly code: 'E_DEPENDENCY' | 'E_VALIDATION';
   readonly remedy: string;

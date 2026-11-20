@@ -19,10 +19,10 @@ export interface DocumentMetadata {
   revision?: number;
   created?: Date;
   modified?: Date;
-  /** E2: Dublin Core subject (dc:subject) + description (dc:description). */
+  /** The Dublin Core subject (`dc:subject`) and description (`dc:description`). */
   subject?: string;
   description?: string;
-  /** E2: core-properties keywords (cp:keywords) + category (cp:category). */
+  /** The keywords (`cp:keywords`) and category (`cp:category`) of the core properties. */
   keywords?: string;
   category?: string;
   headerText?: string;
@@ -168,7 +168,7 @@ export interface DocumentAST {
   mediaFiles: MediaMap;
   settings: DocumentSettings;
   nextChangeId: number;
-  /** ST-09 G1b parity flags (optional; set by parser for renderer parity gating). */
+  /** Section flags that decide whether the first-page and even-page headers and footers apply. */
   sectPrFlags?: { titlePg: boolean; evenAndOddHeaders: boolean };
 }
 

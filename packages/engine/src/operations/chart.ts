@@ -1293,7 +1293,7 @@ export interface ChartUpdateResult {
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
   /** Advisory messages (for example `layoutWarning: ...`); never a failure. */
   warnings?: string[];
-  /** What a chart update did to the part and the workbook (0.5.3). */
+  /** What a chart update did to the part and the workbook. */
   chartUpdate?: ChartUpdateReport;
 }
 

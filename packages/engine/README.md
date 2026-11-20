@@ -232,6 +232,8 @@ Precedence is global: **explicit op param > guide value > built-in default**. Gu
 
 ## API Reference
 
+Every exported name, with its declaration and description, is in the [API reference](https://attentionform.com/docs/library/api). The sections below are the most used parts.
+
 ### `DocxParser`
 The primary entry point for reading and parsing Word documents:
 

@@ -1023,6 +1023,9 @@ export function renderTableMarkdown(node: MarkdownNodeLike): string {
   return parts.join('\n');
 }
 
+/**
+ * Turns a document's AST into Markdown. Pass the parser to export images, and `imageMode` and `assetPrefix` in the options to choose how they are written.
+ */
 export function convertAstToMarkdown(ast: DocumentAST, parser?: DocxParser, options?: MarkdownExportOptions): string;
 export function convertAstToMarkdown(ast: DocumentAST, options?: MarkdownExportOptions): string;
 export function convertAstToMarkdown(

@@ -1,14 +1,9 @@
 /**
- * Q0b central engine error table (single source of truth).
- *
- * Full EngineErrorCode set + code→remedy map + toError helper. Downstream
- * CLI / agent / MCP error tables import this module instead of maintaining
- * local copies. Previously-passing codes keep identical behavior; previously-
- * dropped codes (E_SESSION/E_CONFLICT/E_NOT_FOUND/E_SECURITY/E_STATE and, per
- * surface, E_LIMIT/E_IO/E_DEPENDENCY/E_AUTH) now pass through verbatim with
- * code intact.
+ * The engine's error codes and what to do about each one. A failure carries a `code`; `getEngineErrorCode(err)` reads it from any error,
+ * and `getEngineRemedy(code)` returns the default advice. The CLI and the MCP server use the same table, so an error reads the same everywhere.
  */
 
+/** Every error code the engine uses. Handle a failure by its code, not by its message text. */
 export const ENGINE_ERROR_CODES = [
   'E_VALIDATION',
   'E_SESSION',
@@ -30,7 +25,7 @@ const ENGINE_ERROR_CODES_SET: ReadonlySet<string> = new Set<string>([
   ...ENGINE_ERROR_CODES,
 ]);
 
-/** Default human remedy per code (engine errors may carry their own). */
+/** The default advice for each code. An error may carry its own `remedy` that is more specific. */
 export const ENGINE_ERROR_REMEDIES: Record<EngineErrorCode, string> = {
   // E_VALIDATION default stays node-agnostic on purpose: it fires only for
   // remedy-less foreign errors (every engine throw carries its own), and
@@ -118,9 +113,8 @@ export function isEngineErrorCode(value: unknown): value is EngineErrorCode {
 }
 
 /**
- * Extract the engine code from an error: `.code` prop first, then `[E_*]` /
- * `E_*` substring in the message. Returns undefined when no known code rides
- * along (callers apply their own fallback).
+ * Reads the engine code from an error: its `code` property first, then an `E_...` code in its message.
+ * Returns `undefined` when the error has no known code, so the caller can choose its own fallback.
  */
 export function getEngineErrorCode(err: unknown): EngineErrorCode | undefined {
   const code = (err as { code?: unknown } | null | undefined)?.code;
@@ -145,7 +139,7 @@ export function resolveEngineErrorCode(
   return getEngineErrorCode(err) ?? fallback;
 }
 
-/** Default remedy for a code (used when the error carries none of its own). */
+/** The default advice for a code. An error may carry its own `remedy` that is more specific. */
 export function getEngineRemedy(code: EngineErrorCode): string {
   return ENGINE_ERROR_REMEDIES[code];
 }
