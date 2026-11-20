@@ -62,7 +62,9 @@ const { preview } = await previewRevert(file, commits[1]);
 console.log(`a revert of 1 step would remove ${preview.removed.join(', ') || 'nothing'}`);
 console.log(`  and change ${preview.modified.join(', ') || 'nothing'}`);
 if (!preview.removed.some((n) => n.startsWith('word/media/'))) throw new Error('the preview should report the image that the revert removes');
-if (!preview.modified.includes('word/document.xml')) throw new Error('the preview should report word/document.xml');
+for (const part of ['word/document.xml', 'word/_rels/document.xml.rels', '[Content_Types].xml']) {
+  if (!preview.modified.includes(part)) throw new Error(`the preview should report ${part} as changed`);
+}
 
 // Read an older state as a document, without touching the file on disk.
 const older = await (async () => {
