@@ -162,6 +162,9 @@ export function assertEngineQuotas(
   return { ok: true };
 }
 
+/**
+ * A batch of operations and the options that control how it runs. Pass it to `OperationEngine.executeBatch`.
+ */
 export interface BatchPayload {
   /**
    * Typed operations: an unknown `action`, an unknown field or a missing required field is a compile error.
@@ -191,10 +194,7 @@ export interface BatchPayload {
 }
 
 /**
- * One affected node from a dryRun batch. before=null means the node was
- * created by the batch; after=null means it was deleted. before===after
- * means the op addressed the node without changing its text (for example
- * a style-only op) — the node is still reported as affected.
+ * One node that a `dryRun` batch would change. `before` is its text now and `after` its text after the batch. `before` is `null` for a new node, and `after` is `null` for a deleted one.
  */
 export interface DryRunPreview {
   nodeId: string;
@@ -202,6 +202,9 @@ export interface DryRunPreview {
   after: string | null;
 }
 
+/**
+ * What `executeBatch` returns. `success` says whether every operation applied, and when it is false `errors` say which failed and why, and `rollbackTriggered` is true. The other fields report tracked changes, skipped ids, advice, package clean-up and chart updates.
+ */
 export interface ExecutionResult {
   success: boolean;
   appliedCount: number;

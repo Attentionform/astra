@@ -1,9 +1,14 @@
-/** Macro/active-content disposition for open + save (refuse-default). */
+/**
+ * What to do with macros and other active content when a document is opened and saved. By default they are refused. `allowMacros` keeps them, and `stripMacros` removes them.
+ */
 export interface DocxParserMacroOptions {
   allowMacros?: boolean;
   stripMacros?: boolean;
 }
 
+/**
+ * The zip operations that `DocxParser` needs to read and write the parts of a package. The parser has its own implementation.
+ */
 export interface DocxZipAdapter {
   hasFile(path: string): boolean;
   readText(path: string): string;
@@ -18,6 +23,9 @@ export interface DocxZipAdapter {
   removeFile?(path: string): void;
 }
 
+/**
+ * What the parser found out about a table: its headers, its size, its caption and its rows.
+ */
 export interface TableMetadata {
   headers?: string[];
   tableDimensions?: { rows: number; cols: number };
@@ -26,6 +34,9 @@ export interface TableMetadata {
   [key: string]: unknown;
 }
 
+/**
+ * What is around the body of a document, as `DocxParser.getStructuralSummary` returns it: whether it has tracked changes, the styles, theme and numbering XML, the headers and footers, charts, media, relationships, and one entry per node with a short preview.
+ */
 export interface StructuralSummary {
   hasTrackedChanges: boolean;
   stylesXml?: string | null;
@@ -63,6 +74,9 @@ export interface StructuralSummary {
   pageMapEstimate?: boolean;
 }
 
+/**
+ * A saved state of a document, as `DocumentManager.createSnapshot` returns it: its `id`, a `label`, the time, and the document XML.
+ */
 export interface DocumentSnapshot {
   id: string;
   timestamp: number;

@@ -24,6 +24,9 @@ import { takeRevisionId } from '../ooxml/revision-ids';
 import { requireColour } from './colour';
 import { relationshipsRoot, createRelationshipElement } from '../ooxml/relationships-dom';
 
+/**
+ * Add a paragraph, a table, a divider, a page break, a section break or raw XML before or after a node (`action: 'insert'`). `anchor` is the node and `position` says on which side.
+ */
 export interface InsertOperation extends BaseOperation {
   action: 'insert';
   type: 'paragraph' | 'pageBreak' | 'sectionBreak' | 'table' | 'xml' | 'divider' | 'horizontalRule';
@@ -433,10 +436,7 @@ function validateTableCellPadding(val: unknown): ResolvedCellPadding {
 }
 
 /**
- * Holder for the set of paragraph ids already used in the document. The engine hands the same
- * holder to consecutive insert operations of one batch so the document is scanned once for the run;
- * it drops the holder before any other kind of operation, because only an insert is known to add
- * every id it creates to the set and to remove no paragraph.
+ * A set of the paragraph ids that a document already uses. The engine shares one between insert operations in a batch so that the document is scanned once.
  */
 export interface ParaIdScanCache {
   set: Set<string> | null;

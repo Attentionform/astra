@@ -4,6 +4,9 @@ import { DocumentAST, Node } from '../ast';
 import { BaseOperation } from './base';
 import { NumberingManipulator } from '../manipulators/numbering';
 
+/**
+ * Create a bulleted or numbered list, continue one, change the level of an item, or remove list formatting (`action: 'list'`).
+ */
 export interface ListOperation extends BaseOperation {
   action: 'list';
   operation: 'create' | 'continue' | 'changeLevel' | 'remove';

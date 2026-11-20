@@ -15,6 +15,9 @@ import { relationshipsRoot, createRelationshipElement } from '../ooxml/relations
 export const HYPERLINK_REL_TYPE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
 
+/**
+ * Add a link to a web address, or a bookmark (`action: 'hyperlink'` or `'bookmark'`). `target` is the node, `url` the address, and `bookmarkName` the bookmark.
+ */
 export interface HyperlinkOperation extends BaseOperation {
   action: 'hyperlink' | 'bookmark';
   operation?: 'insert';

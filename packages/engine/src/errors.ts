@@ -19,6 +19,9 @@ export const ENGINE_ERROR_CODES = [
   'E_AUTH',
 ] as const;
 
+/**
+ * One of the codes in `ENGINE_ERROR_CODES`, such as `E_VALIDATION` or `E_QUOTA`.
+ */
 export type EngineErrorCode = (typeof ENGINE_ERROR_CODES)[number];
 
 const ENGINE_ERROR_CODES_SET: ReadonlySet<string> = new Set<string>([
@@ -82,6 +85,9 @@ export function libraryRemedy(text: string | undefined): string | undefined {
   return seen.size > 0 ? out : undefined;
 }
 
+/**
+ * An error that carries an engine code: `code`, a `remedy` that says what to do, and `retryable`, which is always false because the same call fails the same way. `getEngineErrorCode` reads the code of any error.
+ */
 export type EngineError = Error & { code: EngineErrorCode; remedy: string; retryable: false; libraryRemedy?: string };
 
 /** Build a coded engine error (message carries `[CODE]`, plus `.code`/`.remedy`). */

@@ -442,6 +442,9 @@ export const HISTORY_MAX_SIDECAR_BYTES_CLAMP = 5 * 1024 * 1024 * 1024;
  */
 export const HISTORY_QUOTA_CODE = 'E_QUOTA' as const;
 
+/**
+ * Limits on the history of one document: `maxCommits` is the most versions, and `maxSidecarBytes` is the most bytes on disk. A missing value takes the default or the environment variable.
+ */
 export interface HistoryQuotaLimits {
   maxCommits?: number;
   maxSidecarBytes?: number;
@@ -1301,13 +1304,11 @@ export async function commitChange(
   return sha;
 }
 
+/**
+ * Whether the history of a document is set up. See `state` for the values.
+ */
 export interface HistoryInitializationState {
-  /**
-   * `absent`: no history and no initializer. `in-progress`: an initialization lock is held. `incomplete`: a history
-   * with no commit, or whose first commit is not a complete package snapshot. `complete`: the lock is gone and the
-   * first ("Initial state") commit exists and is a complete snapshot. The current head plays no part: later edits
-   * do not change it.
-   */
+  /** `absent`: there is no history and none is being started. `in-progress`: another process is starting one, or an earlier start was interrupted. `incomplete`: the history has no version, or its first version is not a complete snapshot. `complete`: the first version, `Initial state`, exists and is a complete snapshot. Later edits do not change this. */
   state: 'absent' | 'in-progress' | 'incomplete' | 'complete';
   detail?: string;
 }

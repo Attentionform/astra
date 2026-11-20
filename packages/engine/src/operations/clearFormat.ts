@@ -3,12 +3,18 @@ import { DocumentAST, Node } from '../ast';
 import { BaseOperation, validateVersion, findNode } from './base';
 import { PPR_CHILD_ORDER, RPR_CHILD_ORDER, appendInSchemaOrder } from '../ooxml/schema-order';
 
+/**
+ * Remove direct formatting from the target nodes, so that they follow their style again (`action: 'clearFormat'`).
+ */
 export interface ClearFormatOperation extends BaseOperation {
   action: 'clearFormat';
   target: string | string[];
   params?: Record<string, unknown>;
 }
 
+/**
+ * What a clear-format operation reports: the ids of the nodes that it cleared.
+ */
 export interface ClearFormatResult {
   cleared: string[];
 }

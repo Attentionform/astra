@@ -531,6 +531,9 @@ export function codeBlockLanguage(node: MarkdownNodeLike): string {
   return '';
 }
 
+/**
+ * Options for `convertAstToMarkdown`. `imageMode` is `embed` for images inside the Markdown or `file` for image files, and `assetPrefix` is the path that links to those files start with.
+ */
 export interface MarkdownExportOptions {
   imageMode?: 'embed' | 'file';
   assetPrefix?: string;

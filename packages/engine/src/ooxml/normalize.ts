@@ -448,6 +448,9 @@ export function verifyOrderOnlyRepair(partName: string, originalXml: string, rep
   }
 }
 
+/**
+ * What `normalizePackage` returns: the repaired `parts`, and `normalized`, which lists each repair.
+ */
 export interface NormalizePackageResult {
   parts: Record<string, string>;
   normalized: string[];

@@ -12,6 +12,9 @@ import { insertIntoSection } from '../parser/sections';
 import { resolveReproducibleMode } from '../zip-hardening';
 import { assertNoXxe } from '../ooxml/xxe-guard';
 
+/**
+ * Insert or replace an equation as native Word math (`action: 'equation'`). `latex` holds the equation and `mode` says how to read it.
+ */
 export interface EquationOperation extends BaseOperation {
   action: 'equation';
   operation: 'insert' | 'replace';
@@ -34,6 +37,9 @@ export interface EquationOperation extends BaseOperation {
   params?: Record<string, unknown>;
 }
 
+/**
+ * What an equation operation reports: the id of the equation node.
+ */
 export interface EquationResult {
   id: string;
 }

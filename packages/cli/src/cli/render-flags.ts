@@ -119,7 +119,7 @@ export function printRenderNotes(facts: RenderFacts): string[] {
   if (p?.fallbackFrom) notes.push(`pdf-to-image: ${p.fallbackFrom} could not draw the pages (${p.fallbackReason ?? 'no reason given'}); used ${p.used} instead`);
   const ref = facts.references ? describeReferenceReport(facts.references) : null;
   if (ref) notes.push(ref);
-  // Every markup render says what the view is and that the output shows reviewer names, deleted text and comments.
+  // Every markup render says what the view is and that the output shows author names, deleted text and comments.
   if (facts.markup) notes.push(...markupNotes(facts.markup));
   for (const n of notes) printStderr(`note: ${n}`);
   return notes;

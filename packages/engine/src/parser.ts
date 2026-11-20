@@ -153,7 +153,9 @@ export function createBlankDocxBuffer(templateType: string = 'blank', options?: 
   return DocxParser.createNewDocument(templateType, options).rezip();
 }
 
-/** Names the check that refused a save. The only one now is a repeated paragraph id. */
+/**
+ * The check that refused a save. The only one now is `duplicate-paraid`, a repeated paragraph id.
+ */
 export type SaveGuardKind = 'duplicate-paraid';
 
 function guardKindOf(err: unknown): SaveGuardKind | null {

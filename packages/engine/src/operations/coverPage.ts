@@ -55,6 +55,9 @@ function coverSuffix(slot: string, title: string, subtitle: string, author: stri
   return generateValidParaId(`cover:${slot}:${title}:${subtitle}:${author}:${org}:${dateText}`, 0);
 }
 
+/**
+ * Add a cover page (`action: 'coverPage'`). `template` picks the design. The spacing fields adjust the gaps on the page.
+ */
 export interface CoverPageOperation extends BaseOperation {
   action: 'coverPage';
   template?: 'modern_minimalist' | 'corporate_navy' | 'academic' | 'executive';

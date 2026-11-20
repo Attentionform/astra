@@ -9,12 +9,18 @@ import { assertHistoryReadyForWrite, checkoutCommit, commitChange, getHistory, g
 import { createVerifiedBackup, newRestoreBackupPath, originalSha256, readOriginal, replaceFileAtomic } from './original';
 import { assertWriteTargetNoSymlink } from './sandbox/paths';
 
+/**
+ * Options for `restoreOriginal`. `expectedSha256` makes the restore refuse when the current file is not the one that you expect, and `macroPolicy` applies the usual macro rules to the original.
+ */
 export interface RestoreOriginalOptions {
   /** Optional expected hash of the current file, for clients with a saved baseline. */
   expectedSha256?: string;
   /** The original must satisfy the same macro policy as any other opened document. */
   macroPolicy?: DocxParserMacroOptions;
 }
+/**
+ * What `restoreOriginal` reports: the `path`, the SHA-256 of the restored file, and the id of the history entry that records the restore. `durabilityUnconfirmed` is true when the system could not confirm that the write reached the disk, and `warning` says more.
+ */
 export interface RestoreOriginalResult {
   path: string;
   sha256: string;

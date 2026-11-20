@@ -3,11 +3,17 @@
  * Fast, simple alternative to semantic search for structured documents
  */
 
+/**
+ * Options for `grepNodes`: `regex` reads the query as a regular expression, and `caseSensitive` matches case.
+ */
 export interface GrepOptions {
   regex?: boolean;
   caseSensitive?: boolean;
 }
 
+/**
+ * One match: the node `id`, its `preview`, and `matchContext`, the text around the match.
+ */
 export interface GrepResult {
   id: string;
   preview: string;

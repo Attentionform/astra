@@ -311,7 +311,7 @@ const { buffer: cleanBuffer, report } = sanitizeDocxBuffer(buffer, {
 console.log(`Scrubbed ${report.removedRSIDs} RSIDs and ${report.strippedComments} comments.`);
 ```
 
-With `acceptAllRevisions`, `sanitizeDocxBuffer` throws `E_VALIDATION` (naming the part and the revision kinds) and returns no buffer when revision markup remains that cannot be resolved safely, because a partly cleaned file could still contain deleted text and reviewer names.
+With `acceptAllRevisions`, `sanitizeDocxBuffer` throws `E_VALIDATION` (naming the part and the revision kinds) and returns no buffer when revision markup remains that cannot be resolved safely, because a partly cleaned file could still contain deleted text and author names.
 
 ### Outline generator (`ToonGenerator`)
 ```typescript

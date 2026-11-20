@@ -25,11 +25,17 @@ import { createDefaultStyleGuide } from './defaults';
 import { canonicalizeForAsset, hasUriScheme, isPathInsideDir } from '../sandbox/paths';
 import { toError } from '../errors';
 
+/**
+ * Options for `resolveStyleGuide`. `allowedDir` is the folder that file paths are resolved in.
+ */
 export interface ResolveStyleGuideOptions {
   /** The folder that a relative file path is resolved in. Without it, a relative path is resolved from the current directory. */
   allowedDir?: string;
 }
 
+/**
+ * A style guide that was found and read: its `config`, the `warnings` from reading it, and the absolute `filePath` that it came from.
+ */
 export interface ResolvedStyleGuide {
   config: StyleGuideConfig;
   /** Parser diagnostics for the resolved file (defaulted sections, hex fixes). */

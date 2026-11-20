@@ -28,6 +28,9 @@ export function assertToonFidelity(value: unknown): asserts value is ToonFidelit
   }
 }
 
+/**
+ * The request that `ToonGenerator.toon` takes: the fidelity, the section, the longest text and whether to use the cache.
+ */
 export interface ToonRequest {
   fidelity?: ToonFidelity;
   sectionId?: string;
@@ -35,6 +38,9 @@ export interface ToonRequest {
   useCache?: boolean;
 }
 
+/**
+ * One row of the outline: a node's id, version, section path, heading, style, text and flags. `detail` is for the `full` tier, and `level` is the heading level in the `outline` tier.
+ */
 export interface ToonRow {
   id: string;
   version: number;
@@ -43,12 +49,15 @@ export interface ToonRow {
   style: string;       // Style info (e.g. "heading1:L0", "body:L-1", "list:bullet:L2")
   text: string;
   flags: string;
-  /** Full-tier only: serialized w:pPr + w:rPr dump. Absent for compact/standard. */
+  /** The paragraph and run properties of the node, as XML. Only the `full` tier has it. */
   detail?: string;
   /** Outline tier only: the heading level (1 to 9). Absent for every other tier. */
   level?: number;
 }
 
+/**
+ * The outline of a document or a section: the column `headers`, the `rows`, and the `tier` that made them.
+ */
 export interface ToonTable {
   headers: string[];
   rows: ToonRow[];
@@ -186,6 +195,9 @@ export function collectToonTokens(rendered: string): string[] {
   return out;
 }
 
+/**
+ * Options for `renderToonText`: compact output, the longest text, columns to leave out, the header row, the detail column, and a line width.
+ */
 export interface ToonRenderOptions {
   compact?: boolean;             // Strip redundant spacing, trim empty flags
   maxTextLength?: number;        // Max characters for text column before truncation
@@ -193,18 +205,13 @@ export interface ToonRenderOptions {
   includeHeaderRow?: boolean;
   /** Full-tier only: include the Detail column (default true when rows carry detail). */
   includeDetail?: boolean;
-  /**
-   * Human-presentation text-column wrap: when set, the Text column is
-   * word-wrapped so no emitted row line exceeds `width` display columns.
-   * Continuation lines carry a hanging indent of spaces aligning under the
-   * row's own Text cell start. Every other column (and the fidelity/header/
-   * separator rows) is never wrapped. Omitted by default: default rendering
-   * stays strict 1-line-per-node for machine consumers; unwrapToonText
-   * recovers the canonical single-line form.
-   */
+  /** Wrap the Text column so that no line is longer than `width` columns. A wrapped line continues under the start of its Text cell. No other column is wrapped. Without `width` each node is one line, which is the form that a program should read; `unwrapToonText` turns a wrapped table back into that form. */
   width?: number;
 }
 
+/**
+ * Options for `generateToon` and `generateTokenBudgetToon`: the section, the longest text, whether to use the cache, and the fidelity.
+ */
 export interface ToonGenerateOptions {
   sectionId?: string;
   maxTextLength?: number;
@@ -212,6 +219,9 @@ export interface ToonGenerateOptions {
   fidelity?: ToonFidelity;
 }
 
+/**
+ * Options for `generateDiff`. `showUnchangedStatus` keeps the rows that did not change.
+ */
 export interface ToonDiffOptions {
   compact?: boolean;
   showUnchangedStatus?: boolean;

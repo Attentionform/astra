@@ -23,6 +23,9 @@ function sectionHash8(input: string): string {
   }
 }
 
+/**
+ * Set the number of columns of a section, or split or merge sections (`action: 'section'`).
+ */
 export interface SectionOperation extends BaseOperation {
   action: 'section';
   operation: 'setColumns' | 'split' | 'merge';

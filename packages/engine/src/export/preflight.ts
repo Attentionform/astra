@@ -3,6 +3,9 @@ import { decodePartUri, decodeXmlEntities } from '../ooxml/xml-entities';
 
 export type PreflightSeverity = 'blocker' | 'warning';
 
+/**
+ * One problem that the check before a PDF export found. `check` names the check, `severity` says whether it blocks, and `code` and `message` describe it.
+ */
 export interface PreflightIssue {
   check: string;
   severity: PreflightSeverity;

@@ -15,6 +15,9 @@ import {
   TABLE_CONTRAST_MIN_RATIO,
 } from '../operations/table';
 
+/**
+ * One piece of advice from checking a document against a style guide. `nodeId` is the node, `rule` names the rule, and `message` says what to change.
+ */
 export interface StyleWarning {
   nodeId: string;
   rule: string;

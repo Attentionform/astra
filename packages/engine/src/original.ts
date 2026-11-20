@@ -6,7 +6,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import { getRepoDir, getSidecarBytes, resolveHistoryMaxSidecarBytes } from './git';
 import { assertWriteTargetNoSymlink } from './sandbox/paths';
 
+/**
+ * Why the original is not available: the history began before originals were kept (`predates-feature`), the capture failed or the original was too large for the history limit (`capture-failed`, `too-large`), the capture was never finished (`incomplete`), the stored copy fails its hash (`corrupt`), the path is not absolute or no bytes were given (`not-applicable`), or the history is still being set up (`initializing`).
+ */
 export type OriginalUnavailableReason = 'predates-feature' | 'capture-failed' | 'incomplete' | 'corrupt' | 'too-large' | 'not-applicable' | 'initializing';
+/**
+ * Whether the original bytes of a document are available. When they are, `sha256`, `bytes` and `capturedAt` describe them. When they are not, `reason` says why.
+ */
 export type OriginalInfo =
   | { available: true; sha256: string; bytes: number; capturedAt: string }
   | { available: false; reason: OriginalUnavailableReason; detail?: string };

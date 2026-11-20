@@ -1,8 +1,5 @@
 /**
- * Single source of truth for the c:barChart 2D matrix: bar direction ×
- * grouping → chart type. The writer (manipulators/chart2d.ts) and the reader
- * (parser/factory.ts) both consume this table, so a new variant can never be
- * written without also being detected (and vice versa).
+ * The kinds of bar and column chart: a direction (`column` is vertical and `bar` is horizontal), and grouping (clustered, stacked or percent stacked).
  */
 export type Chart2DBarType =
   | 'column' | 'bar' | 'columnStacked' | 'barStacked'

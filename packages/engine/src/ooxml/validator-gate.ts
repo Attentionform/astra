@@ -11,6 +11,9 @@ import { resolveOfficeVersion } from './office-version';
 export type { ValidationResult, ValidateOptions };
 export * from './office-version';
 
+/**
+ * One error in a validation result: a `description`, the `path` of the part, the `xPath` of the element, the SDK `id` and the `errorType`.
+ */
 export interface ValidationError {
   description?: string | null;
   path?: string | null;

@@ -7,6 +7,9 @@ import { toError } from '../errors';
 import { closestNames, KEY_WORDS } from '../operation-hints';
 import { requireBorderSize, requireColour } from './colour';
 
+/**
+ * The formatting that a style operation can set. A `null` for a paragraph flag removes the setting, so that the paragraph style applies again.
+ */
 export interface StyleProperties {
   bold?: boolean;
   italic?: boolean;
@@ -46,6 +49,9 @@ export interface StyleProperties {
   matchCase?: boolean;  // default true (case-sensitive)
 }
 
+/**
+ * Change the formatting of one or more nodes: bold, italic, colour, size, alignment and spacing (`action: 'style'`). The properties may be given at the top level, in `properties` or in `params`.
+ */
 export interface StyleOperation extends BaseOperation, StyleProperties {
   action: 'style';
   target: string | string[];

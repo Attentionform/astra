@@ -133,8 +133,14 @@ export const SanitizeOptionsSchema = z
   })
   .strict();
 
+/**
+ * What `sanitizeDocxBuffer` removes: `purgeAuthors`, `purgeRSIDs`, `purgeExif`, `purgePII`, `acceptAllRevisions`, `stripComments` and `stripMacros`. `zeroRetention` makes sure that the report never repeats a removed value and that no original bytes stay in memory after the purge. `allowMacros` keeps macros, and `replacementAuthor` is the name that authors become.
+ */
 export type SanitizeOptions = z.infer<typeof SanitizeOptionsSchema>;
 
+/**
+ * What `sanitizeDocxBuffer` did, as counts and part names, never as the removed values. Each field says what it counts.
+ */
 export interface SanitizeReport {
   ok: true;
   zeroRetention: boolean;
@@ -144,7 +150,7 @@ export interface SanitizeReport {
   purgedPII: number;
   bodyPII: number;
   propsPII: number;
-  /** Revision nodes accepted (del/moveFrom/cellDel dropped, ins/moveTo unwrapped, range + cell + *Change markers resolved). */
+  /** How many tracked changes were accepted: deletions and moves away were removed, and insertions and moves in were kept. */
   acceptedRevisions: number;
   unresolvedRevisions?: UnresolvedRevision[];
   revisionByKind?: Record<string, number>;
@@ -696,7 +702,9 @@ export function macroChoiceError(): Error {
   return err;
 }
 
-/** Minimal entry-store seam so one strip routine serves Maps and live zips. */
+/**
+ * A store of package entries that the macro strip works on. It has the four calls that the strip needs, so that it can run on a Map and on a live zip.
+ */
 export interface MacroEntryStore {
   names(): string[];
   readText(name: string): string | null;
@@ -1686,7 +1694,7 @@ function applyRevisionAndCommentPass(
     if (residual.length) {
       throw Object.assign(new Error(
         `E_VALIDATION: Cannot sanitize ${context}: revision markup remains that accept-all cannot resolve safely (${residual.join(', ')}). ` +
-        'Remedy: accept or reject these revisions in Word, then sanitize again (or set stripComments when the cause is a comment that is also anchored outside the removed text). Sanitizing without acceptAllRevisions can leave deleted content and reviewer names and dates in the file.'
+        'Remedy: accept or reject these revisions in Word, then sanitize again (or set stripComments when the cause is a comment that is also anchored outside the removed text). Sanitizing without acceptAllRevisions can leave deleted content and author names and dates in the file.'
       ), { code: 'E_VALIDATION' });
     }
   }

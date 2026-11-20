@@ -6,6 +6,9 @@ import { sectionPosition } from './section-number';
 import { toError } from '../errors';
 import { requireBorderSize, requireColour } from './colour';
 
+/**
+ * Add a border around the page (`action: 'pageBorder'`). `marginOffset` measures the distance from the page edge or from the text.
+ */
 export interface PageBorderOperation extends BaseOperation {
   action: 'pageBorder';
   style?: string;       // e.g. 'single', 'double', 'dashed', 'triple' (default 'single')

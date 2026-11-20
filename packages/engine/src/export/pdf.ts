@@ -101,12 +101,15 @@ function parseLoExitCode(detail: string): number | undefined {
 export { PreflightError, runPreflightChecks } from './preflight';
 export type { PreflightIssue, PreflightReport } from './preflight';
 
+/**
+ * Options for PDF export: the time limit, the LibreOffice program, tagged output, strict checks, the renderer, network references and markup. See each field.
+ */
 export interface PdfExportOptions {
   timeoutMs?: number;
   binary?: string;
-  /** Tagged (accessible) PDF render. Default true. */
+  /** Make a tagged PDF, which is accessible to screen readers. The default is true. */
   tagged?: boolean;
-  /** Fail closed on preflight blockers. Default false (warn-only). */
+  /** Throw `PreflightError` when the check before the export finds a problem that would make the PDF wrong. The default is false, and a problem is then a warning. */
   strict?: boolean;
   /** DOCX -> PDF program: auto (default), word (Windows only) or libreoffice. Falls back to ASTRA_RENDERER, then auto. */
   renderer?: RendererPreference;
@@ -126,7 +129,9 @@ export interface PdfExportOptions {
   testHooks?: VisualTestHooks;
 }
 
-/** What a PDF export did, beyond the file it wrote. */
+/**
+ * What a PDF export did besides writing the file: the `path`, and reports on the renderer, the references and the markup.
+ */
 export interface PdfConversionResult {
   path: string;
   renderer: RendererReport;

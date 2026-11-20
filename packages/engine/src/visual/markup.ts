@@ -49,11 +49,13 @@ export function effectiveShowMarkup(explicit: boolean | string | undefined, env:
 // What a result reports, and the sentences callers show
 // ---------------------------------------------------------------------------------------------------------
 
+/**
+ * How a render draws tracked changes and comments: `export-with-markup` is Word's export with markup, and `comments-in-margin` is LibreOffice's comments in the margin.
+ */
 export type MarkupMode = 'export-with-markup' | 'comments-in-margin';
 
 /**
- * What was asked and what the renderer was told to do. It is not a check of the output: `mode` names the setting the
- * renderer was instructed to use, and `warnings` carries best-effort Word settings that could not be set.
+ * What was asked for in a markup render and what the renderer was told to do. It is not a check of the output.
  */
 export interface MarkupReport {
   requested: true;
@@ -67,7 +69,7 @@ export function buildMarkupReport(renderer: 'word' | 'libreoffice', warnings: st
 }
 
 export const MARKUP_CONTRACT_NOTE = 'markup view: pages are scaled and may differ from a render without markup; page numbers refer to this render.';
-export const MARKUP_PRIVACY_NOTE = 'markup view: the output shows reviewer names, deleted text and comments; check it before sharing it.';
+export const MARKUP_PRIVACY_NOTE = 'markup view: the output shows author names, deleted text and comments; check it before sharing it.';
 
 /** The notes shown with every markup render (CLI stderr, MCP `notes`), then any warnings. */
 export function markupNotes(report: MarkupReport): string[] {

@@ -1,6 +1,5 @@
 /**
- * What the engine tells a caller about the package it opened, beyond the document itself.
- * Present only when there is something to say: a canonical, unsigned package has an empty report.
+ * What the engine found out about the package that it opened, beyond the document itself. An unsigned package that follows the usual namespace prefixes has an empty report.
  */
 export interface PackageReport {
   /** Parts whose namespace prefixes were rewritten to the usual ones at open. `from[i]` was rewritten to `to[i]` (prefixes; '' is the default namespace). */

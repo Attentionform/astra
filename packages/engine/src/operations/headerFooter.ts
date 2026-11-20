@@ -7,6 +7,9 @@ import { HeaderFooterManipulator } from '../manipulators/header-footer';
 import { XMLSerializer } from '@xmldom/xmldom';
 import { DOMParser } from '../ooxml/dom-parser';
 
+/**
+ * Set or remove the content of a header or a footer (`action: 'headerFooter'`). `targetType` picks which, and `pageType` picks the first page, even pages or all the others.
+ */
 export interface HeaderFooterOperation extends BaseOperation {
   action: 'headerFooter';
   operation: 'set' | 'remove';

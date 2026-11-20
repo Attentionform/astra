@@ -5,6 +5,9 @@ import { sectionPosition } from './section-number';
 import { orientPageDimensions, readPageDimensions, readPageOrientation } from '../ooxml/page-size';
 import { pageSetupFromSectPr } from '../parser/sections';
 
+/**
+ * Set the paper size, the orientation, the margins and the columns of a section (`action: 'pageSetup'`). The fields can be given at the top level or in `params`. Sizes are in twips.
+ */
 export interface PageSetupOperation extends BaseOperation {
   action: 'pageSetup';
   params?: {

@@ -8,7 +8,9 @@ import { ownElements, readTableMerges, type TableMerges } from './table-merges';
 import { effectiveRunItalic, useStylesForExport } from './style-italic';
 import { newDocumentTitle } from '../ooxml/new-document-parts';
 
-/** Narrow export duck-typing without behavior change (replaces `any`). */
+/**
+ * The shape of a node that the HTML and Markdown exporters read.
+ */
 export type ExportNodeLike = {
   id?: string;
   type?: string;

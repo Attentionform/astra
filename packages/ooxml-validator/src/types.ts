@@ -10,6 +10,7 @@ export const OFFICE_VERSIONS = [
   'Microsoft365',
 ] as const;
 
+/** An Office version that validation can target. */
 export type OfficeVersion = (typeof OFFICE_VERSIONS)[number];
 
 /** Document families the validator opens: Word, PowerPoint and Excel packages. */
@@ -77,14 +78,23 @@ export interface ValidationError {
   [key: string]: unknown;
 }
 
+/** The result of one validation. `ok` is true when the validator reported no errors. */
 export interface ValidationResult {
+  /** The file that was checked, or a label for the bytes that were checked. */
   file: string;
+  /** True when no error was reported. */
   ok: boolean;
+  /** The errors that were reported, at most `maxErrors` of them. */
   errors: ValidationError[];
+  /** The version of the Open XML SDK that ran. */
   sdkVersion?: string;
+  /** The Office version that the document was checked against. */
   office?: string;
+  /** How long the run took, in milliseconds. */
   durationMs?: number;
+  /** True when `maxErrors` cut the list of errors. */
   truncated?: boolean;
+  /** The number of errors that were found. */
   errorCount?: number;
   /** The Office version the caller asked for (always set by the buffer and worker APIs). */
   requestedOfficeVersion?: string;
@@ -99,14 +109,17 @@ export interface ValidationResult {
 }
 
 /**
- * Options for the file APIs: the standalone `validateFile()`, `isValid()` and
- * the CLI. The family comes from the file extension, so there is no `kind`.
+ * Options for a validation. The document family comes from the file extension, so there is no `kind` here;
+ * `ValidateBufferOptions` adds it for bytes.
  */
 export interface ValidateOptions {
-  /** Open XML schema version to validate against. Defaults to `Microsoft365` for one-shot, `Office2019` for buffer. */
+  /** The Office version to validate against. The default is `Microsoft365` for a file and `Office2019` for bytes. */
   officeVersion?: OfficeVersion;
+  /** Stop reporting after this many errors. The result then has `truncated: true`. */
   maxErrors?: number;
+  /** Give up after this many milliseconds. */
   timeoutMs?: number;
+  /** Refuse a document that is larger than this many bytes. */
   maxDocBytes?: number;
 }
 

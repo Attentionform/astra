@@ -205,6 +205,9 @@ export * from './text-spans';
 export * from './assets';
 export * from './compile';
 
+/**
+ * Options for `composeDocument`: where the new content goes, which style guide to use, and the folder that images and charts are read from.
+ */
 export interface ComposeOptions {
   /** The number of operations in each chunk, when you want fewer than the engine's limit. */
   chunkSize?: number;

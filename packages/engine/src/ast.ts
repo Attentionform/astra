@@ -12,6 +12,9 @@ if (typeof Element !== 'undefined' && !((Element.prototype as unknown as Record<
   };
 }
 
+/**
+ * The document properties: title, author, who changed it last, the dates, the subject and the keywords.
+ */
 export interface DocumentMetadata {
   title?: string;
   creator?: string;
@@ -29,6 +32,9 @@ export interface DocumentMetadata {
   footerText?: string;
 }
 
+/**
+ * What the parser found out about a node: its text, flags that tell whether it has comments, tracked changes, fields and so on, and the data of tables and charts.
+ */
 export interface NodeMetadata {
   text: string;
   hasCitation: boolean;
@@ -50,18 +56,21 @@ export interface NodeMetadata {
   categories?: string[];
   series?: unknown[];
   chartType?: string;
-  /** Callout/admonition marker written by the callout op and read by exporters. */
+  /** Set on a callout: its colour theme, its title and its type. */
   callout?: { theme?: string; title?: string; type?: string; alertType?: string };
-  /** TOC generator note (minimum labeling when XML comments are stripped). */
+  /** How the page numbers of a table of contents were found: `tocPageSource` says where they came from, `tocPageEstimate` is true when they are estimates, and `tocPageNote` has a note. */
   tocPageSource?: string;
   tocPageEstimate?: boolean;
   tocPageNote?: string;
-  /** Explicit alert override (wins over theme/title inference in exporters). */
+  /** An alert type, such as `note` or `warning`, that wins over the type that the exporters work out from the theme and title. */
   alertType?: string;
-  /** Alias for alertType (flat alias honored by exporters). */
+  /** The same as `alertType`. */
   calloutType?: string;
 }
 
+/**
+ * One paragraph, table, list, image, equation, field or chart of a document. `id` is stable, `version` rises with each change, and `checksum` tells whether the content changed.
+ */
 export interface Node {
   id: string;
   type: 'paragraph' | 'table' | 'list' | 'image' | 'equation' | 'field' | 'chart' | 'chart3d';
@@ -71,11 +80,17 @@ export interface Node {
   checksum: string;
 }
 
+/**
+ * A heading: a node with its level and text.
+ */
 export interface HeadingNode extends Node {
   level: number;
   text: string;
 }
 
+/**
+ * The page setup of a section, as read from the document. Sizes are in twips (a twentieth of a point).
+ */
 export interface PageSetupProperties {
   marginTop?: number;
   marginBottom?: number;
@@ -92,6 +107,9 @@ export interface PageSetupProperties {
   pageHeightTwips?: number;
 }
 
+/**
+ * A part of a document under a heading: its `id`, the `heading`, its `nodes` and its page setup.
+ */
 export interface Section {
   id: string;
   heading: HeadingNode | null;
@@ -102,6 +120,9 @@ export interface Section {
 }
 
 // Map of styleId to Style definition XML or properties
+/**
+ * The styles of a document, by style id: each has a name, a type and its XML.
+ */
 export interface StylesMap {
   [styleId: string]: {
     name: string;
@@ -111,12 +132,7 @@ export interface StylesMap {
 }
 
 /**
- * What the numbering part looked like when it was read, so that it can be
- * written back the way it was: the attributes of its root element (namespace
- * declarations and mc:Ignorable), the children that are neither
- * w:abstractNum nor w:num (w:numPicBullet before the definitions,
- * w:numIdMacAtCleanup after them), and two hashes that tell whether the part
- * and the definitions are still the ones that were read.
+ * What the numbering part looked like when it was read, so that it can be written back unchanged: its root attributes, the elements before and after the definitions, and hashes that tell whether the part is still the one that was read.
  */
 export interface NumberingSource {
   rootAttributes: Array<{ name: string; value: string }>;
@@ -126,12 +142,18 @@ export interface NumberingSource {
   definitionsHash: string;
 }
 
+/**
+ * The numbering definitions of a document, for lists. `source` is what the part looked like when it was read.
+ */
 export interface NumberingMap {
   abstractNum: Record<string, Element>;
   concreteNum: Record<string, Element>;
   source?: NumberingSource;
 }
 
+/**
+ * The relationships of the document part, by id: each has a type, a target and whether it is external.
+ */
 export interface RelationshipsMap {
   [rId: string]: {
     type: string;
@@ -140,6 +162,9 @@ export interface RelationshipsMap {
   };
 }
 
+/**
+ * The headers or the footers of a document, by relationship id. Each has a type (default, first page or even pages), its XML and its text.
+ */
 export interface HeaderFooterMap {
   [rId: string]: {
     type: 'default' | 'first' | 'even';
@@ -148,15 +173,24 @@ export interface HeaderFooterMap {
   };
 }
 
+/**
+ * The images and other media of a document, as bytes by file name.
+ */
 export interface MediaMap {
   [fileName: string]: Buffer;
 }
 
+/**
+ * The settings that edits use: whether new changes are tracked, and the author name that they carry.
+ */
 export interface DocumentSettings {
   trackChanges: boolean;
   defaultAuthor: string;
 }
 
+/**
+ * The document as typed data. `sections` hold the nodes, and the other fields hold the styles, the numbering, the relationships, the headers and footers, the images and the settings. Operations change this structure and `rezip()` writes it back.
+ */
 export interface DocumentAST {
   metadata: DocumentMetadata;
   sections: Section[];

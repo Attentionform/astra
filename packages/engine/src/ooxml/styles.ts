@@ -9,6 +9,9 @@ import { DOMParser } from './dom-parser';
 import type { DocxParser } from '../parser';
 import { assertNoXxe } from './xxe-guard';
 
+/**
+ * One style of a document: its id, name and type, the style it is based on, and its font, size and colour.
+ */
 export interface StyleInfo {
   id: string;
   name: string;
@@ -24,6 +27,9 @@ export interface StyleInfo {
   quickFormat?: boolean;
 }
 
+/**
+ * The fonts, colours and styles that a document uses, as a summary.
+ */
 export interface StylePalette {
   primaryFont: string;
   headingFont?: string;

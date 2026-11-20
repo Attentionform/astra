@@ -141,9 +141,7 @@ export function countExplicitPageBreaks(node: { type?: string; metadata?: { text
 }
 
 /**
- * What the page estimate is made of, each term in pages, before the ceiling. The terms add up to the budget
- * that `pages` rounds up. Only `words` is measured from text; the other three are fixed weights per table or
- * callout (0.45), per image (0.50) and per explicit page break (1), because the estimate cannot size them.
+ * The four terms of the page estimate, each in pages, before rounding up: words, tables and callouts, images and page breaks. Only the words are measured. A table or callout counts 0.45 page, an image 0.5 and a page break 1.
  */
 export interface PageTerms {
   words: number;
@@ -152,6 +150,9 @@ export interface PageTerms {
   pageBreaks: number;
 }
 
+/**
+ * The counts that `computeDocStats` returns: words, paragraphs, tables, callouts and images, and an estimated page count.
+ */
 export interface DocStats {
   words: number;
   paragraphs: number;

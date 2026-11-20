@@ -179,7 +179,7 @@ astra visual report.docx --page 2 --out page2.png
 
 Versions older than 7.6.7 were not tried. Windows was tried with one LibreOffice version only.
 
-Microsoft Word 16.0.14334.20974 on Windows passed the checks for the default view, for Word starting in "No Markup", with one reviewer hidden and with comments off (the view comes back after each), for three reviewers, and for a user's own open Word keeping its process and window. It also showed a 60-word comment complete beside two other comments, and cut a 300-word comment after about 150 words with an ellipsis (checks R17 and R17b). Other Word builds were not tried.
+Microsoft Word 16.0.14334.20974 on Windows passed the checks for the default view, for Word starting in "No Markup", with one author hidden and with comments off (the view comes back after each), for three authors, and for a user's own open Word keeping its process and window. It also showed a 60-word comment complete beside two other comments, and cut a 300-word comment after about 150 words with an ellipsis (checks R17 and R17b). Other Word builds were not tried.
 
 ### Review marks: other documents that were tried
 

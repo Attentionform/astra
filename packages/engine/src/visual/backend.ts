@@ -26,6 +26,9 @@ import { windowsRendererAvailable } from './windows-pdf';
 
 export type VisualPdfBackend = 'word' | 'libreoffice' | 'none';
 
+/**
+ * What `getVisualBackendStatus` returns: whether pages can be drawn, which renderer would run first, the paths found, and what is missing. `renderers`, `rasterizers` and `plan` give the detail.
+ */
 export interface VisualBackendStatus {
   /** A renderer and a rasterizer can both run under the effective preferences (flag-less: environment, then auto). */
   available: boolean;
