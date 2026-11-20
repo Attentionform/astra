@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import AdmZip from 'adm-zip';
-import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src';
+import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src/internal';
 import { findRegion, hashNodes } from '../src/compose/template-canonical';
 import { TEMPLATE_MANIFEST } from '../src/compose/template-manifest.generated';
 import { DOMParser } from '../src/ooxml/dom-parser';

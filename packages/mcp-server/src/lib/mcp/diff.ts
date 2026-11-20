@@ -5,14 +5,8 @@
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  AdmZip,
-  DocxParser,
-  getRepoDir,
-  parseTableOrdinalFromXPath,
-  refreshAstInPlace,
-  tableGridPlainText,
-} from '@attentionform/astra-engine';
+import { DocxParser } from '@attentionform/astra-engine';
+import { AdmZip, getRepoDir, parseTableOrdinalFromXPath, refreshAstInPlace, tableGridPlainText } from '@attentionform/astra-engine/internal';
 import type { DocHandle } from '../session-store';
 import { COMMIT_AUTHOR_DEFAULT, COMMIT_MESSAGE_MAX } from './errors';
 

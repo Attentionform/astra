@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { serverOfficeVersion } from '../lib/mcp/validation-target';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { DocxParser, TEMPLATE_NAMES, getEngineErrorCode, assertWriteTargetNoSymlink, summarizeStyleGuide, writeFileNoFollow, type EngineErrorCode, type ResolvedStyleGuide, type StyleGuideSummary } from '@attentionform/astra-engine';
+import { DocxParser, TEMPLATE_NAMES, getEngineErrorCode, type EngineErrorCode, type ResolvedStyleGuide } from '@attentionform/astra-engine';
+import { assertWriteTargetNoSymlink, summarizeStyleGuide, writeFileNoFollow, type StyleGuideSummary } from '@attentionform/astra-engine/internal';
 import {
   buildClientSessionIdRejection,
   validateSaveTarget,

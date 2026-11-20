@@ -61,7 +61,9 @@ export interface VisualRenderOptions {
    * by a different layout mode: pages can be scaled and pagination can change, so page numbers refer to this render.
    */
   showMarkup?: boolean;
-  /** Tests only: replace what the machine would report (platform, Word, Windows renderer) and the PowerShell host. */
+  /**
+   * @internal Tests only: replace what the machine would report (platform, Word, Windows renderer) and the PowerShell host.
+   */
   testHooks?: VisualTestHooks;
 }
 

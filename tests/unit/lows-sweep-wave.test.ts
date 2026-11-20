@@ -21,7 +21,7 @@ import {
   validateOperationStrict,
   executeStyle,
   validateDocxBuffer,
-} from '../../packages/engine/src';
+} from '../../packages/engine/src/internal';
 import { readDocxFileBuffer } from '../../packages/engine/src/parser';
 import { ZIP_BOMB_MAX_UNCOMPRESSED_BYTES } from '../../packages/engine/src/zip-hardening';
 import {

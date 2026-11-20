@@ -1,6 +1,6 @@
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { initAstraRepo, originalSha256 } = require('@attentionform/astra-engine');
+const { initAstraRepo, originalSha256 } = require('@attentionform/astra-engine/internal');
 
 async function waitFor(file, timeoutMs) {
   const started = Date.now();

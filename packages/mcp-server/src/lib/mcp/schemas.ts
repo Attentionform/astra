@@ -1,7 +1,7 @@
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 923-1076).
 // Zero logic edits.
 import { z } from 'zod';
-import { OperationSchema, SanitizeOptionsSchema } from '@attentionform/astra-engine';
+import { OperationSchema, SanitizeOptionsSchema } from '@attentionform/astra-engine/internal';
 
 // ── Strict input schemas (no loose records; batch reuses the strict union) ───
 export const OpenDocumentSchema = z

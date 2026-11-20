@@ -3,7 +3,7 @@
  * `libraryRemedy` adds the library equivalent next to each tool and never replaces the original.
  */
 import { describe, expect, it } from 'vitest';
-import { DocxParser, OperationEngine, libraryRemedy, toError, MCP_TOOL_LIBRARY_EQUIVALENTS } from '../src';
+import { DocxParser, OperationEngine, libraryRemedy, toError, MCP_TOOL_LIBRARY_EQUIVALENTS } from '../src/internal';
 
 async function failedBatch(operation: Record<string, unknown>) {
   const parser = DocxParser.createNewDocument('blank');

@@ -1,13 +1,5 @@
-import {
-  describeReferenceReport,
-  markupNotes,
-  parseRasterizerPreference,
-  parseRendererPreference,
-  type MarkupReport,
-  type ReferenceReport,
-  type RasterizerReport,
-  type RendererReport,
-} from '@attentionform/astra-engine';
+import { type MarkupReport, type ReferenceReport, type RasterizerReport, type RendererReport } from '@attentionform/astra-engine';
+import { describeReferenceReport, markupNotes, parseRasterizerPreference, parseRendererPreference } from '@attentionform/astra-engine/internal';
 import { printStderr } from './output';
 
 /**

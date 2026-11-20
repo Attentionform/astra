@@ -1,10 +1,9 @@
 // A new document built only from operations. A heading is a paragraph with a named style applied.
 import { join } from 'node:path';
-import astra from '@attentionform/astra-engine';
+import AdmZip from 'adm-zip';
 import { DocxParser, OperationEngine } from '@attentionform/astra-engine';
 
-// AdmZip is exported by the package, but Node 22 cannot see it as a named ESM import, so take it from the default export.
-const { AdmZip } = astra;
+// Any zip library works to look inside a .docx; this example uses adm-zip.
 import { assertApplied, outputDir, writeValidated } from './_shared.mjs';
 
 const parser = DocxParser.createNewDocument('blank');

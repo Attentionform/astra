@@ -11,7 +11,7 @@ import {
   hasPdfBackend,
   setPdfBackendBinaryForTesting,
   resetPdfBackendCache,
-} from '../../packages/engine/src';
+} from '../../packages/engine/src/internal';
 import { run as runCli, EXIT_OK, EXIT_FAIL, EXIT_USAGE } from '../../packages/cli/src/cli';
 import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session-store';
 import { handleOpenDocument } from '../../packages/mcp-server/src/lib/mcp-tool-adapter';

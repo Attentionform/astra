@@ -112,7 +112,9 @@ export interface PdfExportOptions {
    * markup; LibreOffice: comments in the margin. Pages can be scaled and pagination can change.
    */
   showMarkup?: boolean;
-  /** Tests only: replace what the machine would report and the PowerShell host. */
+  /**
+   * @internal Tests only: replace what the machine would report and the PowerShell host.
+   */
   testHooks?: VisualTestHooks;
 }
 

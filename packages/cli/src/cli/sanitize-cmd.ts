@@ -1,6 +1,7 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { AdmZip, assertValidDocx, clampZipEntryTimes, SANITIZER_DEFAULT_AUTHOR, PII_COVERAGE, piiCoverageSentence, redactAttributePii, redactBodyPiiInWordText, redactTextNodePii, sanitizeAppPropertiesXml, sanitizeCorePropertiesXml, sanitizeCustomPropertiesXml, sanitizeDocxBuffer, validateSanitizeOptionsStrict } from '@attentionform/astra-engine';
+import { assertValidDocx, sanitizeDocxBuffer } from '@attentionform/astra-engine';
+import { AdmZip, clampZipEntryTimes, SANITIZER_DEFAULT_AUTHOR, PII_COVERAGE, piiCoverageSentence, redactAttributePii, redactBodyPiiInWordText, redactTextNodePii, sanitizeAppPropertiesXml, sanitizeCorePropertiesXml, sanitizeCustomPropertiesXml, validateSanitizeOptionsStrict } from '@attentionform/astra-engine/internal';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';

@@ -5,16 +5,8 @@
  */
 import * as crypto from 'crypto';
 import * as fsp from 'fs/promises';
-import {
-  BASELINE_MAX_ERRORS,
-  buildBaseline,
-  judgeAgainstBaseline,
-  validateDocxBuffer,
-  type BaselineVerdict,
-  type OfficeVersion,
-  type ValidationBaseline,
-  type ValidationResult,
-} from '@attentionform/astra-engine';
+import { validateDocxBuffer, type OfficeVersion, type ValidationResult } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, buildBaseline, judgeAgainstBaseline, type BaselineVerdict, type ValidationBaseline } from '@attentionform/astra-engine/internal';
 import type { DocHandle } from '../session-store';
 import { COMMIT_MESSAGE_MAX } from './errors';
 import { serverOfficeVersion } from './validation-target';

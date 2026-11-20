@@ -3,27 +3,8 @@ import * as fsp from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { randomUUID, createHash } from 'crypto';
-import {
-  type DocumentAST,
-  type DocxParserMacroOptions,
-  DocxParser,
-  OperationEngine,
-  ToonGenerator,
-  canonicalizeForAsset as canonicalizeForMcp,
-  getRepoDir,
-  assertGitHistoryReady,
-  initAstraRepo,
-  getOriginalInfo,
-  getHistoryInitializationState,
-  getHistory,
-  checkoutCommit,
-  type OriginalInfo,
-  isPathInsideDir as isMcpPathInsideDir,
-  isTrackedPackageFile,
-  setTrustedWriteRootsProvider,
-  type StyleGuideConfig,
-  type ValidationBaseline,
-} from '@attentionform/astra-engine';
+import { type DocumentAST, type DocxParserMacroOptions, DocxParser, OperationEngine, ToonGenerator, getOriginalInfo, type OriginalInfo, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { canonicalizeForAsset as canonicalizeForMcp, getRepoDir, assertGitHistoryReady, initAstraRepo, getHistoryInitializationState, getHistory, checkoutCommit, isPathInsideDir as isMcpPathInsideDir, isTrackedPackageFile, setTrustedWriteRootsProvider, type ValidationBaseline } from '@attentionform/astra-engine/internal';
 
 /**
  * Sprint-2 Muse session store (MCP Lean-6 backing).

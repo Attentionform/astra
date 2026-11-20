@@ -1,4 +1,5 @@
-import { DocxParser, cellAddressesMatching } from '@attentionform/astra-engine';
+import { DocxParser } from '@attentionform/astra-engine';
+import { cellAddressesMatching } from '@attentionform/astra-engine/internal';
 import { EXIT_OK, type GlobalOpts, print, printJson } from './output';
 import { failHuman } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';

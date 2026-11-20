@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import AdmZip from 'adm-zip';
-import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src';
+import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src/internal';
 
 // Each fixture is a built-in template that Microsoft Word opened and saved (see scripts/templates/word-roundtrip/README.md).
 const DESIGNED = TEMPLATE_NAMES.filter((n) => n !== 'blank');

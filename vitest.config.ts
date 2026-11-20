@@ -25,11 +25,17 @@ function resolveMaxWorkers(): number {
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@attentionform/astra-engine': path.resolve(__dirname, 'packages/engine/src'),
-      '@attentionform/astra-mcp-server': path.resolve(__dirname, 'packages/mcp-server/src/index.ts'),
-      '@attentionform/ooxml-validator': path.resolve(__dirname, 'packages/ooxml-validator/src/index.ts'),
-    },
+    // Tests exercise the whole engine, so the package name resolves to the internal barrel, not to the curated root.
+    // The curated root and the sub-paths are checked against the packed package (scripts/check-packed-consumer.mjs).
+    alias: [
+      { find: /^@attentionform\/astra-engine$/, replacement: path.resolve(__dirname, 'packages/engine/src/internal.ts') },
+      { find: /^@attentionform\/astra-engine\/internal$/, replacement: path.resolve(__dirname, 'packages/engine/src/internal.ts') },
+      { find: /^@attentionform\/astra-engine\/(history|ooxml|search)$/, replacement: path.resolve(__dirname, 'packages/engine/src/api/$1.ts') },
+      { find: /^@attentionform\/astra-engine\/internal\/(.*)$/, replacement: path.resolve(__dirname, 'packages/engine/src/$1') },
+      { find: /^@attentionform\/astra-engine\/(.*)$/, replacement: path.resolve(__dirname, 'packages/engine/src/$1') },
+      { find: '@attentionform/astra-mcp-server', replacement: path.resolve(__dirname, 'packages/mcp-server/src/index.ts') },
+      { find: '@attentionform/ooxml-validator', replacement: path.resolve(__dirname, 'packages/ooxml-validator/src/index.ts') },
+    ],
   },
   test: {
     globals: true,

@@ -1,9 +1,6 @@
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 3031-3156).
 // Zero logic edits.
-import {
-  checkoutCommit,
-  getHistory,
-} from '@attentionform/astra-engine';
+import { checkoutCommit, getHistory } from '@attentionform/astra-engine/internal';
 import type { McpSessionStore } from '../../session-store';
 import {
   mcpErrorFrom,

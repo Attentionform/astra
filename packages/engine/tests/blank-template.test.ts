@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import AdmZip from 'adm-zip';
-import { DocxParser, composeDocument, createBlankDocxBuffer, validateDocxBuffer } from '../src';
+import { DocxParser, composeDocument, createBlankDocxBuffer, validateDocxBuffer } from '../src/internal';
 
 const part = (buf: Buffer, name: string) => new AdmZip(buf).readAsText(name);
 const texts = (p: DocxParser) => p.getStructuralSummary().nodes.map((n) => n.text ?? '');

@@ -1,6 +1,6 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const engine = require('@attentionform/astra-engine');
+const engine = require('@attentionform/astra-engine/internal');
 
 const hash = (bytes) => engine.originalSha256(bytes);
 const extras = (parser) => Object.fromEntries([...parser.capturePackageSnapshot()].filter(([name]) => engine.isTrackedPackageFile(name)));

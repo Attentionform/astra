@@ -1,198 +1,90 @@
-/**
- * @attentionform/astra-engine
- * Headless, schema-validating, token-optimized OOXML engine for AI agents
- */
+// The supported root of @attentionform/astra-engine. Every name here is documented and follows semver.
+// Generated from the approved list in scratch/library-and-docs-plan/a5/PROPOSED-API.md; see docs/api-surface.md.
+// Anything not exported here is internal: it lives in `./internal` and carries no promise.
 
-// Core Parser & Document Representation
-export * from './ast';
-export * from './ast-refresh';
-export * from './parser';
-export * from './document-manager';
-export * from './page-map';
-export * from './read-cache';
-export * from './git';
-export * from './original';
-export * from './recovery';
-export * from './grep';
-export * from './validator';
-export * from './sanitizer';
-export * from './package-report';
-export * from './ipc-validation';
-
-// Operations & Mutation Engine
-export * from './operation-schema';
-export { TEMPLATE_NAMES, type TemplateName } from './ooxml/new-document-parts';
-export * from './operation-hints';
-export * from './operation-engine';
-export * from './batch';
-export * from './toon';
-export { countHeadings, headingOfNode, headingLevelOfStyleId } from './heading-style';
-export * from './document-title';
-
-// OOXML Utilities & Validation Gate
-export * from './tmp';
-export * from './ooxml/ns';
-export * from './ooxml/schema-order';
-export * from './ooxml/styles';
-export * from './ooxml/typography';
-export * from './ooxml/validator-gate';
-export * from './ooxml/validation-baseline';
-export * from './ooxml/repair';
-export * from './ooxml/guideline-bank';
-export * from './ooxml/track-changes-emitter';
-export * from './ooxml/comments';
-export * from './ooxml/omml';
-
-// Manipulators
-export * from './manipulators/chart3d';
-export * from './manipulators/chart2d';
-export * from './manipulators/header-footer';
-export * from './manipulators/numbering';
-export * from './manipulators/relationships';
-export * from './manipulators/toc';
-export * from './manipulators/core-properties';
-
-// Exporters
-export * from './export/html';
-export * from './export/markdown';
-export * from './export/pdf';
-export * from './export/pdf-source';
-export { hasExportPdfBackend } from './export/pdf';
-
-// Visual Review & Rendering (Headless)
-export {
-  hasPdfBackend as hasVisualPdfBackend,
-  hasLibreOffice,
-  hasPoppler,
-  getVisualBackendStatus,
-  findOnPath,
-  installFolders,
-  type VisualBackendStatus,
-  type VisualBackendOverride,
-} from './visual/backend';
-export * from './visual/renderer';
-export * from './visual/telemetry';
-export * from './visual/prompt';
-export * from './visual/provider';
-export {
-  AUTO_PREFERS_WORD,
-  PDF_TO_IMAGE_ENV,
-  RASTERIZER_PREFERENCES,
-  RENDERER_ENV,
-  RENDERER_PREFERENCES,
-  effectiveRasterizerPreference,
-  effectiveRendererPreference,
-  parseRasterizerPreference,
-  parseRendererPreference,
-  planRasterizers,
-  planRenderers,
-  resetRendererBreakersForTesting,
-  type FailureClass,
-  type RasterizerId,
-  type RasterizerPlan,
-  type RasterizerPreference,
-  type RasterizerReport,
-  type RendererId,
-  type RendererPreference,
-  type RendererReport,
-  type RenderPlan,
-} from './visual/renderer-preference';
-export {
-  INERT_TARGET,
-  NETWORK_REFERENCES_ENV,
-  REFERENCE_LIST_CAP,
-  analyseReferences,
-  buildReferenceReport,
-  classifyTarget,
-  describeReferenceReport,
-  effectiveAllowNetworkReferences,
-  inspectFieldInstruction,
-  neutraliseReferences,
-  parseAllowNetworkReferences,
-  type ReferenceAnalysis,
-  type ReferenceClass,
-  type ReferenceEntry,
-  type ReferenceReport,
-} from './visual/references';
-export {
-  MIN_WORD_VERSION,
-  WordRenderError,
-  findWord,
-  resetWordProbeCache,
-  wordDocxToPdf,
-  type WordInstall,
-  type WordStartState,
-} from './visual/word';
-export {
-  MARKUP_CONTRACT_NOTE,
-  LIBREOFFICE_LONG_COMMENT_WARNING,
-  WORD_LONG_COMMENT_WARNING,
-  MARKUP_PRIVACY_NOTE,
-  MIN_LIBREOFFICE_FOR_MARKUP,
-  SHOW_MARKUP_ENV,
-  buildMarkupReport,
-  effectiveShowMarkup,
-  markupNotes,
-  parseShowMarkup,
-  type MarkupMode,
-  type MarkupReport,
-} from './visual/markup';
-export { WINDOWS_PDF_MAX_WIDTH, WindowsPdfError, windowsPdfToImages, windowsRendererAvailable } from './visual/windows-pdf';
-
-// Hardened in-memory ZIP adapter and hardening utilities
-export { default as AdmZip } from './adm-zip-safe';
-export * from './zip-hardening';
-
-// Individual Operation Handlers
-export * from './operations/base';
-export * from './operations/insert';
-export * from './operations/delete';
-export * from './operations/table';
-export * from './operations/chart';
-export * from './operations/chart-style';
-export * from './operations/style';
-export * from './operations/trackedChange';
-export * from './operations/replace';
-export * from './operations/comment';
-export * from './operations/field';
-export * from './operations/move';
-export * from './operations/coverPage';
-export * from './operations/list';
-export * from './operations/hyperlink';
-export * from './operations/footnote';
-export * from './operations/watermark';
-export * from './operations/pageBorder';
-export * from './operations/section';
-export * from './operations/pageSetup';
-export * from './operations/namedStyle';
-export * from './operations/callout';
-export * from './operations/clearFormat';
-export * from './operations/image';
-export * from './operations/image-file';
-export * from './operations/headerFooter';
-export * from './operations/equation';
-export * from './operations/metadata';
-
-// Compose path (Markdown -> ops -> document) and package normalizer
-export { compileMarkdown, composeDocument, nextComposeIdPrefix, validateComposedOperations } from './compose/markdown';
-export type { CompileOptions, ComposeOptions } from './compose/markdown';
-export { normalizePackage, previewNormalizations } from './ooxml/normalize';
-export type { NormalizePackageResult } from './ooxml/normalize';
-
-// Document census counters (words/paragraphs/tables/images + page estimate)
-// Single source of truth for CLI `stats` and MCP `get_stats`.
-export * from './stats';
-
-// Style guide schema + parser (design system for machine-built documents)
-export * from './style-guide/types';
-export * from './style-guide/defaults';
-export * from './style-guide/parser';
-export * from './style-guide/lint';
-export * from './style-guide/resolve';
-export * from './style-guide/summary';
-
-// Q0a central sandbox jail + Q0b central error table (single source of truth)
-export * from './sandbox/paths';
-export * from './errors';
-
-export * from './restore-original';
+export type { OfficeVersion, ValidateOptions, ValidationResult } from './internal';
+export type { DocumentAST, DocumentMetadata, DocumentSettings, HeaderFooterMap, HeadingNode, MediaMap, Node, NodeMetadata, NumberingMap, NumberingSource, PageSetupProperties, RelationshipsMap, Section, StylesMap } from './ast';
+export { composeDocument } from './compose/markdown';
+export type { ComposeOptions } from './compose/markdown';
+export { DocumentManager } from './document-manager';
+export { ENGINE_ERROR_CODES, getEngineErrorCode, getEngineRemedy, isEngineErrorCode } from './errors';
+export type { EngineError, EngineErrorCode } from './errors';
+export { convertAstToHtml } from './export/html';
+export type { ExportNodeLike } from './export/html';
+export { convertAstToMarkdown } from './export/markdown';
+export type { MarkdownExportOptions } from './export/markdown';
+export { DependencyError, RenderError, convertDocxToPdf, convertDocxToPdfDetailed, hasPdfBackend } from './export/pdf';
+export type { PdfConversionResult, PdfExportOptions } from './export/pdf';
+export { PreflightError } from './export/preflight';
+export type { PreflightIssue } from './export/preflight';
+export type { Chart2DBarType } from './manipulators/chart2d-types';
+export type { Chart2DSeries, Chart2DType } from './manipulators/chart2d';
+export type { Bar3DShape, Chart3DSeries, Chart3DType, View3DProperties } from './manipulators/chart3d';
+export { TEMPLATE_NAMES } from './ooxml/new-document-parts';
+export type { TemplateName } from './ooxml/new-document-parts';
+export { DEFAULT_OFFICE_VERSION, OFFICE_VERSIONS, isOfficeVersion } from './ooxml/office-version';
+export type { StyleInfo, StylePalette } from './ooxml/styles';
+export type { TypographicFix, TypographyOptions } from './ooxml/typography';
+export { OoxmlValidationError, assertValidDocx, validateDocxBuffer, validateDocxFile } from './ooxml/validator-gate';
+export type { ValidationError } from './ooxml/validator-gate';
+export { EngineQuotaError, EngineValidationError, OperationEngine } from './operation-engine';
+export type { BatchPayload, DryRunPreview, ExecutionResult, OperationEngineOptions } from './operation-engine';
+export { parseBatch } from './operation-schema';
+export type { BatchInput, BatchParseIssue, Operation, OperationInput, ParsedBatch } from './operation-schema';
+export type { BaseOperation } from './operations/base';
+export type { CalloutOperation, CalloutOperationResult } from './operations/callout';
+export type { ChartAreaStyle, ChartAxesStyle, ChartBarsStyle, ChartCategoryAxisStyle, ChartDataLabelStyle, ChartFloatingStyle, ChartFontStyle, ChartLegendStyle, ChartLinesStyle, ChartPointStyle, ChartSeriesStyle, ChartStyle, ChartTickLabelPosition, ChartTitleFormatStyle, ChartTrendlineStyle, ChartTrendlineType, ChartValueAxisStyle } from './operations/chart-style';
+export type { ChartOperation, ChartStaleBodyRef, ChartType, ChartUpdateReport, ChartUpdateResult } from './operations/chart';
+export type { ClearFormatOperation, ClearFormatResult } from './operations/clearFormat';
+export type { CommentOperation } from './operations/comment';
+export type { CoverPageOperation } from './operations/coverPage';
+export type { DeleteOperation, DeleteResult } from './operations/delete';
+export type { EquationOperation, EquationResult } from './operations/equation';
+export type { FieldOperation } from './operations/field';
+export type { EndnoteOperation, FootnoteOperation } from './operations/footnote';
+export type { HeaderFooterOperation } from './operations/headerFooter';
+export type { HyperlinkOperation } from './operations/hyperlink';
+export type { ImageOperation, ImageWrapMode } from './operations/image';
+export type { InsertOperation, ParaIdScanCache } from './operations/insert';
+export type { ListOperation } from './operations/list';
+export type { MetadataOperation } from './operations/metadata';
+export type { MoveOperation } from './operations/move';
+export type { NamedStyleOperation } from './operations/namedStyle';
+export type { PageBorderOperation } from './operations/pageBorder';
+export type { PageSetupOperation } from './operations/pageSetup';
+export type { ReplaceOperation, ReplaceOperationResult } from './operations/replace';
+export type { SectionOperation } from './operations/section';
+export type { StyleOperation, StyleProperties } from './operations/style';
+export type { TableOperation, TableOperationResult } from './operations/table';
+export type { TrackedChangeOperation } from './operations/trackedChange';
+export type { WatermarkOperation } from './operations/watermark';
+export { exportOriginal, getOriginalInfo, originalSha256 } from './original';
+export type { OriginalInfo, OriginalUnavailableReason } from './original';
+export type { PackageReport } from './package-report';
+export { DocxParser, createBlankDocxBuffer } from './parser';
+export type { DuplicateParaIdPolicy, SaveGuardKind } from './parser';
+export type { DuplicateParaId } from './parser/para-ids';
+export type { DocumentSnapshot, DocxParserMacroOptions, DocxZipAdapter, StructuralSummary, TableMetadata } from './parser/types';
+export { restoreOriginal } from './restore-original';
+export type { RestoreOriginalOptions, RestoreOriginalResult } from './restore-original';
+export { sanitizeDocxBuffer } from './sanitizer';
+export type { MacroEntryStore, SanitizeOptions, SanitizeReport } from './sanitizer';
+export { computeDocStats } from './stats';
+export type { DocStats, PageTerms } from './stats';
+export { lintDocumentStyle } from './style-guide/lint';
+export type { StyleWarning } from './style-guide/lint';
+export { parseStyleGuide } from './style-guide/parser';
+export { listBundledGuides, resolveStyleGuide } from './style-guide/resolve';
+export type { ResolveStyleGuideOptions, ResolvedStyleGuide } from './style-guide/resolve';
+export type { StyleGuideCalloutTag, StyleGuideCalloutTheme, StyleGuideCallouts, StyleGuideCharts, StyleGuideCodeBlocks, StyleGuideConfig, StyleGuideHeading, StyleGuideLayout, StyleGuideMargin, StyleGuidePalette, StyleGuideParseResult, StyleGuideTables, StyleGuideTypography, StyleGuideWarning } from './style-guide/types';
+export { ToonGenerator } from './toon';
+export type { ToonDiffOptions, ToonFidelity, ToonGenerateOptions, ToonRenderOptions, ToonRequest, ToonRow, ToonTable } from './toon';
+export { getVisualBackendStatus } from './visual/backend';
+export type { VisualBackendStatus } from './visual/backend';
+export type { MarkupMode, MarkupReport } from './visual/markup';
+export type { VisualImageFormat, VisualPageImage, VisualRenderOptions, VisualRenderResult } from './visual/provider';
+export type { ReferenceClass, ReferenceEntry, ReferenceReport } from './visual/references';
+export type { FailureClass, RasterizerId, RasterizerPreference, RasterizerReport, RendererId, RendererPreference, RendererReport } from './visual/renderer-preference';
+export { getVisualArtifactsDir, renderDocxToImages } from './visual/renderer';
+export { WindowsPdfError } from './visual/windows-pdf';
+export { WordRenderError } from './visual/word';

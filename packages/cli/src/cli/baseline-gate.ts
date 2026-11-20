@@ -2,15 +2,8 @@
  * The CLI side of the baseline-aware validation gate. A file that already has validator errors can be
  * written when an edit adds none; `--strict` refuses every error as before.
  */
-import {
-  BASELINE_MAX_ERRORS,
-  buildBaseline,
-  judgeAgainstBaseline,
-  validateDocxBuffer,
-  type BaselineVerdict,
-  type OfficeVersion,
-  type ValidationResult,
-} from '@attentionform/astra-engine';
+import { validateDocxBuffer, type OfficeVersion, type ValidationResult } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, buildBaseline, judgeAgainstBaseline, type BaselineVerdict } from '@attentionform/astra-engine/internal';
 
 export { BASELINE_MAX_ERRORS };
 

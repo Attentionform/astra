@@ -18,7 +18,7 @@ import {
   executeStyle,
   executeReplace,
   replaceText,
-} from '../../packages/engine/src';
+} from '../../packages/engine/src/internal';
 import { renderTable } from '../../packages/engine/src/export/html';
 import { renderTableMarkdown } from '../../packages/engine/src/export/markdown';
 import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session-store';

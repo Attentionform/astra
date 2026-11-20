@@ -18,7 +18,7 @@ vi.mock('../src/compose/template-seed', async (importOriginal) => {
   };
 });
 
-import { DocxParser, composeDocument } from '../src';
+import { DocxParser, composeDocument } from '../src/internal';
 
 const entries = (buf: Buffer): Record<string, string> => {
   const zip = new AdmZip(buf);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, OperationEngine, computeDocStats } from '../src';
+import { DocxParser, OperationEngine, computeDocStats } from '../src/internal';
 
 async function statsAfter(ops: unknown[]) {
   const parser = DocxParser.createNewDocument('blank');

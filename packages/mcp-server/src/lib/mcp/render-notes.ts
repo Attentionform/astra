@@ -1,4 +1,5 @@
-import { describeReferenceReport, markupNotes, type MarkupReport, type RasterizerReport, type ReferenceReport, type RendererReport } from '@attentionform/astra-engine';
+import { type MarkupReport, type RasterizerReport, type ReferenceReport, type RendererReport } from '@attentionform/astra-engine';
+import { describeReferenceReport, markupNotes } from '@attentionform/astra-engine/internal';
 
 /** Shared by visual_inspect and export_document: the one sentence that tells a model when it may set allowNetworkReferences. */
 export const NETWORK_REFERENCES_PARAM_NOTE =

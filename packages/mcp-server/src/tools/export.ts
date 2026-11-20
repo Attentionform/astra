@@ -5,27 +5,8 @@ import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { McpSessionStore, canonicalizeForMcp, getMcpAllowedRoots } from '../lib/session-store';
-import {
-  AdmZip,
-  assertValidDocx,
-  assertWriteTargetNoSymlink,
-  collectMarkdownImageAssets,
-  convertAstToHtml,
-  htmlDocumentTitle,
-  convertAstToMarkdown,
-  convertDocxToPdfDetailed,
-  DocxParser,
-  getEngineErrorCode,
-  effectiveRendererPreference,
-  planPdfRenderers,
-  runPreflightChecks,
-  type DocumentAST,
-  type PreflightIssue,
-  type MarkupReport,
-  type ReferenceReport,
-  type RendererReport,
-  writeFileNoFollow,
-} from '@attentionform/astra-engine';
+import { assertValidDocx, convertAstToHtml, convertAstToMarkdown, convertDocxToPdfDetailed, DocxParser, getEngineErrorCode, type DocumentAST, type PreflightIssue, type MarkupReport, type ReferenceReport, type RendererReport } from '@attentionform/astra-engine';
+import { AdmZip, assertWriteTargetNoSymlink, collectMarkdownImageAssets, htmlDocumentTitle, effectiveRendererPreference, planPdfRenderers, runPreflightChecks, writeFileNoFollow } from '@attentionform/astra-engine/internal';
 import { NETWORK_REFERENCES_PARAM_NOTE, SHOW_MARKUP_PARAM_NOTE, mcpFlagNames, renderNotes } from '../lib/mcp/render-notes';
 
 export const ExportDocumentSchema = z.object({

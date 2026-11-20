@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, OperationEngine } from '../src/index';
+import { DocxParser, OperationEngine } from '../src/internal';
 
 const cover = { action: 'coverPage', template: 'modern_minimalist', title: 'Annual Report', subtitle: 'Sub', author: 'A', organization: 'O' };
 

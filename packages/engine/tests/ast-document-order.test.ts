@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, OperationEngine, composeDocument } from '../src';
+import { DocxParser, OperationEngine, composeDocument } from '../src/internal';
 
 describe('getAST lists blocks in document order', () => {
   it('keeps a block that an operation put in the middle between its neighbours', async () => {

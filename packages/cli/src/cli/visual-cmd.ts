@@ -1,15 +1,8 @@
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import {
-  DocxParser,
-  buildVisualTelemetry,
-  renderDocxToImages,
-  VISUAL_PROMPT_LAW,
-  type DocumentAST,
-  type VisualImageFormat,
-  type VisualTelemetry,
-} from '@attentionform/astra-engine';
+import { DocxParser, renderDocxToImages, type DocumentAST, type VisualImageFormat } from '@attentionform/astra-engine';
+import { buildVisualTelemetry, VISUAL_PROMPT_LAW, type VisualTelemetry } from '@attentionform/astra-engine/internal';
 import { EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';

@@ -1,12 +1,8 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import {
-  DocxParser, OperationEngine, ToonGenerator, readOriginal, getOriginalInfo,
-  exportOriginal, replaceFileAtomic, createVerifiedBackup, newRestoreBackupPath, getHistory, checkoutCommit,
-  commitChange, isTrackedPackageFile, assertHistoryReadyForWrite,
-  captureHistoryState, historyChangedSince, rollbackReplacedFile,
-} from '@attentionform/astra-engine';
+import { DocxParser, OperationEngine, ToonGenerator, getOriginalInfo, exportOriginal } from '@attentionform/astra-engine';
+import { readOriginal, replaceFileAtomic, createVerifiedBackup, newRestoreBackupPath, getHistory, checkoutCommit, commitChange, isTrackedPackageFile, assertHistoryReadyForWrite, captureHistoryState, historyChangedSince, rollbackReplacedFile } from '@attentionform/astra-engine/internal';
 import type { DocHandle, McpSessionStore } from '../../session-store';
 import { collectTrackedExtrasForGit, resolveSessionOriginal, validateSaveTarget } from '../../session-store';
 import { ExportOriginalDocumentSchema, RestoreOriginalDocumentSchema } from '../schemas';

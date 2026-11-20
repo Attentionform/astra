@@ -2,7 +2,7 @@
 // Zero logic edits.
 import type { Lean6ToolName, GitHistoryToolName, ParityToolName } from './tool-names';
 import { AUDIT_RETENTION_NOTE, CHANGED_VALUES_MAX, CHANGED_VALUE_TEXT_MAX } from './diff';
-import { piiCoverageSentence } from '@attentionform/astra-engine';
+import { piiCoverageSentence } from '@attentionform/astra-engine/internal';
 
 // ── Shared description blocks (ECMA essentials + workflow + examples) ────────
 export const MCP_ECMA_ESSENTIALS =

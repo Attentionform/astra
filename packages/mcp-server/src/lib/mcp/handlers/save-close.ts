@@ -4,25 +4,8 @@ import { createHash } from 'crypto';
 import { serverOfficeVersion } from '../validation-target';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import {
-  BASELINE_MAX_ERRORS,
-  applyDocumentIdentity,
-  judgeAgainstBaseline,
-  assertWriteTargetNoSymlink,
-  chartXmlGetterForAst,
-  commitChange,
-  assertHistoryReadyForWrite,
-  getOriginalInfo,
-  commitStateIfDiffersFromHead,
-  refreshAstInPlace,
-  getEngineErrorCode,
-  lintDocumentStyle,
-  macroChoiceError,
-  revisionsRemedy,
-  writeFileNoFollow,
-  type DocumentIdentityResult,
-  type StyleWarning,
-} from '@attentionform/astra-engine';
+import { getOriginalInfo, getEngineErrorCode, lintDocumentStyle, type StyleWarning } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, applyDocumentIdentity, judgeAgainstBaseline, assertWriteTargetNoSymlink, chartXmlGetterForAst, commitChange, assertHistoryReadyForWrite, commitStateIfDiffersFromHead, refreshAstInPlace, macroChoiceError, revisionsRemedy, writeFileNoFollow, type DocumentIdentityResult } from '@attentionform/astra-engine/internal';
 import type { McpSessionStore } from '../../session-store';
 import { collectTrackedExtrasForGit, ensureGitRepo, validateSaveTarget } from '../../session-store';
 import { readParserNormalizations, mergeNormalized } from '../normalize-read';

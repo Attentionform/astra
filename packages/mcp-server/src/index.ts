@@ -31,7 +31,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 // ── Engine wiring: local lib imports ─────────
-import { isOfficeVersion, officeVersionChoices, setDuplicateParaIdPolicy, type OfficeVersion } from '@attentionform/astra-engine';
+import { isOfficeVersion, type OfficeVersion } from '@attentionform/astra-engine';
+import { officeVersionChoices, setDuplicateParaIdPolicy } from '@attentionform/astra-engine/internal';
 import { configureOfficeVersion, serverOfficeVersion } from './lib/mcp/validation-target';
 import { setOpenValidationTimeoutMs, setStrictValidationDefault, strictValidationDefault } from './lib/mcp/baseline-gate';
 import {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DocxParser, OperationEngine, parseBatch } from '../src';
+import { DocxParser, OperationEngine, parseBatch } from '../src/internal';
 
 const replace = { action: 'replace', target: 'p_1', text: 'x' };
 

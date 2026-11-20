@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { AdmZip, DocxParser, ToonGenerator } from '../packages/engine/src/index';
+import { AdmZip, DocxParser, ToonGenerator } from '../packages/engine/src/internal';
 
 async function main(): Promise<void> {
   const file = process.argv[2];
