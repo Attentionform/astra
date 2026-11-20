@@ -20,7 +20,7 @@ import { CorePropertiesManipulator, parseCorePropertiesXml, registerExistingCore
 import { StylePalette, extractStylePalette } from './ooxml/styles';
 import { clampZipEntryTimes, checkZipBombCeilings, resolveDeterministicZipDate, clampCorePropertiesDates, resolveReproducibleMode } from './zip-hardening';
 import { AUTHOR_ENV, deterministicRevisionIso, resolveDefaultAuthor } from './ooxml/track-changes-emitter';
-import { newDocumentParts, newDocumentTitle, NEW_DOCUMENT_CONTENT_TYPE_OVERRIDES, NEW_DOCUMENT_ROOT_RELS, NEW_DOCUMENT_DOCUMENT_RELS } from './ooxml/new-document-parts';
+import { newDocumentParts, TEMPLATE_NAMES } from './ooxml/new-document-parts';
 import { assertNoXxe, assertNoXxeAdjacent } from './ooxml/xxe-guard';
 import { decodeXmlPart } from './ooxml/part-text';
 import { PrefixRefusal, canonicaliseBufferMap, canonicalisePart, ingestPrefixes, looksUtf16, type Rename } from './ooxml/prefix-canonicaliser';
@@ -93,7 +93,6 @@ import {
 import { getNodeFromAST } from './parser/ast-utils';
 import { detectPersistedCallout } from './parser/callout';
 import { hasLiveNumberingForSync } from './parser/numbering';
-import { QUOTE_STYLE_BODY } from './ooxml/quote-style';
 
 export { readDocxFileBuffer, getMimeType };
 export { SECT_PR_CHILD_ORDER, upsertSectPrChild, linesPerPageFromSectPr } from './parser/sect-pr';
@@ -143,12 +142,12 @@ function hasAncestorTag(el: Element, tag: string): boolean {
   return false;
 }
 
-export function createEmptyDocument(templateType: string = 'blank'): DocxParser {
-  return DocxParser.createNewDocument(templateType);
+export function createEmptyDocument(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): DocxParser {
+  return DocxParser.createNewDocument(templateType, options);
 }
 
-export function createBlankDocxBuffer(templateType: string = 'blank'): Buffer {
-  return DocxParser.createNewDocument(templateType).rezip();
+export function createBlankDocxBuffer(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): Buffer {
+  return DocxParser.createNewDocument(templateType, options).rezip();
 }
 
 /** Marker prop naming which fail-closed save guard refused (for ok:false mapping). */
@@ -272,33 +271,6 @@ export class DocxParser {
       signed: this.packageSigned,
     };
   }
-  private builtinSeedSnapshot?: Map<string, Buffer>;
-
-  /** True only while the entire internally generated seed package remains unchanged. */
-  /** Transfer factory provenance only to an identical freshly reopened package. */
-  public adoptBuiltinSeedFrom(source: DocxParser): void {
-    if (!source.hasPristineBuiltinSeed()) return;
-    const original = source.capturePackageSnapshot();
-    const current = this.capturePackageSnapshot();
-    if (original.size !== current.size) return;
-    for (const [name, bytes] of original) {
-      if (!current.get(name)?.equals(bytes)) return;
-    }
-    this.builtinSeedSnapshot = current;
-  }
-
-  public hasPristineBuiltinSeed(): boolean {
-    if (!this.builtinSeedSnapshot) return false;
-    const current = this.capturePackageSnapshot();
-    if (current.size !== this.builtinSeedSnapshot.size) return false;
-    for (const [name, bytes] of this.builtinSeedSnapshot) {
-      // Save updates core metadata timestamps; it does not alter seed content.
-      if (name === 'docProps/core.xml') continue;
-      if (!current.get(name)?.equals(bytes)) return false;
-    }
-    return true;
-  }
-
   /**
    * F2a follow-up item 2 — extra template search dirs (packaged hook ONLY).
    * `resolveTemplateCandidatePaths` in electron/main.ts documents the
@@ -381,11 +353,9 @@ export class DocxParser {
         /* ignore */
       }
     }
-    ordered.push(
-      path.resolve(process.cwd(), 'templates', fileName),
-      path.resolve(__dirname, '..', 'templates', fileName),
-      path.resolve(__dirname, 'templates', fileName),
-    );
+    // Only the folders next to the engine: a `templates` folder in the working directory is not consulted, so a project's own
+    // files can never replace a built-in template.
+    ordered.push(path.resolve(__dirname, '..', 'templates', fileName), path.resolve(__dirname, 'templates', fileName));
     return [...new Set(ordered)];
   }
 
@@ -4112,540 +4082,50 @@ export class DocxParser {
     this._bumpNodePagesRevision();
   }
 
-  public static createNewDocument(templateType: 'blank' | 'novel' | 'financial' | 'api-spec' | 'research' | 'corporate' | 'bar-chart-3d' | string = 'blank'): DocxParser {
-    // F2a item 2: packaged-aware search (static extra + STATIC_TEMPLATE_DIRS
-    // env first, legacy cwd/__dirname after). Hook-only — lookup loop below
-    // is unchanged.
-    const candidatePaths = DocxParser.resolveTemplateSearchPaths(templateType);
-    for (const p of candidatePaths) {
-      if (fs.existsSync(p)) {
-        try {
-          const buf = fs.readFileSync(p);
-          return new DocxParser(buf);
-        } catch { /* ignore — try next template path */ }
-      }
+  /**
+   * A new document from a built-in template. The templates are .docx files built by `npm run build:templates`
+   * (packages/engine/scripts/templates) and shipped in `dist/templates`. `pageSize` picks the Letter (default) or A4 file.
+   * An unknown name is an error that lists the valid names.
+   */
+  public static createNewDocument(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): DocxParser {
+    const name = (templateType || 'blank').toLowerCase().trim() || 'blank';
+    if (!(TEMPLATE_NAMES as readonly string[]).includes(name)) {
+      throw new Error(`E_VALIDATION: unknown template '${templateType}'. Remedy: use one of ${TEMPLATE_NAMES.join(', ')}.`);
     }
-
-    const zip = new AdmZip();
-
-    const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>${NEW_DOCUMENT_CONTENT_TYPE_OVERRIDES}
-</Types>`;
-
-    const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>${NEW_DOCUMENT_ROOT_RELS}
-</Relationships>`;
-
-    const documentRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>${NEW_DOCUMENT_DOCUMENT_RELS}
-</Relationships>`;
-
-    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:docDefaults>
-    <w:rPrDefault>
-      <w:rPr>
-        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri" w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:eastAsiaTheme="minorHAnsi" w:cstheme="minorBidi"/>
-        <w:sz w:val="22"/>
-      </w:rPr>
-    </w:rPrDefault>
-    <w:pPrDefault>
-      <w:pPr>
-        <w:spacing w:after="120" w:line="276" w:lineRule="auto"/>
-      </w:pPr>
-    </w:pPrDefault>
-  </w:docDefaults>
-  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
-    <w:name w:val="Normal"/>
-    <w:qFormat/>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading1">
-    <w:name w:val="heading 1"/>
-    <w:basedOn w:val="Normal"/>
-    <w:next w:val="Normal"/>
-    <w:uiPriority w:val="9"/>
-    <w:qFormat/>
-    <w:pPr>
-      <w:keepNext/>
-      <w:keepLines/>
-      <w:widowControl/>
-      <w:spacing w:before="360" w:after="160" w:line="276" w:lineRule="auto"/>
-    </w:pPr>
-    <w:rPr>
-      <w:b/>
-      <w:color w:val="0F172A"/>
-      <w:sz w:val="48"/>
-    </w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading2">
-    <w:name w:val="heading 2"/>
-    <w:basedOn w:val="Normal"/>
-    <w:next w:val="Normal"/>
-    <w:uiPriority w:val="9"/>
-    <w:qFormat/>
-    <w:pPr>
-      <w:keepNext/>
-      <w:keepLines/>
-      <w:widowControl/>
-      <w:spacing w:before="280" w:after="120" w:line="260" w:lineRule="auto"/>
-    </w:pPr>
-    <w:rPr>
-      <w:b/>
-      <w:color w:val="1E293B"/>
-      <w:sz w:val="32"/>
-    </w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading3">
-    <w:name w:val="heading 3"/>
-    <w:basedOn w:val="Normal"/>
-    <w:next w:val="Normal"/>
-    <w:uiPriority w:val="9"/>
-    <w:qFormat/>
-    <w:pPr>
-      <w:keepNext/>
-      <w:keepLines/>
-      <w:widowControl/>
-      <w:spacing w:before="200" w:after="80" w:line="240" w:lineRule="auto"/>
-    </w:pPr>
-    <w:rPr>
-      <w:b/>
-      <w:color w:val="334155"/>
-      <w:sz w:val="26"/>
-    </w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Title">
-    <w:name w:val="Title"/>
-    <w:basedOn w:val="Normal"/>
-    <w:next w:val="Normal"/>
-    <w:qFormat/>
-    <w:pPr>
-      <w:keepNext/>
-      <w:keepLines/>
-      <w:spacing w:before="0" w:after="240" w:line="240" w:lineRule="auto"/>
-    </w:pPr>
-    <w:rPr>
-      <w:b/>
-      <w:color w:val="0F172A"/>
-      <w:sz w:val="56"/>
-    </w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Subtitle">
-    <w:name w:val="Subtitle"/>
-    <w:basedOn w:val="Normal"/>
-    <w:next w:val="Normal"/>
-    <w:qFormat/>
-    <w:pPr>
-      <w:keepNext/>
-      <w:keepLines/>
-      <w:spacing w:before="0" w:after="360" w:line="240" w:lineRule="auto"/>
-    </w:pPr>
-    <w:rPr>
-      <w:i/>
-      <w:color w:val="6366F1"/>
-      <w:sz w:val="28"/>
-    </w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Caption">
-    <w:name w:val="caption"/>
-    <w:basedOn w:val="Normal"/>
-    <w:next w:val="Normal"/>
-    <w:uiPriority w:val="9"/>
-    <w:qFormat/>
-    <w:pPr>
-      <w:keepLines/>
-      <w:spacing w:before="120" w:after="120" w:line="240" w:lineRule="auto"/>
-    </w:pPr>
-  </w:style>
-  ${QUOTE_STYLE_BODY}
-  <w:style w:type="character" w:styleId="Code">
-    <w:name w:val="Code"/>
-    <w:rPr>
-      <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
-      <w:color w:val="4338CA"/>
-      <w:sz w:val="20"/>
-    </w:rPr>
-  </w:style>
-  <w:style w:type="table" w:default="1" w:styleId="TableNormal">
-    <w:name w:val="Normal Table"/>
-    <w:uiPriority w:val="99"/>
-    <w:semiHidden/>
-    <w:unhideWhenUsed/>
-    <w:tblPr>
-      <w:tblInd w:w="0" w:type="dxa"/>
-      <w:tblCellMar>
-        <w:top w:w="0" w:type="dxa"/>
-        <w:left w:w="108" w:type="dxa"/>
-        <w:bottom w:w="0" w:type="dxa"/>
-        <w:right w:w="108" w:type="dxa"/>
-      </w:tblCellMar>
-    </w:tblPr>
-  </w:style>
-  <w:style w:type="table" w:styleId="TableGrid">
-    <w:name w:val="Table Grid"/>
-    <w:basedOn w:val="TableNormal"/>
-    <w:uiPriority w:val="39"/>
-    <w:pPr>
-      <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
-    </w:pPr>
-    <w:tblPr>
-      <w:tblBorders>
-        <w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-        <w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-        <w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-        <w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-        <w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-        <w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>
-      </w:tblBorders>
-    </w:tblPr>
-  </w:style>
-</w:styles>`;
-
-    let bodyContentXml = '';
-
-switch (templateType.toLowerCase()) {
-      case 'novel':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Manuscript Title</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>A Novel by Author Name</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>Chapter 1: The Beginning</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>The story starts here. Write your opening narrative...</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading2"/></w:pPr>
-      <w:r><w:t>Scene I</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Describe the setting, atmospheric tension, and character motives...</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'report':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Q3 Executive Financial Performance Report</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>Strategic Financial Analysis &amp; Growth Projections</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>1. Executive Summary</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>During Q3 2026, corporate revenue expanded by 34.2% YoY driven by cloud infrastructure enterprise adoption.</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading2"/></w:pPr>
-      <w:r><w:t>1.1 Revenue &amp; Operating Margin Analysis</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Operating margins reached record expansion through workflow automation and infrastructure efficiencies.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'financial':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Financial Report &amp; Audit</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>Executive Summary &amp; Revenue Projections</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>1. Key Financial Highlights</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Overview of performance metrics for the current reporting period.</w:t></w:r>
-    </w:p>
-    <w:tbl>
-      <w:tblPr>
-        <w:tblStyle w:val="TableGrid"/>
-        <w:tblW w:w="0" w:type="auto"/>
-      </w:tblPr>
-      <w:tblGrid>
-        <w:gridCol w:w="2340"/>
-        <w:gridCol w:w="2340"/>
-        <w:gridCol w:w="2340"/>
-        <w:gridCol w:w="2340"/>
-      </w:tblGrid>
-      <w:tr>
-        <w:tc><w:p><w:pPr><w:rPr><w:b/></w:rPr></w:pPr><w:r><w:t>Metric</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:pPr><w:rPr><w:b/></w:rPr></w:pPr><w:r><w:t>Previous Q</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:pPr><w:rPr><w:b/></w:rPr></w:pPr><w:r><w:t>Current Q</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:pPr><w:rPr><w:b/></w:rPr></w:pPr><w:r><w:t>Growth (%)</w:t></w:r></w:p></w:tc>
-      </w:tr>
-      <w:tr>
-        <w:tc><w:p><w:r><w:t>Net Revenue</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:t>$1,250,000</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:t>$1,520,000</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:t>+21.6%</w:t></w:r></w:p></w:tc>
-      </w:tr>
-      <w:tr>
-        <w:tc><w:p><w:r><w:t>Operating Profit</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:t>$340,000</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:t>$415,000</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:t>+22.0%</w:t></w:r></w:p></w:tc>
-      </w:tr>
-    </w:tbl>`;
-        break;
-
-      case 'academic':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Neural Document Architectures: A Comparative Benchmark</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>Department of Computer Science &amp; Systems Engineering</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>Abstract</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Recent breakthroughs in autonomous document synthesis demonstrate marked improvements in structural coherence and typographical fidelity.</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>1. Introduction</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Document processing pipelines must maintain rigorous schema compliance across complex OpenXML structures while supporting high-throughput transformations.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'newsletter':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>The ASTra Dispatch — Monthly Engineering Gazette</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>Volume 12 • Fall Edition 2026</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>Highlights: Next-Gen Autonomous Publishing</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Welcome to this month's digest of advancements in agentic tools, typographic guards, and developer infrastructure.</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading2"/></w:pPr>
-      <w:r><w:t>Community &amp; Ecosystem Updates</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Our contributor base expanded significantly following recent performance benchmarks and open schema validators.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'api':
-      case 'api-spec':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>ASTra Document Engine API Specification</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>RESTful Endpoints &amp; Developer Reference v1.0</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>1. Overview &amp; Authentication</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>All API requests must include a valid Bearer token in the HTTP Authorization header.</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading2"/></w:pPr>
-      <w:r><w:t>GET /api/v1/documents</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Retrieves a list of accessible documents with pagination parameters.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'research':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Research Benchmark Report</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>Comparative Analysis &amp; Systems Evaluation</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>1. Methodology &amp; Scope</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Comprehensive benchmark evaluation across cloud workloads.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'corporate':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Corporate Strategy Roadmap</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>Enterprise Governance &amp; Multi-Year Objectives</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>1. Strategic Vision</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Roadmap outlining enterprise transformation, governance, and operational agility.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'bar-chart-3d':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Velocity Audit &amp; Performance</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Subtitle"/></w:pPr>
-      <w:r><w:t>SDLC Metrics &amp; Visualization</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
-      <w:r><w:t>1. Delivery Metrics</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Distribution of engineering cycle times and sprint delivery velocity.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      // FINDING-01 / P1-ENG-2: memo/letter/proposal/invoice previously fell
-      // through to the blank boilerplate (valid OOXML but indistinguishable).
-      // Each now gets minimal bespoke content (Title + one body line naming
-      // the template) so all 6 templates validate ok:true AND are distinct.
-      // No tables here (keeps tblGrid/validation trivially green).
-      case 'memo':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>MEMORANDUM</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Memo template — To / From / Date / Subject, followed by the body.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'letter':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Letter</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Letter template — sender address, date, recipient, salutation, and body.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'proposal':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>Proposal</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Proposal template — executive summary, scope, timeline, and pricing.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'invoice':
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/></w:pPr>
-      <w:r><w:t>INVOICE</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:r><w:t>Invoice template — bill-to, invoice number, line items, and total due.</w:t></w:r>
-    </w:p>`;
-        break;
-
-      case 'blank':
-      default:
-        // A blank document is one empty paragraph: no visible text, nothing to delete before typing.
-        bodyContentXml = `
-    <w:p>
-      <w:pPr><w:pStyle w:val="Normal"/></w:pPr>
-    </w:p>`;
-        break;
+    const pageSize = options?.pageSize ?? 'letter';
+    if (pageSize !== 'letter' && pageSize !== 'a4') {
+      throw new Error(`E_VALIDATION: unknown page size '${String(pageSize)}'. Remedy: use letter or a4.`);
     }
-
-    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
-            xmlns:v="urn:schemas-microsoft-com:vml"
-            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
-            xmlns:w10="urn:schemas-microsoft-com:office:word"
-            xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
-            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-            xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
-            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-  <w:body>${bodyContentXml}
-    <w:sectPr>
-      <w:pgSz w:w="12240" w:h="15840"/>
-      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
-    </w:sectPr>
-  </w:body>
-</w:document>`;
-
-    zip.addFile('[Content_Types].xml', Buffer.from(contentTypesXml, 'utf8'));
-    zip.addFile('_rels/.rels', Buffer.from(relsXml, 'utf8'));
-    zip.addFile('word/_rels/document.xml.rels', Buffer.from(documentRelsXml, 'utf8'));
-    zip.addFile('word/styles.xml', Buffer.from(stylesXml, 'utf8'));
-    zip.addFile('word/document.xml', Buffer.from(documentXml, 'utf8'));
+    const file = pageSize === 'a4' ? `${name}.a4` : name;
+    let buf: Buffer | undefined;
+    for (const candidate of DocxParser.resolveTemplateSearchPaths(file)) {
+      try {
+        if (fs.existsSync(candidate)) {
+          buf = fs.readFileSync(candidate);
+          break;
+        }
+      } catch { /* try the next location */ }
+    }
+    if (!buf) {
+      throw new Error(`E_VALIDATION: the ${name} template file (${file}.docx) was not found next to the engine. Remedy: reinstall the package, or point STATIC_TEMPLATE_DIRS at a folder that holds it.`);
+    }
+    // The file carries the build date and no author. A new document is stamped with the time it is made (or the pinned
+    // reproducible time) and, only when ASTRA_AUTHOR is set, that author.
+    const zip = new AdmZip(buf);
     const pinned = resolveReproducibleMode(undefined);
-    const parts = newDocumentParts({
-      title: newDocumentTitle(templateType),
-      // A new file carries no author unless the caller set ASTRA_AUTHOR: the starter is not signed by ASTra.
+    const core = newDocumentParts({
+      title: '',
       author: process.env[AUTHOR_ENV]?.trim() ? resolveDefaultAuthor() : '',
       at: pinned ? resolveDeterministicZipDate() : new Date(),
-    });
-    for (const [partName, xml] of Object.entries(parts)) zip.addFile(partName, Buffer.from(xml, 'utf8'));
-
+    })['docProps/core.xml'];
+    zip.updateFile('docProps/core.xml', Buffer.from(core, 'utf8'));
     if (pinned) clampZipEntryTimes(zip, resolveDeterministicZipDate());
     const parser = new DocxParser(zip.toBuffer());
     parser.getStructuralSummary();
-    parser.builtinSeedSnapshot = parser.capturePackageSnapshot();
     return parser;
   }
 
-  public static createEmptyDocument(templateType: 'blank' | 'novel' | 'financial' | 'api-spec' | 'research' | 'corporate' | 'bar-chart-3d' | string = 'blank'): DocxParser {
-    return DocxParser.createNewDocument(templateType);
+  public static createEmptyDocument(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): DocxParser {
+    return DocxParser.createNewDocument(templateType, options);
   }
 }

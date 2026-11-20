@@ -65,8 +65,8 @@ Commands (exit 0 ok · 1 operational failure · 2 usage):
   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]]
   export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force] [--renderer auto|word|libreoffice] [--allow-network-references] [--show-markup]
   search   <docx> <query> [--limit <n>]
-  create   <out.docx> [--template report|memo|blank] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
-  import   <file.md> [-o <out.docx>] [--template report|memo|blank] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
+  create   <out.docx> [--template <name>] [--page-size letter|a4] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
+  import   <file.md> [-o <out.docx>] [--template <name>] [--page-size letter|a4] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   stats    <docx>
   visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references] [--show-markup]
   history  <docx> [--init|--track|--export-original <out>|--restore-original] [--force]

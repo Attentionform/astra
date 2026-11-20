@@ -5,7 +5,7 @@ import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session
 
 /**
  * The `<title>` of an exported page is the document's own title when it has one, else the file name.
- * A new document carries its template name as the title (`Blank Document`), which is a placeholder.
+ * A new document has an empty title until the author sets one.
  */
 const astWith = (title: unknown): DocumentAST => ({ metadata: { title } }) as unknown as DocumentAST;
 

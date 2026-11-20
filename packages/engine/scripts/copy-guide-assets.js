@@ -22,4 +22,21 @@ function copyGuideAssets() {
   }
 }
 
+function copyTemplateFiles() {
+  try {
+    const src = path.resolve(__dirname, '..', 'templates');
+    const target = path.resolve(__dirname, '..', 'dist', 'templates');
+    if (!fs.existsSync(src)) return;
+    fs.mkdirSync(target, { recursive: true });
+    for (const entry of fs.readdirSync(src)) {
+      if (entry.toLowerCase().endsWith('.docx')) fs.copyFileSync(path.join(src, entry), path.join(target, entry));
+    }
+  } catch (err) {
+    // A missing template file is an error at run time (createNewDocument names the file); report it here too.
+    console.error('[copy-templates] failed:', err && err.message);
+    process.exitCode = 1;
+  }
+}
+
 copyGuideAssets();
+copyTemplateFiles();

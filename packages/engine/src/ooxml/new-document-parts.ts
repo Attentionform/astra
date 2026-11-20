@@ -140,3 +140,7 @@ export function newDocumentTitle(templateType: string): string {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
+
+/** The built-in template names, in the order they are listed to users. */
+export const TEMPLATE_NAMES = ['blank', 'report', 'memo', 'letter', 'proposal', 'invoice', 'technical-spec', 'research-paper', 'novel', 'newsletter'] as const;
+export type TemplateName = (typeof TEMPLATE_NAMES)[number];

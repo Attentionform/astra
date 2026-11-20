@@ -51,6 +51,11 @@ async function writeDirtyDocx(dest: string): Promise<void> {
   expect(created.status).toBe(0);
   const zip = new AdmZip(fs.readFileSync(blank));
   let d = zip.getEntry('word/document.xml')!.getData().toString('utf8');
+  // The blank template is one empty paragraph: give the fixture two lines of text to dirty.
+  d = d.replace(
+    /<w:p[ >].*?<\/w:p>/s,
+    '<w:p ><w:r><w:t>Blank Document</w:t></w:r></w:p><w:p ><w:r><w:t>Start typing your content here...</w:t></w:r></w:p>'
+  );
   d = d.replace(
     '<w:t>Blank Document</w:t>',
     '<w:t>Blank Document</w:t></w:r><w:ins w:id="0" w:author="EvilAuthor" w:date="2026-01-01T00:00:00Z"><w:r><w:t xml:space="preserve"> sneaky insert</w:t></w:r></w:ins><w:r><w:t xml:space="preserve"> tail</w:t>'
@@ -691,7 +696,7 @@ describe('create --from-md', () => {
     expect(xml).not.toContain('[docs](https://example.com)');
   });
 
-  it('embeds block images with --allowed-dir and keeps the template seed', async () => {
+  it('embeds block images with --allowed-dir and replaces the placeholder body', async () => {
     const dir = tmpDir('dx-from-md-image');
     const pngBase64 =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -704,7 +709,7 @@ describe('create --from-md', () => {
     expect((await runCli(['validate', out])).status).toBe(0);
     const xml = docXml(out);
     expect(xml).toContain('w:drawing');
-    expect(xml).not.toContain('Q3 Executive');
+    expect(xml).not.toContain('Summarise the purpose');
     expect(xml.indexOf('<w:t>Before</w:t>')).toBeLessThan(xml.indexOf('w:drawing'));
     expect(xml.indexOf('w:drawing')).toBeLessThan(xml.indexOf('<w:t>After</w:t>'));
   });

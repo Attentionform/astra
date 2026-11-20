@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { serverOfficeVersion } from '../lib/mcp/validation-target';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { DocxParser, getEngineErrorCode, assertWriteTargetNoSymlink, summarizeStyleGuide, writeFileNoFollow, type EngineErrorCode, type ResolvedStyleGuide, type StyleGuideSummary } from '@attentionform/astra-engine';
+import { DocxParser, TEMPLATE_NAMES, getEngineErrorCode, assertWriteTargetNoSymlink, summarizeStyleGuide, writeFileNoFollow, type EngineErrorCode, type ResolvedStyleGuide, type StyleGuideSummary } from '@attentionform/astra-engine';
 import {
   buildClientSessionIdRejection,
   validateSaveTarget,
@@ -10,14 +10,16 @@ import {
 } from '../lib/session-store';
 import { attachSessionStyleGuide, resolveMcpStyleGuide } from './compose-document';
 
-/** Templates mirrored from the CLI `create` command (cli.ts CREATE_TEMPLATES). */
-export const NEW_DOCUMENT_TEMPLATES = ['report', 'memo', 'blank'] as const;
+/** Templates mirrored from the CLI `create` command: the engine's built-in set. */
+export const NEW_DOCUMENT_TEMPLATES = TEMPLATE_NAMES;
 export type NewDocumentTemplate = (typeof NEW_DOCUMENT_TEMPLATES)[number];
 
 export const NewDocumentSchema = z
   .object({
     outPath: z.string().min(1).max(1024),
     template: z.enum(NEW_DOCUMENT_TEMPLATES).optional(),
+    // Paper size of the template: Letter (default) or A4.
+    pageSize: z.enum(['letter', 'a4']).optional(),
     force: z.boolean().optional(),
     // Style guide attach-at-creation (bundled name or guide file path).
     // Persists for the session; batches inherit it unless they override.
@@ -42,7 +44,8 @@ export const NewDocumentSchema = z
 export type NewDocumentInput = z.infer<typeof NewDocumentSchema>;
 
 export const NEW_DOCUMENT_DESCRIPTION =
-  'Create a new .docx from a template (report|memo|blank, default blank) at outPath inside an allowed folder ' +
+  `Create a new .docx from a template (${NEW_DOCUMENT_TEMPLATES.join('|')}; default blank, an empty page) at outPath inside an allowed folder ` +
+  '(a template is a starting document with styles, page setup, header and footer and bracketed placeholders such as [Client name]; every part can be edited afterwards; optional pageSize letter (default) or a4). ' +
   '(the folders named with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS; only when none are named, ./documents and the system temp folder). Validates the fresh package before writing ' +
   '(E_VALIDATION when invalid, never writes corruption); refuses to overwrite without {force:true} (E_CONFLICT). ' +
   'Success returns {ok:true,path,sessionId,revision,template,bytes} with the file opened into a session ' +
@@ -110,7 +113,7 @@ export async function handleNewDocument(
     return newDocError(
       'E_VALIDATION',
       `new_document: invalid input. ${detail}`,
-      'Retry with {"outPath":"<allowed-dir>/file.docx","template":"report|memo|blank"} (template optional, default blank).'
+      `Retry with {"outPath":"<allowed-dir>/file.docx","template":"report"} (template optional, default blank; one of ${NEW_DOCUMENT_TEMPLATES.join('|')}).`
     );
   }
   const template: NewDocumentTemplate = parsed.data.template ?? 'blank';
@@ -180,7 +183,7 @@ export async function handleNewDocument(
 
   let parser: DocxParser;
   try {
-    parser = DocxParser.createNewDocument(template);
+    parser = DocxParser.createNewDocument(template, parsed.data.pageSize !== undefined ? { pageSize: parsed.data.pageSize } : undefined);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return newDocError(
@@ -245,7 +248,6 @@ export async function handleNewDocument(
 
   try {
     const handle = await store.openDocument(target, parsed.data.sessionId, undefined, false);
-    handle.parser.adoptBuiltinSeedFrom(parser);
     if (parsed.data.author !== undefined) handle.ast.settings.defaultAuthor = parsed.data.author;
     let bytes = buf.length;
     try {

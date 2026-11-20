@@ -296,7 +296,7 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'open_document first, then import). Accepts .md/.markdown/.txt; .html/.htm refuse with E_VALIDATION ' +
       '(convert to Markdown first, same verdict as CLI import); .docx refuses with E_VALIDATION naming ' +
       'open_document (open .docx files directly). Outside-jail reads fail E_SANDBOX, missing files E_IO, ' +
-      'oversize files E_LIMIT. Optional allowedDir (image refs), template (report|memo|blank seed check), ' +
+      'oversize files E_LIMIT. Optional allowedDir (image refs), template (checks that the document is that fresh built-in template), ' +
       'and styleGuide (same attach semantics as compose_document). ' +
       'Optional dollarMath (default false) treats $...$ as inline math; off by default because prices and shell text can look like math. ' +
       'Example {"sessionId":"sess_abc","path":"documents/notes.md"} -> compose envelope. '

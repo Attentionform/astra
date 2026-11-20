@@ -60,12 +60,6 @@ export const ALERT_TYPE_TO_THEME: Record<string, string> = {
 };
 export const ALERT_MARKER_PATTERN = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](.*)$/i;
 export const ALERT_TITLE_PATTERN = /^\*\*(.+)\*\*$/;
-/** Seed text per template for the legacy text check. The blank template has no text: it is one empty paragraph. */
-export const TEMPLATE_SEEDS: Record<string, string> = {
-  blank: '',
-  report: 'Q3 Executive',
-  memo: 'MEMORANDUM',
-};
 
 export function fail(line: number, detail: string, remedy: string): never {
   throw toError('E_VALIDATION', `line ${line}: ${detail}`, remedy);

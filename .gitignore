@@ -55,3 +55,5 @@ test-insert-xml-report.ts
 pi-source/
 PI_ADOPTION_BLUEPRINT.md
 website-project/
+!packages/engine/templates/*.docx
+packages/engine/scripts/.build/

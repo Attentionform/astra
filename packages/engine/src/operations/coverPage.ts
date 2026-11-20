@@ -5,7 +5,7 @@ import { DocxParser, upsertSectPrChild } from '../parser';
 import { resolveDeterministicZipDate, resolveReproducibleMode } from '../zip-hardening';
 import { generateValidParaId } from '../ooxml/schema-order';
 import { toError } from '../errors';
-import { pristineSeedIdsOfAnyTemplate } from '../compose/pristine-seed';
+import { loneEmptyParagraphIds } from '../compose/pristine-seed';
 import { executeDelete } from './delete';
 import { applyDocumentIdentity } from '../document-title';
 
@@ -116,7 +116,7 @@ export function executeCoverPage(op: CoverPageOperation, ast: DocumentAST, parse
   // text). A cover page on it would leave that behind, after the page break. The check has to run before anything is
   // changed, because any edit makes the document stop being pristine. A document that was edited,
   // or opened from a file, never matches and keeps all of its content.
-  const seedIds = parser ? pristineSeedIdsOfAnyTemplate(parser) : null;
+  const seedIds = parser ? loneEmptyParagraphIds(parser) : null;
 
   const doc = firstSection.nodes[0].xml.ownerDocument;
   if (!doc) throw new Error("Document not found on first section");

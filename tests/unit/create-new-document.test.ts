@@ -40,12 +40,8 @@ describe('New Empty Document & Template Creation Suite', () => {
       expect(validation.errors).toHaveLength(0);
     });
 
-    it('should fallback to blank template when unknown template name is provided', async () => {
-      const parser = DocxParser.createNewDocument('unknown-template-xyz');
-      const summary = parser.getStructuralSummary();
-
-      expect(summary.nodes).toHaveLength(1);
-      expect(summary.nodes[0].text).toBe('');
+    it('should reject an unknown template name and list the valid names', async () => {
+      expect(() => DocxParser.createNewDocument('unknown-template-xyz')).toThrow(/unknown template 'unknown-template-xyz'.*blank, report, memo/);
     });
 
     it('should produce a zip package with all required OOXML structures', async () => {
@@ -63,7 +59,7 @@ describe('New Empty Document & Template Creation Suite', () => {
       expect(docXml).toContain('<w:document');
       expect(docXml).toContain('<w:body>');
       expect(docXml).toMatch(/<w:pgSz\s+[^>]*w:w="12240"\s+[^>]*w:h="15840"/);
-      expect(docXml).toContain('<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>');
+      expect(docXml).toMatch(/<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/);
     });
 
     it('should generate valid standalone buffer using createBlankDocxBuffer utility function', async () => {
@@ -82,18 +78,18 @@ describe('New Empty Document & Template Creation Suite', () => {
       expect(summary.nodes[0].text).toBe('');
     });
 
-    it('should generate template parsers for novel, financial, and api-spec', async () => {
+    it('should generate template parsers for novel, technical-spec, and research-paper', async () => {
       const novelParser = DocxParser.createNewDocument('novel');
       const novelSummary = novelParser.getStructuralSummary();
       expect(novelSummary.nodes.length).toBeGreaterThanOrEqual(1);
       expect(novelParser.validateZipIntegrity().isValid).toBe(true);
 
-      const reportParser = DocxParser.createNewDocument('financial');
+      const reportParser = DocxParser.createNewDocument('technical-spec');
       const reportSummary = reportParser.getStructuralSummary();
       expect(reportSummary.nodes.length).toBeGreaterThanOrEqual(1);
       expect(reportParser.validateZipIntegrity().isValid).toBe(true);
 
-      const apiParser = DocxParser.createNewDocument('api-spec');
+      const apiParser = DocxParser.createNewDocument('research-paper');
       const apiSummary = apiParser.getStructuralSummary();
       expect(apiSummary.nodes.length).toBeGreaterThanOrEqual(1);
       expect(apiParser.validateZipIntegrity().isValid).toBe(true);
@@ -142,7 +138,7 @@ describe('New Empty Document & Template Creation Suite', () => {
     });
 
     it('should correctly classify heading nodes vs regular body text nodes', async () => {
-      // The report template starts with a Title paragraph; the blank template has no heading at all.
+      // The report template holds headings; the blank template has none.
       const parser = DocxParser.createNewDocument('report');
       const engine = new OperationEngine(await parser.getAST(), parser);
       await engine.executeBatch({
@@ -152,7 +148,7 @@ describe('New Empty Document & Template Creation Suite', () => {
       });
 
       const summary = parser.getStructuralSummary();
-      const headingNode = summary.nodes[0];
+      const headingNode = summary.nodes.find((n) => n.isHeading);
       const bodyNode = summary.nodes[summary.nodes.length - 1];
 
       expect(headingNode?.isHeading).toBe(true);
@@ -215,7 +211,7 @@ describe('New Empty Document & Template Creation Suite', () => {
       await docManager.createNewDocument('blank', docPath);
       
       // Second creation in same directory should commit change rather than erroring on init
-      const result2 = await docManager.createNewDocument('api-spec', docPath);
+      const result2 = await docManager.createNewDocument('technical-spec', docPath);
       
       expect(result2.summary.nodes.length).toBeGreaterThanOrEqual(1);
       expect(docManager.canUndo()).toBe(false);
