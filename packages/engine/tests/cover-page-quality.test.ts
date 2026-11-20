@@ -5,7 +5,7 @@ import { executeCoverPage } from '../src/operations/coverPage';
 const RPR_ORDER = ['w:rFonts', 'w:b', 'w:color', 'w:sz'];
 
 async function fresh() {
-  const parser = new DocxParser(createBlankDocxBuffer('Cover Quality'));
+  const parser = new DocxParser(createBlankDocxBuffer());
   const ast = await parser.getAST();
   return { parser, ast };
 }

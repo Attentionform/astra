@@ -18,7 +18,7 @@ function directChildren(parent: Element, tagName: string): Element[] {
 }
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer('Wide Table Verification Document'));
+  const parser = new DocxParser(createBlankDocxBuffer());
   const ast = await parser.getAST();
   return { parser, ast };
 }

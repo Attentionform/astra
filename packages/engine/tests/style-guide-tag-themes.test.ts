@@ -206,7 +206,7 @@ describe('per-tag theme resolution', () => {
     const { config } = parseStyleGuide(
       guideDoc(['- Default Theme: slate', '- Warning Theme: amber']),
     );
-    const parser = new DocxParser(createBlankDocxBuffer('Explicit Wins'));
+    const parser = new DocxParser(createBlankDocxBuffer());
     const ast = await parser.getAST();
     const anchor = ast.sections[0].nodes[ast.sections[0].nodes.length - 1].id;
     const engine = new OperationEngine(ast, parser, { styleGuide: config });
@@ -231,7 +231,7 @@ describe('per-tag themes end to end', () => {
       guideDoc(['- Default Theme: slate', '- Warning Theme: amber']),
     );
     expect(warnings).toEqual([]);
-    const parser = new DocxParser(createBlankDocxBuffer('Tag Theme Compose'));
+    const parser = new DocxParser(createBlankDocxBuffer());
     const result = await composeDocument(
       parser,
       '> [!WARNING]\n> Watch out here.\n\n> [!NOTE]\n> Take note here.\n',

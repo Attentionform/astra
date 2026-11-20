@@ -15,7 +15,7 @@ import { OperationSchema } from '../src/operation-schema';
 import type { Node } from '../src/ast';
 
 async function freshEngine() {
-  const parser = new DocxParser(createBlankDocxBuffer('Match Errors'));
+  const parser = new DocxParser(createBlankDocxBuffer());
   const ast = await parser.getAST();
   return { parser, ast, engine: new OperationEngine(ast, parser) };
 }

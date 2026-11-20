@@ -27,7 +27,7 @@ describe('@attentionform/astra-engine Headless Standalone Engine Suite', () => {
 
   it('executes complete headless OOXML lifecycle: create, insert paragraphs, tables, 3D charts with XLSX workbooks, lint typography, extract styles, generate tiered TOON, sanitize metadata, and validate schema', async () => {
     // 1. Create a fresh document in-memory
-    const initialBuffer = createBlankDocxBuffer('Standalone OOXML Report');
+    const initialBuffer = createBlankDocxBuffer();
     const parser = new DocxParser(initialBuffer);
     let ast = await parser.getAST();
     expect(ast.sections.length).toBeGreaterThan(0);

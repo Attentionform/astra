@@ -19,7 +19,7 @@ import type { Node } from '../src/ast';
 const ser = new XMLSerializer();
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer('Audit Test'));
+  const parser = new DocxParser(createBlankDocxBuffer());
   const ast = await parser.getAST();
   return { parser, ast };
 }

@@ -333,7 +333,7 @@ describe('inspect summary and save warnings', () => {
       { tag: 'distinct', colors: ['FF0000', '00FF00'], want: 0 },
     ];
     for (const { tag, colors, want } of cases) {
-      const builder = new DocxParser(createBlankDocxBuffer('Twin Pin'));
+      const builder = new DocxParser(createBlankDocxBuffer());
       const ast = await builder.getAST();
       const engine = new OperationEngine(ast, builder);
       const anchor = ast.sections[0].nodes[ast.sections[0].nodes.length - 1].id;

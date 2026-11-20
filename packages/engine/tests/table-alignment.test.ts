@@ -20,7 +20,7 @@ function directChildren(parent: Element, tagName: string): Element[] {
 }
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer('Table Alignment Suite'));
+  const parser = new DocxParser(createBlankDocxBuffer());
   const ast = await parser.getAST();
   return { parser, ast };
 }

@@ -42,7 +42,7 @@ function freshGuide(): StyleGuideConfig {
 }
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer('Guide Test'));
+  const parser = new DocxParser(createBlankDocxBuffer());
   const ast = await parser.getAST();
   return { parser, ast };
 }
@@ -685,7 +685,7 @@ describe('save and validate carry style warnings', () => {
 
   it('warns without blocking when a guide is set, stays quiet otherwise', async () => {
     // Build the offending bytes through a headless engine first.
-    const builder = new DocxParser(createBlankDocxBuffer('Manager Probe'));
+    const builder = new DocxParser(createBlankDocxBuffer());
     let ast = await builder.getAST();
     const engine = new OperationEngine(ast, builder, { styleGuide: freshGuide() });
     const anchor = lastNodeId(ast);
