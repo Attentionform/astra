@@ -153,7 +153,7 @@ export function createBlankDocxBuffer(templateType: string = 'blank', options?: 
   return DocxParser.createNewDocument(templateType, options).rezip();
 }
 
-/** Marker prop naming which fail-closed save guard refused (for ok:false mapping). */
+/** Names the check that refused a save. The only one now is a repeated paragraph id. */
 export type SaveGuardKind = 'duplicate-paraid';
 
 function guardKindOf(err: unknown): SaveGuardKind | null {
@@ -3742,11 +3742,8 @@ export class DocxParser {
   }
 
   /**
-   * Validates this document against official Microsoft Office ECMA-376 XSD schemas using @attentionform/ooxml-validator.
-   * Fail-closed save guards (duplicate paraIds, unknown tags) refuse as
-   * `{ok:false}` entries here — every `if (!validation.ok)` caller keeps
-   * working unchanged — while direct-`rezip()` writers get the thrown
-   * E_VALIDATION. Integrity/XXE/macro throws still propagate, as before.
+   * Checks this document against the Office schema, with the validator package, and returns the result. A document that a save guard would refuse, such as one with repeated paragraph ids,
+   * comes back as `{ ok: false }` with the reason, in the same shape as a schema error. A macro, an XML external entity or a corrupt package still throws.
    *
    * @public
    */

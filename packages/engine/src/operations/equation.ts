@@ -19,12 +19,9 @@ export interface EquationOperation extends BaseOperation {
   position?: 'before' | 'after';
   target?: string;
   /**
-   * E4 doc line: `latex` is a LaTeX SUBSET (converted to structural OMML) or
-   * plain math text (no backslashes — stored verbatim, unchanged).
-   * Supported: fractions, roots, sub/superscripts, n-ary operators,
-   * delimiters, matrix environments, symbol table, named functions.
-   * Unsupported constructs (alignment envs, exotic macros, over-depth
-   * nesting past 6) fail loudly via E_VALIDATION, never silently.
+   * The equation, as a subset of LaTeX or as plain math text. LaTeX is converted to a Word equation. Supported: fractions, roots, subscripts and superscripts, sums and integrals,
+   * brackets, matrices, symbols and named functions. Text without a backslash is stored as written. A construct that is not supported, such as aligned equations or nesting deeper than 6 levels,
+   * throws `E_VALIDATION`.
    */
   latex: string;
   /**

@@ -174,27 +174,16 @@ export interface BatchPayload {
   sequential?: boolean;
   rollbackOnError?: boolean;
   /**
-   * Jail for batch image `filePath` reads. Wins over the constructor
-   * `OperationEngineOptions.allowedDir` when both are set. Omitted (and no
-   * constructor jail) + a relative `filePath` fails closed with E_SANDBOX;
-   * batches without `filePath` ops never touch the filesystem.
+   * The folder that image `filePath` reads may come from. It wins over `OperationEngineOptions.allowedDir`. Without either, an image `filePath` that is relative throws `E_SANDBOX`.
+   * A batch with no `filePath` never reads the file system.
    */
   allowedDir?: string;
-  /**
-   * Optional per-request step budget (positive integer, no ceiling).
-   * Omitted = unbounded (loops end by natural completion/abort).
-   * ENGINE_MAX_STEPS (25) is a documented default hint only for callers
-   * that want a suggestion — it enforces nothing.
-   */
+  /** The most steps that one request may take, as a positive integer. There is no limit when it is omitted. */
   maxSteps?: number;
   /**
-   * Preview mode: validate and apply fully in memory, then rewind
-   * everything (package bytes, AST, history) and persist nothing.
-   * success/appliedCount describe the rewound attempt; preview lists the
-   * affected nodes; dryRunBytes carries the post-batch package so callers
-   * can run out-of-band validation (present only when a parser is
-   * attached). Failures behave exactly like a normal batch failure
-   * (success=false, rolled back, nothing persisted).
+   * Try the batch and change nothing. The batch is validated and applied in memory, and then everything is put back: the package, the AST and the history. `success` and `appliedCount` describe that attempt,
+   * `preview` lists the nodes it would change, and `dryRunBytes` holds the resulting package so that you can validate it yourself (when a parser is attached).
+   * A failure is the same as in a normal batch: `success` is false and nothing is kept.
    */
   dryRun?: boolean;
   /** Emitted per applied operation plus a terminal 'completed'/'error' event. */
@@ -231,30 +220,23 @@ export interface ExecutionResult {
   revisionsRemedy?: string;
   /** How many of the pending tracked changes this batch tried to accept or reject and could not. Absent when none. */
   revisionsUnresolved?: number;
-  /** package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
+  /** Package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
   prunedParts?: string[];
-  /** why the package cleanup after a delete did not run or was refused. The save is unaffected. Absent when nothing went wrong. */
+  /** Why the package cleanup after a delete did not run or was refused. The save is unaffected. Absent when nothing went wrong. */
   cleanupSkipped?: string;
-  /** defects the file already had that the cleanup saw and left alone (a relationship to a missing part). Absent when none. */
+  /** Defects the file already had that the cleanup saw and left alone (a relationship to a missing part). Absent when none. */
   existingDefects?: string[];
   /** Paragraphs that mention a chart that this batch changed, as `{ nodeId, preview }`. Advice only; it never fails a batch. */
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
-  /** one entry per chart update: in-place or rebuilt, what happened to the workbook, and what a rebuild did not keep. Absent when no chart was updated. */
+  /** One entry per chart update: in-place or rebuilt, what happened to the workbook, and what a rebuild did not keep. Absent when no chart was updated. */
   chartUpdates?: ChartUpdateReport[];
   /** Compose: where the document title was taken from when it was still a template placeholder. */
   titleSetFrom?: string;
-  /**
-   * True when this result comes from a dryRun batch. The attempt was fully
-   * validated and applied in memory, then rewound — nothing was persisted.
-   */
+  /** True when this result is from a `dryRun` batch: the batch was applied in memory and then undone, and nothing was kept. */
   dryRun?: boolean;
   /** Affected nodes, populated only for a successful dryRun batch. */
   preview?: DryRunPreview[];
-  /**
-   * Post-batch package bytes captured before the dryRun rewind, for
-   * out-of-band validation by the caller. Present only when a parser is
-   * attached and the dryRun attempt succeeded.
-   */
+  /** The package as it would be after the batch, for you to validate. It is present only when a parser is attached and the `dryRun` batch succeeded. */
   dryRunBytes?: Buffer;
 }
 
@@ -413,24 +395,12 @@ function buildDryRunPreview(
  * Construction-time options for the operation engine.
  */
 export interface OperationEngineOptions {
-  /**
-   * Jail for batch image `filePath` reads (same trust as the compose
-   * `allowedDir`). Read by `executeImage`; a per-batch `BatchPayload`
-   * `allowedDir` wins over this when both are set. No silent grants: a
-   * `filePath` with no jail configured fails closed with E_SANDBOX.
-   */
+  /** The folder that image `filePath` reads may come from. A `BatchPayload.allowedDir` wins over it. Without either, an image `filePath` that is relative throws `E_SANDBOX`. */
   allowedDir?: string;
   /**
-   * Active style guide ("aesthetic skin"). Applies as omitted-param
-   * defaults inside table/chart/callout/code-block ops under a global
-   * precedence invariant: explicit op param > guide value > built-in
-   * default. A caller-passed value always wins (even when it clashes with
-   * the guide — clashes surface as advisory warnings, never silent
-   * overrides); guide values fill only omitted params; chart palettes fill
-   * only uncolored series in order without shifting explicit indices.
-   * Omitted (no guide) = legacy built-in behavior, byte-identical.
-   * Replace via `setStyleGuide` (session guides persist; per-batch
-   * overrides belong to the caller layer).
+   * The style guide in use. It gives table, chart, callout and code-block operations their values for the parameters that you leave out. An explicit parameter always wins over the guide,
+   * and the guide wins over the built-in value. When an explicit value clashes with the guide, you get a warning and the explicit value is used. A guide colours only the chart series that have no colour.
+   * With no guide, the built-in values apply. Replace the guide with `setStyleGuide`.
    */
   styleGuide?: StyleGuideConfig;
 }
@@ -493,7 +463,7 @@ export class OperationEngine {
   }
 
   /**
-   * Active style guide (undefined = legacy built-ins, no defaulting).
+   * The style guide in use, or `undefined` when there is none. Without one, omitted parameters take the built-in values.
    *
    * @public
    */

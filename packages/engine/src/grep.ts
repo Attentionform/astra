@@ -15,11 +15,8 @@ export interface GrepResult {
 }
 
 /**
- * Search nodes for text matches
- * @param nodes - Array of nodes with id, text, and preview
- * @param query - Search query (text or regex pattern)
- * @param options - Search options (regex, caseSensitive)
- * @returns Array of matching nodes with context
+ * Searches a list of nodes that you prepared for a text, and returns the matches with some text around each. `query` is plain text, or a regular expression when `options.regex` is true.
+ * The search ignores case unless `options.caseSensitive` is true. An invalid regular expression gives an empty list.
  */
 export function grepNodes(
   nodes: { id: string; text: string; preview: string }[],

@@ -206,21 +206,16 @@ export * from './assets';
 export * from './compile';
 
 export interface ComposeOptions {
-  /** Override the per-batch op cap chunk size (defaults to the engine cap). */
+  /** The number of operations in each chunk, when you want fewer than the engine's limit. */
   chunkSize?: number;
-  /** Directory that image and chart path references resolve against. Absent = path references fail closed. */
+  /** The folder that image and chart paths are resolved in. A Markdown image or chart reference throws an error, with a remedy, when this is missing. */
   allowedDir?: string;
   /** Require the open document to still be a fresh document of this template before writing. */
   template?: (typeof TEMPLATE_NAMES)[number];
   /**
-   * Active style guide: forwarded to the batch engine so composed tables,
-   * charts, callouts, and fenced code blocks inherit the house skin
-   * (explicit op params still win). Composed Markdown tables take the guide
-   * `tables.headerFill` and composed `> [!TAG]` alerts take the guide
-   * `callouts.defaultTheme` (Markdown carries no per-table or per-alert
-   * theme syntax, so the guide wins there outright). Omitted = the built-in
-   * "Default Corporate" guide; `'legacy'` = the old look (gray headers,
-   * no header text colour).
+   * The style guide in use. Composed tables, charts, callouts and code blocks take their look from it, and an explicit parameter still wins. Markdown has no syntax for a table or alert theme,
+   * so the guide's `tables.headerFill` and `callouts.defaultTheme` apply to composed tables and `> [!TAG]` alerts. Without a guide, the built-in Default Corporate guide applies. `'legacy'` gives the older
+   * look, with grey table headers and no header text colour.
    */
   styleGuide?: StyleGuideConfig | 'legacy';
   /** Treat `$...$` as inline math (default off: prices and shell text can look like math). */
@@ -232,7 +227,7 @@ export interface ComposeOptions {
   anchor?: string;
   /** Side of `anchor` the first block goes on. Default `after`. */
   position?: 'before' | 'after';
-  /** Prefix of the minted node ids. Absent = the next free one for this document (see nextComposeIdPrefix). */
+  /** The prefix of the ids that are made for the new nodes. Without it, the next free prefix for this document is used. */
   idPrefix?: string;
 }
 
@@ -510,11 +505,8 @@ export function validateComposedOperations(operations: Operation[]): void {
 }
 
 /**
- * Compiles Markdown and applies it to an open document through
- * `executeBatch`, chunked at the engine op cap. Appends only, except that a
- * pristine blank template (see the seed-skip heuristic above) has its two
- * seed placeholders removed after the composed chunks commit, so client
- * output holds only composed content. Input errors throw before any write.
+ * Builds content from Markdown and adds it to an open document. It applies the content with `executeBatch`, in chunks that fit the limit on operations.
+ * It only appends, except that a blank new template has its two placeholder paragraphs removed once the new content is in. A mistake in the input throws before anything is written.
  */
 export async function composeDocument(
   parser: DocxParser,

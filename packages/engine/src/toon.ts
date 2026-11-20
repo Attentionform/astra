@@ -903,7 +903,7 @@ export class ToonGenerator {
   }
 
   /**
-   * Drops all cached tables and checksums (forces recompute on next call).
+   * Drops the cached tables, so that the next call builds them again. Pass `sectionId` to drop only the tables of that section.
    *
    * @public
    */
@@ -965,9 +965,8 @@ export class ToonGenerator {
   }
 
   /**
-   * The main call: `toon(ast, { fidelity, sectionId, maxTextLength, useCache })`.
-   * Default fidelity is 'standard'. Full tier requires a sectionId (throws with
-   * remedy otherwise) and throws with remedy when the sectionId matches nothing.
+   * The main call: `toon(ast, { fidelity, sectionId, maxTextLength, useCache })`. The default fidelity is `standard`. The `full` tier needs a `sectionId`.
+   * It throws with a remedy when `full` has none, or when the `sectionId` matches nothing.
    *
    * @public
    */
@@ -1645,14 +1644,9 @@ export class ToonGenerator {
   }
 
   /**
-   * Generates a TOON representation fitting within a target maxTokens budget.
-   * Compression ladder first (whole-document coverage): text 120 → 40 →
-   * compact (omitting path/flags columns). When still over budget, slices on
-   * clean row boundaries (binary-search largest fitting prefix, fit measured
-   * with the same estimateTokens returned in tokenCount) with cursor paging
-   * via options.offset. A single row bigger than budget is still returned
-   * with truncated set so callers never page forever.
-   * Fidelity-aware: defaults to standard; full requires sectionId (throws otherwise).
+   * Builds the outline so that it fits in `maxTokens`. It first shortens the text of each row, from 120 to 40 characters, and then leaves out the path and flags columns.
+   * When it is still too big, it keeps as many whole rows as fit and sets `hasMore` and `nextOffset`; pass `offset` to read the next page. A single row that is bigger than the budget is still returned,
+   * with `truncated` set, so a reader never pages forever. `tokenCount` is measured with `estimateTokens`.
    *
    * @public
    */

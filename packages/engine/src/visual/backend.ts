@@ -293,7 +293,14 @@ export function hasPdfBackend(override?: VisualBackendOverride): VisualBackendSt
 }
 
 export const hasVisualPdfBackend = hasPdfBackend;
-export const getVisualBackendStatus = hasPdfBackend;
+/**
+ * Finds out which programs can draw pages here, without drawing anything. `available` is true when both a renderer (Word or LibreOffice) and a rasterizer (Poppler or the Windows renderer)
+ * can run under the current settings, `backend` is the renderer that a default call would use, `missing` names the programs that were not found, and `renderers`, `rasterizers`
+ * and `plan` say what was found and in what order it would be used. It never throws.
+ *
+ * @public
+ */
+export const getVisualBackendStatus: (override?: VisualBackendOverride) => VisualBackendStatus = hasPdfBackend;
 
 export function hasLibreOffice(override?: VisualBackendOverride): boolean {
   return Boolean(resolveSoffice(override?.sofficeBin, override?.pathEnv));

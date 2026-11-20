@@ -123,9 +123,8 @@ function isMargin(v: string): v is StyleGuideMargin {
 }
 
 /**
- * Parse guide markdown into `{ config, warnings }`. Total function over
- * strings — any input (empty, garbage, unknown version) yields a valid
- * config; unknown major versions parse best-effort under the v1 schema.
+ * Reads a style guide written in Markdown and returns `{ config, warnings }`. It never throws: any text gives a valid result, and `warnings` list what it could not use.
+ * A guide with a version that the engine does not know is read as version 1.
  */
 export function parseStyleGuide(markdown: string): StyleGuideParseResult {
   const warnings: string[] = [];

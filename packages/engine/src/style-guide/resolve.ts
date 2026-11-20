@@ -26,10 +26,7 @@ import { canonicalizeForAsset, hasUriScheme, isPathInsideDir } from '../sandbox/
 import { toError } from '../errors';
 
 export interface ResolveStyleGuideOptions {
-  /**
-   * Jail for relative file refs (same trust as batch image `allowedDir`).
-   * Omitted = relative refs anchor at the process working directory.
-   */
+  /** The folder that a relative file path is resolved in. Without it, a relative path is resolved from the current directory. */
   allowedDir?: string;
 }
 
@@ -202,10 +199,8 @@ function resolveFileGuide(ref: string, opts?: ResolveStyleGuideOptions): Resolve
 }
 
 /**
- * Resolves a guide ref to a parsed config. File-backed refs (`.md`
- * suffix, path separators) read from disk under the jail; anything else
- * is a bundled name. Unknown names and missing files fail closed with a
- * coded `E_VALIDATION` (never null, never silent defaults).
+ * Finds a style guide from a name or a path and reads it. A value that ends in `.md`, or holds a path separator, is a file and is read from disk inside the allowed folder.
+ * Any other value is the name of a bundled guide. An unknown name or a missing file throws `E_VALIDATION`. It never falls back to defaults.
  */
 export function resolveStyleGuide(
   ref: string,

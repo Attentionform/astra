@@ -54,12 +54,8 @@ export interface StructuralSummary {
     metadata?: TableMetadata | Record<string, unknown>;
   }[];
   /**
-   * IN-07: renderer-compatible node→page map embedded at summary time, plus
-   * the page geometry params it was derived from. The map uses the same
-   * explicit-break semantics as the canvas paginator; line-density fallback
-   * is geometry-scaled (not a fixed 45). Consumers (visual_review) must
-   * prefer a live renderer map when available; this embedded map carries
-   * `pageMapSource: 'estimate'` unless a renderer map was supplied.
+   * The page of each node, as a map from node id to page number, with the page geometry that it came from. It is an estimate unless a renderer supplied the map; `pageMapSource` says which.
+   * Prefer a map from a real render when you have one.
    */
   nodePages?: Record<string, number>;
   totalPages?: number;

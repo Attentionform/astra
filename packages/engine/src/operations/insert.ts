@@ -43,17 +43,11 @@ export interface InsertOperation extends BaseOperation {
   captionText?: string;
   captionPosition?: string;
   /**
-   * Table inserts only: keep every row on one page (cantSplit) with a
-   * repeating header (tblHeader) plus keepNext chaining. Explicit wins;
-   * otherwise the guide `tables.keepTogether` applies; otherwise the legacy
-   * markers (cantSplit + tblHeader, no keepNext) are kept byte-identical.
-   * Accepts flat or params-nested values (nested wins).
+   * Table inserts only. Keep every row on one page, with the header row repeated on each page and each row kept with the next. An explicit value wins, then the guide's `tables.keepTogether`,
+   * and then the built-in behaviour, which keeps rows whole and repeats the header. The value may be given at the top level or in `params`; `params` wins.
    */
   keepTogether?: boolean;
-  /**
-   * Table inserts only: bold the header row text. Explicit wins (flat or params-nested,
-   * nested wins); otherwise the guide `tables.headerBold`; otherwise bold.
-   */
+  /** Table inserts only. Make the text of the header row bold. An explicit value wins (`params` over the top level), then the guide's `tables.headerBold`, and then bold. */
   headerBold?: boolean;
   trackChanges?: boolean;
   color?: string;

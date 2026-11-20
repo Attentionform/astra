@@ -10,8 +10,7 @@ import type { OfficeVersion } from '@attentionform/ooxml-validator';
 export type { OfficeVersion };
 
 /**
- * The seven versions the validator accepts, oldest first. A test keeps this list equal to the
- * validator package's own list (the engine loads that package lazily, so it is not imported here).
+ * The Office versions that validation can target, oldest first.
  */
 export const OFFICE_VERSIONS: readonly OfficeVersion[] = [
   'Office2007',

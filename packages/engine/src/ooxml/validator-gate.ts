@@ -74,7 +74,8 @@ export class OoxmlValidationError extends Error {
 }
 
 /**
- * Validates a DOCX buffer directly in memory using the native validator backend.
+ * Checks the bytes of a .docx file against the Office schema. The target version is `options.officeVersion`, else `ASTRA_OFFICE_VERSION`, else Office 2019.
+ * It returns the errors that it found. A document that fails the schema is a result, not a thrown error.
  */
 export async function validateDocxBuffer(buffer: Buffer, options: ValidateOptions = {}): Promise<ValidationResult> {
   const backend = getValidatorBackend();
@@ -85,7 +86,7 @@ export async function validateDocxBuffer(buffer: Buffer, options: ValidateOption
 }
 
 /**
- * Validates a DOCX file from disk using the native validator backend.
+ * Checks a .docx file on disk against the Office schema, as `validateDocxBuffer` does.
  */
 export async function validateDocxFile(filePath: string, options: ValidateOptions = {}): Promise<ValidationResult> {
   const officeVersion = resolveOfficeVersion(options.officeVersion);
@@ -95,7 +96,7 @@ export async function validateDocxFile(filePath: string, options: ValidateOption
 }
 
 /**
- * Asserts that a DOCX buffer is schema-valid. Throws OoxmlValidationError if invalid.
+ * Throws `OoxmlValidationError` when the bytes of a .docx file fail the Office schema, and returns nothing when they pass. `context` names the file or step in the message.
  */
 export async function assertValidDocx(buffer: Buffer, context: string = 'DOCX export', options: ValidateOptions = {}): Promise<void> {
   const res = await validateDocxBuffer(buffer, options);

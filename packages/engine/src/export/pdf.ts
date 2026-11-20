@@ -227,13 +227,10 @@ export async function convertDocxToPdf(
  * the fallback if Word fails, and LibreOffice everywhere else; `renderer: 'word'` or `'libreoffice'` names one and never
  * falls back. `binary` only says where LibreOffice is; it does not choose LibreOffice, so pass `renderer: 'libreoffice'`
  * to force it on a Windows machine that has Word.
- * Runs export preflight first: warn-only by default, fail-closed with
- * `strict: true` when blockers are present. Network references are retargeted on the render copy unless
- * `allowNetworkReferences` is true (the source bytes are never changed).
- * With LibreOffice, a failed tagged render is retried once as an untagged render; if both
- * fail a structured RenderError (code 'E_RENDER') is thrown. A Word failure is thrown as a WordRenderError
- * (`code`, `remedy` and `failureClass` set), never wrapped.
- * Throws DependencyError (code 'E_DEPENDENCY') if no renderer is installed.
+ * It checks the document first. By default a problem is a warning; with `strict: true` a problem that would make the PDF wrong throws `PreflightError`.
+ * A network reference, such as a linked image or template, is retargeted on the copy that is drawn, unless `allowNetworkReferences` is true. The source bytes never change.
+ * With LibreOffice, a failed render is tried once more without tags, and when both fail it throws `RenderError` (`E_RENDER`). A Word failure throws `WordRenderError`, with `code`, `remedy` and `failureClass` set.
+ * It throws `DependencyError` (`E_DEPENDENCY`) when no renderer is installed.
  */
 export async function convertDocxToPdfDetailed(
   docxBuffer: Buffer,

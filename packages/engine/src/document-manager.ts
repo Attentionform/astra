@@ -256,8 +256,7 @@ export class DocumentManager {
   }
 
   /**
-   * Attaches (or clears, when omitted) the style guide used for advisory
-   * linting on save/validate paths.
+   * Sets the style guide that checks advisory warnings on save and validate, or clears it when called without one.
    *
    * @public
    */
@@ -266,7 +265,7 @@ export class DocumentManager {
   }
 
   /**
-   * Active style guide (undefined = no advisory linting).
+   * The style guide in use, or `undefined` when there is none.
    *
    * @public
    */
@@ -858,8 +857,7 @@ export class DocumentManager {
   }
 
   /**
-   * Accepts or rejects every tracked change and persists the result through
-   * the validated write. Without an active file path the change stays in memory.
+   * Accepts or rejects every tracked change and writes the result to the file, after validation. When no file is open, the change stays in memory.
    *
    * @public
    */

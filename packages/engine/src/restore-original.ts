@@ -71,11 +71,10 @@ export async function rollbackReplacedFile(
 }
 
 /**
- * Restore the exact originally captured DOCX bytes and append a history commit.
- * The caller must serialize concurrent access to this path, including any in-memory session.
- * The current on-disk document must match a complete history head. A hash check immediately
- * before replacement detects most outside edits, but cannot exclude a writer racing the rename.
- * This low-level file API does not update any live DocxParser, AST, or MCP session.
+ * Puts the original bytes of a document back, exactly as they were when its history began, and records the restore as a new version in the history.
+ * The file on disk must match the newest version of a complete history. The caller must make sure that nothing else uses this path at the same time, including an open session.
+ * The check just before the replace finds most outside edits, but it cannot rule out a writer that races the replace. This function works on the file only. It does not update an open
+ * `DocxParser`, AST or MCP session.
  */
 export async function restoreOriginal(docPath: string, options: RestoreOriginalOptions = {}): Promise<RestoreOriginalResult> {
   const target = path.resolve(docPath);
