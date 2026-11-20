@@ -12,6 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DocxParser, OperationEngine, createBlankDocxBuffer, type DocumentAST } from '@attentionform/astra-engine';
 import { SECTION_SHAPES, blockSignature, countFileSections, fileBlocksBySection } from '../helpers/section-docs';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const FIXTURES = path.resolve(__dirname, '../fixtures/sections');
 
@@ -49,7 +50,7 @@ const failAfter = async (s: Session, ...operations: Array<Record<string, unknown
 };
 
 const sources: Array<{ name: string; build: () => Buffer }> = [
-  { name: 'blank document', build: () => createBlankDocxBuffer('blank') },
+  { name: 'blank document', build: () => seededBlank() },
   { name: 'two sections', build: SECTION_SHAPES['two-sections'].build },
   { name: 'three sections', build: SECTION_SHAPES['three-sections'].build },
   { name: 'table before a break', build: SECTION_SHAPES['table-before-break'].build },

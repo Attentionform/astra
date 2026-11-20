@@ -30,6 +30,7 @@ import {
   TOCManipulator,
   ToonGenerator,
 } from '@attentionform/astra-engine';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
@@ -65,7 +66,7 @@ function stampListNumbering(
 
 describe('D1 BX-03: numbering serialize-on-rezip + real continuation', () => {
   it('bullet and numbered lists get distinct numIds (no shared hardcoded 1)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     const bulletId = manip.getOrCreateList('bullet');
@@ -79,7 +80,7 @@ describe('D1 BX-03: numbering serialize-on-rezip + real continuation', () => {
   });
 
   it('list.create survives save/reload with the same numId (numbering.xml written)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     const bulletId = manip.getOrCreateList('bullet');
@@ -115,7 +116,7 @@ describe('D1 BX-03: numbering serialize-on-rezip + real continuation', () => {
   });
 
   it('continueList throws loudly on unknown anchors and non-list nodes', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     expect(() => manip.continueList('p_999_missing')).toThrow(/not found/);
@@ -124,7 +125,7 @@ describe('D1 BX-03: numbering serialize-on-rezip + real continuation', () => {
   });
 
   it('numbered list round-trips through the strict OOXML validator clean', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     const numberedId = manip.getOrCreateList('numbered');
@@ -138,7 +139,7 @@ describe('D1 BX-03: numbering serialize-on-rezip + real continuation', () => {
   });
 
   it('bullet levels use a portable glyph with a common font', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     const bulletId = manip.getOrCreateList('bullet');
@@ -163,7 +164,7 @@ describe('D1 BX-03: numbering serialize-on-rezip + real continuation', () => {
 
 describe('List op: create labels truthfully, continue joins the same sequence', () => {
   async function seededList(listType: 'bullet' | 'numbered') {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const eng = new OperationEngine(ast, parser);
     const seed = await eng.executeBatch({
@@ -220,7 +221,7 @@ describe('List op: create labels truthfully, continue joins the same sequence', 
   });
 
   it('continue honors an explicit previousNodeId and fails loud with no list behind it', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const eng = new OperationEngine(ast, parser);
     const seed = await eng.executeBatch({
@@ -239,7 +240,7 @@ describe('List op: create labels truthfully, continue joins the same sequence', 
     expect(bad.success).toBe(false);
 
     // Explicit previous works even when it is not the nearest sibling.
-    const parser2 = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser2 = new DocxParser(seededBlank());
     const astB = await parser2.getAST();
     const engB = new OperationEngine(astB, parser2);
     await engB.executeBatch({
@@ -285,7 +286,7 @@ describe('List op: create labels truthfully, continue joins the same sequence', 
   });
 
   it('executeList rejects unknown operations loudly (never a silent numId 1 stamp)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     expect(() => executeList(
       { action: 'list', operation: 'frobnicate', target: ['whatever'] } as never, ast
@@ -295,7 +296,7 @@ describe('List op: create labels truthfully, continue joins the same sequence', 
 
 describe('D1 BX-04: header/footer match by type AND pageType', () => {
   it('first-page header allocates a fresh part instead of relabeling default', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const hf = new HeaderFooterManipulator(ast, parser);
 
@@ -342,7 +343,7 @@ describe('D1 BX-11: insertRootNode true-parent + recursive registration', () => 
     `</w:sdt>`;
 
   it('registers sdt children and inserts relative to the true parent', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     await parser.getAST();
 
     parser.insertRootNode(SDT_XML, undefined, 'append', 'sdt_test_1');
@@ -394,7 +395,7 @@ describe('D1 BX-01: comments/PIs survive *Pr schema-order sort', () => {
 
 describe('D1 BX-08: TOON revision counter + bounded map', () => {
   it('bumps revision on recompute, hits cache otherwise, and bounds entries', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const gen = new ToonGenerator();
 
@@ -416,7 +417,7 @@ describe('D1 BX-08: TOON revision counter + bounded map', () => {
   });
 
   it('never serves a stale row after an in-place DOM edit without version bump', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const gen = new ToonGenerator();
 
@@ -437,7 +438,7 @@ describe('D1 BX-08: TOON revision counter + bounded map', () => {
 
 describe('D1 BX-02: cloneAST deep-copies every map', () => {
   it('mutating the clone leaves the original maps, nodes and DOM untouched', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     new NumberingManipulator(ast).getOrCreateList('bullet');
     const rels = new RelationshipsManipulator(ast);
@@ -469,7 +470,7 @@ describe('D1 BX-02: cloneAST deep-copies every map', () => {
 
 describe('D1 BX-10: loud errors for unknown coerce paths (parser/manipulator scope)', () => {
   it('throws on unknown list type and unknown header/footer targets', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     expect(() => new NumberingManipulator(ast).getOrCreateList('roman' as any)).toThrow(
       /Unknown list type/
@@ -519,7 +520,7 @@ describe('D1 BX-12: save-path `both` normalization is pinned', () => {
 
 describe('D1 OX-12 + BX-05: safe bookmark and rId allocation', () => {
   it('repeated TOC scans never duplicate bookmark w:ids', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     ast.sections[0].nodes[0].metadata.namedStyle = 'Heading1';
     ast.sections[0].nodes[1].metadata.namedStyle = 'Heading2';
@@ -555,7 +556,7 @@ describe('D1 OX-12 + BX-05: safe bookmark and rId allocation', () => {
   });
 
   it('safe rId allocator never reuses ids, even beside bypass shapes', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     ast.relationships['rId_link_1757000000000'] = {
       type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
@@ -578,7 +579,7 @@ describe('D1 OX-12 + BX-05: safe bookmark and rId allocation', () => {
   });
 
   it('comment part bootstrap allocates fresh rels and validates clean', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     await parser.getAST();
     bootstrapCommentParts(parser.getZipAdapter());
     bootstrapCommentParts(parser.getZipAdapter()); // idempotent re-run
@@ -589,7 +590,7 @@ describe('D1 OX-12 + BX-05: safe bookmark and rId allocation', () => {
   });
 
   it('header/footer/comment round-trip validates clean under the strict validator', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const hf = new HeaderFooterManipulator(ast, parser);
     hf.setHeaderFooter({ targetType: 'header', pageType: 'default', text: 'Strict H' });
@@ -611,7 +612,7 @@ describe('D1 OX-12 + BX-05: safe bookmark and rId allocation', () => {
 // reload/restore.
 describe('D1 follow-up BX-03: bare rezip() preserves numbering via cached AST', () => {
   it('bare rezip() after list.create writes numbering.xml + rel + content-type', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     expect(parser.hasCachedNumberingAst()).toBe(true);
     const bulletId = new NumberingManipulator(ast).getOrCreateList('bullet');
@@ -633,14 +634,14 @@ describe('D1 follow-up BX-03: bare rezip() preserves numbering via cached AST', 
   });
 
   it('bare rezip() without lists creates no spurious numbering part', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     await parser.getAST();
     const out = parser.rezip();
     expect(new AdmZip(out).getEntry('word/numbering.xml')).toBeFalsy();
   });
 
   it('reload/restore clears the numbering cache (no stale replay)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     new NumberingManipulator(ast).getOrCreateList('bullet');
     expect(parser.hasCachedNumberingAst()).toBe(true);
@@ -650,7 +651,7 @@ describe('D1 follow-up BX-03: bare rezip() preserves numbering via cached AST', 
     const out = parser.rezip();
     expect(new AdmZip(out).getEntry('word/document.xml')).toBeTruthy();
 
-    const parser2 = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser2 = new DocxParser(seededBlank());
     const ast2 = await parser2.getAST();
     new NumberingManipulator(ast2).getOrCreateList('numbered');
     const snap = parser2.capturePackageSnapshot();
@@ -659,7 +660,7 @@ describe('D1 follow-up BX-03: bare rezip() preserves numbering via cached AST', 
   });
 
   it('explicit rezip(ast) refreshes the cache for later bare saves', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     await parser.getAST();
     parser.clearCachedNumberingAst();
     expect(parser.hasCachedNumberingAst()).toBe(false);
@@ -697,7 +698,7 @@ describe('D1 follow-up BX-08: heading and global signals invalidate TOON', () =>
   }
 
   it('heading-only edit (detached DOM) recomputes instead of hitting cache', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     detachedHeadingAst(ast, 'Original Heading');
     const gen = new ToonGenerator();
@@ -713,7 +714,7 @@ describe('D1 follow-up BX-08: heading and global signals invalidate TOON', () =>
   });
 
   it('settings / header-footer / numbering edits invalidate the cache', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const gen = new ToonGenerator();
 
@@ -760,7 +761,7 @@ describe('D1 follow-up BX-10: remainders verified + owned loud errors pinned', (
   });
 
   it('owned scope stays loud: unknown list/header-footer types fail with hints', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     expect(() => new NumberingManipulator(ast).getOrCreateList('roman' as any)).toThrow(/Unknown list type.*bullet.*numbered/);
     const hf = new HeaderFooterManipulator(ast, parser);
@@ -770,7 +771,7 @@ describe('D1 follow-up BX-10: remainders verified + owned loud errors pinned', (
 
   it('remainder runtime behavior: loud messages carry received value + valid set + hint', async () => {
     const { executeInsert } = await import('@attentionform/astra-engine');
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const anchor = ast.sections[0].nodes[0].id;
     await expect(
@@ -793,7 +794,7 @@ describe('D1R2 OX-12: hyperlink bypass fixed via owning-batch allocators', () =>
     resetHyperlinkRIdStateForTests();
     try {
       const { executeHyperlink } = await import('@attentionform/astra-engine');
-      const parser = new DocxParser(createBlankDocxBuffer('blank'));
+      const parser = new DocxParser(seededBlank());
       const ast: any = await parser.getAST();
       const target = ast.sections[0].nodes[0].id;
       const realNow = Date.now;
@@ -840,9 +841,9 @@ describe('D1R2 OX-12: hyperlink bypass fixed via owning-batch allocators', () =>
   it('same-AST-seeded allocators still diverge across documents (global reservation)', async () => {
     resetHyperlinkRIdStateForTests();
     try {
-      const parserA = new DocxParser(createBlankDocxBuffer('blank'));
+      const parserA = new DocxParser(seededBlank());
       const astA = await parserA.getAST();
-      const parserB = new DocxParser(createBlankDocxBuffer('blank'));
+      const parserB = new DocxParser(seededBlank());
       const astB = await parserB.getAST();
       const realNow = Date.now;
       (Date as any).now = () => 1757000000000;
@@ -865,7 +866,7 @@ describe('D1R2 OX-12: hyperlink bypass fixed via owning-batch allocators', () =>
     resetBookmarkHighWaterForTests();
     try {
       const { executeHyperlink } = await import('@attentionform/astra-engine');
-      const parser = new DocxParser(createBlankDocxBuffer('blank'));
+      const parser = new DocxParser(seededBlank());
       const ast: any = await parser.getAST();
       const realNow = Date.now;
       (Date as any).now = () => 1757000000000;
@@ -899,7 +900,7 @@ describe('D1R2 OX-12: hyperlink bypass fixed via owning-batch allocators', () =>
     resetBookmarkHighWaterForTests();
     resetHyperlinkRIdStateForTests();
     try {
-      const parser = new DocxParser(createBlankDocxBuffer('blank'));
+      const parser = new DocxParser(seededBlank());
       const ast = await parser.getAST();
       ast.relationships['rId_link_1757000000000'] = {
         type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
@@ -947,7 +948,7 @@ describe('D1R2 OX-12: hyperlink bypass fixed via owning-batch allocators', () =>
 // parser.ts (numbering.ts is owned by another batch and stays untouched).
 describe('D1R2-1: orphan numbering is pruned, never persisted', () => {
   it('concrete deleted + abstract remains → no part, no rel, no content-type (explicit rezip)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const bulletId = new NumberingManipulator(ast).getOrCreateList('bullet');
     delete ast.numbering.concreteNum[bulletId]; // orphan: abstract remains
@@ -961,7 +962,7 @@ describe('D1R2-1: orphan numbering is pruned, never persisted', () => {
   });
 
   it('concrete deleted + abstract remains → bare rezip prunes too', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const bulletId = new NumberingManipulator(ast).getOrCreateList('bullet');
     delete ast.numbering.concreteNum[bulletId];
@@ -974,7 +975,7 @@ describe('D1R2-1: orphan numbering is pruned, never persisted', () => {
   });
 
   it('abstract deleted + concrete dangles → pruned (mirror orphan)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     new NumberingManipulator(ast).getOrCreateList('numbered'); // numId 2 → abs 1
     for (const k of Object.keys(ast.numbering.abstractNum)) delete ast.numbering.abstractNum[k];
@@ -985,7 +986,7 @@ describe('D1R2-1: orphan numbering is pruned, never persisted', () => {
   });
 
   it('previously saved part is REMOVED when numbering later becomes orphan', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const bulletId = new NumberingManipulator(ast).getOrCreateList('bullet');
     stampListNumbering(ast.sections[0].nodes[0].xml as Element, bulletId, 0);
@@ -1007,7 +1008,7 @@ describe('D1R2-1: orphan numbering is pruned, never persisted', () => {
   });
 
   it('live numbering still writes part + rel + content-type (no over-prune)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const bulletId = new NumberingManipulator(ast).getOrCreateList('bullet');
     const out = parser.rezip(ast);
@@ -1023,7 +1024,7 @@ describe('D1R2-1: orphan numbering is pruned, never persisted', () => {
 // hydration missed, so create-list → getAST() again → bare rezip keeps defs.
 describe('D1R2-2: getAST preserves unsaved numbering defs across calls', () => {
   it('create list → getAST() again → bare rezip keeps defs', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast1 = await parser.getAST();
     const bulletId = new NumberingManipulator(ast1).getOrCreateList('bullet');
     stampListNumbering(ast1.sections[0].nodes[0].xml as Element, bulletId, 0);
@@ -1045,7 +1046,7 @@ describe('D1R2-2: getAST preserves unsaved numbering defs across calls', () => {
   });
 
   it('reload still discards unsaved defs (cache invalidation wins over carry-over)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast1 = await parser.getAST();
     new NumberingManipulator(ast1).getOrCreateList('bullet');
     parser.reloadDocumentXml(parser.readDocumentXml()); // clears cache
@@ -1082,7 +1083,7 @@ describe('D1R2-3: rollback identity split proven; adopt hook restores visibility
   }
 
   it('split proven: engine island diverges from parser cache; adopt() fixes bare rezip', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const engineAst: any = await parser.getAST();
     const pkgSnap = parser.capturePackageSnapshot();
     // Failed batch → restoreAfterFailedBatch (engine lines, read-only mirror):
@@ -1122,7 +1123,7 @@ describe('D1R2-3: rollback identity split proven; adopt hook restores visibility
 
 describe('numbering fonts and fallback fidelity', () => {
   it('bullet level fonts carry ascii, hAnsi and cs Arial', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     manip.getOrCreateList('bullet');
@@ -1136,7 +1137,7 @@ describe('numbering fonts and fallback fidelity', () => {
   });
 
   it('unserializable numbered abstract falls back to decimal, never bullet', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     manip.getOrCreateList('numbered');
@@ -1153,7 +1154,7 @@ describe('numbering fonts and fallback fidelity', () => {
   });
 
   it('unreadable numFmt fails closed instead of demoting to bullet', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     manip.getOrCreateList('numbered');
@@ -1168,7 +1169,7 @@ describe('numbering fonts and fallback fidelity', () => {
   });
 
   it('empty numFmt fails closed instead of demoting to bullet', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const manip = new NumberingManipulator(ast);
     manip.getOrCreateList('numbered');

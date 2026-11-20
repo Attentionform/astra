@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DocxParser, validateDocxBuffer } from '@attentionform/astra-engine';
 import { compileMarkdown, composeDocument } from '../../packages/engine/src/compose/markdown';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const NO_MATH_SAMPLE = "# Title\n\nA paragraph with **bold**, *it*, `code` and a [link](https://example.com).\n\n- one\n- two\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = \"$$ not math $$\";\n```\n\nIt costs $5 and $10 today, US$5-$10, path $HOME/$USER and 2^3 * 4_5 here.\n\nLast \\[1\\] ref\n";
 
@@ -289,7 +290,7 @@ describe('display math blocks', () => {
 
 describe('display math in a document', () => {
   it('builds real OMML (m:sSub without a backslash) that passes the validator', async () => {
-    const parser = DocxParser.createNewDocument('blank');
+    const parser = new DocxParser(seededBlank());
     const res = await composeDocument(parser, '# T\n\n$$ a_1 + b_2 $$\n\nEnd.\n');
     expect(res.success).toBe(true);
     const out = parser.rezip();
@@ -300,7 +301,7 @@ describe('display math in a document', () => {
   });
 
   it('converts an equation with a fraction', async () => {
-    const parser = DocxParser.createNewDocument('blank');
+    const parser = new DocxParser(seededBlank());
     const res = await composeDocument(parser, 'Text.\n\n$$\n\\frac{a}{b} + \\dots + x_1\n$$\n\nEnd.\n');
     expect(res.success).toBe(true);
     const out = parser.rezip();

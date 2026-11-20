@@ -23,6 +23,7 @@ import {
   handleInspectDocument,
 } from '../../packages/mcp-server/src/lib/mcp-tool-adapter';
 import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session-store';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const KNOWN_CORE_XML =
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
@@ -43,7 +44,7 @@ const KNOWN_CORE_XML =
 
 /** Blank docx buffer with KNOWN_CORE_XML injected as docProps/core.xml. */
 function bufferWithKnownCore(): Buffer {
-  const zip = new AdmZip(createBlankDocxBuffer('blank'));
+  const zip = new AdmZip(seededBlank());
   zip.addFile('docProps/core.xml', Buffer.from(KNOWN_CORE_XML, 'utf8'));
   return zip.toBuffer();
 }
@@ -95,7 +96,7 @@ describe('E2 F-1 ingest: docProps/core.xml -> ast.metadata', () => {
   });
 
   it('missing core.xml never throws and leaves fields undefined', async () => {
-    const parser = new DocxParser(withoutCoreProperties(createBlankDocxBuffer('blank')));
+    const parser = new DocxParser(withoutCoreProperties(seededBlank()));
     expect(parser.getZipAdapter().hasFile('docProps/core.xml')).toBe(false);
     const ast = await parser.getAST();
     expect(ast.metadata.title).toBeUndefined();
@@ -111,7 +112,7 @@ describe('E2 F-1 ingest: docProps/core.xml -> ast.metadata', () => {
 
 describe('E2 F-2/F-3 setProperties round-trip save -> reload -> read', () => {
   it('round-trips title/creator/keywords through save and reload', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const engine = new OperationEngine(ast, parser);
     const res = await engine.executeBatch({
@@ -176,7 +177,7 @@ describe('E2 F-2/F-3 setProperties round-trip save -> reload -> read', () => {
   });
 
   it('empty setProperties and unknown metadata operations fail loudly', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     await expect(
       executeMetadata({ action: 'metadata', operation: 'setProperties' } as never, ast, parser)
@@ -197,7 +198,7 @@ describe('E2 F-2/F-3 setProperties round-trip save -> reload -> read', () => {
 describe('E2 F-4 MCP: execute_batch + inspect surface metadata', () => {
   it('metadata op flows through the operation pipeline and inspect shows title/creator', async () => {
     const store = createMcpSessionStore();
-    const handle = await store.openBuffer(createBlankDocxBuffer('blank'), 'e2-meta.docx');
+    const handle = await store.openBuffer(seededBlank(), 'e2-meta.docx');
 
     const batch = await handleExecuteBatch(store, {
       sessionId: handle.sessionId,
@@ -227,7 +228,7 @@ describe('E2 F-4 MCP: execute_batch + inspect surface metadata', () => {
 
   it('inspect on a doc without core.xml reports empty metadata (no throw)', async () => {
     const store = createMcpSessionStore();
-    const handle = await store.openBuffer(withoutCoreProperties(createBlankDocxBuffer('blank')), 'e2-nometa.docx');
+    const handle = await store.openBuffer(withoutCoreProperties(seededBlank()), 'e2-nometa.docx');
     const inspect = await handleInspectDocument(store, {
       sessionId: handle.sessionId,
       fidelity: 'standard',
@@ -240,7 +241,7 @@ describe('E2 F-4 MCP: execute_batch + inspect surface metadata', () => {
 
 describe('E2 loop-back: reviewer items 1-9', () => {
   it('T1 non-sequential: metadata (rank 0) runs before insert despite input order', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const anchor = ast.sections[0]?.nodes[0]?.id;
     expect(anchor).toBeDefined();
@@ -278,7 +279,7 @@ describe('E2 loop-back: reviewer items 1-9', () => {
     expect(() =>
       mergeCorePropertiesXml('<cp:coreProperties><dc:title>oops', { title: 'x' })
     ).toThrow(/E_VALIDATION/);
-    const bad = new AdmZip(createBlankDocxBuffer('blank'));
+    const bad = new AdmZip(seededBlank());
     bad.addFile('docProps/core.xml', Buffer.from('<cp:coreProperties><dc:title>oops', 'utf8'));
     await expect(new DocxParser(bad.toBuffer()).getAST()).rejects.toThrow(/E_VALIDATION/);
   });
@@ -293,7 +294,7 @@ describe('E2 loop-back: reviewer items 1-9', () => {
     const meta = parseCorePropertiesXml(prefixless);
     expect(meta.title).toBe('NoPrefix Title');
     expect(meta.creator).toBe('NoPrefix Author');
-    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const zip = new AdmZip(seededBlank());
     zip.addFile('docProps/core.xml', Buffer.from(prefixless, 'utf8'));
     const ast = await new DocxParser(zip.toBuffer()).getAST();
     expect(ast.metadata.title).toBe('NoPrefix Title');
@@ -308,7 +309,7 @@ describe('E2 loop-back: reviewer items 1-9', () => {
       '</cp:coreProperties>',
       '<cp:contentStatus>Draft</cp:contentStatus><my:custom xmlns:my="http://example.com/e2">keepme</my:custom></cp:coreProperties>'
     );
-    const zip = new AdmZip(createBlankDocxBuffer('blank'));
+    const zip = new AdmZip(seededBlank());
     zip.addFile('docProps/core.xml', Buffer.from(withExtras, 'utf8'));
     const parser = new DocxParser(zip.toBuffer());
     const ast = await parser.getAST();
@@ -337,7 +338,7 @@ describe('E2 loop-back: reviewer items 1-9', () => {
   });
 
   it('T6 non-integer revision rejects loudly (no silent Math.trunc)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     expect(() =>
       new CorePropertiesManipulator(ast).update({ revision: 7.5 } as never)
@@ -367,7 +368,7 @@ describe('E2 loop-back: reviewer items 1-9', () => {
     expect(() =>
       validateOperationsStrict([{ action: 'metadata', operation: 'setProperties', revision: 7 }])
     ).toThrow(/E_VALIDATION/);
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     await expect(
       executeMetadata(
@@ -382,7 +383,7 @@ describe('E2 loop-back: reviewer items 1-9', () => {
     expect(() => validateOperationsStrict([{ action: 'metadata', title: 'NoOp' }])).toThrow(
       /E_VALIDATION/
     );
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     await expect(
       executeMetadata({ action: 'metadata', title: 'NoOp' } as never, ast, parser)
@@ -391,7 +392,7 @@ describe('E2 loop-back: reviewer items 1-9', () => {
 
   it('T9 windowed inspect (offset/limit + aroundNode) still surfaces metadata.title', async () => {
     const store = createMcpSessionStore();
-    const handle = await store.openBuffer(createBlankDocxBuffer('blank'), 'e2-window.docx');
+    const handle = await store.openBuffer(seededBlank(), 'e2-window.docx');
     const batch = await handleExecuteBatch(store, {
       sessionId: handle.sessionId,
       operations: [
@@ -454,8 +455,8 @@ describe('new documents carry their own properties', () => {
     try {
       process.env['ASTRA_AUTHOR'] = 'Jo Writer';
       process.env['ASTRA_REPRODUCIBLE'] = '1';
-      const first = createBlankDocxBuffer('blank');
-      const second = createBlankDocxBuffer('blank');
+      const first = seededBlank();
+      const second = seededBlank();
       const core = new AdmZip(first).readAsText('docProps/core.xml');
       expect(core).toContain('<dc:creator>Jo Writer</dc:creator>');
       expect(core).toContain('<dcterms:created xsi:type="dcterms:W3CDTF">1980-01-01T00:00:00Z</dcterms:created>');

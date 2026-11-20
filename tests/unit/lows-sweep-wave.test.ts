@@ -31,9 +31,10 @@ import {
   ANSI_REGEX,
   stringifyJsonPayload,
 } from '../../packages/cli/src/cli';
+import { seededBlank } from '../helpers/seeded-blank';
 
 function blankDocxBuf(): Buffer {
-  return DocxParser.createNewDocument('blank').rezip();
+  return new DocxParser(seededBlank()).rezip();
 }
 
 const POSIX_ONLY = process.platform === 'win32' ? describe.skip : describe;
@@ -150,7 +151,7 @@ describe('Hostile-review sweep: perms, pt, parser path, NO_COLOR', () => {
     });
 
     it('bare float font size lands as an integer w:sz and the document validates', async () => {
-      const parser = DocxParser.createNewDocument('blank');
+      const parser = new DocxParser(seededBlank());
       const ast = await parser.getAST();
       const target = ast.sections[0].nodes[0].id;
       executeStyle({ action: 'style', target, fontSize: 10.5 } as never, ast);

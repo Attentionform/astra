@@ -3,17 +3,18 @@ import { AdmZip, DocxParser } from '@attentionform/astra-engine';
 import { createMcpSessionStore } from '../../src/lib/session-store';
 import * as engine from '@attentionform/astra-engine';
 import { handleValidateDocument } from '../../src/lib/mcp/handlers/parity';
+import { seededBlank } from '../../../../tests/helpers/seeded-blank';
 
 async function openBlankSession(): Promise<{ store: ReturnType<typeof createMcpSessionStore>; sessionId: string }> {
   const store = createMcpSessionStore();
-  const buf = DocxParser.createNewDocument('blank').rezip();
+  const buf = new DocxParser(seededBlank()).rezip();
   const handle = await store.openBuffer(buf, 'memory.docx');
   return { store, sessionId: handle.sessionId };
 }
 
 /** Session holding two paragraphs sharing one native paraId (opens cleanly, fails the save gate). */
 async function openDuplicatedIdSession(): Promise<{ store: ReturnType<typeof createMcpSessionStore>; sessionId: string }> {
-  const buf = DocxParser.createNewDocument('blank').rezip();
+  const buf = new DocxParser(seededBlank()).rezip();
   const xml = new AdmZip(buf).getEntry('word/document.xml')?.getData().toString('utf8') ?? '';
   const ids = [...xml.matchAll(/w14:paraId="([^"]+)"/g)].map((m) => m[1]);
   expect(ids.length).toBeGreaterThanOrEqual(2);
@@ -85,7 +86,7 @@ describe('validate_document handler', () => {
   });
 
   it('includes generic normalizeHint for invalid documents without running a forecast', async () => {
-    const buf = DocxParser.createNewDocument('blank').rezip();
+    const buf = new DocxParser(seededBlank()).rezip();
     const zip = new AdmZip(buf);
     const xml = zip.readAsText('word/document.xml');
     const start = xml.indexOf('<w:body>') + '<w:body>'.length;
@@ -111,7 +112,7 @@ describe('validate_document handler', () => {
     expect(res.normalizeHint).toBe('Call `normalize_document` to attempt the supported repairs, then call `validate_document` again.');
   });
   it('refuses a package missing content types before an audit session can be opened', async () => {
-    const zip = new AdmZip(DocxParser.createNewDocument('blank').rezip());
+    const zip = new AdmZip(new DocxParser(seededBlank()).rezip());
     zip.deleteFile('[Content_Types].xml');
     const store = createMcpSessionStore();
     await expect(store.openBuffer(zip.toBuffer(), 'broken.docx')).rejects.toThrow(/Content_Types/);

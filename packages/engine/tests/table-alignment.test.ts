@@ -7,6 +7,7 @@ import { createWordElement } from '../src/ooxml/ns';
 import { TBLPR_CHILD_ORDER } from '../src/ooxml/schema-order';
 import { validateOperationStrict } from '../src/operation-schema';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 function directChildren(parent: Element, tagName: string): Element[] {
   const out: Element[] = [];
@@ -20,7 +21,7 @@ function directChildren(parent: Element, tagName: string): Element[] {
 }
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer());
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }

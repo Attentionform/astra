@@ -7,6 +7,7 @@ import { createMcpSessionStore } from '../../src/lib/session-store';
 import { ComposeDocumentSchema, handleComposeDocument } from '../../src/tools/compose-document';
 import { ImportDocumentSchema } from '../../src/lib/mcp/schemas';
 import { handleImportDocument } from '../../src/lib/mcp/handlers/parity';
+import { seededBlank } from '../../../../tests/helpers/seeded-blank';
 
 const createdDirs: string[] = [];
 afterEach(() => {
@@ -15,7 +16,7 @@ afterEach(() => {
 
 async function openBlankSession() {
   const store = createMcpSessionStore();
-  const handle = await store.openBuffer(DocxParser.createNewDocument('blank').rezip(), 'memory.docx');
+  const handle = await store.openBuffer(new DocxParser(seededBlank()).rezip(), 'memory.docx');
   return { store, sessionId: handle.sessionId };
 }
 

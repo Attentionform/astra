@@ -23,9 +23,10 @@ import {
   convertAstToMarkdown,
 } from '@attentionform/astra-engine';
 import { validateDocxBuffer, assertValidDocx } from '../../packages/engine/src/ooxml/validator-gate';
+import { seededBlank } from '../helpers/seeded-blank';
 
 async function fresh() {
-  const parser = new DocxParser(createBlankDocxBuffer('blank'));
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast, anchor: ast.sections[0].nodes[0].id };
 }

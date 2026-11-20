@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { DocxParser, createBlankDocxBuffer, latexToOmml } from '@attentionform/astra-engine';
 import { DOMParser } from '@xmldom/xmldom';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const MATH_NS = 'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"';
 
 /** A blank document whose first paragraph is rebuilt from `build`, saved and reloaded. */
 async function reloadWith(build: (p: Element, doc: Document) => void) {
-  const seed = new DocxParser(createBlankDocxBuffer('blank'));
+  const seed = new DocxParser(seededBlank());
   const ast = await seed.getAST();
   const p = ast.sections[0].nodes.find((n) => n.xml && (n.xml as Element).tagName === 'w:p')!.xml as Element;
   while (p.firstChild) p.removeChild(p.firstChild);

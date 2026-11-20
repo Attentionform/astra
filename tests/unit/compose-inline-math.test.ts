@@ -4,6 +4,7 @@ import { DocxParser, validateDocxBuffer, convertAstToMarkdown } from '@attention
 import { compileMarkdown, composeDocument } from '../../packages/engine/src/compose/markdown';
 import { lexMarkdown } from '../../packages/engine/src/compose/math-extensions';
 import { useReproducibleOutput } from '../helpers/reproducible';
+import { seededBlank } from '../helpers/seeded-blank';
 
 useReproducibleOutput();
 
@@ -22,7 +23,7 @@ function compileError(md: string, dollarMath = false): string {
 }
 
 async function compose(md: string, dollarMath = false): Promise<{ parser: DocxParser; xml: string; bytes: Buffer }> {
-  const parser = DocxParser.createNewDocument('blank');
+  const parser = new DocxParser(seededBlank());
   const res = await composeDocument(parser, md, dollarMath ? { dollarMath: true } : undefined);
   expect(res.success).toBe(true);
   const bytes = parser.rezip();
@@ -160,7 +161,7 @@ describe('inline math errors name the line and change nothing', () => {
   });
 
   it('reports converter failures with the Markdown line and leaves the document unchanged', async () => {
-    const parser = DocxParser.createNewDocument('blank');
+    const parser = new DocxParser(seededBlank());
     const before = parser.rezip();
     let msg = '';
     try {
@@ -176,7 +177,7 @@ describe('inline math errors name the line and change nothing', () => {
 
   it('refuses script and entity payloads in math', async () => {
     for (const md of ['x \\(<script>alert(1)</script>\\) y\n', 'x \\(<!DOCTYPE a [<!ENTITY e SYSTEM "file:///etc/passwd">]>\\) y\n']) {
-      const parser = DocxParser.createNewDocument('blank');
+      const parser = new DocxParser(seededBlank());
       let msg = '';
       try {
         await composeDocument(parser, md);

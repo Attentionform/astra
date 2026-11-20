@@ -13,9 +13,10 @@ import { DocxParser, createBlankDocxBuffer } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { OperationSchema } from '../src/operation-schema';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 async function freshEngine() {
-  const parser = new DocxParser(createBlankDocxBuffer());
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast, engine: new OperationEngine(ast, parser) };
 }

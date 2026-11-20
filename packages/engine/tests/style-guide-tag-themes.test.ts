@@ -16,6 +16,7 @@ import { DocxParser, createBlankDocxBuffer } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import type { StyleGuideConfig } from '../src/style-guide/types';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 function guideDoc(calloutLines: string[]): string {
   return [
@@ -206,7 +207,7 @@ describe('per-tag theme resolution', () => {
     const { config } = parseStyleGuide(
       guideDoc(['- Default Theme: slate', '- Warning Theme: amber']),
     );
-    const parser = new DocxParser(createBlankDocxBuffer());
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const anchor = ast.sections[0].nodes[ast.sections[0].nodes.length - 1].id;
     const engine = new OperationEngine(ast, parser, { styleGuide: config });
@@ -231,7 +232,7 @@ describe('per-tag themes end to end', () => {
       guideDoc(['- Default Theme: slate', '- Warning Theme: amber']),
     );
     expect(warnings).toEqual([]);
-    const parser = new DocxParser(createBlankDocxBuffer());
+    const parser = new DocxParser(seededBlank());
     const result = await composeDocument(
       parser,
       '> [!WARNING]\n> Watch out here.\n\n> [!NOTE]\n> Take note here.\n',

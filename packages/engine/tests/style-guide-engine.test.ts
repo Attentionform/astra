@@ -18,6 +18,7 @@ import type { StyleGuideConfig } from '../src/style-guide/types';
 import { lintDocumentStyle } from '../src/style-guide/lint';
 import { resolveStyleGuide } from '../src/style-guide/resolve';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 const GUIDE_FIXTURE: StyleGuideConfig = {
   name: 'Engine Test',
@@ -42,7 +43,7 @@ function freshGuide(): StyleGuideConfig {
 }
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer());
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }
@@ -685,7 +686,7 @@ describe('save and validate carry style warnings', () => {
 
   it('warns without blocking when a guide is set, stays quiet otherwise', async () => {
     // Build the offending bytes through a headless engine first.
-    const builder = new DocxParser(createBlankDocxBuffer());
+    const builder = new DocxParser(seededBlank());
     let ast = await builder.getAST();
     const engine = new OperationEngine(ast, builder, { styleGuide: freshGuide() });
     const anchor = lastNodeId(ast);

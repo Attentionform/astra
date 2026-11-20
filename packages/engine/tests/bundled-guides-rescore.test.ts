@@ -43,6 +43,7 @@ import {
 } from '../src/style-guide/lint';
 import type { StyleGuideConfig } from '../src/style-guide/types';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 const GUIDE_NAMES = ['report', 'technical', 'legal'] as const;
 
@@ -228,7 +229,7 @@ describe('re-score rebuilds carry zero style warnings', () => {
 
   it('status report under the report guide saves warning-free', async () => {
     const guide = resolveStyleGuide('report').config;
-    const parser = new DocxParser(createBlankDocxBuffer());
+    const parser = new DocxParser(seededBlank());
     const composed = await composeDocument(
       parser,
       [
@@ -275,7 +276,7 @@ describe('re-score rebuilds carry zero style warnings', () => {
 
   it('NDA under the legal guide saves warning-free', async () => {
     const guide = resolveStyleGuide('legal').config;
-    const parser = new DocxParser(createBlankDocxBuffer());
+    const parser = new DocxParser(seededBlank());
     const composed = await composeDocument(
       parser,
       [
@@ -317,7 +318,7 @@ describe('re-score rebuilds carry zero style warnings', () => {
 
   it('API reference under the technical guide saves warning-free', async () => {
     const guide = resolveStyleGuide('technical').config;
-    const parser = new DocxParser(createBlankDocxBuffer());
+    const parser = new DocxParser(seededBlank());
     const composed = await composeDocument(
       parser,
       [
@@ -375,7 +376,7 @@ describe('re-score rebuilds carry zero style warnings', () => {
 
   it('proposal under the legal guide saves warning-free', async () => {
     const guide = resolveStyleGuide('legal').config;
-    const parser = new DocxParser(createBlankDocxBuffer());
+    const parser = new DocxParser(seededBlank());
     const composed = await composeDocument(
       parser,
       [
@@ -469,7 +470,7 @@ describe('shipped dist copy stays loadable', () => {
 describe('stored chart colors drive the duplicate rule', () => {
   async function twinDocXml(colors: [string, string]): Promise<{ ast: { sections: Array<{ nodes: Node[] }> } & Record<string, unknown>; getXml: (id: string) => string | undefined }> {
     const guide = resolveStyleGuide('report').config;
-    const builder = new DocxParser(createBlankDocxBuffer());
+    const builder = new DocxParser(seededBlank());
     const live = await builder.getAST();
     const engine = new OperationEngine(live, builder, { styleGuide: guide });
     const anchor = live.sections[0].nodes[live.sections[0].nodes.length - 1].id;
@@ -514,7 +515,7 @@ describe('stored chart colors drive the duplicate rule', () => {
 
   it('live twin detail still fires without the stored reader', async () => {
     const guide = resolveStyleGuide('report').config;
-    const builder = new DocxParser(createBlankDocxBuffer());
+    const builder = new DocxParser(seededBlank());
     const ast = await builder.getAST();
     const engine = new OperationEngine(ast, builder, { styleGuide: guide });
     const anchor = ast.sections[0].nodes[ast.sections[0].nodes.length - 1].id;

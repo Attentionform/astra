@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
 import AdmZip from 'adm-zip';
 import { DocxParser } from '../src/parser';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 describe('default styles typographic baseline spacing', () => {
   function getStylesXml(): { xml: string; doc: Document } {
-    const parser = DocxParser.createNewDocument('blank');
+    const parser = new DocxParser(seededBlank());
     const zip = new AdmZip(parser.rezip());
     const xml = zip.getEntry('word/styles.xml')?.getData().toString('utf8') ?? '';
     const doc = new DOMParser().parseFromString(xml, 'text/xml');

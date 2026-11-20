@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
 import { DocxParser, createBlankDocxBuffer, latexToOmml } from '@attentionform/astra-engine';
 import { convertAstToMarkdown } from '../../packages/engine/src/export/markdown';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const MATH_NS = 'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"';
 
@@ -16,7 +17,7 @@ function textRun(doc: Document, text: string): Element {
 
 /** A blank document whose first paragraph is rebuilt from `build`, saved, reloaded and exported to Markdown. */
 async function exportWith(build: (p: Element, doc: Document) => void): Promise<string> {
-  const seed = new DocxParser(createBlankDocxBuffer('blank'));
+  const seed = new DocxParser(seededBlank());
   const ast = await seed.getAST();
   const p = ast.sections[0].nodes.find((n) => n.xml && (n.xml as Element).tagName === 'w:p')!.xml as Element;
   while (p.firstChild) p.removeChild(p.firstChild);

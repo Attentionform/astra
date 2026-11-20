@@ -6,6 +6,7 @@ import { describe, it, expect, vi } from 'vitest';
 import crypto from 'node:crypto';
 import { DocxParser, OperationEngine } from '@attentionform/astra-engine';
 import { useReproducibleOutput } from '../helpers/reproducible';
+import { seededBlank } from '../helpers/seeded-blank';
 
 useReproducibleOutput();
 
@@ -21,7 +22,7 @@ const V010_AFTER_ROLLBACK = 'fcaf85b5cbaf75ff';
 const V010_IDENTICAL_INSERTS = '8e37997bb5313bea';
 
 async function session(paragraphs: number) {
-  const parser = DocxParser.createNewDocument('blank');
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   const engine = new OperationEngine(ast, parser);
   const first = ast.sections.flatMap((s) => s.nodes).find((n) => n.type === 'paragraph');
