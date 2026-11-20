@@ -49,7 +49,7 @@ describe('cli validate reports pending repairs', () => {
     expect(human.stdout).toContain('VALID');
     expect(human.stdout).not.toContain('would-be normalize');
     const json = jsonLine(runCli(['--json', 'validate', clean]).stdout);
-    expect(json).toEqual({ ok: true, file: clean, errors: [] });
+    expect(json).toEqual({ ok: true, file: clean, errors: [], requestedOfficeVersion: 'Office2019', office: 'Office2019' });
   });
 
   it('a file with children out of order is VALID and names the repair a save would make', () => {

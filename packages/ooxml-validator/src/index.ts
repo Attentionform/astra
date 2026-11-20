@@ -17,6 +17,7 @@ import {
   type ValidateOptions,
   type ValidationError,
   type ValidationResult,
+  type ValidationStatus,
   type ValidatorPoolOptions,
   type BackendInfo,
   type ValidatorInstance,
@@ -32,6 +33,7 @@ export type {
   ValidateOptions,
   ValidationError,
   ValidationResult,
+  ValidationStatus,
   ValidatorPoolOptions,
   BackendInfo,
   ValidatorInstance,
@@ -69,7 +71,7 @@ export async function validateFile(
     );
   }
   const res = await runValidatorOneShot(filePath, options);
-  return { ...res, requestedOfficeVersion: options.officeVersion ?? 'Microsoft365' };
+  return { ...res, requestedOfficeVersion: options.officeVersion ?? 'Microsoft365', validationStatus: 'completed' };
 }
 
 /** Returns the document family for a file extension, or `undefined` when the extension is not supported. */
@@ -129,6 +131,7 @@ async function validateBytes(
     ok: resp.ok,
     sdkVersion: resp.sdkVersion,
     requestedOfficeVersion: officeVersion,
+    validationStatus: 'completed',
     kind,
     durationMs: resp.durationMs,
     errorCount: resp.errorCount ?? errors.length,

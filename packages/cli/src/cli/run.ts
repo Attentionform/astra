@@ -12,7 +12,7 @@ import { cmdCreate } from './create-cmd';
 import { cmdImport } from './import-cmd';
 import { cmdStats } from './stats-cmd';
 import { cmdVisual } from './visual-cmd';
-import { setDuplicateParaIdPolicy } from '@attentionform/astra-engine';
+import { isOfficeVersion, officeVersionChoices, resolveOfficeVersion, setDuplicateParaIdPolicy, type OfficeVersion } from '@attentionform/astra-engine';
 import { cmdHistory, cmdPreviewRevert, cmdRedo, cmdRevert } from './history-cmd';
 
 /**
@@ -23,12 +23,32 @@ import { cmdHistory, cmdPreviewRevert, cmdRedo, cmdRevert } from './history-cmd'
 export async function run(argv: string[]): Promise<number> {
   const out: GlobalOpts = { json: false, verbose: false };
   const rest: string[] = [];
-  for (const a of argv) {
+  let officeFlag: string | undefined;
+  let officeFlagGiven = false;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
     if (a === '--json') out.json = true;
     else if (a === '--verbose') out.verbose = true;
-    else rest.push(a);
+    else if (a === '--office-version') {
+      officeFlagGiven = true;
+      officeFlag = argv[i + 1];
+      i++;
+    } else if (a.startsWith('--office-version=')) {
+      officeFlagGiven = true;
+      officeFlag = a.slice('--office-version='.length);
+    } else rest.push(a);
   }
   const [cmd, ...cmdArgs] = rest;
+  // The Office schema version is resolved once here (flag, then ASTRA_OFFICE_VERSION, then Office2019)
+  // and carried on `out` to every validation of this run, so every check uses the same target.
+  if (officeFlagGiven && !isOfficeVersion(officeFlag)) {
+    return usage(out, `invalid --office-version ${JSON.stringify(officeFlag ?? '')}; expected one of: ${officeVersionChoices()}`);
+  }
+  try {
+    out.officeVersion = resolveOfficeVersion(officeFlag as OfficeVersion | undefined);
+  } catch (err) {
+    return usage(out, (err as Error).message);
+  }
   if (cmd === undefined) return usage(out);
   // A save repairs paragraphs that share a w14:paraId and logs each one; --strict keeps the refusal.
   setDuplicateParaIdPolicy(cmdArgs.includes('--strict') ? 'refuse' : 'renumber');

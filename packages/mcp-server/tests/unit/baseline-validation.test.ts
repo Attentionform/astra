@@ -50,7 +50,7 @@ const insertText = (sessionId: string, text: string) =>
 describe('open_document validation', () => {
   it('reports a valid file as valid', async () => {
     const { opened } = await open(writeDocx('valid', 0));
-    expect(opened.validation).toEqual({ status: 'valid' });
+    expect(opened.validation).toEqual({ status: 'valid', requestedOfficeVersion: 'Office2019', office: 'Office2019' });
   });
 
   it('reports the errors a file already has, and that edits adding none can be saved', async () => {
@@ -65,7 +65,7 @@ describe('open_document validation', () => {
 
   it('skips the check with validationTimeoutMs 0', async () => {
     const { opened } = await open(writeDocx('skipped', 1), { validationTimeoutMs: 0 });
-    expect(opened.validation).toEqual({ status: 'skipped' });
+    expect(opened.validation).toEqual({ status: 'skipped', requestedOfficeVersion: 'Office2019' });
   });
 });
 
@@ -136,7 +136,7 @@ describe('save_document against the errors the file already had', () => {
     await LEAN6_HANDLERS.execute_batch(store, insertText(sessionId, 'hello'));
     const saved = await LEAN6_HANDLERS.save_document(store, { sessionId });
     expect(saved.ok).toBe(true);
-    if (saved.ok) expect(saved.validation).toEqual({ ok: true, valid: true, errorCount: 0 });
+    if (saved.ok) expect(saved.validation).toEqual({ ok: true, valid: true, errorCount: 0, requestedOfficeVersion: 'Office2019', office: 'Office2019' });
   });
 });
 

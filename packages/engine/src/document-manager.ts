@@ -7,7 +7,7 @@ import { createHash } from 'crypto';
 import { DocxParser, DocumentSnapshot, StructuralSummary } from './parser';
 import { initAstraRepo, commitChange, undo, getHistory, getRepoDir } from './git';
 import * as gitMod from './git';
-import { validateDocxBuffer, OoxmlValidationError, ValidationResult } from './ooxml/validator-gate';
+import { validateDocxBuffer, OoxmlValidationError, ValidationResult, type OfficeVersion } from './ooxml/validator-gate';
 import AdmZip from './adm-zip-safe';
 import { lintAndFixTypography, TypographicFix, TypographyOptions } from './ooxml/typography';
 import type { StyleGuideConfig } from './style-guide/types';
@@ -239,6 +239,13 @@ export class DocumentManager {
   // advisory only: findings ride along as styleWarnings and never block a
   // save (E_VALIDATION stays reserved for schema/structural failures).
   private activeGuide?: StyleGuideConfig;
+  // Office version every validation of this manager runs against (undefined = the engine default).
+  private officeVersion?: OfficeVersion;
+
+  /** Sets (or clears, when omitted) the Office version this manager validates against. */
+  public setOfficeVersion(version?: OfficeVersion): void {
+    this.officeVersion = version;
+  }
 
   /**
    * Attaches (or clears, when omitted) the style guide used for advisory
@@ -352,7 +359,7 @@ export class DocumentManager {
     const createExtras = this.collectPackageExtras();
     // Validate with OOXML validator before committing to disk
     try {
-      const validation = await validateDocxBuffer(newDocxBuf);
+      const validation = await validateDocxBuffer(newDocxBuf, { officeVersion: this.officeVersion });
       if (!validation.ok) {
         const errorDescs = validation.errors.map(e => e.description || e.message || String(e));
         throw Object.assign(new Error(errorDescs.join('; ')), { code: 'E_VALIDATION', retryable: false });
@@ -464,7 +471,7 @@ export class DocumentManager {
     const docxBuf = this.parser.rezip();
     // Validate with OOXML validator before committing to disk
     try {
-      const validation = await validateDocxBuffer(docxBuf);
+      const validation = await validateDocxBuffer(docxBuf, { officeVersion: this.officeVersion });
       if (!validation.ok) {
         this.parser.restoreAtomicSnapshot(preSaveSnapshot);
         const errorDescs = validation.errors.map(e => e.description || e.message || String(e));
@@ -515,7 +522,7 @@ export class DocumentManager {
    */
   public async validateCurrentDocument(): Promise<ValidationResult & { styleWarnings: StyleWarning[] }> {
     if (!this.parser) throw new Error("No active document loaded.");
-    const result = await this.parser.validateOOXML();
+    const result = await this.parser.validateOOXML({ officeVersion: this.officeVersion });
     return { ...result, styleWarnings: await this.collectStyleWarnings() };
   }
 
@@ -543,7 +550,7 @@ export class DocumentManager {
    * file untouched and returns memory to the last persisted package.
    */
   private async persistValidated(target: string, buf: Buffer): Promise<void> {
-    const validation = await validateDocxBuffer(buf);
+    const validation = await validateDocxBuffer(buf, { officeVersion: this.officeVersion });
     if (!validation.ok) {
       this.restoreLastPersisted();
       throw new OoxmlValidationError(validation.errors, 'Document save');

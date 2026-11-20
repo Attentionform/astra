@@ -1,4 +1,4 @@
-import { DocxParser } from '@attentionform/astra-engine';
+import { DocxParser, type OfficeVersion } from '@attentionform/astra-engine';
 import packageJson from '../../package.json';
 
 export const CLI_NAME = 'astra';
@@ -192,6 +192,8 @@ export type Fidelity = 'outline' | 'compact' | 'standard' | 'full';
 export interface GlobalOpts {
   json: boolean;
   verbose: boolean;
+  /** Office schema version every validation of this run uses (`--office-version`, then ASTRA_OFFICE_VERSION). Always set by `run()`. */
+  officeVersion?: OfficeVersion;
 }
 
 export function print(out: GlobalOpts, message: string): void {

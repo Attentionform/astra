@@ -19,6 +19,7 @@ import {
   judgeAgainstBaseline,
   validateDocxBuffer,
 } from '@attentionform/astra-engine';
+import type { OfficeVersion } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, readErrRemedyProp } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
@@ -279,6 +280,8 @@ interface RestoreOptions {
   target: CommitPackage;
   targetOid: string;
   commitMessage: string;
+  /** Office schema version the restored package is checked against. */
+  officeVersion?: OfficeVersion;
 }
 
 /**
@@ -288,7 +291,7 @@ interface RestoreOptions {
  * refs never move). A commit failure restores the pre-command bytes.
  */
 async function restoreAndCommit(opts: RestoreOptions): Promise<{ commitOid: string; commitMessage: string }> {
-  const { cmd, file, parser, prevBytes, target, targetOid, commitMessage } = opts;
+  const { cmd, file, parser, prevBytes, target, targetOid, commitMessage, officeVersion } = opts;
   // Refuse before the file is touched when an initialization lock is held, not after a failed commit.
   await assertHistoryReadyForWrite(file);
   const snapshot = parser.capturePackageSnapshot();
@@ -304,7 +307,7 @@ async function restoreAndCommit(opts: RestoreOptions): Promise<{ commitOid: stri
   const buf = parser.rezip();
   // A recorded state may carry the errors it was written with (the validator is stricter than Word). It is
   // refused only when its result cannot be compared: cut short, an exception, or a duplicate paragraph id.
-  const candidate = await validateDocxBuffer(buf, { maxErrors: BASELINE_MAX_ERRORS });
+  const candidate = await validateDocxBuffer(buf, { maxErrors: BASELINE_MAX_ERRORS, officeVersion });
   if (!candidate.ok && judgeAgainstBaseline(candidate, buildBaseline(candidate)).kind !== 'tolerated') {
     const first = candidate.errors[0];
     const detail = first?.description ? `: ${first.description}` : '';
@@ -620,7 +623,7 @@ export async function cmdRevert(out: GlobalOpts, args: string[]): Promise<number
     const target = await checkoutCommit(file, targetOid);
     const subject = commitSubject(commits[steps].message);
     const commitMessage = capCommitMessage(`Revert to ${shortOid(targetOid)}: "${subject}"`);
-    const result = await restoreAndCommit({ cmd: 'revert', file, parser, prevBytes: buf, target, targetOid, commitMessage });
+    const result = await restoreAndCommit({ cmd: 'revert', file, parser, prevBytes: buf, target, targetOid, commitMessage, officeVersion: out.officeVersion });
     print(
       out,
       `REVERT OK ${file}: restored ${shortOid(targetOid)} "${subject}" (steps=${steps}); new commit ${shortOid(result.commitOid)}`,
@@ -679,7 +682,7 @@ export async function cmdRedo(out: GlobalOpts, args: string[]): Promise<number> 
     const target = await checkoutCommit(file, targetOid);
     const subject = commitSubject(commits[1].message);
     const commitMessage = capCommitMessage(`Redo: restore ${shortOid(targetOid)} "${subject}"`);
-    const result = await restoreAndCommit({ cmd: 'redo', file, parser, prevBytes: buf, target, targetOid, commitMessage });
+    const result = await restoreAndCommit({ cmd: 'redo', file, parser, prevBytes: buf, target, targetOid, commitMessage, officeVersion: out.officeVersion });
     print(
       out,
       `REDO OK ${file}: re-applied the state replaced by revert ${shortOid(headOid)}; new commit ${shortOid(result.commitOid)}`,

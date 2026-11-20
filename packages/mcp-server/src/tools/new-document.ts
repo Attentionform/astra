@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { serverOfficeVersion } from '../lib/mcp/validation-target';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { DocxParser, getEngineErrorCode, assertWriteTargetNoSymlink, summarizeStyleGuide, writeFileNoFollow, type EngineErrorCode, type ResolvedStyleGuide, type StyleGuideSummary } from '@attentionform/astra-engine';
@@ -190,7 +191,7 @@ export async function handleNewDocument(
   }
 
   try {
-    const validation = await parser.validateOOXML();
+    const validation = await parser.validateOOXML({ officeVersion: serverOfficeVersion() });
     if (!validation.ok) {
       const first = (validation.errors?.[0] ?? {}) as { description?: unknown; message?: unknown; xPath?: unknown; path?: unknown };
       const desc =

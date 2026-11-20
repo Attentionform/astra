@@ -13,7 +13,7 @@ import { canonicalizeDocumentDom, canonicalizePartXml, generateValidParaId } fro
 import { normalizeDocumentDom, normalizePartXml, previewDocumentDom } from './ooxml/normalize';
 import { createWordElement, stampRevision } from './ooxml/ns';
 import { ommlToLatex } from './ooxml/omml';
-import { validateDocxBuffer, ValidationResult } from './ooxml/validator-gate';
+import { validateDocxBuffer, ValidationResult, type OfficeVersion } from './ooxml/validator-gate';
 import { NumberingManipulator, NUMBERING_REL_TYPE } from './manipulators/numbering';
 import { RelationshipsManipulator } from './manipulators/relationships';
 import { CorePropertiesManipulator, parseCorePropertiesXml, registerExistingCorePropertiesPart } from './manipulators/core-properties';
@@ -3729,7 +3729,7 @@ export class DocxParser {
    * working unchanged — while direct-`rezip()` writers get the thrown
    * E_VALIDATION. Integrity/XXE/macro throws still propagate, as before.
    */
-  public async validateOOXML(options?: { officeVersion?: 'Office2019' | 'Microsoft365'; maxErrors?: number; duplicateParaIds?: DuplicateParaIdPolicy }): Promise<ValidationResult> {
+  public async validateOOXML(options?: { officeVersion?: OfficeVersion; maxErrors?: number; duplicateParaIds?: DuplicateParaIdPolicy }): Promise<ValidationResult> {
     let buf: Buffer;
     try {
       buf = options?.duplicateParaIds ? this.rezip({ duplicateParaIds: options.duplicateParaIds }) : this.rezip();

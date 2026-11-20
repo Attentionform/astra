@@ -40,6 +40,8 @@ export const EXTENSION_KINDS: Readonly<Record<string, DocumentKind>> = {
   '.xlam': 'xlsx',
 };
 
+export type ValidationStatus = 'completed' | 'skipped' | 'timed-out' | 'failed-to-start';
+
 export interface ErrorNode {
   localName?: string | null;
   namespaceUri?: string | null;
@@ -86,6 +88,11 @@ export interface ValidationResult {
   errorCount?: number;
   /** The Office version the caller asked for (always set by the buffer and worker APIs). */
   requestedOfficeVersion?: string;
+  /**
+   * `completed` when the validator ran and reported. Callers that skip the check, give up waiting
+   * for it, or cannot start it report `skipped`, `timed-out` or `failed-to-start` and leave `office` unset.
+   */
+  validationStatus?: ValidationStatus;
   /** The document family the package was opened as (buffer and worker APIs). */
   kind?: DocumentKind;
   [key: string]: unknown;

@@ -103,7 +103,7 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
   let rolledBack: { rule: string; reason: string }[] = [];
   try {
     // Repair rules: each kept rule adds no validator error and keeps the visible text.
-    const repair = await withGatedEngineOutput(out, () => repairDocxBuffer(buffer));
+    const repair = await withGatedEngineOutput(out, () => repairDocxBuffer(buffer, { officeVersion: out.officeVersion }));
     buffer = repair.buffer;
     normalized = [...normalized, ...repair.normalized];
     remaining = repair.remaining;
@@ -116,8 +116,8 @@ export async function cmdNormalize(out: GlobalOpts, args: string[]): Promise<num
     const gate = new DocxParser(buffer, macroOpts);
     const nameRefusal = macroOutputRefusal('normalize', target, gate.getMacroParts(), stripMacros);
     if (nameRefusal !== null) return usage(out, nameRefusal);
-    const validation = await withGatedEngineOutput(out, () => gate.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
-    const verdict = await judgeGate(validation, strict, () => buf);
+    const validation = await withGatedEngineOutput(out, () => gate.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, officeVersion: out.officeVersion }));
+    const verdict = await judgeGate(validation, strict, () => buf, out.officeVersion);
     if (verdict.kind === 'tolerated') tolerated = verdict;
     if (refuses(verdict)) {
       const first = validation.errors[0] as

@@ -16,7 +16,7 @@ import AdmZip from '../adm-zip-safe';
 import { parsePartStrict } from './normalize';
 import { PPR_CHILD_ORDER, RPR_CHILD_ORDER, SETTINGS_CHILD_ORDER, TBLPR_CHILD_ORDER, TCPR_CHILD_ORDER, TRPR_CHILD_ORDER } from './schema-order';
 import { BASELINE_MAX_ERRORS, buildBaseline, judgeAgainstBaseline, type ValidationBaseline } from './validation-baseline';
-import { validateDocxBuffer } from './validator-gate';
+import { validateDocxBuffer, type OfficeVersion } from './validator-gate';
 import type { ValidationResult } from './validator-backend';
 
 export interface RepairContext {
@@ -535,10 +535,10 @@ function visibleText(parts: Record<string, string>): string {
  */
 export async function repairDocxBuffer(
   input: Buffer,
-  options: { rules?: readonly RepairRule[]; validate?: (buf: Buffer) => Promise<ValidationResult> } = {},
+  options: { rules?: readonly RepairRule[]; validate?: (buf: Buffer) => Promise<ValidationResult>; officeVersion?: OfficeVersion } = {},
 ): Promise<RepairOutcome> {
   const rules = options.rules ?? REPAIR_RULES;
-  const validate = options.validate ?? ((b: Buffer) => validateDocxBuffer(b, { maxErrors: BASELINE_MAX_ERRORS }));
+  const validate = options.validate ?? ((b: Buffer) => validateDocxBuffer(b, { maxErrors: BASELINE_MAX_ERRORS, officeVersion: options.officeVersion }));
   const zip = new AdmZip(input);
   const parts: Record<string, string> = {};
   for (const e of zip.getEntries()) if (!e.isDirectory && REPAIRABLE_PART.test(e.entryName)) parts[e.entryName] = e.getData().toString('utf8');

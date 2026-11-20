@@ -3,7 +3,8 @@ import { cleanCliMessage, rewriteMcpRemedies } from './errors';
 
 export function printUsage(out: GlobalOpts): number {
   const text = [
-    `Usage: ${CLI_NAME} [--json] [--verbose] [--version] [--help] <command> [args]`,
+    `Usage: ${CLI_NAME} [--json] [--verbose] [--office-version <version>] [--version] [--help] <command> [args]`,
+      '  --office-version <version>  Office schema version every validation runs against: Office2007, Office2010, Office2013, Office2016, Office2019, Office2021 or Microsoft365 (default Office2019; also ASTRA_OFFICE_VERSION)',
     '',
     'Commands (exit 0 ok · 1 operational failure · 2 usage):',
     '  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references] [--show-markup]',
@@ -55,7 +56,8 @@ export function usage(out: GlobalOpts, message?: string): number {
     if (humanMsg) printStderr(`${CLI_NAME}: usage error: ${humanMsg}`);
     printStderr(
     [
-      `Usage: ${CLI_NAME} [--json] [--verbose] [--version] [--help] <command> [args]`,
+      `Usage: ${CLI_NAME} [--json] [--verbose] [--office-version <version>] [--version] [--help] <command> [args]`,
+      '  --office-version <version>  Office schema version every validation runs against: Office2007, Office2010, Office2013, Office2016, Office2019, Office2021 or Microsoft365 (default Office2019; also ASTRA_OFFICE_VERSION)',
       '',
       'Commands (exit 0 ok · 1 operational failure · 2 usage):',
       '  inspect  <docx> [--fidelity outline|compact|standard|full | --outline] [--section <id>] [--max-text <n>] [--width <n>] [--wrap] [--visual] [--page <n>] [--format png|jpeg] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references] [--show-markup]',

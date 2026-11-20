@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { serverOfficeVersion } from '../lib/mcp/validation-target';
 import * as path from 'path';
 import { z } from 'zod';
 import {
@@ -575,7 +576,7 @@ export async function handleComposeDocument(
 
       // Validation proof: read-only OOXML verdict over the composed package
       // (save_document re-gates before writing; this proof never writes).
-      const validation = await handle.parser.validateOOXML();
+      const validation = await handle.parser.validateOOXML({ officeVersion: serverOfficeVersion() });
       const rawErrors = Array.isArray(validation.errors) ? validation.errors.slice(0, COMPOSE_VALIDATION_ERRORS_MAX) : [];
       const validationErrors = rawErrors.map((e) => {
         const err = e as { description?: unknown; message?: unknown; xPath?: unknown; path?: unknown };

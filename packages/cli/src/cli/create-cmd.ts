@@ -167,7 +167,7 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
       composeWarnings.push(...composed.warnings);
       for (const w of composeWarnings) printStderr(`${CLI_NAME}: WARNING: ${w}`);
     }
-    const validation = await parser.validateOOXML();
+    const validation = await parser.validateOOXML({ officeVersion: out.officeVersion });
     if (!validation.ok) {
       return failHuman(out, `fresh "${template}" template failed validation`, {
         fallbackCode: 'E_VALIDATION',

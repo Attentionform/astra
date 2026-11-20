@@ -155,7 +155,7 @@ export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number
     }
     const composeWarnings = [...composed.warnings];
     for (const w of composeWarnings) printStderr(`${CLI_NAME}: WARNING: ${w}`);
-    const validation = await parser.validateOOXML();
+    const validation = await parser.validateOOXML({ officeVersion: out.officeVersion });
     if (!validation.ok) {
       return failHuman(out, `composed "${template}" document failed validation`, {
         fallbackCode: 'E_VALIDATION',

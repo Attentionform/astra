@@ -12,6 +12,7 @@ import {
   type MarkupReport,
   type ReferenceReport,
   type RendererReport,
+  type OfficeVersion,
 } from '@attentionform/astra-engine';
 import { canonicalizeForAsset, isPathInsideDir } from '@attentionform/astra-engine';
 
@@ -40,6 +41,8 @@ export interface ExportOptions {
   imageMode?: 'embed' | 'file';
   /** Markdown file mode: relative folder for image files (default media). */
   assetPrefix?: string;
+  /** Office schema version the PDF source check runs against (default: ASTRA_OFFICE_VERSION, then Office2019). */
+  officeVersion?: OfficeVersion;
   /** Macro choice for the HTML and Markdown paths (the PDF path never opens the package for editing). */
   macroOpts?: { allowMacros: true } | { stripMacros: true };
   /** PDF only: which program renders (`auto`, `word` on Windows, `libreoffice`). The environment's ASTRA_RENDERER applies when omitted. */
@@ -213,7 +216,7 @@ export async function executeExport(
     const buf = await fsp.readFile(resolvedDocx);
     // A valid file is rendered as it is; a file whose only errors are element order is rendered from a
     // verified temporary copy. The source file is never written.
-    const prepared = await prepareDocxForPdfExport(buf, 'PDF export source');
+    const prepared = await prepareDocxForPdfExport(buf, 'PDF export source', { officeVersion: options?.officeVersion });
     await fsp.mkdir(path.dirname(destination), { recursive: true });
     const { canonicalDest: pdfDestDir } = assertDestinationJailed(destination);
     assertPreWriteDestination(destination, path.dirname(destination), pdfDestDir);

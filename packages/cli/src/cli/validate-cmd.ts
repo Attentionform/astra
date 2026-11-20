@@ -128,11 +128,16 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
       } catch {
         pendingNormalizations = [];
       }
-      const validation = await p.validateOOXML({ maxErrors });
+      const validation = await p.validateOOXML({ maxErrors, officeVersion: out.officeVersion });
       schemaValidationCompleted = true;
       return validation;
     });
     const pending = pendingNormalizations.length > 0 ? { pendingNormalizations } : {};
+    // The target this run asked for, and the one the validator reported (only for a completed run).
+    const target: { requestedOfficeVersion?: string; office?: string } = {
+      requestedOfficeVersion: typeof result.requestedOfficeVersion === 'string' ? result.requestedOfficeVersion : out.officeVersion,
+      ...(typeof result.office === 'string' ? { office: result.office } : {}),
+    };
     if (result.ok) {
       print(out, `VALID ${file}`);
       for (const n of pendingNormalizations.slice(0, 10)) print(out, `would-be normalize: ${n}`);
@@ -169,13 +174,14 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
           ok: true,
           file,
           errors: [],
+          ...target,
           ...pending,
           styleGuide: summarizeStyleGuide(styleGuide),
           styleWarnings,
         });
         return EXIT_OK;
       }
-      printJson(out, { ok: true, file, errors: [], ...pending });
+      printJson(out, { ok: true, file, errors: [], ...target, ...pending });
       return EXIT_OK;
     }
     const errors = result.errors.slice(0, maxErrors).map((e) => {
@@ -204,6 +210,7 @@ export async function cmdValidate(out: GlobalOpts, args: string[]): Promise<numb
       error: `[E_VALIDATION] "${file}" failed OOXML validation`,
       code: 'E_VALIDATION',
       errorCount: errors.length,
+      ...target,
       ...(truncated ? { truncated: true, maxErrors } : {}),
       ...(hint ? { normalizeHint: hint } : {}),
       errors,

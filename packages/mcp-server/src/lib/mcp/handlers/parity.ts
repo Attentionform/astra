@@ -18,6 +18,7 @@
 //   applyNormalizerForDisplay).
 // - ingest: handleComposeDocument (the compose tool itself), so an imported
 //   file composes byte-equal to the same Markdown passed inline.
+import { serverOfficeVersion } from '../validation-target';
 import { adoptForkNumbering } from '../../fork-numbering';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -122,7 +123,7 @@ function serializeSessionFork(parser: DocxParser, ast: DocumentAST): Buffer {
 async function forkValidation(handle: DocHandle): Promise<{ validation: AuditValidation; buf: Buffer }> {
   const buf = serializeSessionFork(handle.parser, handle.ast);
   const fork = new DocxParser(buf);
-  const validation = await fork.validateOOXML();
+  const validation = await fork.validateOOXML({ officeVersion: serverOfficeVersion() });
   return { validation: toAuditValidation(validation), buf };
 }
 
@@ -130,7 +131,7 @@ async function forkValidation(handle: DocHandle): Promise<{ validation: AuditVal
 async function forkValidationFull(handle: DocHandle): Promise<ValidationResult> {
   const buf = serializeSessionFork(handle.parser, handle.ast);
   const fork = new DocxParser(buf);
-  return fork.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS });
+  return fork.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, officeVersion: serverOfficeVersion() });
 }
 
 /**
@@ -394,7 +395,7 @@ export async function handleNormalizeDocument(
         const rezipped = handle.parser.rezip();
         normalized = readParserNormalizations(handle.parser);
         // Repair rules run on the rezipped bytes; each kept rule adds no validator error and keeps the visible text.
-        const repair = await repairDocxBuffer(rezipped);
+        const repair = await repairDocxBuffer(rezipped, { officeVersion: serverOfficeVersion() });
         remaining = repair.remaining;
         rolledBack = repair.rolledBack;
         if (repair.normalized.length > 0) {
