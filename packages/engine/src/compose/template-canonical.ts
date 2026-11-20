@@ -93,23 +93,48 @@ export function canonicalXml(node: Node, skipBookmarkIds: ReadonlySet<string> = 
   return inner === '' ? `${open}/>` : `${open}>${inner}</${el.tagName}>`;
 }
 
-const HIDDEN_BOOKMARK = /^_(Toc|Ref|GoBack)/;
+const HIDDEN_BOOKMARK = /^_(Toc|GoBack)/;
 
-/** The bookmark names that a hyperlink anchor or a field instruction anywhere in the document points at. */
-function referencedBookmarks(root: Element): string {
-  const parts: string[] = [];
-  for (const h of Array.from(root.getElementsByTagName('w:hyperlink'))) parts.push(h.getAttribute('w:anchor') ?? '');
-  for (const i of Array.from(root.getElementsByTagName('w:instrText'))) parts.push(i.textContent ?? '');
-  return parts.join('\n');
+/** The paragraph style of the paragraph that holds a node, or an empty string. */
+function paragraphStyleOf(node: Node): string {
+  let p: Node | null = node;
+  while (p && !(p.nodeType === 1 && (p as Element).tagName === 'w:p')) p = p.parentNode;
+  if (!p) return '';
+  for (let c = p.firstChild; c; c = c.nextSibling) {
+    if (c.nodeType === 1 && (c as Element).tagName === 'w:pPr') {
+      const style = Array.from((c as Element).childNodes).find((k) => k.nodeType === 1 && (k as Element).tagName === 'w:pStyle') as Element | undefined;
+      return style?.getAttribute('w:val') ?? '';
+    }
+  }
+  return '';
 }
 
 /**
- * Whether a hidden bookmark is one that Word added by itself and that may be left out of the hash. Word adds `_Toc...` to a
- * heading for a table of contents entry and `_Ref...` for a cross-reference; both sit inside one paragraph and something in
- * the document (the table of contents, a cross-reference) points at them. Word adds `_GoBack` as an empty pair where the cursor was. A bookmark that has none of these
- * traits was added by a person or a tool, so it counts as content: it makes the region look edited, and nothing is deleted.
+ * What points at bookmarks in the document: from the entries of a table of contents (paragraphs in a TOC style) and from
+ * everything else, as text to search for a name. A reference counts as the second kind unless it is in a table of contents.
  */
-function isWordHiddenBookmark(start: Element, referenced: string): boolean {
+function bookmarkReferences(root: Element): { toc: string; other: string } {
+  const toc: string[] = [];
+  const other: string[] = [];
+  const add = (node: Node, value: string): void => {
+    (/^TOC/i.test(paragraphStyleOf(node)) ? toc : other).push(value);
+  };
+  for (const h of Array.from(root.getElementsByTagName('w:hyperlink'))) add(h, h.getAttribute('w:anchor') ?? '');
+  for (const i of Array.from(root.getElementsByTagName('w:instrText'))) add(i, i.textContent ?? '');
+  return { toc: toc.join('\n'), other: other.join('\n') };
+}
+
+const names = (text: string, name: string): boolean => new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_])`).test(text);
+
+/**
+ * Whether a hidden bookmark is one that Word added by itself and that may be left out of the hash. Word adds `_Toc...` to a
+ * heading for an entry of a table of contents: the pair closes in the same paragraph, and only table of contents entries point
+ * at it. Word adds `_GoBack` as an empty pair where the cursor was. Any other bookmark was added by a person or a tool, so it
+ * counts as content, as does one that a link or field outside a table of contents points at, because deleting it would leave
+ * that link broken. Such a bookmark makes the region look edited, and nothing is deleted. `_Ref...` bookmarks are never
+ * ignored: a cross-reference to the body is an edit.
+ */
+function isWordHiddenBookmark(start: Element, refs: { toc: string; other: string }): boolean {
   const name = start.getAttribute('w:name') ?? '';
   if (!HIDDEN_BOOKMARK.test(name)) return false;
   const id = start.getAttribute('w:id');
@@ -121,20 +146,21 @@ function isWordHiddenBookmark(start: Element, referenced: string): boolean {
   }
   // The pair must close in the same paragraph; a bookmark that crosses paragraphs is not one that Word wrote.
   if (!end || (start.parentNode as Element | null)?.tagName !== 'w:p') return false;
+  if (names(refs.other, name)) return false;
   if (name.startsWith('_GoBack')) return onlyBookmarksBetween;
-  return new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_])`).test(referenced);
+  return names(refs.toc, name);
 }
 
 /** The canonical XML of each node of a run of siblings. The boundary bookmarks and the hidden bookmarks that Word adds itself are left out. */
 export function canonicalNodes(nodes: Node[]): string[] {
   const skip = new Set<string>();
   const root = nodes.find((n) => n.ownerDocument)?.ownerDocument?.documentElement;
-  const referenced = root ? referencedBookmarks(root) : '';
+  const refs = root ? bookmarkReferences(root) : { toc: '', other: '' };
   for (const n of nodes) {
     if (n.nodeType !== 1) continue;
     for (const b of Array.from((n as Element).getElementsByTagName('w:bookmarkStart'))) {
       const name = b.getAttribute('w:name') ?? '';
-      if (name === REGION_START || name === REGION_END || isWordHiddenBookmark(b, referenced)) skip.add(b.getAttribute('w:id') ?? '');
+      if (name === REGION_START || name === REGION_END || isWordHiddenBookmark(b, refs)) skip.add(b.getAttribute('w:id') ?? '');
     }
   }
   return nodes.map((n) => canonicalXml(n, skip));
