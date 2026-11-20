@@ -49,7 +49,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
-const engine = require(path.join(root, 'packages', 'engine', 'dist', 'index.js'));
+const engine = require(path.join(root, 'packages', 'engine', 'dist', 'internal.js'));
 const { AdmZip } = engine;
 
 const argv = process.argv.slice(2);

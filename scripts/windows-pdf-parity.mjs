@@ -22,7 +22,7 @@ import { countInk, pngInfo } from './lib/png-ink.mjs';
 import { makePdf } from './lib/make-pdf.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const engine = createRequire(import.meta.url)(path.join(root, 'packages', 'engine', 'dist', 'index.js'));
+const engine = createRequire(import.meta.url)(path.join(root, 'packages', 'engine', 'dist', 'internal.js'));
 
 if (process.platform !== 'win32') {
   console.log('windows-pdf-parity: SKIP (not Windows)');
