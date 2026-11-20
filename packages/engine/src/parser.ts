@@ -356,6 +356,14 @@ export class DocxParser {
     // Only the folders next to the engine: a `templates` folder in the working directory is not consulted, so a project's own
     // files can never replace a built-in template.
     ordered.push(path.resolve(__dirname, '..', 'templates', fileName), path.resolve(__dirname, 'templates', fileName));
+    // The command-line tool bundles the engine code, so its own folder holds no templates: look for the installed engine package.
+    let dir = __dirname;
+    for (let i = 0; i < 6; i++) {
+      ordered.push(path.join(dir, 'node_modules', '@attentionform', 'astra-engine', 'dist', 'templates', fileName));
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
     return [...new Set(ordered)];
   }
 
