@@ -15,11 +15,12 @@ Library use, designed templates and the validator for other Office files. There 
 - `executeBatch` accepts typed `OperationInput` values, and `parseBatch` checks data that arrives untyped (JSON from a file or a model) and returns typed operations or the list of problems.
 - Validator: `kind` option (`docx`, `pptx`, `xlsx`) for `validateBuffer` and the worker API, document family from the file extension for `validateFile`, and fixtures and tests for PowerPoint and Excel files.
 - One Office version setting for every validation path: `officeVersion`, the `ASTRA_OFFICE_VERSION` variable, `--office-version` on the command line and on the MCP server, with `Office2019` as the default. Results carry `requestedOfficeVersion` and `validationStatus`.
-- Runnable library examples in `packages/engine/examples/`, run by CI.
+- Runnable library examples in `packages/engine/examples/`, run by CI: create from Markdown, create from operations, open and edit, tables and charts, comments and tracked changes, history and original recovery, templates, validation with an error code, reading an older version with a revert preview, and rendering.
 - Documentation: library quickstart, templates, command line, MCP tools, operations and a validator section, with outputs captured from the real programs.
 
 ### Changed
 
+- **The package root is now the supported API.** `@attentionform/astra-engine` exports 44 values and 163 types, listed in `packages/engine/api-surface.json`. The rest of the former export list moved to `@attentionform/astra-engine/internal`, which carries no stability promise and is used by the command-line tool and the MCP server. `./history`, `./ooxml` and `./search` are supported entry points. The `"./*"` wildcard in the package map is replaced by `./internal/*`, so deep imports such as `@attentionform/astra-engine/git` no longer resolve. `AdmZip` is no longer exported. The `testHooks` option is removed from the public declarations; it still works at run time for ASTra's own tests. CI installs the packed package in a clean project and checks every entry point from JavaScript and TypeScript.
 - `blank` is one empty paragraph, with no author and no placeholder text. `report` and `memo` are redesigned. A new file carries no author name.
 - Errors that a library caller can receive name the library call next to the MCP tool name in the remedy.
 - The engine README no longer says that `rezip()` validates against the schema. It checks the package; `validateDocxBuffer` runs the schema validator.

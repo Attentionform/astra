@@ -82,6 +82,57 @@ fs.writeFileSync('memo.docx', parser.rezip());
 
 ---
 
+## What is public
+
+The package has four supported entry points. Everything else is internal.
+
+| Import | What it holds | Promise |
+|--------|---------------|---------|
+| `@attentionform/astra-engine` | 44 functions, classes and constants, and 163 types: create and open documents, edit with operations, compose Markdown, export and render, validate, sanitize, history and original recovery, style guides, read a document, errors | Documented, semantic versioning |
+| `@attentionform/astra-engine/history` | The recorded history of a document: start it, record a state, list states, read a state back (14 functions and constants, 3 types) | Documented, semantic versioning |
+| `@attentionform/astra-engine/ooxml` | `normalizePackage` and `previewNormalizations`: fix the structure of a package that another producer wrote | Documented, semantic versioning |
+| `@attentionform/astra-engine/search` | `grepNodes`: search a list of nodes that you prepared. It is not a search of a whole document | Documented, semantic versioning |
+| `@attentionform/astra-engine/internal` and `/internal/*` | Everything the command-line tool and the MCP server need, and more | **No promise.** For ASTra's own packages. Names and shapes can change in any release |
+
+The exact names are in [`api-surface.json`](./api-surface.json). CI installs the packed package in a clean project and checks that every
+entry point exports exactly those runtime values, that every type imports under `NodeNext` and `Bundler` resolution, and that a deep import such
+as `@attentionform/astra-engine/git` is refused.
+
+Some types are public only because a public class or function mentions them, for example the chart style types that `ChartOperation` carries. They
+are part of the public declarations: changing their shape can break TypeScript code, so they follow the same versioning as everything else.
+
+Test hooks (`testHooks` on the render options) are not part of the public types. They remain in the code for ASTra's own tests.
+
+`@attentionform/astra-engine/internal` is reachable because the package map has to give the command-line tool and the MCP server a way in. That is
+not a promise that it is safe to use: if a name you need is only in `/internal`, open an issue so that it can be documented and supported.
+
+### Which renderer is installed
+
+`getVisualBackendStatus()` reports what is installed: `renderers.word` (found, executable, version), `renderers.libreoffice` (found, path),
+`rasterizers.poppler` and `rasterizers.windows`, the order a default call would try (`plan`), and what is missing. Its `available` field means that a
+renderer **and** a page-image program were found. A machine with LibreOffice but without Poppler reports `available: false`, although a PDF can be made.
+Use `hasPdfBackend()` for that question. [`examples/10-render.mjs`](./examples/10-render.mjs) shows both.
+
+### Handling errors
+
+Handle a failure by its code: `getEngineErrorCode(err)` returns one of `ENGINE_ERROR_CODES`, and `getEngineRemedy(err)` returns the text that tells the
+caller what to do next. The classes (`EngineQuotaError`, `EngineValidationError`, `OoxmlValidationError`, `PreflightError`, `RenderError`,
+`WordRenderError`, `WindowsPdfError`, `DependencyError`) are exported for `instanceof` checks, but the code is the contract.
+[`examples/08-validate.mjs`](./examples/08-validate.mjs) shows it.
+
+### Reading an older version
+
+Open a document with `DocumentManager` to get undo, redo, the version list and original recovery. To preview what a revert would change, or to read an
+older state as a document, use `getHistory`, `checkoutCommit` and `trackedPredicateFor` from `/history`.
+[`examples/09-history-older-version.mjs`](./examples/09-history-older-version.mjs) previews additions, removals and changes of every recorded part,
+including an image that a later state added, and reads the older document back and validates it.
+
+### Reading inside a .docx
+
+The engine does not export its zip helper. To look inside a `.docx` yourself, use any zip library, for example `adm-zip`.
+
+---
+
 ## Core Engine Capabilities
 
 ### 1. In-Memory DOM Level 2 with Stable Addressing
