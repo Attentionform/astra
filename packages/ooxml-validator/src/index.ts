@@ -6,9 +6,14 @@ import { runValidatorOneShot } from './one-shot.js';
 import { resolveBinaryDetails } from './resolve-binary.js';
 export { resolveEmbeddedBinary, resolveBinaryDetails } from './resolve-binary.js';
 import { WorkerClient } from './worker-client.js';
+import path from 'node:path';
 import {
+  DOCUMENT_KINDS,
+  EXTENSION_KINDS,
   OFFICE_VERSIONS,
+  type DocumentKind,
   type OfficeVersion,
+  type ValidateBufferOptions,
   type ValidateOptions,
   type ValidationError,
   type ValidationResult,
@@ -19,9 +24,11 @@ import {
   type ValidationErrorClass,
 } from './types.js';
 
-export { OFFICE_VERSIONS };
+export { OFFICE_VERSIONS, DOCUMENT_KINDS, EXTENSION_KINDS };
 export type {
+  DocumentKind,
   OfficeVersion,
+  ValidateBufferOptions,
   ValidateOptions,
   ValidationError,
   ValidationResult,
@@ -53,7 +60,84 @@ export async function validateFile(
   filePath: string,
   options: ValidateOptions = {},
 ): Promise<ValidationResult> {
-  return runValidatorOneShot(filePath, options);
+  // The native file validator chooses the document family from the file
+  // extension. A `kind` is not supported here: refuse it instead of ignoring it.
+  if ((options as { kind?: unknown }).kind !== undefined) {
+    throw new TypeError(
+      "validateFile() does not take a 'kind' option: the document family comes from the file extension. " +
+        'Use validateBuffer() or createValidator() to choose a kind.',
+    );
+  }
+  const res = await runValidatorOneShot(filePath, options);
+  return { ...res, requestedOfficeVersion: options.officeVersion ?? 'Microsoft365' };
+}
+
+/** Returns the document family for a file extension, or `undefined` when the extension is not supported. */
+export function kindFromPath(filePath: string): DocumentKind | undefined {
+  return EXTENSION_KINDS[path.extname(filePath).toLowerCase()];
+}
+
+function assertOfficeVersion(value: string): asserts value is OfficeVersion {
+  if (!(OFFICE_VERSIONS as readonly string[]).includes(value)) {
+    throw new TypeError(
+      `Invalid officeVersion ${JSON.stringify(value)}. Expected one of: ${OFFICE_VERSIONS.join(', ')}`,
+    );
+  }
+}
+
+function assertKind(value: unknown): asserts value is DocumentKind {
+  if (typeof value !== 'string' || !(DOCUMENT_KINDS as readonly string[]).includes(value)) {
+    throw new TypeError(`Invalid kind ${JSON.stringify(value)}. Expected one of: ${DOCUMENT_KINDS.join(', ')}`);
+  }
+}
+
+async function validateBytes(
+  worker: WorkerClient,
+  bytes: Buffer | Uint8Array,
+  options: ValidateBufferOptions,
+  file: string,
+): Promise<ValidationResult> {
+  const kind = options.kind ?? 'docx';
+  assertKind(kind);
+  const officeVersion = options.officeVersion ?? 'Office2019';
+  assertOfficeVersion(officeVersion);
+
+  const resp = await worker.send(
+    {
+      op: 'validate',
+      kind,
+      office: officeVersion,
+      size: bytes.length,
+      maxErrors: options.maxErrors,
+      maxDocBytes: options.maxDocBytes,
+    },
+    bytes,
+    options.timeoutMs,
+  );
+
+  // A package that cannot be opened as `kind` comes back as a single Exception error.
+  // The wrapper cannot tell a wrong family from a corrupt package, so it names the
+  // requested kind and keeps the native text without a diagnosis.
+  const errors = (resp.errors ?? []).map((e: ValidationError) =>
+    e.errorType === 'Exception'
+      ? { ...e, description: `Could not open the package as kind "${kind}": ${e.description ?? 'unknown error'}` }
+      : e,
+  );
+
+  const result: ValidationResult = {
+    file,
+    ok: resp.ok,
+    sdkVersion: resp.sdkVersion,
+    requestedOfficeVersion: officeVersion,
+    kind,
+    durationMs: resp.durationMs,
+    errorCount: resp.errorCount ?? errors.length,
+    truncated: resp.truncated ?? false,
+    errors,
+  };
+  // `office` is what the validator reported for a completed run.
+  if (resp.office !== undefined) result.office = resp.office;
+  return result;
 }
 
 /**
@@ -68,40 +152,15 @@ export async function isValid(
 }
 
 /**
- * Validates an in-memory DOCX buffer without creating temporary files.
+ * Validates an in-memory package without creating temporary files.
+ * `kind` chooses the document family (`docx`, `pptx` or `xlsx`; default `docx`).
  * Defaults to 'Office2019' matching the ASTra engine's standard validation target.
  */
 export async function validateBuffer(
   bytes: Buffer | Uint8Array,
-  options: ValidateOptions = {},
+  options: ValidateBufferOptions = {},
 ): Promise<ValidationResult> {
-  const worker = getDefaultWorker();
-  const officeVersion = options.officeVersion ?? 'Office2019';
-  const size = bytes.length;
-
-  const resp = await worker.send(
-    {
-      op: 'validate',
-      kind: 'docx',
-      office: officeVersion,
-      size,
-      maxErrors: options.maxErrors,
-      maxDocBytes: options.maxDocBytes,
-    },
-    bytes,
-    options.timeoutMs,
-  );
-
-  return {
-    file: '<memory>',
-    ok: resp.ok,
-    sdkVersion: resp.sdkVersion,
-    office: resp.office ?? officeVersion,
-    durationMs: resp.durationMs,
-    errorCount: resp.errorCount ?? (resp.errors ? resp.errors.length : 0),
-    truncated: resp.truncated ?? false,
-    errors: resp.errors ?? [],
-  };
+  return validateBytes(getDefaultWorker(), bytes, options, '<memory>');
 }
 
 /**
@@ -111,37 +170,57 @@ export function createValidator(opts: ValidatorPoolOptions = {}): ValidatorInsta
   const worker = new WorkerClient(opts);
 
   return {
-    async validate(bytes: Buffer | Uint8Array, options: ValidateOptions = {}): Promise<ValidationResult> {
-      const officeVersion = options.officeVersion ?? 'Office2019';
-      const resp = await worker.send(
-        {
-          op: 'validate',
-          kind: 'docx',
-          office: officeVersion,
-          size: bytes.length,
-          maxErrors: options.maxErrors,
-          maxDocBytes: options.maxDocBytes,
-        },
-        bytes,
-        options.timeoutMs,
-      );
-
-      return {
-        file: '<memory>',
-        ok: resp.ok,
-        sdkVersion: resp.sdkVersion,
-        office: resp.office ?? officeVersion,
-        durationMs: resp.durationMs,
-        errorCount: resp.errorCount ?? (resp.errors ? resp.errors.length : 0),
-        truncated: resp.truncated ?? false,
-        errors: resp.errors ?? [],
-      };
+    async validate(bytes: Buffer | Uint8Array, options: ValidateBufferOptions = {}): Promise<ValidationResult> {
+      return validateBytes(worker, bytes, options, '<memory>');
     },
 
-    async validateFile(filePath: string, options: ValidateOptions = {}): Promise<ValidationResult> {
-      const bytes = await fs.promises.readFile(filePath);
-      const res = await this.validate(bytes, options);
-      return { ...res, file: filePath };
+    async validateFile(filePath: string, options: ValidateBufferOptions = {}): Promise<ValidationResult> {
+      // The family comes from the extension; an explicit `kind` overrides it.
+      const kind = options.kind ?? kindFromPath(filePath);
+      if (kind === undefined) {
+        const ext = path.extname(filePath);
+        return {
+          file: filePath,
+          ok: false,
+          errorCount: 1,
+          truncated: false,
+          requestedOfficeVersion: options.officeVersion ?? 'Office2019',
+          errors: [
+            {
+              errorType: 'Exception',
+              class: 'exception',
+              description: `Unsupported extension: ${ext}`,
+              path: null,
+              xPath: null,
+              id: null,
+            },
+          ],
+        };
+      }
+      let bytes: Buffer;
+      try {
+        bytes = await fs.promises.readFile(filePath);
+      } catch (err) {
+        // Same shape as the standalone validateFile(): a file that cannot be read is an Exception result.
+        return {
+          file: filePath,
+          ok: false,
+          errorCount: 1,
+          truncated: false,
+          requestedOfficeVersion: options.officeVersion ?? 'Office2019',
+          errors: [
+            {
+              errorType: 'Exception',
+              class: 'exception',
+              description: `Could not read the file: ${(err as Error).message}`,
+              path: null,
+              xPath: null,
+              id: null,
+            },
+          ],
+        };
+      }
+      return validateBytes(worker, bytes, { ...options, kind }, filePath);
     },
 
     async close(): Promise<void> {
