@@ -124,6 +124,28 @@ export const b: PdfExportOptions = { testHooks: {} };
 `,
 );
 writeFileSync(
+  join(consumer, 'typed-batch.ts'),
+  `import { DocxParser, OperationEngine, parseBatch } from '${PKG}';
+import type { BatchPayload, OperationInput } from '${PKG}';
+const parser = DocxParser.createNewDocument('blank');
+export async function run(): Promise<boolean> {
+  const engine = new OperationEngine(await parser.getAST(), parser);
+  const ok: OperationInput[] = [
+    { action: 'replace', target: 'p_001', text: 'new text' },
+    { action: 'insert', type: 'paragraph', anchor: 'p_001', position: 'after', text: 'more' },
+  ];
+  const payload: BatchPayload = { operations: ok };
+  const result = await engine.executeBatch(payload);
+  const parsed = parseBatch(JSON.parse('{"operations":[]}'));
+  return result.success && (parsed.ok ? parsed.batch.operations.length === 0 : parsed.errors.length > 0);
+}
+// @ts-expect-error an action that does not exist is a type error
+export const bad: OperationInput = { action: 'no-such-action' };
+// @ts-expect-error a replace needs a target
+export const missing: OperationInput = { action: 'replace', text: 'x' };
+`,
+);
+writeFileSync(
   join(consumer, 'internal.ts'),
   `import { initAstraRepo } from '${PKG}/internal';
 import { AdmZip } from '${PKG}/internal';
@@ -138,12 +160,12 @@ for (const [label, compilerOptions] of [
     join(consumer, 'tsconfig.json'),
     JSON.stringify({
       compilerOptions: { ...compilerOptions, target: 'ES2022', strict: true, noEmit: true, skipLibCheck: false, types: ['node'] },
-      files: ['public-api.ts', 'hooks.ts', 'internal.ts'],
+      files: ['public-api.ts', 'hooks.ts', 'typed-batch.ts', 'internal.ts'],
     }),
   );
   try {
     run(join(consumer, 'node_modules', '.bin', 'tsc'), ['-p', 'tsconfig.json'], consumer);
-    ok(`TypeScript ${label}: every listed value and type imports; test hooks are not public; skipLibCheck off`);
+    ok(`TypeScript ${label}: every listed value and type imports; typed batches check; test hooks are not public; skipLibCheck off`);
   } catch (err) {
     fail(`TypeScript ${label}\n${err.stdout || ''}${err.stderr || err.message}`);
   }

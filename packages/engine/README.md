@@ -80,6 +80,33 @@ fs.writeFileSync('memo.docx', parser.rezip());
 
 `blank` is one empty paragraph. The other nine are designed starting documents with placeholder text in square brackets. Runnable examples are in `packages/engine/examples/`.
 
+### Typed operations and untyped data
+
+`executeBatch` takes typed operations. An unknown `action`, an unknown field or a missing required field is a compile error. Annotate your own values with `OperationInput` (one
+operation) and `BatchPayload` (the whole batch):
+
+```typescript
+import type { BatchPayload, OperationInput } from '@attentionform/astra-engine';
+
+const operations: OperationInput[] = [{ action: 'replace', target: 'p_001', text: 'New text' }];
+const batch: BatchPayload = { operations };
+await engine.executeBatch(batch);
+```
+
+Some rules cannot be written as a type: a field that is required only for one sub-operation, or a rule that spans several fields. `executeBatch` checks those when it
+runs, and `parseBatch` checks them earlier. For data that arrives untyped (JSON from a file, a request, a model), call `parseBatch` first. It returns
+`{ ok: true, batch }` with typed operations, or `{ ok: false, errors }` with every problem and where it is:
+
+```typescript
+import { parseBatch } from '@attentionform/astra-engine';
+
+const parsed = parseBatch(JSON.parse(text));
+if (!parsed.ok) throw new Error(parsed.errors.map((e) => e.message).join('; '));
+await engine.executeBatch(parsed.batch);
+```
+
+`BatchInput` is the form after parsing, not the form that you write. Use `BatchPayload` for a batch that you write by hand.
+
 ---
 
 ## What is public
