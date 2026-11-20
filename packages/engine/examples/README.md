@@ -1,0 +1,23 @@
+# Examples
+
+Small scripts that use `@attentionform/astra-engine` as a library. CI builds the engine, runs every script and fails when a
+script throws or when a file it writes does not validate. The documentation copies its code from these files.
+
+Run one from the repository root, after `npm run build:packages`:
+
+```bash
+node packages/engine/examples/01-create-from-markdown.mjs
+```
+
+Each script writes its output into a new folder under the system temp directory and prints the path. Set `ASTRA_EXAMPLE_OUT`
+to choose the folder. `run-all.mjs` runs all of them.
+
+| Script | Shows |
+|--------|-------|
+| `01-create-from-markdown.mjs` | A new document from a Markdown string |
+| `02-create-from-operations.mjs` | A new document built only from operations, with a heading |
+| `03-open-find-edit-save.mjs` | Open a saved file, find text, edit it, validate, save |
+| `04-table-and-chart.mjs` | A table and a chart |
+| `05-comments-and-tracked-changes.mjs` | A comment, tracked edits, accept and reject |
+| `06-history-and-recovery.mjs` | Saves with history, undo, and recovery of the original |
+| `07-templates.mjs` | Every built-in template, in Letter and A4, and a compose onto one |
