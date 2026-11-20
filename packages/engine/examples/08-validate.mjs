@@ -1,5 +1,9 @@
 // Check a document against the Office schema, and see what a failure looks like.
-import { AdmZip, DocxParser, OoxmlValidationError, assertValidDocx, getEngineErrorCode, validateDocxBuffer } from '@attentionform/astra-engine';
+import astra from '@attentionform/astra-engine';
+import { DocxParser, OoxmlValidationError, assertValidDocx, getEngineErrorCode, validateDocxBuffer } from '@attentionform/astra-engine';
+
+// AdmZip is exported by the package, but Node 22 cannot see it as a named ESM import, so take it from the default export.
+const { AdmZip } = astra;
 
 const good = DocxParser.createNewDocument('memo').rezip();
 const ok = await validateDocxBuffer(good);
