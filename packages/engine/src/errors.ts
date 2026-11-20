@@ -51,7 +51,43 @@ export const ENGINE_ERROR_REMEDIES: Record<EngineErrorCode, string> = {
   E_AUTH: 'provide a valid key via --key and retry',
 };
 
-export type EngineError = Error & { code: EngineErrorCode; remedy: string; retryable: false };
+/**
+ * What a library caller uses where an MCP tool is named. Remedy text keeps naming the MCP tools,
+ * because agents act on those names; the library wording is added next to it, never in its place.
+ */
+export const MCP_TOOL_LIBRARY_EQUIVALENTS: Readonly<Record<string, string>> = {
+  open_document: 'new DocxParser(buffer)',
+  new_document: 'DocxParser.createNewDocument(template)',
+  inspect_document: 'parser.getStructuralSummary() or parser.getAST()',
+  search_content: 'parser.getStructuralSummary() and match the node text',
+  get_stats: 'parser.getStructuralSummary()',
+  execute_batch: 'OperationEngine.executeBatch()',
+  compose_document: 'composeDocument(parser, markdown)',
+  save_document: 'parser.rezip() then validateDocxBuffer() before you write the file',
+  sanitize_document: 'the sanitize functions of the engine',
+  restore_original_document: 'restoreOriginal(path)',
+};
+
+const MCP_TOOL_PATTERN = new RegExp(`\\b(${Object.keys(MCP_TOOL_LIBRARY_EQUIVALENTS).join('|')})\\b`, 'g');
+
+/**
+ * The same remedy with the library equivalent of each MCP tool named in it, written as
+ * `inspect_document (library: parser.getStructuralSummary() or parser.getAST())`.
+ * Returns `undefined` when the text names no MCP tool, so it only appears where it adds something.
+ */
+export function libraryRemedy(text: string | undefined): string | undefined {
+  if (typeof text !== 'string' || text === '') return undefined;
+  const seen = new Set<string>();
+  const out = text.replace(MCP_TOOL_PATTERN, (tool) => {
+    // Name the equivalent once per tool: the first mention carries it.
+    if (seen.has(tool)) return tool;
+    seen.add(tool);
+    return `${tool} (library: ${MCP_TOOL_LIBRARY_EQUIVALENTS[tool]})`;
+  });
+  return seen.size > 0 ? out : undefined;
+}
+
+export type EngineError = Error & { code: EngineErrorCode; remedy: string; retryable: false; libraryRemedy?: string };
 
 /** Build a coded engine error (message carries `[CODE]`, plus `.code`/`.remedy`). */
 export function toError(
@@ -67,7 +103,13 @@ export function toError(
   const text = withCode.includes('Remedy:')
     ? withCode
     : `${withCode} Remedy: ${finalRemedy}`;
-  return Object.assign(new Error(text), { code, remedy: finalRemedy, retryable: false as const });
+  const library = libraryRemedy(finalRemedy);
+  return Object.assign(new Error(text), {
+    code,
+    remedy: finalRemedy,
+    retryable: false as const,
+    ...(library !== undefined ? { libraryRemedy: library } : {}),
+  });
 }
 
 /** True when `value` is a known engine error code string. */
