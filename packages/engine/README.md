@@ -66,6 +66,20 @@ async function main() {
 main();
 ```
 
+### Starting from a template
+
+```typescript
+import { DocxParser, TEMPLATE_NAMES } from '@attentionform/astra-engine';
+import * as fs from 'node:fs';
+
+console.log(TEMPLATE_NAMES); // blank, report, memo, letter, proposal, invoice, technical-spec, research-paper, novel, newsletter
+
+const parser = DocxParser.createNewDocument('memo', { pageSize: 'a4' }); // Letter is the default
+fs.writeFileSync('memo.docx', parser.rezip());
+```
+
+`blank` is one empty paragraph. The other nine are designed starting documents with placeholder text in square brackets. Runnable examples are in `packages/engine/examples/`.
+
 ---
 
 ## Core Engine Capabilities

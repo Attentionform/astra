@@ -6,6 +6,28 @@ Packages released together: `@attentionform/astra-engine`, `@attentionform/astra
 
 ## [Unreleased]
 
+Library use, designed templates and the validator for other Office files. There is no migration step: nothing repairs or converts files written by earlier versions.
+
+### Added
+
+- Ten templates: `blank`, `report`, `memo`, `letter`, `proposal`, `invoice`, `technical-spec`, `research-paper`, `novel` and `newsletter`, each in Letter and A4. `TEMPLATE_NAMES` and `TemplateName` are exported by the engine. `astra create` and `astra import` take `--template <name>` and `--page-size letter|a4`; `new_document` takes `template` and `pageSize`; `DocxParser.createNewDocument(name, { pageSize })` takes the same. Letter is the default. The files are made by `npm run build:templates` from `packages/engine/scripts/templates/`, and CI regenerates them and fails on a difference.
+- Marker-based placeholder replacement. A template carries the custom property `AstraTemplate` and the bookmarks `astra_body_start` and `astra_body_end` around its placeholder body. `compose_document` and `astra import` replace the placeholder body with your content only when the body still matches the one that shipped with the template; a document that you edited, or one that already holds composed content, gets the new content appended, with a warning code (`TEMPLATE_MARKER_INVALID`, `TEMPLATE_MANIFEST_MISSING`, `TEMPLATE_BOOKMARKS_MISSING`, `TEMPLATE_REGION_EDITED`, `TEMPLATE_ALREADY_COMPOSED`). A placeholder body that Word saved again still matches.
+- `executeBatch` accepts typed `OperationInput` values, and `parseBatch` checks data that arrives untyped (JSON from a file or a model) and returns typed operations or the list of problems.
+- Validator: `kind` option (`docx`, `pptx`, `xlsx`) for `validateBuffer` and the worker API, document family from the file extension for `validateFile`, and fixtures and tests for PowerPoint and Excel files.
+- One Office version setting for every validation path: `officeVersion`, the `ASTRA_OFFICE_VERSION` variable, `--office-version` on the command line and on the MCP server, with `Office2019` as the default. Results carry `requestedOfficeVersion` and `validationStatus`.
+- Runnable library examples in `packages/engine/examples/`, run by CI.
+- Documentation: library quickstart, templates, command line, MCP tools, operations and a validator section, with outputs captured from the real programs.
+
+### Changed
+
+- `blank` is one empty paragraph, with no author and no placeholder text. `report` and `memo` are redesigned. A new file carries no author name.
+- Errors that a library caller can receive name the library call next to the MCP tool name in the remedy.
+- The engine README no longer says that `rezip()` validates against the schema. It checks the package; `validateDocxBuffer` runs the schema validator.
+
+### Fixed
+
+- The bundled command-line tool finds the template files when the engine is installed beside it.
+
 ## [0.5.3] - 2026-11-16
 
 Ten npm packages move to 0.5.3: `@attentionform/astra-engine`, `@attentionform/astra-mcp-server`, `@attentionform/astra`, the `@attentionform/ooxml-validator` wrapper and the six native validator binaries. The validator itself did not change.

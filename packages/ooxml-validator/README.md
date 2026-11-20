@@ -18,6 +18,28 @@ The package automatically uses the matching prebuilt native platform binary from
 - `@attentionform/ooxml-validator-win32-x64`
 - `@attentionform/ooxml-validator-win32-arm64`
 
+## Command line
+
+```bash
+npx ooxml-validator report.docx [--officeVersion <version>]
+```
+
+The command validates one file and prints one JSON object on standard output. Exit codes: `0` the file is valid, `1` the file has errors or could not be opened (`errors[].errorType` is `Exception`), `2` a usage error or the validator could not be run. `--officeVersion` takes `Office2007`, `Office2010`, `Office2013`, `Office2016`, `Office2019`, `Office2021` or `Microsoft365` (default `Microsoft365`).
+
+## Document families
+
+`validateFile` and `isValid` choose Word, PowerPoint or Excel from the file extension (`.docx .docm .dotx .dotm`, `.pptx .pptm .potx .potm .ppsx .ppsm`, `.xlsx .xlsm .xltx .xltm .xlam`). `validateBuffer` and the worker API treat bytes as Word unless you pass `kind: 'pptx'` or `kind: 'xlsx'`.
+
+## Results
+
+A result has `file`, `ok`, `errors`, `requestedOfficeVersion` and `validationStatus` (`completed`, `skipped`, `timed-out` or `failed-to-start`). The buffer and worker APIs add `sdkVersion`, `kind`, `durationMs`, `errorCount`, `truncated` and `office`. Each error has `description`, `path`, `xPath`, `id`, `errorType`, `part`, `class` (`schema`, `semantic`, `markup-compat`, `package` or `exception`), `node` and `relatedNode`; any of them can be `null`.
+
+`ok: true` means that the Open XML SDK reported no errors for the version you chose. It does not say that the content is right or that Word draws it as you expect.
+
+## Limits
+
+An instance made by `createValidator` has these defaults: `timeoutMs` 20000, `recycleAfter` 500 documents, `maxDocBytes` 64 MiB and `maxErrors` 200. The `workers` option is accepted by the type but the current implementation runs one worker per instance.
+
 ## API
 
 ### `validateFile(filePath, options?): Promise<ValidationResult>`
