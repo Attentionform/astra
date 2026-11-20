@@ -9,8 +9,7 @@ Run one from the repository root, after `npm run build:packages`:
 node packages/engine/examples/01-create-from-markdown.mjs
 ```
 
-Each script writes its output into a new folder under the system temp directory and prints the path. Set `ASTRA_EXAMPLE_OUT`
-to choose the folder. `run-all.mjs` runs all of them.
+Scripts 01 and 03 are self-contained and write into the folder that you run them from. The others write into a new folder under the system temp directory and print the path; set `ASTRA_EXAMPLE_OUT` to choose it. `run-all.mjs` runs all of them.
 
 | Script | Shows |
 |--------|-------|
