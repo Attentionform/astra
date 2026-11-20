@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DocxParser,
   OperationEngine,
+  type OperationInput,
   TableOperation,
 } from '@attentionform/astra-engine';
 
@@ -77,7 +78,7 @@ describe('Advanced Table Features Suite', () => {
       params: { vAlign: 'center' }
     };
 
-    const result = await engine.executeBatch({ operations: [repeatOp, cantSplitOp, vAlignOp] });
+    const result = await engine.executeBatch({ operations: [repeatOp, cantSplitOp, vAlignOp] as unknown as OperationInput[] });
     expect(result.success).toBe(true);
 
     const tableNode = ast.sections[0].nodes.find(n => n.id === 't_001');

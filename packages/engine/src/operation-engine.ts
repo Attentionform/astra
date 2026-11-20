@@ -4,6 +4,7 @@ import { DocumentAST, cloneAST } from './ast';
 import { refreshAstInPlace } from './ast-refresh';
 import { reconcileSections } from './parser/sections';
 import { DocxParser } from './parser';
+import type { OperationInput } from './operation-schema';
 import { getEngineErrorCode, libraryRemedy, toError } from './errors';
 import { BaseOperation, assertNoCellAddress, parseCellAddress, syncCellStandIns } from './operations/base';
 import { ReplaceOperation, executeReplace } from './operations/replace';
@@ -154,7 +155,11 @@ export function assertEngineQuotas(
 }
 
 export interface BatchPayload {
-  operations: BaseOperation[];
+  /**
+   * Typed operations: an unknown `action`, an unknown field or a missing required field is a compile error.
+   * For data that arrives untyped (JSON, a request, a model) call `parseBatch()` first.
+   */
+  operations: OperationInput[];
   /**
    * Track-B: sequential defaults to TRUE (document order preserved).
    * Pass sequential:false explicitly to opt into the legacy sort-order path.

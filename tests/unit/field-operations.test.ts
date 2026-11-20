@@ -3,6 +3,7 @@ import {
   DocxParser,
   FieldOperation,
   OperationEngine,
+  type OperationInput,
   convertDocxToPdf,
   hasExportPdfBackend,
 } from '@attentionform/astra-engine';
@@ -74,7 +75,7 @@ describe('Field Operations Suite (TOC & Field Codes)', () => {
       title: 'Document Outline & Contents'
     };
 
-    const result = await engine.executeBatch({ operations: [tocOp] });
+    const result = await engine.executeBatch({ operations: [tocOp as unknown as OperationInput] });
     expect(result.success).toBe(true);
 
     const tocNode = ast.sections[0].nodes.find(n => n.id.startsWith('toc_'));
@@ -101,7 +102,7 @@ describe('Field Operations Suite (TOC & Field Codes)', () => {
       position: 'before'
     };
 
-    const result = await engine.executeBatch({ operations: [pageOp] });
+    const result = await engine.executeBatch({ operations: [pageOp as unknown as OperationInput] });
     expect(result.success).toBe(true);
 
     const pageNode = ast.sections[0].nodes.find(n => n.id.startsWith('field_'));
@@ -181,7 +182,7 @@ describe('Header/footer-targeted field and insert ops', () => {
     const bodyCount = ast.sections[0].nodes.length;
 
     const result = await engine.executeBatch({
-      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'footer' } as FieldOperation]
+      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'footer' } as unknown as OperationInput]
     });
     expect(result.success).toBe(true);
 
@@ -209,7 +210,7 @@ describe('Header/footer-targeted field and insert ops', () => {
         action: 'field',
         operation: 'insertPageNumber',
         params: { target: 'footer' }
-      } as unknown as FieldOperation]
+      } as unknown as OperationInput]
     });
     expect(result.success).toBe(true);
     const footer = readPart(parser.rezip(), /footer\d+\.xml$/);
@@ -227,7 +228,7 @@ describe('Header/footer-targeted field and insert ops', () => {
         action: 'field',
         operation: 'insertWordCount',
         params: { target: 'header' }
-      } as unknown as FieldOperation]
+      } as unknown as OperationInput]
     });
     expect(result.success).toBe(true);
     const saved = parser.rezip();
@@ -243,7 +244,7 @@ describe('Header/footer-targeted field and insert ops', () => {
     const engine = new OperationEngine(ast, parser);
 
     const first = await engine.executeBatch({
-      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'footer' } as FieldOperation]
+      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'footer' } as unknown as OperationInput]
     });
     expect(first.success).toBe(true);
     const second = await engine.executeBatch({
@@ -267,7 +268,7 @@ describe('Header/footer-targeted field and insert ops', () => {
     const before = Buffer.from(parser.rezip()).toString('base64');
 
     const result = await engine.executeBatch({
-      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'sidebar' } as unknown as FieldOperation]
+      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'sidebar' } as unknown as OperationInput]
     });
     expect(result.success).toBe(false);
     expect(result.errors[0]?.error).toMatch(/E_VALIDATION/);
@@ -283,7 +284,7 @@ describe('Header/footer-targeted field and insert ops', () => {
     const result = await engine.executeBatch({
       operations: [{
         action: 'field', operation: 'insertPageNumber', target: 'footer', pageType: 'middle'
-      } as unknown as FieldOperation]
+      } as unknown as OperationInput]
     });
     expect(result.success).toBe(false);
     expect(result.errors[0]?.error).toMatch(/E_VALIDATION.*pageType/);
@@ -297,7 +298,7 @@ describe('Header/footer-targeted field and insert ops', () => {
     const result = await engine.executeBatch({
       operations: [{
         action: 'field', operation: 'insertTOC', anchor: 'p_title', target: 'footer'
-      } as unknown as FieldOperation]
+      } as unknown as OperationInput]
     });
     expect(result.success).toBe(false);
     expect(result.errors[0]?.error).toMatch(/E_VALIDATION/);
@@ -341,7 +342,7 @@ describe('Header/footer-targeted field and insert ops', () => {
     const engine = new OperationEngine(ast, parser);
 
     const result = await engine.executeBatch({
-      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'footer' } as FieldOperation]
+      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'footer' } as unknown as OperationInput]
     });
     expect(result.success).toBe(true);
 
@@ -367,7 +368,7 @@ describe('Header/footer-targeted field and insert ops', () => {
         action: 'field',
         operation: 'insertWordCount',
         params: { target: 'header' }
-      } as unknown as FieldOperation]
+      } as unknown as OperationInput]
     });
     expect(result.success).toBe(true);
 
@@ -391,7 +392,7 @@ describe('Header/footer-targeted field and insert ops', () => {
     const result = await engine.executeBatch({
       operations: [{
         action: 'field', operation: 'insertPageNumber', anchor, position: 'after'
-      } as FieldOperation]
+      } as unknown as OperationInput]
     });
     expect(result.success).toBe(true);
 
@@ -413,7 +414,7 @@ describe('Header/footer-targeted field and insert ops', () => {
     const ast = await parser.getAST();
     const engine = new OperationEngine(ast, parser);
     const result = await engine.executeBatch({
-      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'footer' } as FieldOperation]
+      operations: [{ action: 'field', operation: 'insertPageNumber', target: 'footer' } as unknown as OperationInput]
     });
     expect(result.success).toBe(true);
 

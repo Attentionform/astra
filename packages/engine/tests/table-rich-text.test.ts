@@ -3,6 +3,7 @@ import { DocxParser } from '../src/parser';
 import { compileMarkdown, composeDocument } from '../src/compose/markdown';
 import { validateBuffer } from '@attentionform/ooxml-validator';
 import { OperationEngine } from '../src/operation-engine';
+import type { OperationInput } from '../src/operation-schema';
 import type { InsertOperation } from '../src/operations/insert';
 
 describe('Table Cell Rich Text and Hyperlinks (AS-03)', () => {
@@ -120,7 +121,7 @@ describe('Table Cell Rich Text and Hyperlinks (AS-03)', () => {
       ],
     };
 
-    const res = await engine.executeBatch({ operations: [op], sequential: true });
+    const res = await engine.executeBatch({ operations: [op as unknown as OperationInput], sequential: true });
     expect(res.success).toBe(true);
 
     const docDom = parser.getDocumentDom();

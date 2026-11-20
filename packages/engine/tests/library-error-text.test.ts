@@ -48,7 +48,7 @@ describe('a failed batch', () => {
     const result = await failedBatch({ action: 'insert', type: 'heading', anchor: 'end', position: 'after', text: 'Title' });
     expect(result.success).toBe(false);
     const text = result.errors[0].error;
-    expect(text).toContain("use type 'paragraph' with style 'Heading1'");
+    expect(text).toContain("insert type 'paragraph' with an id, then apply the style in the same batch with {action:'namedStyle',operation:'apply',styleName:'Heading 1'");
     // The original wording for agents is still there.
     expect(text).toContain('inspect_document');
   });

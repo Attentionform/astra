@@ -10,6 +10,7 @@ import {
   formatPaletteForPrompt,
   lintAndFixTypography,
   OperationEngine,
+  type OperationInput,
   PPR_CHILD_ORDER,
   TRPR_CHILD_ORDER,
   validateDocxBuffer,
@@ -622,7 +623,7 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
           { action: 'insert', type: 'paragraph', content: 'Initial paragraph alpha.' },
           { action: 'insert', type: 'paragraph', content: 'Initial paragraph beta.' },
           { action: 'insert', type: 'paragraph', content: 'Initial paragraph gamma.' }
-        ],
+        ] as unknown as OperationInput[], // legacy `content` key and no anchor: kept to test runtime leniency
         sequential: true
       });
       expect(addRes.success).toBe(true);
@@ -688,7 +689,7 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
 
       for (const op of trackedOps) {
         const opRes = await engine.executeBatch({
-          operations: [op],
+          operations: [op as unknown as OperationInput],
           sequential: true
         });
         expect(opRes.success, `Tracked operation ${op.operation} failed`).toBe(true);
