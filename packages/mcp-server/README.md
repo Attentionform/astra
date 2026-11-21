@@ -238,7 +238,7 @@ Creates a fresh `.docx` file from a template and opens it into a session. `blank
 |---|---|:---:|---|
 | `outPath` | `string` | Yes | Destination file path inside an allowed directory. |
 | `template` | `string` | No | One of `blank` (default), `report`, `memo`, `letter`, `proposal`, `invoice`, `technical-spec`, `research-paper`, `novel`, `newsletter`. |
-| `pageSize` | `string` | No | `letter` (default) or `a4`. |
+| `page` | `object` | No | `{ size, orientation, margins }`. `size` is a paper name (Letter default; Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6), a size such as `"148x210mm"`, or `{ width, height }` (1 in to 22 in a side); `orientation` is `portrait` or `landscape`; `margins` is one length (`"20mm"`) or `{ top, bottom, left, right, header, footer, gutter }`. The template is built for that page. A page that cannot be laid out is refused with `E_VALIDATION`. The old `pageSize` was replaced by `page.size`. |
 | `force` | `boolean` | No | Overwrite existing file if it exists (default: `false`). |
 | `styleGuide` | `string` | No | Bundled guide name or guide `.md` path to attach. |
 | `author` | `string` | No | Default author for tracked changes and comments in this session that do not name one (falls back to the server's `ASTRA_AUTHOR`, then `ASTra`). An operation's own `author` wins. |

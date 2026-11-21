@@ -54,7 +54,7 @@ export const PAPERS: readonly Paper[] = [
   { name: 'A4', width: 11906, height: 16838, code: 9, margins: LARGE_METRIC_MARGINS, label: '210 x 297 mm' },
   { name: 'A5', width: mm(148), height: mm(210), code: 11, margins: A5_MARGINS, label: '148 x 210 mm' },
   { name: 'A6', width: mm(105), height: mm(148), code: 70, margins: A6_MARGINS, label: '105 x 148 mm' },
-  { name: 'B4', width: mm(250), height: mm(353), code: 42, margins: LARGE_METRIC_MARGINS, label: '250 x 353 mm' },
+  { name: 'B4', width: mm(250), height: mm(353), margins: LARGE_METRIC_MARGINS, label: '250 x 353 mm' },
   { name: 'B5', width: mm(176), height: mm(250), margins: A5_MARGINS, label: '176 x 250 mm' },
   { name: 'B6', width: mm(125), height: mm(176), margins: A6_MARGINS, label: '125 x 176 mm' },
 ];

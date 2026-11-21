@@ -75,11 +75,12 @@ import * as fs from 'node:fs';
 
 console.log(TEMPLATE_NAMES); // blank, report, memo, letter, proposal, invoice, technical-spec, research-paper, novel, newsletter
 
-const parser = DocxParser.createNewDocument('memo', { pageSize: 'a4' }); // Letter is the default
+const parser = DocxParser.createNewDocument('memo', { page: { size: 'A4' } }); // Letter portrait is the default
+// Any paper and margins: { size: '148x210mm', orientation: 'landscape', margins: '15mm' }
 fs.writeFileSync('memo.docx', parser.rezip());
 ```
 
-`blank` is one empty paragraph. The other nine are designed starting documents with placeholder text in square brackets. Runnable examples are in `packages/engine/examples/`.
+`blank` is one empty paragraph. The other nine are designed starting documents with placeholder text in square brackets. A template is built for the page you ask for, so its tables, tab stops and cover fit that paper: `page.size` is a paper name (Letter, Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6) or a size such as `"6x9in"` or `{ width: "150mm", height: "200mm" }` (1 in to 22 in a side), `page.orientation` is `portrait` or `landscape`, and `page.margins` is one length or `{ top, bottom, left, right, header, footer, gutter }`. A page that cannot be laid out throws `E_VALIDATION`; `parser.newDocumentWarnings` lists a valid page that suits the template poorly. The old `pageSize` option was replaced by `page.size`. Runnable examples are in `packages/engine/examples/`.
 
 ### Typed operations and untyped data
 

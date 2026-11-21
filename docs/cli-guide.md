@@ -65,8 +65,8 @@ Commands (exit 0 ok · 1 operational failure · 2 usage):
   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]]
   export   <docx> [--format html|markdown|md|pdf] [-o <outPath>] [--force] [--renderer auto|word|libreoffice] [--allow-network-references] [--show-markup]
   search   <docx> <query> [--limit <n>]
-  create   <out.docx> [--template <name>] [--page-size letter|a4] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
-  import   <file.md> [-o <out.docx>] [--template <name>] [--page-size letter|a4] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
+  create   <out.docx> [--template <name>] [--page-size <paper|WxH>] [--landscape] [--margins <length>] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
+  import   <file.md> [-o <out.docx>] [--template <name>] [--page-size <paper|WxH>] [--landscape] [--margins <length>] [--force] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
   stats    <docx>
   visual   <docx> [--page <n>] --out <render.png> [--format png|jpeg] [--force] [--max-ratio <n>] [--max-uncompressed-bytes <n>] [--allow-macros] [--strip-macros] [--renderer auto|word|libreoffice] [--pdf-to-image auto|windows|poppler] [--allow-network-references] [--show-markup]
   history  <docx> [--init|--track|--export-original <out>|--restore-original] [--force]
@@ -359,12 +359,20 @@ astra create scratch.docx --template blank
 
 # Compile directly from Markdown during creation
 astra create spec.docx --template blank --from-md spec.md
+
+# Choose the paper, orientation and margins
+astra create a5-memo.docx --template memo --page-size A5 --margins 18mm
+astra create booklet.docx --template report --page-size 6x9in --margins left=0.8in,right=0.8in,gutter=0.25in
+astra create slides.docx --template blank --page-size Letter --landscape
 ```
 
 **Options:**
 | Flag | Type | Description |
 |---|---|---|
 | `--template` | `report\|memo\|blank` | Template layout (default: `blank`). New files carry a title, an author (`ASTRA_AUTHOR`, else `ASTra`) and created/modified times in `docProps`, plus settings, a font table and a theme, so Word opens them without a compatibility prompt. |
+| `--page-size <paper\|WxH[unit]>` | `string` | Paper: Letter (default), Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6, or a size such as `148x210mm` or `6x9in` (1 in to 22 in a side). The template is built for that page. |
+| `--landscape` / `--portrait` | `flag` | Turn the page. A named paper is portrait unless you say landscape. |
+| `--margins <length\|name=length,...>` | `string` | One length for all four margins (`20mm`, `0.75in`, `72pt`, or a number of twips), or pairs such as `top=20mm,left=25mm,header=10mm,gutter=8mm`. A page that cannot be laid out (text narrower than 0.75 in or lower than 0.5 in, a side outside 1 in to 22 in) is refused with the number that failed. |
 | `--style-guide <name\|path>` | `string` | House style: bundled guide (`report\|technical\|legal`) or path to a style-guide.md file. Skins `--from-md` tables (`headerFill`), `> [!TAG]` alerts (guide `defaultTheme`), charts, callouts, and code blocks where content omits styling. `--json` carries its summary plus guide-parse notes as `styleWarnings` (see §6). |
 | `--force` | `flag` | Overwrite destination file if it already exists. |
 | `--from-md <file>` | `string` | Populate newly created document from a Markdown file. |
@@ -387,6 +395,7 @@ astra import release_notes.md -o release_notes.docx --template blank
 |---|---|---|
 | `-o <out.docx>` | `string` | Destination file path. |
 | `--template` | `report\|memo\|blank` | Base template styling (default: `blank`). |
+| `--page-size`, `--landscape`, `--portrait`, `--margins` | | The page of the document, as for `create`. |
 | `--force` | `flag` | Overwrite destination file if it exists. |
 | `--allowed-dir <dir>` | `string` | Folder that block image/chart refs resolve against. |
 | `--dollar-math` | `flag` | Also read `$...$` as inline math (off by default because prices and shell text can look like math). `$$` blocks and `\(...\)` are always math. |
