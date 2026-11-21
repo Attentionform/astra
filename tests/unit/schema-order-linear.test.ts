@@ -101,7 +101,7 @@ const REVIEWED: Record<string, number> = {
   'operations/clearFormat.ts': 2,
   'operations/image.ts': 1,
   'operations/table.ts': 1,
-  'parser.ts': 2,
+  'parser.ts': 1,
   // Read-only walk: children are pushed on a separate work list and nothing is changed while iterating.
   'visual/references.ts': 1,
 };

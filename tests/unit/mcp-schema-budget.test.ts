@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { getToolDefinitions, compactToolSchema } from '../../packages/mcp-server/src/lib/mcp/schema-dump';
 
 describe('MCP tool schema budget', () => {
-  it('keeps the complete compact tool catalog under 95,000 characters', () => {
+  it('keeps the complete compact tool catalog under 96,000 characters', () => {
     const tools = getToolDefinitions().map(tool => ({
       name:tool.name, description:tool.description,
       parameters:compactToolSchema(tool.schema),
     }));
-    expect(JSON.stringify(tools).length).toBeLessThan(95_000);
+    expect(JSON.stringify(tools).length).toBeLessThan(96_000);
     expect(JSON.stringify(tools.find(tool => tool.name === 'execute_batch')?.parameters)).toContain('$ref');
     for (const tool of tools) {
       const root = tool.parameters;

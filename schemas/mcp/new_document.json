@@ -1,6 +1,6 @@
 {
   "name": "new_document",
-  "description": "Create a new .docx from a template (blank|report|memo|letter|proposal|invoice|technical-spec|research-paper|novel|newsletter; default blank, an empty page) at outPath inside an allowed folder (a template is a starting document with styles, page setup, header and footer and bracketed placeholders such as [Client name]; every part can be edited afterwards). Optional page {size,orientation,margins} sets the paper (Letter default; Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6, or any size such as \"148x210mm\" or {\"width\":\"6in\",\"height\":\"9in\"}, 1 in to 22 in a side), landscape, and margins (one length such as \"20mm\", or {top,bottom,left,right,header,footer,gutter}); the template is built for that page. The old pageSize option was replaced by page.size. (the folders named with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS; only when none are named, ./documents and the system temp folder). Validates the fresh package before writing (E_VALIDATION when invalid, never writes corruption); refuses to overwrite without {force:true} (E_CONFLICT). Success returns {ok:true,path,sessionId,revision,template,bytes} with the file opened into a session (use sessionId for inspect/execute_batch/save). Example {\"outPath\":\"documents/new-report.docx\",\"template\":\"report\"}. Session ids are server-minted (sess_<uuid>, DEPRECATED to supply sessionId: client-supplied values are rejected with E_VALIDATION; deterministic ids are test-only via --allow-client-session-ids). IDs are session-scoped: valid only in the issuing session, must not be stored across sessions. Optional styleGuide (bundled guide name or guide .md path, jailed to the document folder; remote URLs fail closed) attaches a house style to the session at creation: later batches inherit its table/chart/callout defaults, inspect_document shows its compact summary, save_document reports advisory styleWarnings. Guides cannot be detached afterwards: open a new session to work without a guide. Unknown names fail with E_VALIDATION naming the available set.",
+  "description": "Create a new .docx from a template (blank|report|memo|letter|proposal|invoice|technical-spec|research-paper|novel|newsletter; default blank, an empty page) at outPath inside an allowed folder (a template is a starting document with styles, page setup, header and footer and bracketed placeholders such as [Client name]; every part can be edited afterwards). Optional page {size,orientation,margins} as in pageSetup (size: name or \"148x210mm\", 1 in to 22 in a side); the template is built for it. pageSize was replaced by page.size. (the folders named with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS; only when none are named, ./documents and the system temp folder). Validates the fresh package before writing (E_VALIDATION when invalid, never writes corruption); refuses to overwrite without {force:true} (E_CONFLICT). Success returns {ok:true,path,sessionId,revision,template,bytes} with the file opened into a session (use sessionId for inspect/execute_batch/save). Example {\"outPath\":\"documents/new-report.docx\",\"template\":\"report\"}. Session ids are server-minted (sess_<uuid>, DEPRECATED to supply sessionId: client-supplied values are rejected with E_VALIDATION; deterministic ids are test-only via --allow-client-session-ids). IDs are session-scoped: valid only in the issuing session, must not be stored across sessions. Optional styleGuide (bundled guide name or guide .md path, jailed to the document folder; remote URLs fail closed) attaches a house style to the session at creation: later batches inherit its table/chart/callout defaults, inspect_document shows its compact summary, save_document reports advisory styleWarnings. Guides cannot be detached afterwards: open a new session to work without a guide. Unknown names fail with E_VALIDATION naming the available set.",
   "parameters": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
@@ -29,17 +29,99 @@
         "type": "object",
         "properties": {
           "size": {
-            "$ref": "#/definitions/__schema0"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "width": {
+                    "$ref": "#/definitions/__schema0"
+                  },
+                  "height": {
+                    "$ref": "#/definitions/__schema0"
+                  }
+                },
+                "required": [
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              }
+            ]
           },
           "orientation": {
-            "$ref": "#/definitions/__schema6"
+            "type": "string",
+            "enum": [
+              "portrait",
+              "landscape"
+            ]
           },
           "margins": {
-            "$ref": "#/definitions/__schema8"
+            "anyOf": [
+              {
+                "$ref": "#/definitions/__schema0"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "top": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/__schema0"
+                      }
+                    ]
+                  },
+                  "bottom": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/__schema0"
+                      }
+                    ]
+                  },
+                  "left": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/__schema0"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/__schema0"
+                      }
+                    ]
+                  },
+                  "header": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/__schema0"
+                      }
+                    ]
+                  },
+                  "footer": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/__schema0"
+                      }
+                    ]
+                  },
+                  "gutter": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/__schema0"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
           }
         },
-        "additionalProperties": false,
-        "description": "The page of the new document: { size: a paper name (Letter, Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6) or a size such as \"148x210mm\" or { width, height }, orientation, margins }. Default Letter portrait."
+        "additionalProperties": false
       },
       "force": {
         "type": "boolean"
@@ -57,7 +139,7 @@
         "description": "DEPRECATED: session ids are server-minted (sess_<uuid>); omit sessionId and use the returned id. Client-supplied values are rejected with E_VALIDATION (deterministic ids are test-only via --allow-client-session-ids).",
         "allOf": [
           {
-            "$ref": "#/definitions/__schema10"
+            "$ref": "#/definitions/__schema1"
           }
         ]
       }
@@ -68,138 +150,12 @@
     "additionalProperties": false,
     "definitions": {
       "__schema0": {
-        "anyOf": [
-          {
-            "$ref": "#/definitions/__schema1"
-          },
-          {
-            "$ref": "#/definitions/__schema2"
-          }
-        ],
-        "description": "A paper name (Letter, Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6), a size {width, height} with lengths, or a string such as \"148x210mm\" or \"6x9in\""
+        "type": [
+          "number",
+          "string"
+        ]
       },
       "__schema1": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 64
-      },
-      "__schema2": {
-        "type": "object",
-        "properties": {
-          "width": {
-            "$ref": "#/definitions/__schema3"
-          },
-          "height": {
-            "$ref": "#/definitions/__schema3"
-          }
-        },
-        "required": [
-          "width",
-          "height"
-        ],
-        "additionalProperties": false
-      },
-      "__schema3": {
-        "anyOf": [
-          {
-            "$ref": "#/definitions/__schema4"
-          },
-          {
-            "$ref": "#/definitions/__schema5"
-          }
-        ],
-        "description": "A length: a number of twips (1440 to an inch), or a string with a unit such as \"25mm\", \"1in\", \"2.5cm\", \"72pt\""
-      },
-      "__schema4": {
-        "type": "number"
-      },
-      "__schema5": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 32
-      },
-      "__schema6": {
-        "description": "portrait or landscape; a named paper is portrait unless this says landscape",
-        "allOf": [
-          {
-            "$ref": "#/definitions/__schema7"
-          }
-        ]
-      },
-      "__schema7": {
-        "type": "string",
-        "enum": [
-          "portrait",
-          "landscape"
-        ]
-      },
-      "__schema8": {
-        "anyOf": [
-          {
-            "$ref": "#/definitions/__schema3"
-          },
-          {
-            "$ref": "#/definitions/__schema9"
-          }
-        ],
-        "description": "One length for all four page margins, or an object with any of top, bottom, left, right, header (distance), footer (distance) and gutter"
-      },
-      "__schema9": {
-        "type": "object",
-        "properties": {
-          "top": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema3"
-              }
-            ]
-          },
-          "bottom": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema3"
-              }
-            ]
-          },
-          "left": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema3"
-              }
-            ]
-          },
-          "right": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema3"
-              }
-            ]
-          },
-          "header": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema3"
-              }
-            ]
-          },
-          "footer": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema3"
-              }
-            ]
-          },
-          "gutter": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema3"
-              }
-            ]
-          }
-        },
-        "additionalProperties": false
-      },
-      "__schema10": {
         "type": "string",
         "minLength": 1,
         "maxLength": 128
