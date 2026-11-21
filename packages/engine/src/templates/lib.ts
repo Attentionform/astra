@@ -211,6 +211,15 @@ export function coverRuleIndent(page: PageSetup): number {
   return w - Math.min(2560, Math.floor(w / 2));
 }
 
+/**
+ * Scales a fixed column width, designed for the 9360 twips of a Letter text width, down on a narrower page, by half the narrowing, so that the
+ * fixed columns keep room for their headings and the last column, which takes what is left, does not shrink to nothing. On a page as wide as Letter or wider it is the width itself.
+ */
+export function fixedWidth(textWidthTwips: number): (designed: number) => number {
+  const scale = Math.min(1, 0.5 + 0.5 * (textWidthTwips / 9360));
+  return (designed) => Math.round(designed * scale);
+}
+
 export const LETTER: PageSetup = { width: 12240, height: 15840, top: 1440, bottom: 1440, left: 1440, right: 1440, header: 720, footer: 720 };
 export const A4: PageSetup = { width: 11906, height: 16838, top: 1440, bottom: 1440, left: 1417, right: 1417, header: 709, footer: 709 };
 
@@ -273,6 +282,16 @@ export interface BuildInput {
   keywords?: string;
 }
 
+/**
+ * A body that ends with a table gets a closing paragraph of almost no height. Word needs a paragraph after a final table and adds one of
+ * normal height when it is missing, which can start a page that holds only the footer.
+ */
+function closeBody(body: string): string {
+  return body.endsWith('</w:tbl>')
+    ? `${body}<w:p><w:pPr><w:pStyle w:val="NoSpacing"/><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>`
+    : body;
+}
+
 export function buildPackage(inp: BuildInput): Buffer {
   const parts = inp.parts ?? {};
   const rels: string[] = [
@@ -317,7 +336,7 @@ export function buildPackage(inp: BuildInput): Buffer {
   };
 
   const document =
-    `${XML_DECL}<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}"><w:body>${placeMarkers(inp.body)}${sectPr(inp.page, refs)}</w:body></w:document>`;
+    `${XML_DECL}<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}"><w:body>${closeBody(placeMarkers(inp.body))}${sectPr(inp.page, refs)}</w:body></w:document>`;
 
   const core =
     `${XML_DECL}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" ` +

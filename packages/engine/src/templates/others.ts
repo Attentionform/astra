@@ -1,6 +1,6 @@
 import { DESIGN, DESIGN_VERSION, MANUSCRIPT } from './themes';
 import { NUM_HEADINGS } from './design';
-import { LETTER, buildPackage, coverRuleIndent, textWidth, cell, field, marker, p, pageBreak, pageXofY, para, ph, phPara, run, runningTitle, sectionBreak, table, type PageSetup } from './lib';
+import { LETTER, buildPackage, coverRuleIndent, fixedWidth, textHeight, textWidth, cell, field, marker, p, pageBreak, pageXofY, para, ph, phPara, run, runningTitle, sectionBreak, table, type PageSetup } from './lib';
 
 const D = DESIGN;
 const slot = (id: number, name: string, inner: string): string => `<w:bookmarkStart w:id="${id}" w:name="astra_slot_${name}"/>${inner}<w:bookmarkEnd w:id="${id}"/>`;
@@ -14,11 +14,12 @@ export function blank(page: PageSetup = LETTER): Buffer {
 
 export function memo(page: PageSetup = LETTER): Buffer {
   const w = textWidth(page);
+  const s = fixedWidth(w);
   const body = [
     para('Memo', 'Title'),
     table({
       style: 'AstraTableGrid',
-      widths: [1400, w - 1400],
+      widths: [s(1400), w - s(1400)],
       textStyle: 'Normal',
       rows: [
         labelRow('To', ph('Recipient')),
@@ -69,13 +70,14 @@ export function letter(page: PageSetup = LETTER): Buffer {
 
 export function invoice(page: PageSetup = LETTER): Buffer {
   const w = textWidth(page);
+  const s = fixedWidth(w);
   const half = Math.floor(w / 2);
   const body = [
     para('Invoice', 'Title'),
     table({
       style: 'AstraTableMinimal',
       header: false,
-      widths: [2000, w - 2000],
+      widths: [s(2000), w - s(2000)],
       textStyle: 'TableText',
       rows: [labelRow('Invoice number', ph('Invoice number')), labelRow('Issue date', ph('Date')), labelRow('Due date', ph('Date'))],
     }),
@@ -97,7 +99,7 @@ export function invoice(page: PageSetup = LETTER): Buffer {
       style: 'AstraTableMinimal',
       header: true,
       cantSplit: true,
-      widths: [w - 1200 - 1700 - 1800, 1200, 1700, 1800],
+      widths: [w - s(1200) - s(1700) - s(1800), s(1200), s(1700), s(1800)],
       rows: [
         [cell(run('Description')), cell(run('Qty'), { align: 'right' }), cell(run('Unit price'), { align: 'right' }), cell(run('Amount'), { align: 'right' })],
         ...[0, 1, 2].map(() => [cell(ph('Item or service')), cell(ph('Qty'), { align: 'right' }), cell(ph('Price'), { align: 'right' }), cell(ph('Amount'), { align: 'right' })]),
@@ -106,7 +108,7 @@ export function invoice(page: PageSetup = LETTER): Buffer {
     p('', { style: 'NoSpacing', raw: '<w:spacing w:after="120"/>' }),
     table({
       style: 'AstraTableGrid',
-      widths: [w - 3500, 1700, 1800],
+      widths: [w - s(3500), s(1700), s(1800)],
       textStyle: 'TableText',
       rows: [
         [cell(''), cell(run('Subtotal'), { align: 'right' }), cell(ph('Amount'), { align: 'right' })],
@@ -148,6 +150,7 @@ const contents = (): string[] => [
 
 export function proposal(page: PageSetup = LETTER): Buffer {
   const w = textWidth(page);
+  const s = fixedWidth(w);
   const body = [
     ...coverBlock(page, D.colors.accent),
     ...contents(),
@@ -160,7 +163,7 @@ export function proposal(page: PageSetup = LETTER): Buffer {
     phPara('Explain how you will do the work and why this approach fits.', 'BodyText'),
     para('Timeline', 'Heading1'),
     table({
-      style: 'AstraTable', header: true, cantSplit: true, widths: [2400, w - 2400 - 2000, 2000],
+      style: 'AstraTable', header: true, cantSplit: true, widths: [s(2400), w - s(2400) - s(2000), s(2000)],
       rows: [
         [cell(run('Phase')), cell(run('Deliverable')), cell(run('Date'), { align: 'right' })],
         [cell(ph('Phase')), cell(ph('Deliverable')), cell(ph('Date'), { align: 'right' })],
@@ -169,10 +172,9 @@ export function proposal(page: PageSetup = LETTER): Buffer {
     }),
     para('Pricing', 'Heading1'),
     table({
-      style: 'AstraTable', header: true, cantSplit: true, widths: [w - 2000, 2000],
+      style: 'AstraTable', header: true, cantSplit: true, widths: [w - s(2000), s(2000)],
       rows: [
         [cell(run('Item')), cell(run('Amount'), { align: 'right' })],
-        [cell(ph('Item')), cell(ph('Amount'), { align: 'right' })],
         [cell(ph('Item')), cell(ph('Amount'), { align: 'right' })],
         [cell(run('Total', { bold: true })), cell(run('[Amount]', { style: 'Placeholder', bold: true }), { align: 'right' })],
       ],
@@ -194,11 +196,12 @@ export function proposal(page: PageSetup = LETTER): Buffer {
 
 export function technicalSpec(page: PageSetup = LETTER): Buffer {
   const w = textWidth(page);
+  const s = fixedWidth(w);
   const body = [
     p(slot(1, 'title', ph('Service name')), { style: 'Title' }),
     phPara('Subtitle: what this specification covers', 'Subtitle'),
     table({
-      style: 'AstraTableMinimal', widths: [2000, w - 2000], textStyle: 'TableText',
+      style: 'AstraTableMinimal', widths: [s(2000), w - s(2000)], textStyle: 'TableText',
       rows: [labelRow('Version', ph('Version')), labelRow('Status', ph('Draft, review or approved')), labelRow('Owner', ph('Owner')), labelRow('Last updated', ph('Date'))],
     }),
     marker(2, 'astra_body_start'),
@@ -208,10 +211,10 @@ export function technicalSpec(page: PageSetup = LETTER): Buffer {
     phPara('How a client proves who it is, and what each credential may do.', 'BodyText'),
     para('Endpoints', 'Heading1'),
     p([ph('Method'), run(' '), ph('Path')], { style: 'Heading2' }),
-    phPara('What the endpoint does.', 'BodyText'),
+    p(ph('What the endpoint does.'), { style: 'BodyText', raw: '<w:keepNext/>' }),
     para('Table 1. Parameters', 'Caption'),
     table({
-      style: 'AstraTable', header: true, cantSplit: true, widths: [2000, 1700, 1300, w - 5000],
+      style: 'AstraTable', header: true, cantSplit: true, widths: [s(2000), s(1700), s(1300), w - s(5000)],
       rows: [
         [cell(run('Name')), cell(run('Type')), cell(run('Required')), cell(run('Description'))],
         [cell(ph('name')), cell(ph('type')), cell(ph('yes or no')), cell(ph('Description'))],
@@ -223,7 +226,7 @@ export function technicalSpec(page: PageSetup = LETTER): Buffer {
     phPara('Status line and body', 'Code'),
     para('Error codes', 'Heading1'),
     table({
-      style: 'AstraTable', header: true, cantSplit: true, widths: [1500, 2500, w - 4000],
+      style: 'AstraTable', header: true, cantSplit: true, widths: [s(1500), s(2500), w - s(4000)],
       rows: [
         [cell(run('Code')), cell(run('Name')), cell(run('Meaning and remedy'))],
         [cell(ph('Code')), cell(ph('Name')), cell(ph('Meaning and remedy'))],
@@ -231,7 +234,7 @@ export function technicalSpec(page: PageSetup = LETTER): Buffer {
     }),
     para('Changelog', 'Heading1'),
     table({
-      style: 'AstraTable', header: true, cantSplit: true, widths: [1500, 1700, w - 3200],
+      style: 'AstraTable', header: true, cantSplit: true, widths: [s(1500), s(1700), w - s(3200)],
       rows: [
         [cell(run('Version')), cell(run('Date')), cell(run('Change'))],
         [cell(ph('Version')), cell(ph('Date')), cell(ph('Change'))],
@@ -306,13 +309,30 @@ export function newsletter(page: PageSetup = LETTER): Buffer {
     marker(2, 'astra_body_start'),
     para('Lead story headline', 'Heading1'),
     phPara('Open with the most important news in two or three sentences. Keep paragraphs short; columns are narrow.', 'BodyText'),
+    phPara('Say what changed, who it affects and what the reader should do next. Put the detail that matters most first.', 'BodyText'),
     para('Second story headline', 'Heading2'),
     phPara('A shorter piece. One idea, one paragraph, one next step.', 'BodyText'),
+    phPara('Add a name, a date or a place so that the reader knows where to look.', 'BodyText'),
     para('A pull quote or key fact for the sidebar.', 'Callout'),
+    para('Third story headline', 'Heading2'),
+    phPara('A short report from a team, a project or an event. Say what happened and what comes next.', 'BodyText'),
+    phPara('Close with a line that invites a reply, and say where to send it.', 'BodyText'),
     para('In brief', 'Heading2'),
     phPara('Short item', 'ListBullet'),
     phPara('Short item', 'ListBullet'),
     phPara('Short item', 'ListBullet'),
+    phPara('Short item', 'ListBullet'),
+    // On a small page the two columns are already full without these.
+    ...(textWidth(page) * textHeight(page) >= 0.6 * 9360 * 12960
+      ? [
+          para('Dates to remember', 'Heading2'),
+          phPara('Date and event', 'ListBullet'),
+          phPara('Date and event', 'ListBullet'),
+          phPara('Date and event', 'ListBullet'),
+          para('Contact', 'Heading2'),
+          phPara('Name, email address and telephone number for questions about this issue.', 'BodyText'),
+        ]
+      : []),
     marker(3, 'astra_body_end'),
   ].join('');
   return buildPackage({ theme: D, template: 'newsletter', designVersion: DESIGN_VERSION, body, page, parts: { defaultFooter: pageXofY(), cols: 2, continuous: true } });

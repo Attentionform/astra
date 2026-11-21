@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import AdmZip from 'adm-zip';
-import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src/internal';
+import { createHash } from 'crypto';
+import { DocxParser, OperationEngine, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src/internal';
 import { findRegion, findSlot, hashNodes } from '../src/compose/template-canonical';
 import { pristineHashes } from '../src/templates/pristine';
 import { LETTER } from '../src/templates';
@@ -40,6 +41,17 @@ describe('every template, four paper sizes', () => {
         expect(part(buf, 'docProps/custom.xml')).toContain(`${name}@1`);
       });
     }
+  }
+});
+
+describe('a body never ends with a table', () => {
+  // Word adds a paragraph of normal height after a final table, which can start a page that holds only the footer (seen on the Letter proposal).
+  for (const name of TEMPLATE_NAMES) {
+    it(name, () => {
+      const xml = part(DocxParser.createNewDocument(name).rezip(), 'word/document.xml');
+      const beforeSectPr = xml.slice(0, xml.lastIndexOf('<w:sectPr'));
+      expect(beforeSectPr.endsWith('</w:tbl>')).toBe(false);
+    });
   }
 });
 
@@ -439,5 +451,51 @@ describe('input that is only a heading, and an explicit anchor', () => {
     // The id is still usable by a later operation.
     const next = await composeDocument(parser, 'After the anchor.\n', { anchor: ids[0], position: 'after' });
     expect(next.success, JSON.stringify(next.errors)).toBe(true);
+  });
+});
+
+describe('the placeholder body follows the page, so a paper or margin change never decides what is deleted', () => {
+  const changePage = async (parser: DocxParser, params: object): Promise<void> => {
+    const engine = new OperationEngine(await parser.getAST(), parser);
+    const res = await engine.executeBatch({ operations: [{ action: 'pageSetup', ...params }] as never });
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+  };
+  // The page operation does not resize the tables a template holds. A template whose body has such tables then no longer matches the body built for
+  // the new page, so compose appends and keeps the placeholders (safe). The others have no page-sized parts and are still recognised.
+  for (const name of DESIGNED) {
+    it(`${name}: made on Letter, changed to A5 with 18 mm margins: replaced, or appended with nothing deleted`, async () => {
+      const parser = DocxParser.createNewDocument(name);
+      const before = textOf(parser.readDocumentXml());
+      await changePage(parser, { paperSize: 'A5', margins: '18mm' });
+      const res = await composeDocument(parser, '# Title here\n\nNew body paragraph.\n');
+      expect(res.success, JSON.stringify(res.errors)).toBe(true);
+      const after = textOf(parser.readDocumentXml());
+      expect(after).toContain('New body paragraph.');
+      const template = res.warnings.filter((w) => w.startsWith('TEMPLATE_'));
+      const placeholders = (s: string): number => (s.match(/\[/g) ?? []).length;
+      if (template.length === 0) {
+        expect(placeholders(after)).toBeLessThan(placeholders(before));
+      } else {
+        expect(template[0]).toMatch(/^TEMPLATE_REGION_EDITED/);
+        expect(placeholders(after)).toBe(placeholders(before));
+      }
+    });
+  }
+  it('an edited body after a page change is kept', async () => {
+    const parser = DocxParser.createNewDocument('memo');
+    await changePage(parser, { paperSize: 'Legal' });
+    const xml = parser.readDocumentXml();
+    expect(xml).toContain('[First action, with owner and date]');
+    const zip = new AdmZip(parser.rezip());
+    zip.updateFile('word/document.xml', Buffer.from(xml.replace('[First action, with owner and date]', 'Ship it on Friday')));
+    const edited = new DocxParser(zip.toBuffer());
+    const res = await composeDocument(edited, 'Appended.\n');
+    expect(res.warnings.some((w) => w.startsWith('TEMPLATE_REGION_EDITED'))).toBe(true);
+    expect(textOf(edited.readDocumentXml())).toContain('Ship it on Friday');
+  });
+  it('the same inputs give the same bytes', () => {
+    const make = (): Buffer => DocxParser.createNewDocument('proposal', { page: { size: 'A5', margins: '18mm' } }).rezip();
+    const hash = (b: Buffer): string => createHash('sha256').update(new AdmZip(b).readAsText('word/document.xml')).update(new AdmZip(b).readAsText('word/styles.xml')).digest('hex');
+    expect(hash(make())).toBe(hash(make()));
   });
 });

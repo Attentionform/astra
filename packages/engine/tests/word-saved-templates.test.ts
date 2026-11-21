@@ -6,13 +6,14 @@ import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from 
 
 // Each fixture is a built-in template that Microsoft Word opened and saved (see scripts/templates/word-roundtrip/README.md).
 const DESIGNED = TEMPLATE_NAMES.filter((n) => n !== 'blank');
-const fixture = (name: string): Buffer => readFileSync(join(__dirname, 'fixtures', 'word-saved', `${name}.docx`));
+const fixture = (name: string, variant = ''): Buffer => readFileSync(join(__dirname, 'fixtures', 'word-saved', variant, `${name}.docx`));
 const textOf = (xml: string): string => Array.from(xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g), (m) => m[1]).join('\n');
 
-describe('a template that Word opened and saved is still recognised', () => {
+// '' is Letter. 'a5' is A5 with its default margins. 'custom' is 6 x 9 in with 0.8 in side margins, 0.9 in top and bottom and a 0.25 in gutter.
+describe.each(['', 'a5', 'custom'])('a template that Word opened and saved is still recognised (%s page)', (variant) => {
   for (const name of DESIGNED) {
     it(`${name}: compose replaces the placeholder body`, async () => {
-      const parser = new DocxParser(fixture(name));
+      const parser = new DocxParser(fixture(name, variant));
       const res = await composeDocument(parser, '# Quarterly Review\n\nFirst paragraph of the body.\n');
       expect(res.success, JSON.stringify(res.errors)).toBe(true);
       expect(res.warnings.filter((w) => w.startsWith('TEMPLATE_'))).toEqual([]);
@@ -26,7 +27,7 @@ describe('a template that Word opened and saved is still recognised', () => {
     });
   }
 
-  it('a body edited after Word saved it is kept: TEMPLATE_REGION_EDITED', async () => {
+  it.runIf(variant === '')('a body edited after Word saved it is kept: TEMPLATE_REGION_EDITED', async () => {
     const zip = new AdmZip(fixture('memo'));
     const doc = zip.readAsText('word/document.xml');
     expect(doc).toContain('[First action, with owner and date]');
