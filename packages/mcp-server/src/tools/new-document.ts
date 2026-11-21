@@ -47,8 +47,7 @@ export type NewDocumentInput = z.infer<typeof NewDocumentSchema>;
 export const NEW_DOCUMENT_DESCRIPTION =
   `Create a new .docx from a template (${NEW_DOCUMENT_TEMPLATES.join('|')}; default blank, an empty page) at outPath inside an allowed folder ` +
   '(a template is a starting document with styles, page setup, header and footer and bracketed placeholders such as [Client name]; every part can be edited afterwards). ' +
-  'Optional page {size,orientation,margins} sets the paper (Letter default; Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6, or any size such as "148x210mm" or {"width":"6in","height":"9in"}, 1 in to 22 in a side), landscape, and margins (one length such as "20mm", or {top,bottom,left,right,header,footer,gutter}); the template is built for that page. ' +
-  'The old pageSize option was replaced by page.size. ' +
+  'Optional page {size,orientation,margins} as in pageSetup (size: name or "148x210mm", 1 in to 22 in a side); the template is built for it. pageSize was replaced by page.size. ' +
   '(the folders named with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS; only when none are named, ./documents and the system temp folder). Validates the fresh package before writing ' +
   '(E_VALIDATION when invalid, never writes corruption); refuses to overwrite without {force:true} (E_CONFLICT). ' +
   'Success returns {ok:true,path,sessionId,revision,template,bytes} with the file opened into a session ' +

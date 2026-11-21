@@ -257,13 +257,13 @@
     },
     "new/blank": {
       "kind": "single",
-      "inputSha": "aa9b4ef28f2c6956",
+      "inputSha": "162336dd7dfa5f6e",
       "frozen": {
         "flat": "271f96b175ffac1e",
         "markdown": "e3b0c44298fc1c14",
         "html": "edbf41fa6420eab7",
         "stats": "b8820da85db3382d",
-        "noop": "aa9b4ef28f2c6956",
+        "noop": "162336dd7dfa5f6e",
         "toon": "ed981e61204bcaa4",
         "wireframe": "386ffe83da52ac48",
         "firstSectionPageSetup": "678f73c1c1e4aa08",

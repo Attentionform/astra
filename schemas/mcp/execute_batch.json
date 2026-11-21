@@ -1,6 +1,6 @@
 {
   "name": "execute_batch",
-  "description": "Apply 1..500 strictly-typed operations atomically (strict discriminatedUnion per action; sequential:true default preserves document order; Tracked edits return revisionIds; trackedChange accept/reject selects by ids, author or target and reports revisionResolution {resolved,unresolved,removedBookmarks,removedComments,staleLinks}. Comment operations include resolve, unresolve and delete and take an id as 3 or comment:3. single edit = 1-item batch). Caps 500 ops / 200MB throw E_QUOTA with remedy (maxSteps is an optional positive integer, unbounded when omitted). Client-supplied op ids are honored where the schema allows (insert/equation/footnote/chart accept `id`; strict schemas reject it elsewhere). Style ops support word-level spans: `match` styles only the matched substring (run splitting; `matchAll` styles every occurrence, `matchCase:false` matches case-insensitively); an absent match fails with E_NOT_FOUND. Returns {ok:true,appliedCount,revision,skippedIds,createdNodeIds,results:[{index,action,createdNodeIds}],revisionsPending,revisionsUnresolved?,revisionsRemedy?} where createdNodeIds After a trackedChange that left revisions it could not resolve, revisionsUnresolved counts them and revisionsRemedy lists kind, node and reason instead of repeating acceptAll. lists new node ids in document order (use them as anchors in the next batch without re-inspecting). A batch that drops a non-empty redo stack signals it (redoCleared:true + redoClearedWarning naming the depth): a fresh edit invalidates redo, so redo_document afterwards reports an empty stack. Example {\"sessionId\":\"sess_abc\",\"operations\":[{\"action\":\"replace\",\"target\":\"p_001\",\"text\":\"Hello\"}],\"sequential\":true} -> {\"ok\":true,\"appliedCount\":1,\"revision\":2}. On failure returns {ok:false,code,remedy} with a fix-and-retry hint. Image inserts take exactly one source: {action:\"image\",operation:\"insert\",anchor,fileData} for inline base64 bytes, or {action:\"image\",operation:\"insert\",anchor,filePath} for a file read from a directory jail (both together fail with E_VALIDATION). The jail resolves explicit allowedDir first, else the session anchor (dirname of the open document); outside-jail refs fail with E_SANDBOX, missing files with E_IO, oversize files with E_LIMIT; batch reads nothing otherwise. Callout themes (operations/callout.ts THEMES): indigo|emerald|amber|slate|rose (default indigo; unknown names render indigo). Optional styleGuide (bundled guide name or guide .md path, jailed like filePath: explicit allowedDir else the session anchor; remote URLs fail closed) overrides the session guide for this batch only; it never replaces or persists (to re-skin the session use compose_document with styleGuide). Omitted inherits the session guide. Guides cannot be detached: an empty styleGuide fails with E_VALIDATION; open a new session to work without a guide. Unknown names fail with E_VALIDATION naming the available set. Guide parse notes ride both server stderr and the client-visible warnings array. Layout operations: {action:\"section\",operation:\"setColumns\",columns,spacing,separator} (columns 1-12, spacing in twips, separator draws the dividing rule), {action:\"section\",operation:\"split\"|\"merge\",...}, and {action:\"pageSetup\",paperSize:\"A4\"|\"Letter\"|\"Legal\"|\"Tabloid\"|\"Executive\"|\"Statement\"|\"Folio\"|\"A3\"|\"A5\"|\"A6\"|\"B4\"|\"B5\"|\"B6\"|\"148x210mm\"|{width,height},orientation:\"portrait\"|\"landscape\",margins:\"25mm\"|{top,bottom,left,right,header,footer,gutter},gutterPosition:\"left\"|\"top\",mirrorMargins,columns,sectionIndex} (a length is a number of twips or a string with a unit such as \"25mm\", \"1in\", \"2.5cm\", \"72pt\"; a page side is 1 in to 22 in; the text area keeps at least 0.75 in wide and 0.5 in high; margins you do not name keep their value; orientation turns the page by swapping its width and height; sectionIndex counts sections from 1 and limits the change to one section, omit it to change every section; marginTop, marginLeft and the other old margin names are refused, use margins). Section breaks: {action:\"insert\",type:\"sectionBreak\",anchor,position,breakType:\"nextPage\"|\"continuous\"|\"evenPage\"|\"oddPage\"|\"nextColumn\"}; the section before the break keeps the page setup and headers of the section it splits. Headers and footers: {action:\"headerFooter\",operation:\"set\",targetType:\"header\"|\"footer\",text,alignment,sectionIndex (from 1, default the first section)}; {PAGE} and {NUMPAGES} inside text become live page-number fields. Images: width and height are integers in EMU (914400 per inch, 12700 per point, 9525 per pixel at 96 dpi); give one and the other follows the image aspect ratio, give neither and the image keeps its own size fitted to the page. Tables created by insert type:\"table\" or by Markdown repeat their header row across pages by default. Equations: {action:\"equation\",operation:\"insert\"|\"replace\",latex,mode:\"auto\"|\"latex\"|\"plain\"}; LaTeX that contains a backslash, ^ or _ becomes a real Word equation, and mode:\"plain\" keeps the text exactly as written. IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected. ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices.",
+  "description": "Apply 1..500 strictly-typed operations atomically (strict discriminatedUnion per action; sequential:true default preserves document order; Tracked edits return revisionIds; trackedChange accept/reject selects by ids, author or target and reports revisionResolution {resolved,unresolved,removedBookmarks,removedComments,staleLinks}. Comment operations include resolve, unresolve and delete and take an id as 3 or comment:3. single edit = 1-item batch). Caps 500 ops / 200MB throw E_QUOTA with remedy (maxSteps is an optional positive integer, unbounded when omitted). Client-supplied op ids are honored where the schema allows (insert/equation/footnote/chart accept `id`; strict schemas reject it elsewhere). Style ops support word-level spans: `match` styles only the matched substring (run splitting; `matchAll` styles every occurrence, `matchCase:false` matches case-insensitively); an absent match fails with E_NOT_FOUND. Returns {ok:true,appliedCount,revision,skippedIds,createdNodeIds,results:[{index,action,createdNodeIds}],revisionsPending,revisionsUnresolved?,revisionsRemedy?} where createdNodeIds After a trackedChange that left revisions it could not resolve, revisionsUnresolved counts them and revisionsRemedy lists kind, node and reason instead of repeating acceptAll. lists new node ids in document order (use them as anchors in the next batch without re-inspecting). A batch that drops a non-empty redo stack signals it (redoCleared:true + redoClearedWarning naming the depth): a fresh edit invalidates redo, so redo_document afterwards reports an empty stack. Example {\"sessionId\":\"sess_abc\",\"operations\":[{\"action\":\"replace\",\"target\":\"p_001\",\"text\":\"Hello\"}],\"sequential\":true} -> {\"ok\":true,\"appliedCount\":1,\"revision\":2}. On failure returns {ok:false,code,remedy} with a fix-and-retry hint. Image inserts take exactly one source: {action:\"image\",operation:\"insert\",anchor,fileData} for inline base64 bytes, or {action:\"image\",operation:\"insert\",anchor,filePath} for a file read from a directory jail (both together fail with E_VALIDATION). The jail resolves explicit allowedDir first, else the session anchor (dirname of the open document); outside-jail refs fail with E_SANDBOX, missing files with E_IO, oversize files with E_LIMIT; batch reads nothing otherwise. Callout themes (operations/callout.ts THEMES): indigo|emerald|amber|slate|rose (default indigo; unknown names render indigo). Optional styleGuide (bundled guide name or guide .md path, jailed like filePath: explicit allowedDir else the session anchor; remote URLs fail closed) overrides the session guide for this batch only; it never replaces or persists (to re-skin the session use compose_document with styleGuide). Omitted inherits the session guide. Guides cannot be detached: an empty styleGuide fails with E_VALIDATION; open a new session to work without a guide. Unknown names fail with E_VALIDATION naming the available set. Guide parse notes ride both server stderr and the client-visible warnings array. Layout operations: {action:\"section\",operation:\"setColumns\",columns,spacing,separator} (columns 1-12, spacing in twips, separator draws the dividing rule), {action:\"section\",operation:\"split\"|\"merge\",...}, and {action:\"pageSetup\",paperSize:\"A4\"|\"Letter\"|\"Legal\"|\"A3\"|\"A5\"|\"B5\"|\"148x210mm\"|{width,height},orientation,margins:\"25mm\"|{top,bottom,left,right,header,footer,gutter},gutterPosition,mirrorMargins,columns,sectionIndex} (lengths: twips or \"25mm\", \"1in\"; a side is 1 in to 22 in, text area at least 0.75 x 0.5 in; unnamed margins keep their value; sectionIndex from 1, omit for all; old marginTop etc. are refused, use margins). Section breaks: {action:\"insert\",type:\"sectionBreak\",anchor,position,breakType:\"nextPage\"|\"continuous\"|\"evenPage\"|\"oddPage\"|\"nextColumn\"}; the section before the break keeps the page setup and headers of the section it splits. Headers and footers: {action:\"headerFooter\",operation:\"set\",targetType:\"header\"|\"footer\",text,alignment,sectionIndex (from 1, default the first section)}; {PAGE} and {NUMPAGES} inside text become live page-number fields. Images: width and height are integers in EMU (914400 per inch, 12700 per point, 9525 per pixel at 96 dpi); give one and the other follows the image aspect ratio, give neither and the image keeps its own size fitted to the page. Tables created by insert type:\"table\" or by Markdown repeat their header row across pages by default. Equations: {action:\"equation\",operation:\"insert\"|\"replace\",latex,mode:\"auto\"|\"latex\"|\"plain\"}; LaTeX that contains a backslash, ^ or _ becomes a real Word equation, and mode:\"plain\" keeps the text exactly as written. IDs are session-scoped: valid only in the issuing session, must not be stored across sessions, and duplicate client-supplied ids are rejected. ECMA-376 essentials: colors are hex without # (e.g. 4F46E5, never #4F46E5); font sizes are half-points in w:sz (e.g. 28 = 14pt, 22 = 11pt); spacing/margins/cellMar use twips dxa (twentieths of a point, e.g. 240 = 12pt, 180 = 9pt); borders use eighths-of-a-point sz (e.g. 32 = 4pt left accent). Workflow: open_document -> inspect_document -> search_content -> execute_batch -> save_document -> close_document. Always inspect first, batch second, save third. Single edit = 1-item batch. Never call twice when once suffices.",
   "parameters": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
@@ -1040,19 +1040,19 @@
                     "$ref": "#/definitions/__schema45"
                   },
                   "margins": {
-                    "$ref": "#/definitions/__schema51"
+                    "$ref": "#/definitions/__schema47"
                   },
                   "gutterPosition": {
-                    "$ref": "#/definitions/__schema53"
+                    "$ref": "#/definitions/__schema48"
                   },
                   "mirrorMargins": {
-                    "$ref": "#/definitions/__schema55"
+                    "$ref": "#/definitions/__schema49"
                   },
                   "columns": {
-                    "$ref": "#/definitions/__schema57"
+                    "$ref": "#/definitions/__schema50"
                   },
                   "sectionIndex": {
-                    "$ref": "#/definitions/__schema58"
+                    "$ref": "#/definitions/__schema51"
                   }
                 },
                 "additionalProperties": false
@@ -1064,19 +1064,19 @@
                 "$ref": "#/definitions/__schema45"
               },
               "margins": {
-                "$ref": "#/definitions/__schema51"
+                "$ref": "#/definitions/__schema47"
               },
               "gutterPosition": {
-                "$ref": "#/definitions/__schema53"
+                "$ref": "#/definitions/__schema48"
               },
               "mirrorMargins": {
-                "$ref": "#/definitions/__schema55"
+                "$ref": "#/definitions/__schema49"
               },
               "columns": {
-                "$ref": "#/definitions/__schema57"
+                "$ref": "#/definitions/__schema50"
               },
               "sectionIndex": {
-                "$ref": "#/definitions/__schema58"
+                "$ref": "#/definitions/__schema51"
               },
               "expectedVersion": {
                 "$ref": "#/definitions/__schema21"
@@ -1427,7 +1427,7 @@
                 "description": "Update only. Removes the chart title and its text; not with title or titleFormat.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema59"
+                    "$ref": "#/definitions/__schema52"
                   }
                 ]
               },
@@ -1435,7 +1435,7 @@
                 "description": "Update only. Allows a data change to replace a workbook ASTra did not generate, or copy a shared one. Default false: refused.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema60"
+                    "$ref": "#/definitions/__schema53"
                   }
                 ]
               },
@@ -1443,7 +1443,7 @@
                 "description": "Update only. Series to remove: exact name or one-based position.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema61"
+                    "$ref": "#/definitions/__schema54"
                   }
                 ]
               },
@@ -1466,14 +1466,14 @@
                 "maxItems": 1000,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema63"
+                  "$ref": "#/definitions/__schema56"
                 }
               },
               "series": {
                 "maxItems": 100,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema64"
+                  "$ref": "#/definitions/__schema57"
                 }
               },
               "style": {
@@ -1483,7 +1483,7 @@
                     "description": "Chart-wide font; size skips the title",
                     "allOf": [
                       {
-                        "$ref": "#/definitions/__schema66"
+                        "$ref": "#/definitions/__schema59"
                       }
                     ]
                   },
@@ -1523,14 +1523,14 @@
                   "chartArea": {
                     "allOf": [
                       {
-                        "$ref": "#/definitions/__schema67"
+                        "$ref": "#/definitions/__schema60"
                       }
                     ]
                   },
                   "plotArea": {
                     "allOf": [
                       {
-                        "$ref": "#/definitions/__schema67"
+                        "$ref": "#/definitions/__schema60"
                       }
                     ]
                   },
@@ -1538,7 +1538,7 @@
                     "description": "Size, bold, colour of the existing title; text stays in title",
                     "allOf": [
                       {
-                        "$ref": "#/definitions/__schema70"
+                        "$ref": "#/definitions/__schema63"
                       }
                     ]
                   },
@@ -1547,7 +1547,7 @@
                     "maxItems": 100,
                     "type": "array",
                     "items": {
-                      "$ref": "#/definitions/__schema71"
+                      "$ref": "#/definitions/__schema64"
                     }
                   },
                   "legend": {
@@ -1620,13 +1620,13 @@
                         "type": "object",
                         "properties": {
                           "labelSizePt": {
-                            "$ref": "#/definitions/__schema73"
+                            "$ref": "#/definitions/__schema66"
                           },
                           "labelRotationDeg": {
-                            "$ref": "#/definitions/__schema74"
+                            "$ref": "#/definitions/__schema67"
                           },
                           "showAxisLine": {
-                            "$ref": "#/definitions/__schema75"
+                            "$ref": "#/definitions/__schema68"
                           },
                           "title": {
                             "type": "string",
@@ -1662,13 +1662,13 @@
                         "type": "object",
                         "properties": {
                           "labelSizePt": {
-                            "$ref": "#/definitions/__schema73"
+                            "$ref": "#/definitions/__schema66"
                           },
                           "labelRotationDeg": {
-                            "$ref": "#/definitions/__schema74"
+                            "$ref": "#/definitions/__schema67"
                           },
                           "showAxisLine": {
-                            "$ref": "#/definitions/__schema75"
+                            "$ref": "#/definitions/__schema68"
                           },
                           "title": {
                             "type": "string",
@@ -1734,7 +1734,7 @@
                         "maxItems": 100,
                         "type": "array",
                         "items": {
-                          "$ref": "#/definitions/__schema76"
+                          "$ref": "#/definitions/__schema69"
                         }
                       },
                       "order": {
@@ -1819,7 +1819,7 @@
                 "description": "Inches, 0.1 to 22 (or widthEmu, not both).",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema77"
+                    "$ref": "#/definitions/__schema70"
                   }
                 ]
               },
@@ -1827,7 +1827,7 @@
                 "description": "Inches, 0.1 to 22 (or heightEmu, not both).",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema78"
+                    "$ref": "#/definitions/__schema71"
                   }
                 ]
               },
@@ -1835,7 +1835,7 @@
                 "description": "Alt text; update with \"\" clears it.",
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema79"
+                    "$ref": "#/definitions/__schema72"
                   }
                 ]
               },
@@ -2086,14 +2086,14 @@
               "fontSize": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema80"
+                    "$ref": "#/definitions/__schema73"
                   }
                 ]
               },
               "sz": {
                 "allOf": [
                   {
-                    "$ref": "#/definitions/__schema80"
+                    "$ref": "#/definitions/__schema73"
                   }
                 ]
               },
@@ -2406,7 +2406,7 @@
                 "minItems": 1,
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/__schema81"
+                  "$ref": "#/definitions/__schema74"
                 }
               },
               "target": {
@@ -2958,174 +2958,132 @@
       "__schema45": {
         "anyOf": [
           {
-            "$ref": "#/definitions/__schema46"
+            "type": "string"
           },
           {
-            "$ref": "#/definitions/__schema47"
-          }
-        ],
-        "description": "A paper name (Letter, Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6), a size {width, height} with lengths, or a string such as \"148x210mm\" or \"6x9in\""
-      },
-      "__schema46": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 64
-      },
-      "__schema47": {
-        "type": "object",
-        "properties": {
-          "width": {
-            "$ref": "#/definitions/__schema48"
-          },
-          "height": {
-            "$ref": "#/definitions/__schema48"
-          }
-        },
-        "required": [
-          "width",
-          "height"
-        ],
-        "additionalProperties": false
-      },
-      "__schema48": {
-        "anyOf": [
-          {
-            "$ref": "#/definitions/__schema49"
-          },
-          {
-            "$ref": "#/definitions/__schema50"
-          }
-        ],
-        "description": "A length: a number of twips (1440 to an inch), or a string with a unit such as \"25mm\", \"1in\", \"2.5cm\", \"72pt\""
-      },
-      "__schema49": {
-        "type": "number"
-      },
-      "__schema50": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 32
-      },
-      "__schema51": {
-        "anyOf": [
-          {
-            "$ref": "#/definitions/__schema48"
-          },
-          {
-            "$ref": "#/definitions/__schema52"
-          }
-        ],
-        "description": "One length for all four page margins, or an object with any of top, bottom, left, right, header (distance), footer (distance) and gutter"
-      },
-      "__schema52": {
-        "type": "object",
-        "properties": {
-          "top": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema48"
+            "type": "object",
+            "properties": {
+              "width": {
+                "$ref": "#/definitions/__schema46"
+              },
+              "height": {
+                "$ref": "#/definitions/__schema46"
               }
-            ]
-          },
-          "bottom": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema48"
-              }
-            ]
-          },
-          "left": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema48"
-              }
-            ]
-          },
-          "right": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema48"
-              }
-            ]
-          },
-          "header": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema48"
-              }
-            ]
-          },
-          "footer": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema48"
-              }
-            ]
-          },
-          "gutter": {
-            "allOf": [
-              {
-                "$ref": "#/definitions/__schema48"
-              }
-            ]
-          }
-        },
-        "additionalProperties": false
-      },
-      "__schema53": {
-        "description": "The edge of the gutter; a setting for the whole document",
-        "allOf": [
-          {
-            "$ref": "#/definitions/__schema54"
+            },
+            "required": [
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
           }
         ]
       },
-      "__schema54": {
+      "__schema46": {
+        "type": [
+          "number",
+          "string"
+        ]
+      },
+      "__schema47": {
+        "anyOf": [
+          {
+            "$ref": "#/definitions/__schema46"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "top": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema46"
+                  }
+                ]
+              },
+              "bottom": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema46"
+                  }
+                ]
+              },
+              "left": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema46"
+                  }
+                ]
+              },
+              "right": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema46"
+                  }
+                ]
+              },
+              "header": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema46"
+                  }
+                ]
+              },
+              "footer": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema46"
+                  }
+                ]
+              },
+              "gutter": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema46"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "__schema48": {
         "type": "string",
         "enum": [
           "left",
           "top"
         ]
       },
-      "__schema55": {
-        "description": "Mirror inner and outer margins for facing pages; a setting for the whole document",
-        "allOf": [
-          {
-            "$ref": "#/definitions/__schema56"
-          }
-        ]
-      },
-      "__schema56": {
+      "__schema49": {
         "type": "boolean"
       },
-      "__schema57": {
+      "__schema50": {
         "type": "integer",
         "minimum": 1,
         "maximum": 12
       },
-      "__schema58": {
+      "__schema51": {
         "allOf": [
           {
             "$ref": "#/definitions/__schema20"
           }
         ]
       },
-      "__schema59": {
+      "__schema52": {
         "type": "boolean",
         "const": true
       },
-      "__schema60": {
+      "__schema53": {
         "type": "boolean"
       },
-      "__schema61": {
+      "__schema54": {
         "minItems": 1,
         "maxItems": 100,
         "type": "array",
         "items": {
-          "$ref": "#/definitions/__schema62"
+          "$ref": "#/definitions/__schema55"
         }
       },
-      "__schema62": {
+      "__schema55": {
         "anyOf": [
           {
             "type": "string",
@@ -3139,11 +3097,11 @@
           }
         ]
       },
-      "__schema63": {
+      "__schema56": {
         "type": "string",
         "maxLength": 500
       },
-      "__schema64": {
+      "__schema57": {
         "type": "object",
         "properties": {
           "name": {
@@ -3154,7 +3112,7 @@
             "maxItems": 1000,
             "type": "array",
             "items": {
-              "$ref": "#/definitions/__schema65"
+              "$ref": "#/definitions/__schema58"
             }
           },
           "color": {
@@ -3181,10 +3139,10 @@
         ],
         "additionalProperties": {}
       },
-      "__schema65": {
+      "__schema58": {
         "type": "number"
       },
-      "__schema66": {
+      "__schema59": {
         "type": "object",
         "properties": {
           "family": {
@@ -3207,14 +3165,14 @@
         },
         "additionalProperties": false
       },
-      "__schema67": {
+      "__schema60": {
         "type": "object",
         "properties": {
           "fillColor": {
             "description": "Hex colour or \"none\"",
             "allOf": [
               {
-                "$ref": "#/definitions/__schema68"
+                "$ref": "#/definitions/__schema61"
               }
             ]
           },
@@ -3222,22 +3180,22 @@
             "description": "Hex colour or \"none\"",
             "allOf": [
               {
-                "$ref": "#/definitions/__schema69"
+                "$ref": "#/definitions/__schema62"
               }
             ]
           }
         },
         "additionalProperties": false
       },
-      "__schema68": {
+      "__schema61": {
         "type": "string",
         "maxLength": 16
       },
-      "__schema69": {
+      "__schema62": {
         "type": "string",
         "maxLength": 16
       },
-      "__schema70": {
+      "__schema63": {
         "type": "object",
         "properties": {
           "sizePt": {
@@ -3258,7 +3216,7 @@
         },
         "additionalProperties": false
       },
-      "__schema71": {
+      "__schema64": {
         "type": "object",
         "properties": {
           "seriesNumber": {
@@ -3272,7 +3230,7 @@
             "maxItems": 1000,
             "type": "array",
             "items": {
-              "$ref": "#/definitions/__schema72"
+              "$ref": "#/definitions/__schema65"
             }
           }
         },
@@ -3281,7 +3239,7 @@
         ],
         "additionalProperties": false
       },
-      "__schema72": {
+      "__schema65": {
         "type": "object",
         "properties": {
           "pointNumber": {
@@ -3300,36 +3258,36 @@
         ],
         "additionalProperties": false
       },
-      "__schema73": {
+      "__schema66": {
         "type": "number",
         "minimum": 1,
         "maximum": 400
       },
-      "__schema74": {
+      "__schema67": {
         "type": "number",
         "minimum": -90,
         "maximum": 90
       },
-      "__schema75": {
+      "__schema68": {
         "type": "boolean"
       },
-      "__schema76": {
+      "__schema69": {
         "type": "integer",
         "exclusiveMinimum": 0,
         "maximum": 9007199254740991,
         "description": "Series number, counting from 1 in the order the series appear"
       },
-      "__schema77": {
+      "__schema70": {
         "type": "number"
       },
-      "__schema78": {
+      "__schema71": {
         "type": "number"
       },
-      "__schema79": {
+      "__schema72": {
         "type": "string",
         "maxLength": 5000
       },
-      "__schema80": {
+      "__schema73": {
         "anyOf": [
           {
             "type": "number",
@@ -3342,7 +3300,7 @@
           }
         ]
       },
-      "__schema81": {
+      "__schema74": {
         "type": "integer",
         "minimum": 0,
         "maximum": 9007199254740991

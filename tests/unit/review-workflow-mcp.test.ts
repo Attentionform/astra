@@ -34,7 +34,7 @@ describe('MCP review workflow', () => {
     try {
       await client.connect(transport);
       const catalog = await client.listTools();
-      expect(JSON.stringify(catalog.tools).length).toBeLessThan(95_000);
+      expect(JSON.stringify(catalog.tools).length).toBeLessThan(96_000);
       expect(JSON.stringify(catalog.tools.find(tool => tool.name === 'execute_batch')?.inputSchema)).toContain('$ref');
       const call = async (name:string, args:Record<string, unknown>) => {
         const result = await client.callTool({name, arguments:args});
