@@ -8,6 +8,7 @@
  * a chart that is larger than the page, so a larger size is refused rather than written.
  */
 import type { StyleGuideConfig } from '../style-guide/types';
+import { findPaper } from '../page/papers';
 
 export const EMU_PER_INCH = 914_400;
 /** 0.1 in. */
@@ -144,13 +145,6 @@ function fmtIn(emu: number): string {
   return String(Math.round((emu / EMU_PER_INCH) * 100) / 100);
 }
 
-/** Page sizes in twips (portrait) for the paper names a section can carry. */
-const PAPER_TWIPS: Record<string, { width: number; height: number }> = {
-  Letter: { width: 12240, height: 15840 },
-  A4: { width: 11906, height: 16838 },
-  Legal: { width: 12240, height: 20160 },
-  A3: { width: 16838, height: 23811 },
-};
 
 /**
  * Text width and usable page height in EMU for a section's page setup. The size comes from the section's own
@@ -176,7 +170,7 @@ export function usableAreaOf(pageSetup: {
     widthTw = pageSetup.pageWidthTwips;
     heightTw = pageSetup.pageHeightTwips;
   } else {
-    const paper = PAPER_TWIPS[pageSetup?.paperSize ?? 'Letter'] ?? PAPER_TWIPS.Letter;
+    const paper = findPaper(pageSetup?.paperSize ?? 'Letter') ?? findPaper('Letter')!;
     widthTw = paper.width;
     heightTw = paper.height;
     if (pageSetup?.orientation === 'landscape') [widthTw, heightTw] = [heightTw, widthTw];
@@ -211,7 +205,7 @@ type ColumnPage = Parameters<typeof usableAreaOf>[0] & { columns?: number; colum
  * A listing without every width: the equal share as a best guess, flagged as not known.
  */
 export function columnLayoutOf(pageSetup: ColumnPage | null | undefined): { widthEmu: number; unequal: boolean; unknown: boolean } | undefined {
-  if (!pageSetup || !pageSetup.pageWidthTwips) return undefined;
+  if (!pageSetup) return undefined;
   const columns = pageSetup.columns && pageSetup.columns > 1 ? pageSetup.columns : 1;
   if (columns === 1) return undefined;
   const twipsToEmu = EMU_PER_INCH / 1440;
@@ -242,7 +236,8 @@ export function columnLayoutNote(pageSetup: ColumnPage | null | undefined, what:
  * (see `columnLayoutOf`). A section without a page size gets the Letter box.
  */
 export function contentBoxOf(pageSetup: ColumnPage | null | undefined): UsableArea {
-  if (!pageSetup || !pageSetup.pageWidthTwips) return LETTER_CONTENT_BOX;
+  // A section without a page size still has its margins and columns: the size falls back to Letter inside usableAreaOf.
+  if (!pageSetup) return LETTER_CONTENT_BOX;
   const area = usableAreaOf(pageSetup);
   const layout = columnLayoutOf(pageSetup);
   return layout ? { widthEmu: layout.widthEmu, heightEmu: area.heightEmu } : area;
@@ -253,7 +248,7 @@ export const LETTER_TEXT_WIDTH_TWIPS = 9360;
 
 /** The text width of a section in twips (one column's width when the section has columns). A section without a page size gets Letter's. */
 export function textWidthTwipsOf(pageSetup: Parameters<typeof contentBoxOf>[0]): number {
-  if (!pageSetup || !pageSetup.pageWidthTwips) return LETTER_TEXT_WIDTH_TWIPS;
+  if (!pageSetup) return LETTER_TEXT_WIDTH_TWIPS;
   const twips = Math.round(contentBoxOf(pageSetup).widthEmu / (EMU_PER_INCH / 1440));
   return Math.max(1, twips);
 }

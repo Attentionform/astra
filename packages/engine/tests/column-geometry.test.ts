@@ -187,3 +187,62 @@ describe('section setColumns', () => {
   });
 });
 
+/** A blank document whose only section has no `w:pgSz`: the page falls back to Letter, and the margins and columns in the file still apply. */
+function withoutPageSize(margins: string, cols: string): DocxParser {
+  const zip = new AdmZip(Buffer.from(DocxParser.createNewDocument('blank').rezip()));
+  const xml = zip.readAsText('word/document.xml');
+  const sect = /<w:sectPr\b[\s\S]*?<\/w:sectPr>/.exec(xml)![0];
+  const next = sect.replace(/<w:pgSz\b[^>]*\/>/, '').replace(/<w:pgMar\b[^>]*\/>/, '').replace(/<w:cols\b[^>]*\/>|<w:cols\b[\s\S]*?<\/w:cols>/, '').replace(/(<w:sectPr\b[^>]*>)/, `$1${margins}${cols}`);
+  zip.updateFile('word/document.xml', Buffer.from(xml.replace(sect, next)));
+  return new DocxParser(zip.toBuffer());
+}
+const MARGINS_2IN = '<w:pgMar w:top="1440" w:right="2880" w:bottom="1440" w:left="2880" w:header="720" w:footer="720" w:gutter="0"/>';
+
+describe('a section without a page size', () => {
+  it('has no w:pgSz in the test file, and reads margins and columns', async () => {
+    const parser = withoutPageSize(MARGINS_2IN, '<w:cols w:num="2" w:space="720"/>');
+    expect(doc(parser)).not.toMatch(/<w:pgSz\b/);
+    const page = (await parser.getAST()).sections[0].pageSetup!;
+    expect(page.pageWidthTwips).toBeUndefined();
+    expect(page.marginLeft).toBe(2880);
+    expect(page.columns).toBe(2);
+  });
+  it('text width is Letter less the file margins: 2 in each side leaves 4.5 in', async () => {
+    const page = (await withoutPageSize(MARGINS_2IN, '').getAST()).sections[0].pageSetup!;
+    expect(textWidthTwipsOf(page)).toBe(12240 - 2 * 2880);
+  });
+  it('text width is one column of what the margins leave', async () => {
+    const page = (await withoutPageSize(MARGINS_2IN, '<w:cols w:num="2" w:space="720"/>').getAST()).sections[0].pageSetup!;
+    expect(textWidthTwipsOf(page)).toBe((12240 - 2 * 2880 - 720) / 2);
+  });
+  it('columns alone (no margins, no size) still narrow the content', async () => {
+    const page = (await withoutPageSize('', '<w:cols w:num="2" w:space="1440"/>').getAST()).sections[0].pageSetup!;
+    expect(textWidthTwipsOf(page)).toBe((12240 - 2 * 1440 - 1440) / 2);
+  });
+  it('a chart, an image and a table fit the columns that the file gives', async () => {
+    const column = (12240 - 2 * 2880 - 720) / 2; // 2520 twips
+    const parser = withoutPageSize(MARGINS_2IN, '<w:cols w:num="2" w:space="720"/>');
+    const res = await run(parser, [chart(), { action: 'image', operation: 'insert', fileData: IMAGE, altText: 'x', anchor: 'end', position: 'after' }, { action: 'insert', type: 'table', headers: ['A', 'B'], rows: [['1', '2']], anchor: 'end', position: 'after' }]);
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    expect(Math.max(...extents(parser))).toBeLessThanOrEqual(column * TW + 1);
+    const grid = [...doc(parser).matchAll(/<w:gridCol w:w="(\d+)"/g)].reduce((a, m) => a + Number(m[1]), 0);
+    expect(grid).toBeLessThanOrEqual(column + 2);
+  });
+  it('composed content fits the margins that the file gives', async () => {
+    const parser = withoutPageSize(MARGINS_2IN, '');
+    const res = await composeDocument(parser, `![figure](${IMAGE})\n\n| A | B |\n|---|---|\n| 1 | 2 |\n`);
+    expect(res.success, JSON.stringify(res.errors)).toBe(true);
+    expect(Math.max(...extents(parser))).toBeLessThanOrEqual((12240 - 2 * 2880) * TW + 1);
+    const grid = [...doc(parser).matchAll(/<w:gridCol w:w="(\d+)"/g)].reduce((a, m) => a + Number(m[1]), 0);
+    expect(grid).toBeLessThanOrEqual(12240 - 2 * 2880 + 2);
+  });
+  it('a section with nothing at all keeps the Letter text area', () => {
+    expect(textWidthTwipsOf(undefined)).toBe(9360);
+    expect(textWidthTwipsOf({})).toBe(9360);
+    expect(contentBoxOf({}).widthEmu).toBe(6.5 * IN);
+  });
+  it('a named paper without a stored size uses the paper table (A5, not Letter)', () => {
+    expect(textWidthTwipsOf({ paperSize: 'A5', marginLeft: 1134, marginRight: 1134 })).toBe(8391 - 2 * 1134);
+  });
+});
+
