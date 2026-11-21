@@ -284,7 +284,7 @@ describe('docs truth: counts match live', () => {
     expect(Number((allTpl as RegExpExecArray)[1])).toBe(liveGallery);
 
     const engine = readText(ENGINE_README);
-    const engOps = /(\d+)\s+Atomic Operations/i.exec(engine);
+    const engOps = /(\d+)\s+(?:Atomic Operations|kinds of operation)/i.exec(engine);
     expect(engOps).not.toBeNull();
     expect(Number((engOps as RegExpExecArray)[1])).toBe(liveOps);
 

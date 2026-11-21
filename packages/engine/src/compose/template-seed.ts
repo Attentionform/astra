@@ -1,6 +1,7 @@
 import type { DocxParser } from '../parser';
 import { REGION_END, REGION_START, findRegion, findSlot, hashNodes } from './template-canonical';
 import { TEMPLATE_MANIFEST } from './template-manifest.generated';
+import { unescapeMarkedText } from './text-spans';
 
 /**
  * What the compose shortcut may do with a document that came from a built-in template.
@@ -59,6 +60,16 @@ export function markTemplateComposed(parser: DocxParser, marker: TemplateMarker)
   zip.writeText(MARKER_PART, xml.replace(MARKER_RE, (whole, value: string) => whole.replace(value, `${marker.template}@${marker.version}:composed`)));
 }
 
+/** The text of the parts that can point at a bookmark in the body: headers, footers, notes and comments. */
+function otherPartsText(parser: DocxParser): string {
+  const zip = parser.getZipAdapter();
+  const names = zip.entryNames?.() ?? [];
+  return names
+    .filter((n) => /^word\/(header\d*|footer\d*|footnotes|endnotes|comments\w*)\.xml$/.test(n))
+    .map((n) => zip.readTextOrNull(n) ?? '')
+    .join('\n');
+}
+
 export function planTemplateSeed(parser: DocxParser): TemplateSeedPlan {
   const marker = readTemplateMarker(parser);
   if (marker === null) return { kind: 'ordinary' };
@@ -80,7 +91,7 @@ export function planTemplateSeed(parser: DocxParser): TemplateSeedPlan {
   if (!body || !region) {
     return { kind: 'append', template, reason: 'TEMPLATE_BOOKMARKS_MISSING', message: `The ${REGION_START} and ${REGION_END} bookmarks are missing, duplicated or out of order, so nothing is replaced and the new content is appended.` };
   }
-  if (!entry.region.includes(hashNodes(region.nodes))) {
+  if (!entry.region.includes(hashNodes(region.nodes, otherPartsText(parser)))) {
     return { kind: 'append', template, reason: 'TEMPLATE_REGION_EDITED', message: `The placeholder body of the ${template} template was edited, so nothing is deleted and the new content is appended.` };
   }
   const ids: string[] = [];
@@ -100,7 +111,7 @@ export function planTemplateSeed(parser: DocxParser): TemplateSeedPlan {
   const slotHash = entry.slots.title;
   if (slotHash !== undefined) {
     const found = findSlot(body, 'title');
-    if (found && hashNodes(found.nodes) === slotHash) slot = found;
+    if (found && hashNodes(found.nodes, otherPartsText(parser)) === slotHash) slot = found;
   }
   return { kind: 'replace', template, regionIds: ids, anchorId: ids[ids.length - 1], boundaries: [region.start, region.end], slot };
 }
@@ -114,7 +125,8 @@ export function splitLeadingTitle(markdown: string): { title: string; rest: stri
   if (!m) return null;
   const title = m[1].trim();
   if (title === '' || /[*_`[\]<>\\|]/.test(title)) return null;
-  return { title, rest: markdown.slice(m[0].length) };
+  // The compiler reads entities such as `&amp;` in a heading; the title slot must read them the same way.
+  return { title: unescapeMarkedText(title), rest: markdown.slice(m[0].length) };
 }
 
 /** Replaces the placeholder run(s) of the slot with plain text, keeping any direct run formatting such as bold. */

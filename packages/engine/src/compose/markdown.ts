@@ -554,21 +554,26 @@ export async function composeDocument(
   let slotTitle: string | null = null;
   if (templatePlan?.slot) {
     const split = splitLeadingTitle(markdown);
-    if (split && split.rest.trim() !== '') {
+    if (split) {
       slotTitle = split.title;
       composeMarkdown = split.rest;
     }
   }
-  const { operations, warnings: compileWarnings } = compileMarkdownDetailed(composeMarkdown, {
-    idPrefix,
-    ...(templatePlan ? { anchor: templatePlan.anchorId, position: 'after' as const } : {}),
-    ...(templatePlan === null && options?.anchor !== undefined ? { anchor: options.anchor } : {}),
-    ...(templatePlan === null && options?.position !== undefined ? { position: options.position } : {}),
-    allowedDir: options?.allowedDir,
-    ...(options?.styleGuide !== undefined ? { styleGuide: options.styleGuide } : {}),
-    ...(options?.dollarMath ? { dollarMath: true } : {}),
-  });
-  validateComposedOperations(operations);
+  // A heading that is the whole input fills the title and leaves no body content: the placeholder body is removed and nothing
+  // takes its place. Any other input must hold at least one block, and compile says so when it does not.
+  const titleOnly = slotTitle !== null && composeMarkdown.trim() === '';
+  const { operations, warnings: compileWarnings } = titleOnly
+    ? { operations: [] as Operation[], warnings: [] as string[] }
+    : compileMarkdownDetailed(composeMarkdown, {
+        idPrefix,
+        ...(templatePlan ? { anchor: templatePlan.anchorId, position: 'after' as const } : {}),
+        ...(templatePlan === null && options?.anchor !== undefined ? { anchor: options.anchor } : {}),
+        ...(templatePlan === null && options?.position !== undefined ? { position: options.position } : {}),
+        allowedDir: options?.allowedDir,
+        ...(options?.styleGuide !== undefined ? { styleGuide: options.styleGuide } : {}),
+        ...(options?.dollarMath ? { dollarMath: true } : {}),
+      });
+  if (!titleOnly) validateComposedOperations(operations);
   // A quote is written in the Quote paragraph style; an opened document that lacks the style gets it first.
   if (operations.some((op) => op.action === 'namedStyle' && (op as { styleName?: string }).styleName === QUOTE_STYLE_ID)) {
     ensureQuoteStyle(parser.getStylesDom());
@@ -585,7 +590,8 @@ export async function composeDocument(
   const ast = liveAst;
   // Seed-skip capture runs after compile+validate (so input errors still
   // throw with zero writes) but before any batch mutates the document.
-  const blankSeedIds = templatePlan ? templatePlan.regionIds : seedPlan.kind === 'ordinary' ? loneEmptyParagraphIds(parser) : null;
+  // A caller who names an anchor asked for an append: the blank paragraph stays, and so does its id.
+  const blankSeedIds = templatePlan ? templatePlan.regionIds : seedPlan.kind === 'ordinary' && options?.anchor === undefined ? loneEmptyParagraphIds(parser) : null;
   // Whole-package snapshot (every zip entry including relationships), so a
   // later rewind leaves no orphan rels or media behind. The narrower
   // document-only snapshot cannot cover hyperlink rels minted during span
