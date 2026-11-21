@@ -59,8 +59,8 @@ jobs:
     - name: Run unit tests
       run: npx vitest run
 
-    - name: Template page counts (LibreOffice, metric-compatible fonts)
-      run: ASTRA_RUN_SLOW=1 npx vitest run packages/engine/tests/templates-layout.slow.test.ts
+    - name: Template page counts and page sizes (LibreOffice, metric-compatible fonts)
+      run: ASTRA_RUN_SLOW=1 npx vitest run packages/engine/tests/templates-layout.slow.test.ts packages/engine/tests/page-size-render.slow.test.ts
 
     - name: Run the library examples (each must validate its output)
       run: node packages/engine/examples/run-all.mjs
