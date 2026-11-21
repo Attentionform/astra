@@ -13,6 +13,7 @@ import {
   validateNode,
 } from '@attentionform/astra-engine';
 import { run } from '../../packages/cli/src/cli';
+import { seededBlank } from '../helpers/seeded-blank';
 
 describe('Part 3: The 6-Layer Validation Engine', () => {
   const validOriginal = `<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
@@ -102,13 +103,13 @@ describe('validate command on damaged containers', () => {
   });
 
   it('leaves a well-formed document valid', async () => {
-    const file = writeTemp('wellformed', DocxParser.createNewDocument('blank').rezip());
+    const file = writeTemp('wellformed', new DocxParser(seededBlank()).rezip());
     await expect(run(['validate', file])).resolves.toBe(0);
     expect(stdoutText()).toContain(`VALID ${file}`);
   });
 
   it('names a byte-damaged container without leaking allocation internals', async () => {
-    const base = DocxParser.createNewDocument('blank').rezip();
+    const base = new DocxParser(seededBlank()).rezip();
     let damaged = '';
     for (const offset of [150, 500, 1000, 1200, 1500]) {
       if (offset >= base.length) continue;

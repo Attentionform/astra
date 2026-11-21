@@ -133,10 +133,14 @@ export function newDocumentParts(opts: { title: string; author: string; at: Date
 /** Document title for a template name: "report" gives "Report", "api-spec" gives "Api Spec". */
 export function newDocumentTitle(templateType: string): string {
   const name = (templateType || 'blank').toLowerCase().trim() || 'blank';
-  if (name === 'blank') return 'Blank Document';
+  if (name === 'blank') return '';
   return name
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
+
+/** The built-in template names, in the order they are listed to users. */
+export const TEMPLATE_NAMES = ['blank', 'report', 'memo', 'letter', 'proposal', 'invoice', 'technical-spec', 'research-paper', 'novel', 'newsletter'] as const;
+export type TemplateName = (typeof TEMPLATE_NAMES)[number];

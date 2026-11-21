@@ -30,6 +30,7 @@ import {
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
+import { seededBlank } from '../helpers/seeded-blank';
 
 describe('Track A: Namespace & Schema Correctness Suite', () => {
   it('A1: createWordElement creates elements with WORD_NS', () => {
@@ -55,7 +56,7 @@ describe('Track A: Namespace & Schema Correctness Suite', () => {
   });
 
   it('A2: table and insert operations use WORD_NS for all created elements', async () => {
-    const blankBuf = createBlankDocxBuffer('blank');
+    const blankBuf = seededBlank();
     const parser = new DocxParser(blankBuf);
     const ast = await parser.getAST();
     const engine = new OperationEngine(ast, parser);
@@ -192,7 +193,7 @@ describe('Track A: Namespace & Schema Correctness Suite', () => {
   });
 
   it('A6: template fidelity for all templates in createBlankDocxBuffer and createNewDocument', () => {
-    const templates = ['blank', 'novel', 'report', 'financial', 'academic', 'newsletter', 'api'];
+    const templates = ['blank', 'novel', 'report', 'research-paper', 'newsletter', 'invoice'];
     for (const tpl of templates) {
       const parser = DocxParser.createNewDocument(tpl);
       const summary = parser.getStructuralSummary();
@@ -212,7 +213,7 @@ describe('Track A: Namespace & Schema Correctness Suite', () => {
   });
 
   it('A7: styles.xml in generated templates strictly orders w:color before w:sz', () => {
-    const parser = DocxParser.createNewDocument('blank');
+    const parser = new DocxParser(seededBlank());
     const stylesXml = (parser as any).zip.getEntry('word/styles.xml')?.getData().toString('utf8');
     expect(stylesXml).toBeDefined();
 
@@ -280,7 +281,7 @@ describe('R-7 deterministic revision stamps via SOURCE_DATE_EPOCH', () => {
     expect(comment).toBeGreaterThanOrEqual(before - 1000);
     expect(comment).toBeLessThanOrEqual(after);
 
-    const base = createBlankDocxBuffer('blank');
+    const base = seededBlank();
     const parser = new DocxParser(Buffer.from(base));
     const ast: any = await parser.getAST();
     executeDelete({ action: 'delete', target: ast.sections[0].nodes[0].id, trackChanges: true } as any, ast, parser);
@@ -349,7 +350,7 @@ describe('R-7 deterministic revision stamps via SOURCE_DATE_EPOCH', () => {
 
   it('same input+ops twice with env set yields byte-identical docx (tracked delete)', async () => {
     process.env.SOURCE_DATE_EPOCH = EPOCH_SECS;
-    const base = createBlankDocxBuffer('blank');
+    const base = seededBlank();
     async function runOnce(): Promise<Buffer> {
       const parser = new DocxParser(Buffer.from(base));
       const ast: any = await parser.getAST();
@@ -370,7 +371,7 @@ describe('R-7 deterministic revision stamps via SOURCE_DATE_EPOCH', () => {
     delete process.env.SOURCE_DATE_EPOCH;
     process.env.ASTRA_REPRODUCIBLE = '1';
 
-    const base = createBlankDocxBuffer('blank');
+    const base = seededBlank();
     const parser = new DocxParser(Buffer.from(base));
     const ast: any = await parser.getAST();
     const target = ast.sections[0].nodes[0];
@@ -399,7 +400,7 @@ describe('R-7 deterministic revision stamps via SOURCE_DATE_EPOCH', () => {
 
   it('comment w:date is pinned with env, 1980 when pinned without an epoch, wall-clock on opt-out', async () => {
     process.env.SOURCE_DATE_EPOCH = EPOCH_SECS;
-    const base = createBlankDocxBuffer('blank');
+    const base = seededBlank();
     async function commentOnce(text: string): Promise<Buffer> {
       const parser = new DocxParser(Buffer.from(base));
       const ast: any = await parser.getAST();
@@ -436,7 +437,7 @@ describe('R-7 deterministic revision stamps via SOURCE_DATE_EPOCH', () => {
 
   it('replace op twice with env set yields byte-identical docx', async () => {
     process.env.SOURCE_DATE_EPOCH = EPOCH_SECS;
-    const base = createBlankDocxBuffer('blank');
+    const base = seededBlank();
     async function runOnce(): Promise<Buffer> {
       const parser = new DocxParser(Buffer.from(base));
       const ast: any = await parser.getAST();
@@ -457,7 +458,7 @@ describe('R-7 deterministic revision stamps via SOURCE_DATE_EPOCH', () => {
     delete process.env.SOURCE_DATE_EPOCH;
     process.env.ASTRA_REPRODUCIBLE = '1';
 
-    const base = createBlankDocxBuffer('blank');
+    const base = seededBlank();
     async function replaceOnce(text: string): Promise<{ buf: Buffer; before: number; after: number }> {
       const parser = new DocxParser(Buffer.from(base));
       const ast: any = await parser.getAST();
@@ -491,7 +492,7 @@ describe('R-7 deterministic revision stamps via SOURCE_DATE_EPOCH', () => {
 
   it('table updateCell twice with env set yields equal w:date + valid output', async () => {
     process.env.SOURCE_DATE_EPOCH = EPOCH_SECS;
-    const setup = new DocxParser(createBlankDocxBuffer('blank'));
+    const setup = new DocxParser(seededBlank());
     const setupAst: any = await setup.getAST();
     const anchor = setupAst.sections[0].nodes[0].id;
     const engine = new OperationEngine(setupAst, setup);
@@ -553,7 +554,7 @@ describe('R-7 deterministic revision stamps via SOURCE_DATE_EPOCH', () => {
 
   it('trackedChange insert honors env pin, explicit date, 1980 when pinned without an epoch, and opt-out wall-clock', async () => {
     process.env.SOURCE_DATE_EPOCH = EPOCH_SECS;
-    const base = createBlankDocxBuffer('blank');
+    const base = seededBlank();
     async function insertOnce(text: string, date?: string): Promise<Buffer> {
       const parser = new DocxParser(Buffer.from(base));
       const ast: any = await parser.getAST();

@@ -344,6 +344,7 @@ describe('compose placement', () => {
 
   it('keeps append-only behavior once the blank template is no longer pristine', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const before = await parser.getAST();
     const seeder = new OperationEngine(before, parser);
     const seeded = await seeder.executeBatch({
@@ -358,7 +359,8 @@ describe('compose placement', () => {
     expect(result.success).toBe(true);
 
     const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     expect(texts).toContain('User note stays');
     expect(texts).toContain('Composed title');
     expect(texts).toContain('Composed body');
@@ -369,6 +371,7 @@ describe('compose placement', () => {
 
   it('keeps append-only behavior when a seed carries a footnote', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const ast = await parser.getAST();
     const seeder = new OperationEngine(ast, parser);
     const seedId = parser.getStructuralSummary().nodes[0].id;
@@ -381,7 +384,8 @@ describe('compose placement', () => {
     const result = await composeDocument(parser, '# Composed title\n\nComposed body\n');
     expect(result.success).toBe(true);
     const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     expect(texts).toContain('Composed title');
     const zip = new AdmZip(parser.rezip());
     expect(zip.getEntry('word/footnotes.xml')).not.toBeNull();
@@ -389,6 +393,7 @@ describe('compose placement', () => {
 
   it('keeps append-only behavior when a seed carries an endnote', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const ast = await parser.getAST();
     const seeder = new OperationEngine(ast, parser);
     const seedId = parser.getStructuralSummary().nodes[0].id;
@@ -400,14 +405,15 @@ describe('compose placement', () => {
 
     const result = await composeDocument(parser, '# Composed title\n\nComposed body\n');
     expect(result.success).toBe(true);
-    const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     const zip = new AdmZip(parser.rezip());
     expect(zip.getEntry('word/endnotes.xml')).not.toBeNull();
   });
 
   it('keeps append-only behavior when a seed carries a comment', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const ast = await parser.getAST();
     const seeder = new OperationEngine(ast, parser);
     const seedId = parser.getStructuralSummary().nodes[0].id;
@@ -419,14 +425,15 @@ describe('compose placement', () => {
 
     const result = await composeDocument(parser, '# Composed title\n\nComposed body\n');
     expect(result.success).toBe(true);
-    const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     const zip = new AdmZip(parser.rezip());
     expect(zip.getEntry('word/comments.xml')).not.toBeNull();
   });
 
   it('keeps append-only behavior when a seed paragraph style changes', async () => {
     const parser = DocxParser.createNewDocument('blank');
+    const seedNodeId = parser.getStructuralSummary().nodes[0].id;
     const ast = await parser.getAST();
     const seeder = new OperationEngine(ast, parser);
     const seedId = parser.getStructuralSummary().nodes[0].id;
@@ -439,7 +446,8 @@ describe('compose placement', () => {
     const result = await composeDocument(parser, '# Composed title\n\nComposed body\n');
     expect(result.success).toBe(true);
     const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(true);
+    // The blank seed is an empty paragraph: it must still be in the document, untouched.
+    expect(parser.getStructuralSummary().nodes.map((node) => node.id)).toContain(seedNodeId);
     expect(texts).toContain('Composed title');
   });
 
@@ -786,33 +794,42 @@ describe('compose image and chart references', () => {
 });
 
 describe('compose template seeds', () => {
-  it('preserves saved and reopened template content during compose', async () => {
+  it('replaces the placeholder body of a saved and reopened template (the marker, not the session, says it is untouched)', async () => {
     const original = DocxParser.createNewDocument('report');
     const reopened = new DocxParser(original.rezip());
     const result = await composeDocument(reopened, '# Added', { template: 'report' });
     expect(result.success).toBe(true);
-    expect(reopened.readDocumentXml()).toContain('Q3 Executive Financial Performance Report');
+    const xml = reopened.readDocumentXml();
+    expect(xml).not.toContain('Summarise the purpose');
+    expect(xml).toContain('Added');
   });
 
-  it('preserves user edits to report seed paragraphs when composing', async () => {
+  it('preserves user edits to the placeholder body when composing (the compose appends instead)', async () => {
     const parser = DocxParser.createNewDocument('report');
     const ast = await parser.getAST();
-    const node = ast.sections.flatMap((section) => section.nodes).filter((item) => item.type === 'paragraph')[3];
+    const node = ast.sections.flatMap((section) => section.nodes).find((item) => (item.metadata.text ?? '').includes('Summarise the purpose'));
+    expect(node).toBeDefined();
     const engine = new OperationEngine(ast, parser);
-    const edit = await engine.executeBatch({ operations: [{ action: 'replace', target: node.id, text: 'USER ORIGINAL TEXT' }] });
+    const edit = await engine.executeBatch({ operations: [{ action: 'replace', target: node!.id, text: 'USER ORIGINAL TEXT' }] });
     expect(edit.success).toBe(true);
     const result = await composeDocument(parser, '# New content', { template: 'report' });
     expect(result.success).toBe(true);
+    expect(result.warnings.some((w) => w.startsWith('TEMPLATE_REGION_EDITED'))).toBe(true);
     expect(parser.readDocumentXml()).toContain('USER ORIGINAL TEXT');
   });
 
-  it('replaces matching report and memo placeholders', async () => {
-    for (const template of ['report', 'memo'] as const) {
+  it('replaces matching report and memo placeholder bodies and keeps their furniture', async () => {
+    for (const [template, placeholder, furniture] of [
+      ['report', 'Summarise the purpose', 'Contents'],
+      ['memo', 'State in one or two sentences', 'Memo'],
+    ] as const) {
       const parser = DocxParser.createNewDocument(template);
       const result = await composeDocument(parser, 'Composed body\n', { template });
       expect(result.success).toBe(true);
       const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-      expect(texts).toEqual(['Composed body']);
+      expect(texts).toContain('Composed body');
+      expect(texts.some((text) => text.includes(placeholder))).toBe(false);
+      expect(texts).toContain(furniture);
     }
   });
 
@@ -820,16 +837,13 @@ describe('compose template seeds', () => {
     const parser = DocxParser.createNewDocument('blank');
     const result = await composeDocument(parser, 'Composed body\n', { template: 'blank' });
     expect(result.success).toBe(true);
-    const texts = parser.getStructuralSummary().nodes.map((node) => node.text ?? '');
-    expect(texts.some((text) => text.includes('Blank Document'))).toBe(false);
-    expect(texts.some((text) => text.includes('Start typing'))).toBe(false);
-    expect(texts.some((text) => text.includes('Composed body'))).toBe(true);
+    expect(parser.getStructuralSummary().nodes.map((node) => node.text ?? '')).toEqual(['Composed body']);
   });
 
   it('rejects mismatched seeds and bad names before any write', async () => {
     const parser = DocxParser.createNewDocument('blank');
     const before = parser.rezip();
-    await expect(composeDocument(parser, 'Body\n', { template: 'report' })).rejects.toThrow(/does not hold the report seed/);
+    await expect(composeDocument(parser, 'Body\n', { template: 'report' })).rejects.toThrow(/not a fresh report template/);
     expect(parser.rezip().equals(before)).toBe(true);
     await expect(composeDocument(DocxParser.createNewDocument('blank'), 'Body\n', { template: 'other' as never })).rejects.toThrow(/template must be one of/);
   });

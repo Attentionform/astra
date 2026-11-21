@@ -60,14 +60,6 @@ export const ALERT_TYPE_TO_THEME: Record<string, string> = {
 };
 export const ALERT_MARKER_PATTERN = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](.*)$/i;
 export const ALERT_TITLE_PATTERN = /^\*\*(.+)\*\*$/;
-/** Exact seed texts of the blank template placeholder paragraphs. */
-export const BLANK_SEED_TITLE = 'Blank Document';
-export const BLANK_SEED_HINT = 'Start typing your content here...';
-export const TEMPLATE_SEEDS: Record<string, string> = {
-  blank: 'Blank Document',
-  report: 'Q3 Executive',
-  memo: 'MEMORANDUM',
-};
 
 export function fail(line: number, detail: string, remedy: string): never {
   throw toError('E_VALIDATION', `line ${line}: ${detail}`, remedy);

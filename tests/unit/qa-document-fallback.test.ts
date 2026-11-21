@@ -161,7 +161,7 @@ describe('QA Verification Suite: Document Fallbacks & Engine Lifecycle', () => {
 
     it('initializes clean git repo, resets undo/redo, and produces valid OOXML across templates', async () => {
       const docManager = new DocumentManager();
-      const templates = ['blank', 'novel', 'financial', 'api-spec'];
+      const templates = ['blank', 'novel', 'proposal', 'technical-spec'];
 
       for (const tpl of templates) {
         const docPath = path.join(qaTempDir, `Template_${tpl}.docx`);
@@ -186,7 +186,7 @@ describe('QA Verification Suite: Document Fallbacks & Engine Lifecycle', () => {
       await docManager.createNewDocument('blank', docPath);
 
       const summary = docManager.getParser().getStructuralSummary();
-      expect(summary.nodes.length).toBeGreaterThanOrEqual(2);
+      expect(summary.nodes.length).toBeGreaterThanOrEqual(1);
 
       // Delete all nodes one by one
       const parser = docManager.getParser();

@@ -8,13 +8,14 @@
 import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { DocxParser, createBlankDocxBuffer, executeInsert } from '@attentionform/astra-engine';
+import { DocxParser, executeInsert } from '@attentionform/astra-engine';
 import {
   normalizePackage,
   previewNormalizations,
 } from '../../packages/engine/src/ooxml/normalize';
 import { validateDocxBuffer } from '../../packages/engine/src/ooxml/validator-gate';
 import { useReproducibleOutput } from '../helpers/reproducible';
+import { seededBlank } from '../helpers/seeded-blank';
 
 useReproducibleOutput();
 
@@ -59,7 +60,7 @@ function tcPrChildTags(xml: string): string[] {
 
 /** Blank doc + one 3-row x 2-col table (6 cells), saved VALID. */
 async function freshTableDoc(): Promise<{ buf: Buffer; xml: string }> {
-  const parser = new DocxParser(createBlankDocxBuffer('blank'));
+  const parser = new DocxParser(seededBlank());
   const ast: any = await parser.getAST();
   const anchor = ast.sections[0].nodes[0].id;
   await executeInsert({

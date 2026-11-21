@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DocxParser, convertAstToHtml, convertAstToMarkdown } from '@attentionform/astra-engine';
 import { effectiveRunItalic, useStylesForExport } from '../../packages/engine/src/export/style-italic';
+import { seededBlank } from '../helpers/seeded-blank';
 
 /**
  * A paragraph style such as Subtitle or Quote is italic through the style; no run carries `w:i`. The HTML and
@@ -47,7 +48,7 @@ const table = (style: string | undefined, rows: { pStyle?: string; runs: Run[] }
     .join('')}</w:tbl>`;
 
 function docx(elements: string[]): Buffer {
-  const zip = new AdmZip(DocxParser.createNewDocument('blank').rezip());
+  const zip = new AdmZip(new DocxParser(seededBlank()).rezip());
   const styles = zip.readAsText('word/styles.xml');
   zip.updateFile('word/styles.xml', Buffer.from(styles.replace('</w:styles>', `${EXTRA_STYLES}</w:styles>`), 'utf8'));
   const xml = zip.readAsText('word/document.xml');
@@ -58,7 +59,7 @@ function docx(elements: string[]): Buffer {
 }
 
 function docxWithDocDefaults(docDefaultsRPr: string, elements: string[]): Buffer {
-  const zip = new AdmZip(DocxParser.createNewDocument('blank').rezip());
+  const zip = new AdmZip(new DocxParser(seededBlank()).rezip());
   let styles = zip.readAsText('word/styles.xml');
   if (docDefaultsRPr) {
     styles = styles.replace(/<w:rPrDefault>\s*<w:rPr>/, `<w:rPrDefault><w:rPr>${docDefaultsRPr}`);

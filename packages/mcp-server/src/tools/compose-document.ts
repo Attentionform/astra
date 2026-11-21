@@ -12,6 +12,7 @@ import {
   resolveStyleGuide,
   revisionsRemedy,
   summarizeStyleGuide,
+  TEMPLATE_NAMES,
   validateComposedOperations,
   nextComposeIdPrefix,
   type EngineErrorCode,
@@ -112,7 +113,7 @@ export const ComposeDocumentSchema = z
     sessionId: z.string().min(1).max(128),
     markdown: z.string().min(1).max(COMPOSE_MARKDOWN_MAX),
     allowedDir: z.string().min(1).max(1024).optional(),
-    template: z.enum(['report', 'memo', 'blank']).optional(),
+    template: z.enum(TEMPLATE_NAMES).optional(),
     // Style guide attach (bundled name or guide file path). Persists for
     // the session and skins this compose; batches inherit it afterwards.
     // Empty is rejected in the handler with a detach hint — no min(1) here
@@ -130,7 +131,7 @@ export const ComposeDocumentSchema = z
 export type ComposeDocumentInput = z.infer<typeof ComposeDocumentSchema>;
 
 export const COMPOSE_DOCUMENT_DESCRIPTION =
-  'Compose a Markdown string into the open session document (appends after existing content, or at anchor with position before|after; an unchanged built-in template created in this session has its sample content replaced). ' +
+  'Compose a Markdown string into the open session document (appends after existing content, or at anchor with position before|after; an untouched built-in template has its placeholder body replaced). ' +
   'A document can be built in several compose calls: the first call of a session mints ids md_0001..., later calls mint md2_0001..., md3_0001..., so ids never collide; ' +
   'pass anchor (a node id, start or end) and position to add a section in the middle without another tool. ' +
   'Runs the engine compose path, then applies the resulting operations through the same execute_batch path ' +
@@ -146,9 +147,11 @@ export const COMPOSE_DOCUMENT_DESCRIPTION =
   'remote URL refs fail closed; inline data-URL block images bypass allowedDir by design (bytes decode in memory through the same image gates). ' +
   'Sources compiling past 500 operations apply as sequential 500-operation chunks; the compose is atomic as a whole: when any chunk fails, ' +
   'every chunk before it is rewound and the document stays as it was. Citation numbers and the References list restart in each compose call. ' +
-  'Optional template (report|memo|blank) is accepted on the first compose only and requires the open document to still hold ' +
-  'that template seed, otherwise composition fails before any write ' +
-  '(to append to an existing document omit template; for a fresh templated document call new_document first, then compose_document with template), and placement is append after existing content except for an unchanged built-in template created in this session. Reopened documents and external templates keep existing content. ' +
+  `Optional template (${TEMPLATE_NAMES.join('|')}) is accepted on the first compose only and requires the open document to be that template, not yet composed into, ` +
+  'otherwise composition fails before any write ' +
+  '(to append to an existing document omit template; for a fresh templated document call new_document first, then compose_document with template). ' +
+  'On a built-in template (also after the file was saved and reopened) the Markdown replaces the placeholder body when that body is still exactly the original, and a leading # heading of plain text fills the template title; ' +
+  'when the placeholder body was edited, or the document is not a built-in template, the Markdown is appended and a warning with a TEMPLATE_* code says why. Nothing outside the placeholder body is removed. ' +
   'Returns {ok:true,opCount,appliedCount,revision,createdNodeIds,results,validation:{valid,errorCount,errors}} where createdNodeIds ' +
   'lists new node ids in document order (use them as anchors without re-inspecting) and validation proves the post-compose ' +
   'package state via a read-only OOXML check (save_document re-gates before writing). ' +
@@ -163,7 +166,7 @@ export const COMPOSE_DOCUMENT_DESCRIPTION =
   'Unknown names fail with E_VALIDATION naming the available set. ' +
   'Math: $$ ... $$ or \\[ ... \\] blocks become display equations and \\(...\\) becomes inline math (one line, up to 500 characters; refused inside links and table cells). Display blocks are top level only (inside a list item or alert body they fail closed). Optional dollarMath (default false) treats $...$ as inline math; off by default because prices and shell text can look like math. ' +
   'Workflow: open_document -> compose_document -> save_document. ' +
-  'Example {"sessionId":"sess_abc","markdown":"# Plan\\n\\n- a\\n- b\\n"} (add "allowedDir":"<dir>" for image/chart refs, "template":"report|memo|blank" to verify the seed). ' +
+  'Example {"sessionId":"sess_abc","markdown":"# Plan\\n\\n- a\\n- b\\n"} (add "allowedDir":"<dir>" for image/chart refs, "template":"report" to check that the document is a fresh report template). ' +
   'IDs are session-scoped: valid only in the issuing session, must not be stored across sessions. ' +
   'When dc:title is still a template placeholder it is set from the first Title or Heading 1 (titleSetFrom says so); a title already set is kept. ' +
   'persistentIds maps each created paragraph id (md_0003) to the paragraph id the saved file carries, so a reopened session can be addressed with it (tables are renumbered t_001.. by position on reopen).';
@@ -365,7 +368,7 @@ export async function handleComposeDocument(
     return composeError(
       'E_VALIDATION',
       `compose_document: invalid input. ${detail}`,
-      'Retry with {"sessionId":"<id from open_document>","markdown":"# Title\\n\\nBody text\\n"} (markdown 1..500000 chars; optional allowedDir for image/chart refs, optional template report|memo|blank to verify the seed).'
+      'Retry with {"sessionId":"<id from open_document>","markdown":"# Title\\n\\nBody text\\n"} (markdown 1..500000 chars; optional allowedDir for image/chart refs, optional template to check that the document is that fresh template).'
     );
   }
 

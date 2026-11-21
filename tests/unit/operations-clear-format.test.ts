@@ -8,7 +8,6 @@
 import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
 import {
-  createBlankDocxBuffer,
   DocxParser,
   executeClearFormat,
   executeNamedStyle,
@@ -17,6 +16,7 @@ import {
   RPR_CHILD_ORDER,
   validateDocxBuffer,
 } from '@attentionform/astra-engine';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const STRIPPED = [
   'w:b', 'w:i', 'w:color', 'w:highlight', 'w:u',
@@ -51,7 +51,7 @@ function hasSpacing(paragraphEl: Element): boolean {
 }
 
 async function styledFixture(): Promise<{ parser: DocxParser; ast: any; id: string; text: string }> {
-  const parser = new DocxParser(createBlankDocxBuffer('blank'));
+  const parser = new DocxParser(seededBlank());
   const ast: any = await parser.getAST();
   const node = ast.sections[0].nodes[0];
   const id = node.id as string;
@@ -108,7 +108,7 @@ describe('9b clearFormat: fully styled range strips to default + Normal', () => 
 
 describe('9b clearFormat: partial range leaves siblings styled', () => {
   it('clears one target; the other keeps bold/color/highlight/spacing', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const [a, b] = [ast.sections[0].nodes[0].id, ast.sections[0].nodes[1].id];
     for (const id of [a, b]) {
@@ -136,7 +136,7 @@ describe('9b clearFormat: partial range leaves siblings styled', () => {
 
 describe('9b clearFormat: empty / error cases', () => {
   it('plain paragraph clears as a no-op with text intact', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const node = ast.sections[0].nodes[0];
     const text = node.metadata.text as string;
@@ -147,7 +147,7 @@ describe('9b clearFormat: empty / error cases', () => {
   });
 
   it('missing node and empty target throw loudly', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     expect(() => executeClearFormat({ action: 'clearFormat', target: 'ghost_9' } as any, ast))
       .toThrow('Node ghost_9 not found');
@@ -160,7 +160,7 @@ describe('9b clearFormat: empty / error cases', () => {
 
 describe('9b clearFormat: engine registration + round-trip rezip clean', () => {
   it('routes through OperationEngine (single + batch) and lands in history', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const engine = new OperationEngine(ast, parser);
     const id = ast.sections[0].nodes[0].id as string;
@@ -228,7 +228,7 @@ describe('9b clearFormat: full RPR_CHILD_ORDER probe — zero run tags survive',
   }
 
   it('injects every canonical RPR tag into run rPr + mark rPr → all stripped', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const node = ast.sections[0].nodes[0];
     const id = node.id as string;
@@ -292,7 +292,7 @@ describe('9b clearFormat: para reset — jc/ind/pBdr/spacing stripped, pStyle No
   }
 
   it('Ctrl+Q scope: jc + ind + pBdr + spacing all drop', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const node = ast.sections[0].nodes[0];
     const id = node.id as string;
@@ -339,7 +339,7 @@ describe('9b clearFormat: para reset — jc/ind/pBdr/spacing stripped, pStyle No
 
 describe('heading style apply keeps heading glued to following text', () => {
   it('applying a heading style adds keepNext after pStyle in schema order', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const id = ast.sections[0].nodes[0].id as string;
     executeNamedStyle(
@@ -359,7 +359,7 @@ describe('heading style apply keeps heading glued to following text', () => {
   });
 
   it('re-applying a heading never duplicates keepNext and plain styles add none', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const id = ast.sections[0].nodes[0].id as string;
     const op = { action: 'namedStyle', operation: 'apply', styleName: 'Heading2', target: id } as any;

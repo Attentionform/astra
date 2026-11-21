@@ -6,12 +6,12 @@ const hash = (bytes) => engine.originalSha256(bytes);
 const extras = (parser) => Object.fromEntries([...parser.capturePackageSnapshot()].filter(([name]) => engine.isTrackedPackageFile(name)));
 
 async function setup(file) {
-  const original = engine.createBlankDocxBuffer('blank');
+  const original = engine.createBlankDocxBuffer('memo');
   const parser = new engine.DocxParser(original);
   await parser.getAST();
   const originalXml = parser.readDocumentXml();
   await engine.initAstraRepo(file, originalXml, extras(parser), original);
-  const editedXml = originalXml.replace('Start typing your content here...', 'Locked restore test edit');
+  const editedXml = originalXml.replace('>Purpose<', '>Locked restore test edit<');
   if (editedXml === originalXml) throw new Error('Could not edit the blank document fixture.');
   parser.reloadDocumentXml(editedXml);
   const edited = parser.rezip();

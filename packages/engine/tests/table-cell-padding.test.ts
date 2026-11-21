@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { compileMarkdown, composeDocument } from '../src/compose/markdown';
 import { createWordElement } from '../src/ooxml/ns';
 import { canonicalizeOOXML, sortChildrenBySchema, TBLPR_CHILD_ORDER } from '../src/ooxml/schema-order';
 import type { Node } from '../src/ast';
 import type { InsertOperation } from '../src/operations/insert';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 function directChildren(parent: Element, tagName: string): Element[] {
   const out: Element[] = [];
@@ -20,7 +21,7 @@ function directChildren(parent: Element, tagName: string): Element[] {
 }
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer('Table Cell Padding Test Document'));
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }
@@ -201,7 +202,7 @@ describe('table baseline cell padding', () => {
       right: 160,
     });
 
-    const parser = DocxParser.createNewDocument('blank');
+    const parser = new DocxParser(seededBlank());
     const result = await composeDocument(parser, markdown);
     expect(result.success).toBe(true);
 

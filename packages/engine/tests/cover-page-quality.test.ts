@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { executeCoverPage } from '../src/operations/coverPage';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 const RPR_ORDER = ['w:rFonts', 'w:b', 'w:color', 'w:sz'];
 
 async function fresh() {
-  const parser = new DocxParser(createBlankDocxBuffer('Cover Quality'));
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }

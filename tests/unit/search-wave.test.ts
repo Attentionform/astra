@@ -6,9 +6,10 @@ import {
   executeFootnote,
   executeReplace,
 } from '@attentionform/astra-engine';
+import { seededBlank } from '../helpers/seeded-blank';
 
 async function freshBlank() {
-  const parser = DocxParser.createNewDocument('blank');
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }

@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { executeCoverPage } from '../src/operations/coverPage';
 import { validateOperationStrict, validateOperationsStrict } from '../src/operation-schema';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
-async function createFreshDoc(title: string = 'Cover Spacing Test') {
-  const parser = new DocxParser(createBlankDocxBuffer(title));
+async function createFreshDoc() {
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }
@@ -528,7 +529,7 @@ describe('Cover Page Geometry and Spacing Parameterization', () => {
 
   describe('OOXML validity and save/re-open round-trip', () => {
     it('successfully serializes and re-opens a document with cover page spacing', async () => {
-      const { parser, ast } = await createFreshDoc('Round Trip Document');
+      const { parser, ast } = await createFreshDoc();
       executeCoverPage(
         {
           action: 'coverPage',
@@ -582,7 +583,7 @@ describe('Cover Page Geometry and Spacing Parameterization', () => {
     });
 
     it('round-trips zero-spacing cover page without corruption', async () => {
-      const { parser, ast } = await createFreshDoc('Zero Spacing Round Trip');
+      const { parser, ast } = await createFreshDoc();
       executeCoverPage(
         {
           action: 'coverPage',
@@ -606,7 +607,7 @@ describe('Cover Page Geometry and Spacing Parameterization', () => {
     });
 
     it('round-trips executive template with default 360 meta spacing', async () => {
-      const { parser, ast } = await createFreshDoc('Executive Round Trip');
+      const { parser, ast } = await createFreshDoc();
       executeCoverPage(
         {
           action: 'coverPage',

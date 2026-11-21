@@ -18,10 +18,10 @@ import {
   NumberingManipulator,
   assertValidDocx,
   convertDocxToPdf,
-  createBlankDocxBuffer,
   type DocumentAST,
 } from '@attentionform/astra-engine';
 import { withLoSlot } from '../helpers/lo-slot';
+import { seededBlank } from '../helpers/seeded-blank';
 
 interface Fixture {
   parser: DocxParser;
@@ -33,7 +33,7 @@ const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main
 
 /** Paragraphs li_1..li_4 in a blank document; `numberingXml` is a numbering part the file already had. */
 async function paragraphs(numberingXml?: string): Promise<Fixture> {
-  const parser = new DocxParser(createBlankDocxBuffer('blank'));
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   if (numberingXml) new NumberingManipulator(ast).parseNumbering(numberingXml);
   const engine = new OperationEngine(ast, parser);
@@ -355,7 +355,7 @@ describe('a definition that stops short gains the levels it lacks, in place', ()
 
 describe('the fallback writer gives the same nine levels', () => {
   it('writes a complete definition when a stored one cannot be serialized', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const manipulator = new NumberingManipulator(ast);
     manipulator.getOrCreateList('bullet');

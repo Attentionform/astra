@@ -10,6 +10,7 @@ import {
   ZIP_FIXED_EPOCH_MS,
 } from '@attentionform/astra-engine';
 import { useReproducibleOutput } from '../helpers/reproducible';
+import { seededBlank } from '../helpers/seeded-blank';
 
 // Seeded hostile-input suite for the document parser.
 //
@@ -159,14 +160,14 @@ interface FuzzCase {
 }
 
 function baseEntries(): RawEntry[] {
-  const zip = new AdmZip(createBlankDocxBuffer('blank')) as unknown as {
+  const zip = new AdmZip(seededBlank()) as unknown as {
     getEntries(): { entryName: string; getData(): Buffer }[];
   };
   return zip.getEntries().map((e) => ({ name: e.entryName, data: Buffer.from(e.getData()) }));
 }
 
 function mutateViaZip(label: string, fn: (zip: IZipEdit) => void): Buffer {
-  const zip = new AdmZip(createBlankDocxBuffer('blank')) as unknown as IZipEdit;
+  const zip = new AdmZip(seededBlank()) as unknown as IZipEdit;
   fn(zip);
   void label;
   // Clamp entry stamps: the writer stamps added/updated entries with the
@@ -201,7 +202,7 @@ const DECL_VARIANTS = [
 
 function buildCorpus(): FuzzCase[] {
   const cases: FuzzCase[] = [];
-  const base = createBlankDocxBuffer('blank');
+  const base = seededBlank();
 
   // 1. Raw byte shapes (not parseable as packages).
   {
@@ -569,7 +570,7 @@ function buildCorpus(): FuzzCase[] {
 
   // 8. Valid controls (must parse to shaped output + round-trip).
   {
-    for (const template of ['blank', 'novel', 'financial', 'report'] as const) {
+    for (const template of ['blank', 'novel', 'memo', 'report'] as const) {
       cases.push({
         name: `control/${template}`,
         kind: 'control',
@@ -698,7 +699,7 @@ describe('seeded hostile-input suite for the document parser', () => {
   });
 
   it('disk extraction entry points stay disabled', () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const zip = parser as unknown as Record<string, unknown>;
     void zip;
     const inner = (parser as unknown as { zip: Record<string, (...a: unknown[]) => unknown> }).zip;

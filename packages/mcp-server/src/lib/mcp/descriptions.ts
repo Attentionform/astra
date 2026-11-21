@@ -137,7 +137,7 @@ export const LEAN6_DESCRIPTIONS: Record<Lean6ToolName, string> = {
       'blank/omitted falls back to ASTra Agent). Over-long message/author fail at the handler with E_VALIDATION ' +
       'plus a shorten-and-retry remedy (never a bare MCP -32602: caps are enforced in the handler, not the wire schema). ' +
       'A successful save clears the session dirty flag (revision is re-synced to the file on disk). ' +
-      'When dc:title is still a template placeholder ("Blank Document", "Report") the save writes it from the cover title, the first Title or the first Heading 1 and reports title and titleSetFrom; a title already set is never changed. ' +
+      'When dc:title is empty or still a template placeholder (for example "Report") the save writes it from the cover title, the first Title or the first Heading 1 and reports title and titleSetFrom; a title already set is never changed. ' +
       'A file that already had validator errors when it was opened is saved when the edit adds none: the envelope then carries validation:{ok:false,valid:false,errorCount,tolerated:true,preExistingErrors,introducedErrors:0,messages}; a clean save carries validation:{ok:true,valid:true,errorCount:0}. ' +
       'An edit that adds an error is refused with E_VALIDATION naming both numbers, with errorCount and the first 10 errors as errors[{description,xPath}] (validate_document lists them all). Pass {"strict":true} (or start the server with --strict-validation, or set ASTRA_STRICT_VALIDATION=1) to refuse every validator error as before. ' +
       'Paragraphs that share a w14:paraId are renumbered by the save: the first keeps its id, each later copy gets a new one and is listed in normalized, and the state before is recorded in the history (revert_document returns it); strict refuses such a document instead. ' +
@@ -296,7 +296,7 @@ export const PARITY_DESCRIPTIONS: Record<ParityToolName, string> = {
       'open_document first, then import). Accepts .md/.markdown/.txt; .html/.htm refuse with E_VALIDATION ' +
       '(convert to Markdown first, same verdict as CLI import); .docx refuses with E_VALIDATION naming ' +
       'open_document (open .docx files directly). Outside-jail reads fail E_SANDBOX, missing files E_IO, ' +
-      'oversize files E_LIMIT. Optional allowedDir (image refs), template (report|memo|blank seed check), ' +
+      'oversize files E_LIMIT. Optional allowedDir (image refs), template (checks that the document is that fresh built-in template), ' +
       'and styleGuide (same attach semantics as compose_document). ' +
       'Optional dollarMath (default false) treats $...$ as inline math; off by default because prices and shell text can look like math. ' +
       'Example {"sessionId":"sess_abc","path":"documents/notes.md"} -> compose envelope. '

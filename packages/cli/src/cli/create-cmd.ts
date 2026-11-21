@@ -1,35 +1,21 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { DocxParser, resolveStyleGuide, summarizeStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { DocxParser, TEMPLATE_NAMES, resolveStyleGuide, summarizeStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
 import { composeDocument } from '@attentionform/astra-engine/compose/markdown';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { writeDocx } from './io';
 
-export const CREATE_TEMPLATES = ['report', 'memo', 'blank'] as const;
+export const CREATE_TEMPLATES = TEMPLATE_NAMES;
 export type CreateTemplate = (typeof CREATE_TEMPLATES)[number];
-
-/**
- * A note for a template that comes with text of its own, or undefined for `blank`. `report` holds a whole sample
- * report with invented figures, and `memo` holds a heading and a placeholder line.
- * When Markdown is composed via --from-md or import, the pristine template seed is cleanly replaced.
- */
-export function templateSampleNote(template: string, composed: boolean): string | undefined {
-  if (composed) return undefined;
-  if (template === 'report') {
-    return `--template report includes sample content (a Q3 financial report with invented figures). Replace or delete it before you share the file, or use --template blank.`;
-  }
-  if (template === 'memo') {
-    return `--template memo includes a heading and a placeholder line. Replace or delete them before you share the file, or use --template blank.`;
-  }
-  return undefined;
-}
+export const PAGE_SIZES = ['letter', 'a4'] as const;
 
 export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'create');
   let dest: string | undefined;
   let templateRaw: string | undefined;
+  let pageSizeRaw: string | undefined;
   let fromMdRaw: string | undefined;
   let allowedDirRaw: string | undefined;
   let styleGuideRaw: string | undefined;
@@ -40,11 +26,17 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
     if (a === '--template') {
       const next = args[i + 1];
       if (next === undefined || next.length === 0 || next.startsWith('-')) {
-        return usage(out, 'create --template requires a value (report|memo|blank)');
+        return usage(out, `create --template requires a value (${CREATE_TEMPLATES.join('|')})`);
       }
       templateRaw = args[++i];
     }
     else if (a.startsWith('--template=')) templateRaw = a.slice('--template='.length);
+    else if (a === '--page-size') {
+      const next = args[i + 1];
+      if (next === undefined || next.length === 0 || next.startsWith('-')) return usage(out, 'create --page-size requires a value (letter|a4)');
+      pageSizeRaw = args[++i];
+    }
+    else if (a.startsWith('--page-size=')) pageSizeRaw = a.slice('--page-size='.length);
     else if (a === '--from-md') {
       const next = args[i + 1];
       if (next === undefined || next.length === 0 || next.startsWith('-')) {
@@ -88,6 +80,10 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
   const template: string = templateRaw ?? 'blank';
   if (!(CREATE_TEMPLATES as readonly string[]).includes(template)) {
     return usage(out, `create --template must be one of ${CREATE_TEMPLATES.join('|')} (got "${template}")`);
+  }
+  const pageSize = pageSizeRaw ?? 'letter';
+  if (!(PAGE_SIZES as readonly string[]).includes(pageSize)) {
+    return usage(out, `create --page-size must be one of ${PAGE_SIZES.join('|')} (got "${pageSize}")`);
   }
   if (!force) {
     try {
@@ -133,7 +129,7 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
     }
     // Reuse the existing blank-doc builder (no new package edges): templates
     // are engine-owned, the CLI only gates + writes.
-    const parser = DocxParser.createNewDocument(template as CreateTemplate);
+    const parser = DocxParser.createNewDocument(template as CreateTemplate, { pageSize: pageSize as 'letter' | 'a4' });
     let appliedCount = 0;
     const composeWarnings: string[] = [];
     if (mdSource !== undefined) {
@@ -176,14 +172,12 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
     }
     await writeDocx(dest, parser.rezip());
     const fromMdSuffix = mdSource !== undefined ? `, fromMd=${path.basename(fromMdRaw as string)}, applied=${appliedCount}` : '';
-    print(out, `CREATED ${dest} (template=${template}${fromMdSuffix})`);
-    const templateNote = templateSampleNote(template, mdSource !== undefined);
-    if (templateNote !== undefined && !out.json) printStderr(`${CLI_NAME}: NOTE: ${templateNote}`);
+    print(out, `CREATED ${dest} (template=${template}${pageSize === 'a4' ? ', page-size=a4' : ''}${fromMdSuffix})`);
     printJson(out, {
       ok: true,
       file: dest,
       template,
-      ...(templateNote !== undefined ? { templateNote } : {}),
+      pageSize,
       ...(mdSource !== undefined ? { fromMd: fromMdRaw, appliedCount, valid: true } : {}),
       ...(allowedDirRaw !== undefined ? { allowedDir: allowedDirRaw } : {}),
       ...(styleGuide === 'legacy' ? { styleGuide: 'legacy' } : styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(styleGuide) } : {}),

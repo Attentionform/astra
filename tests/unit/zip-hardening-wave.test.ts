@@ -433,7 +433,7 @@ describe('Wave 1F: Deterministic zip timestamps (P0-8) & Zip bomb ceilings (T-2)
     });
 
     it('loads and rezips built-in templates cleanly', () => {
-      const templates: Array<'blank' | 'novel' | 'financial' | 'report'> = ['blank', 'novel', 'financial', 'report'];
+      const templates: Array<'blank' | 'novel' | 'memo' | 'report'> = ['blank', 'novel', 'memo', 'report'];
       for (const t of templates) {
         const p = DocxParser.createNewDocument(t);
         const rezipped = p.rezip();

@@ -9,18 +9,19 @@
  */
 import { describe, it, expect } from 'vitest';
 import { XMLSerializer } from '@xmldom/xmldom';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { executeStyle, findMatchSpans } from '../src/operations/style';
 import type { StyleOperation } from '../src/operations/style';
 import { validateOperationsStrict } from '../src/operation-schema';
 import { ToonGenerator } from '../src/toon';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 const ser = new XMLSerializer();
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer('Span Test'));
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }

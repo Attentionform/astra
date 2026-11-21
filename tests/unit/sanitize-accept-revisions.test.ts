@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-  createBlankDocxBuffer,
   sanitizeDocxBuffer,
   sanitizeDocumentXml,
   sanitizePackageEntries,
@@ -12,6 +11,7 @@ import {
   validateSanitizeOptionsStrict,
 } from '@attentionform/astra-engine';
 import { run } from '../../packages/cli/src/cli';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const W14_NS = 'http://schemas.microsoft.com/office/word/2010/wordml';
@@ -45,7 +45,7 @@ function insXml(id: number, text: string): string {
  * commentsExtended.xml / people.xml ride along as the engine's comment adjuncts.
  */
 function buildDirtyDocx(): Buffer {
-  const zip = new AdmZip(createBlankDocxBuffer('blank'));
+  const zip = new AdmZip(seededBlank());
   let doc = zip.readAsText('word/document.xml');
   const table =
     `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr>` +

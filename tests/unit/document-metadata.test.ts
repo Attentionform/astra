@@ -424,13 +424,14 @@ describe('E2 loop-back: reviewer items 1-9', () => {
 });
 
 describe('new documents carry their own properties', () => {
-  it.each(['blank', 'report', 'memo'])('a fresh %s document has title, author and real times', async (template) => {
+  it.each(['blank', 'report', 'memo'])('a fresh %s document has no author or title and real times', async (template) => {
     const before = Date.now();
     const parser = new DocxParser(createBlankDocxBuffer(template));
     const ast = await parser.getAST();
-    expect(ast.metadata.title).toBeTruthy();
-    expect(ast.metadata.creator).toBe('ASTra');
-    expect(ast.metadata.lastModifiedBy).toBe('ASTra');
+    // A new file names no author and no title; only the times are real.
+    expect(ast.metadata.title ?? '').toBe('');
+    expect(ast.metadata.creator ?? '').toBe('');
+    expect(ast.metadata.lastModifiedBy ?? '').toBe('');
     const created = new Date(String(ast.metadata.created)).getTime();
     expect(created).toBeGreaterThan(before - 5000);
     expect(created).toBeLessThanOrEqual(Date.now() + 1000);
@@ -445,7 +446,7 @@ describe('new documents carry their own properties', () => {
     const rels = zip.readAsText('word/_rels/document.xml.rels');
     for (const target of ['settings.xml', 'fontTable.xml', 'theme/theme1.xml']) expect(rels).toContain(`Target="${target}"`);
     expect(zip.readAsText('word/settings.xml')).toContain('w:name="compatibilityMode"');
-    expect(zip.readAsText('word/styles.xml')).toContain('w:asciiTheme="minorHAnsi"');
+    expect(zip.readAsText('word/styles.xml')).toContain('<w:docDefaults>');
   });
 
   it('takes the author from ASTRA_AUTHOR and pins the stamps in reproducible mode', async () => {

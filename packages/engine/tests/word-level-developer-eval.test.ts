@@ -12,18 +12,19 @@
  */
 import { describe, it, expect } from 'vitest';
 import { XMLSerializer } from '@xmldom/xmldom';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { StyleOperation } from '../src/operations/style';
 import { Operation, validateOperationStrict } from '../src/operation-schema';
 import { ToonGenerator } from '../src/toon';
 import { PPR_CHILD_ORDER, RPR_CHILD_ORDER } from '../src/ooxml/schema-order';
 import type { Node } from '../src/ast';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 const ser = new XMLSerializer();
 
-async function freshDoc(title = 'Dev Eval Test') {
-  const parser = new DocxParser(createBlankDocxBuffer(title));
+async function freshDoc() {
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   const engine = new OperationEngine(ast, parser);
   return { parser, ast, engine };
@@ -797,7 +798,7 @@ describe('Word Control Developer Evaluation', () => {
     });
 
     it('validates entire DOCX buffer via parser.validateOOXML() after complete workflow', async () => {
-      const { parser, ast, engine } = await freshDoc('Full Workflow Validation');
+      const { parser, ast, engine } = await freshDoc();
       
       const p1 = await insertParagraph(engine, ast, 'First paragraph with some text');
       const p2 = await insertParagraph(engine, ast, 'Second paragraph with Tab\tSeparated\nValues');

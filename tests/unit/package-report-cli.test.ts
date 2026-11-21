@@ -4,13 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
-import { DocxParser, SIGNED_WARNING, createBlankDocxBuffer } from '@attentionform/astra-engine';
+import { DocxParser, SIGNED_WARNING } from '@attentionform/astra-engine';
 import { EXIT_OK, run as runCli } from '../../packages/cli/src/cli';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const renameW = (xml: string): string =>
   xml.replace(/(<\/?)w:/g, '$1x:').replace(/(\s)w:([A-Za-z])/g, '$1x:$2').replace(/xmlns:w=/g, 'xmlns:x=');
 function build(o: { prefixed?: boolean; signed?: boolean }): Buffer {
-  const zip = new AdmZip(createBlankDocxBuffer('blank'));
+  const zip = new AdmZip(seededBlank());
   if (o.prefixed) zip.updateFile('word/document.xml', Buffer.from(renameW(zip.readAsText('word/document.xml')), 'utf8'));
   if (o.signed) {
     zip.addFile('_xmlsignatures/origin.sigs', Buffer.alloc(0));

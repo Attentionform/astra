@@ -118,6 +118,25 @@ const validated = mustRun('astra validate', 'astra', ['validate', memo], { env }
 if (!/VALID/.test(validated.stdout)) fail(`astra validate said ${JSON.stringify(validated.stdout)}`);
 log('create, inspect and validate work in a folder whose name has a space');
 
+// 4b. Every built-in template ships inside the installed package, in both paper sizes, and composes.
+for (const name of ['blank', 'report', 'memo', 'letter', 'proposal', 'invoice', 'technical-spec', 'research-paper', 'novel', 'newsletter']) {
+  for (const size of ['letter', 'a4']) {
+    const out = path.join(spaced, `tpl-${name}-${size}.docx`);
+    mustRun(`astra create --template ${name} --page-size ${size}`, 'astra', ['create', out, '--template', name, '--page-size', size], { env });
+    const ok = mustRun(`astra validate ${name} ${size}`, 'astra', ['validate', out], { env });
+    if (!/VALID/.test(ok.stdout)) fail(`template ${name} (${size}) did not validate: ${JSON.stringify(ok.stdout)}`);
+  }
+}
+{
+  fs.writeFileSync(path.join(spaced, 'tpl.md'), '# Quarterly Review\n\nFirst paragraph.\n');
+  const out = path.join(spaced, 'tpl-composed.docx');
+  mustRun('astra create --template report --from-md', 'astra', ['create', out, '--template', 'report', '--from-md', path.join(spaced, 'tpl.md')], { env });
+  const text = mustRun('astra inspect composed template', 'astra', ['inspect', out], { env }).stdout;
+  if (text.includes('Summarise the purpose')) fail('the composed report template still holds its placeholder body');
+  if (!text.includes('First paragraph.')) fail('the composed report template lost the composed text');
+}
+log('all ten templates create and validate in Letter and A4, and a composed report template drops its placeholder body');
+
 // 5. A folder given with a trailing separator, and a relative image.
 fs.writeFileSync(path.join(spaced, 'rel.md'), '# Relative\n\n![logo](logo.png)\n');
 mustRun(

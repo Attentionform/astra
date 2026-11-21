@@ -3,17 +3,18 @@ import { AdmZip, DocxParser, PII_COVERAGE, listMacroPartsInBuffer, piiCoverageSe
 import { createMcpSessionStore } from '../../src/lib/session-store';
 import { LEAN6_HANDLERS } from '../../src/lib/mcp-tool-adapter';
 import { handleSanitizeDocument } from '../../src/lib/mcp/handlers/parity';
+import { seededBlank } from '../../../../tests/helpers/seeded-blank';
 
 async function openBlankSession(): Promise<{ store: ReturnType<typeof createMcpSessionStore>; sessionId: string }> {
   const store = createMcpSessionStore();
-  const buf = DocxParser.createNewDocument('blank').rezip();
+  const buf = new DocxParser(seededBlank()).rezip();
   const handle = await store.openBuffer(buf, 'memory.docx');
   return { store, sessionId: handle.sessionId };
 }
 
 /** Session opened with macros preserved (refuse-default bypassed explicitly at open). */
 async function openMacroSession(): Promise<{ store: ReturnType<typeof createMcpSessionStore>; sessionId: string }> {
-  const buf = DocxParser.createNewDocument('blank').rezip();
+  const buf = new DocxParser(seededBlank()).rezip();
   const zip = new AdmZip(buf);
   zip.addFile('word/vbaProject.bin', Buffer.from('fake-macro-bytes'));
   const store = createMcpSessionStore();

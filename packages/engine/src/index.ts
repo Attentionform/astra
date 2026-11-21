@@ -21,6 +21,7 @@ export * from './ipc-validation';
 
 // Operations & Mutation Engine
 export * from './operation-schema';
+export { TEMPLATE_NAMES, type TemplateName } from './ooxml/new-document-parts';
 export * from './operation-hints';
 export * from './operation-engine';
 export * from './batch';

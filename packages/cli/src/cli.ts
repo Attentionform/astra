@@ -13,8 +13,8 @@
  *   normalize <docx> [--out <docx>] [--dry-run] [--strict] [--no-history] [--backup[=<path>]] (repair-as-action for legacy files; `validate` stays read-only, no --fix alias)
  *   export   <docx> [--format html|markdown|md|pdf] [-o <outPath>]
  *   search   <docx> <query> [--limit <n>]
- *   create   <out.docx> [--template report|memo|blank] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
- *   import   <file.md> [-o <out.docx>] [--template report|memo|blank] [--force] [--allowed-dir <dir>] [--dollar-math]
+ *   create   <out.docx> [--template <name>] [--page-size letter|a4] [--force] [--from-md <file.md>] [--allowed-dir <dir>] [--dollar-math] [--style-guide <name|path>]
+ *   import   <file.md> [-o <out.docx>] [--template <name>] [--page-size letter|a4] [--force] [--allowed-dir <dir>] [--dollar-math]
  *   stats    <docx>
  *
  * Exit codes: 0 ok · 1 operational failure (invalid docx, bad ops, batch

@@ -10,9 +10,9 @@ async function openBlank(): Promise<{ store: ReturnType<typeof createMcpSessionS
   return { store, sessionId: handle.sessionId };
 }
 
-const SEED_TEXTS = new Set(['Blank Document', 'Start typing your content here...']);
+const SEED_TEXTS = new Set(['']);
 
-/** Text of every body node in document order, without the two placeholder paragraphs of the blank template. */
+/** Text of every body node in document order, without empty paragraphs. */
 function bodyTexts(store: ReturnType<typeof createMcpSessionStore>, sessionId: string): string[] {
   const out: string[] = [];
   for (const section of store.get(sessionId).ast.sections) {

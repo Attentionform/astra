@@ -9,7 +9,6 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import {
   DocxParser,
-  createBlankDocxBuffer,
   executeDelete,
   executeHyperlink,
   executeInsert,
@@ -21,6 +20,7 @@ import {
   validateOperationStrict,
 } from '@attentionform/astra-engine';
 import { validateDocxBuffer } from '../../packages/engine/src/ooxml/validator-gate';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const serializer = new XMLSerializer();
@@ -70,7 +70,7 @@ function nodeXml(ast: any): string {
 
 /** Blank doc + one 2x2 table (headers A/B, rows 1/2 and 3/4) inserted live. */
 async function freshTable(trackChanges = true): Promise<{ parser: DocxParser; ast: any; tableId: string }> {
-  const parser = new DocxParser(createBlankDocxBuffer('blank'));
+  const parser = new DocxParser(seededBlank());
   const ast: any = await parser.getAST();
   ast.settings.trackChanges = trackChanges;
   const anchor = ast.sections[0].nodes[0].id;
@@ -197,7 +197,7 @@ describe('tracked-changes default: replace on fresh nodes', () => {
   });
 
   it('end-to-end saved bytes contain revisions for a first edit with tracking on', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     ast.settings.trackChanges = true;
     expect(ast.settings.trackChanges).toBe(true);
@@ -552,7 +552,7 @@ describe('tracked structural table ops fail closed under explicit trackChanges:t
 
 describe('tracked delete', () => {
   it('explicit trackChanges:true on a paragraph records w:del and retains the node', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const target = ast.sections[0].nodes[0];
     const before = ast.nextChangeId;
@@ -576,7 +576,7 @@ describe('tracked delete', () => {
   }, 60000);
 
   it('params-nested trackChanges:true on a paragraph also records w:del', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const target = ast.sections[0].nodes[0];
     const res = executeDelete({ action: 'delete', target: target.id, params: { trackChanges: true } } as any, ast, parser);
@@ -605,7 +605,7 @@ describe('tracked delete', () => {
   });
 
   it('explicit trackChanges:false deletes outright (legacy removal)', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const target = ast.sections[0].nodes[0];
     const nodesBefore = ast.sections[0].nodes.length;
@@ -616,7 +616,7 @@ describe('tracked delete', () => {
   });
 
   it('missing targets under explicit tracking keep the legacy warn+skip path', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
@@ -766,7 +766,7 @@ describe('tracked replace hyperlink shells and chained history', () => {
   }, 60000);
 
   it('paragraph tracked replace on an anchored link validates with the anchor intact', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const target = ast.sections[0].nodes[0];
     const p = target.xml as Element;
@@ -792,7 +792,7 @@ describe('tracked replace hyperlink shells and chained history', () => {
   }, 60000);
 
   it('paragraph tracked replace on an external link keeps href target and validates', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast: any = await parser.getAST();
     const target = ast.sections[0].nodes[0];
     executeHyperlink({ action: 'hyperlink', target: target.id, text: 'click here', url: 'https://example.com' } as any, ast, parser);

@@ -616,7 +616,7 @@ export async function handleImportDocument(
       ok: false as const,
       code: 'E_VALIDATION',
       message: `import_document: invalid input. ${detail}`,
-      remedy: 'Retry with {"sessionId":"<id from open_document>","path":"<allowed-dir>/file.md"} (optional allowedDir for image refs, optional template report|memo|blank, optional styleGuide).',
+      remedy: 'Retry with {"sessionId":"<id from open_document>","path":"<allowed-dir>/file.md"} (optional allowedDir for image refs, optional template (a built-in template name), optional styleGuide).',
     };
   }
   const srcExt = path.extname(parsed.data.path).toLowerCase();

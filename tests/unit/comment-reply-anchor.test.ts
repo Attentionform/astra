@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   DocxParser,
-  createBlankDocxBuffer,
 } from '@attentionform/astra-engine';
 import { executeReplace } from '../../packages/engine/src/operations/replace';
 import { executeComment } from '../../packages/engine/src/operations/comment';
@@ -10,10 +9,11 @@ import { validateOperationStrict } from '../../packages/engine/src/operation-sch
 import { validateDocxBuffer } from '../../packages/engine/src/ooxml/validator-gate';
 import { XMLSerializer } from '@xmldom/xmldom';
 import AdmZip from 'adm-zip';
+import { seededBlank } from '../helpers/seeded-blank';
 
 describe('optional author and date on replace and comment', () => {
   it('stamps custom author and date on tracked replace insertions and deletions', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
     p.metadata.text = 'Initial text.';
@@ -37,7 +37,7 @@ describe('optional author and date on replace and comment', () => {
   });
 
   it('uses the default author and the current time when replace has no author and date specified', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
     p.metadata.text = 'Initial text.';
@@ -66,7 +66,7 @@ describe('optional author and date on replace and comment', () => {
   });
 
   it('records author and date in comments.xml and people.xml', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 
@@ -94,7 +94,7 @@ describe('optional author and date on replace and comment', () => {
   });
 
   it('preserves full emoji as initials for author starting with emoji', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 
@@ -168,7 +168,7 @@ describe('optional author and date on replace and comment', () => {
 
 describe('reply comment anchoring in document', () => {
   it('anchors comment reply markers next to parent comment in document.xml', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 
@@ -197,7 +197,7 @@ describe('reply comment anchoring in document', () => {
   });
 
   it('does not throw and adds no markers if parent comment markers were missing', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 
@@ -228,7 +228,7 @@ describe('reply comment anchoring in document', () => {
 
 describe('comment reply targeting paragraph node id', () => {
   it('attaches reply to last top-level comment when targeting paragraph node id', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 
@@ -252,7 +252,7 @@ describe('comment reply targeting paragraph node id', () => {
   });
 
   it('attaches reply to paragraph whose node id is all digits', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
     p.id = '20481377';
@@ -266,7 +266,7 @@ describe('comment reply targeting paragraph node id', () => {
   });
 
   it('fails with typed error when replying to node with no comment', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 
@@ -276,7 +276,7 @@ describe('comment reply targeting paragraph node id', () => {
   });
 
   it('fails with typed error when target is neither comment id nor node id', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
 
     expect(() => {
@@ -287,7 +287,7 @@ describe('comment reply targeting paragraph node id', () => {
 
 describe('footnote and endnote style definitions in styles.xml', () => {
   it('defines FootnoteText and FootnoteReference on footnote insert', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 
@@ -304,7 +304,7 @@ describe('footnote and endnote style definitions in styles.xml', () => {
   });
 
   it('defines EndnoteText and EndnoteReference on endnote insert', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 
@@ -320,7 +320,7 @@ describe('footnote and endnote style definitions in styles.xml', () => {
   });
 
   it('does not overwrite existing custom footnote style definition', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const stylesDom = parser.getStylesDom()!;
     const wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     const customStyle = stylesDom.createElementNS(wNs, 'w:style');
@@ -340,7 +340,7 @@ describe('footnote and endnote style definitions in styles.xml', () => {
   });
 
   it('multiple note inserts in the same document do not create duplicate styles', async () => {
-    const parser = new DocxParser(createBlankDocxBuffer('blank'));
+    const parser = new DocxParser(seededBlank());
     const ast = await parser.getAST();
     const p = ast.sections[0].nodes[0];
 

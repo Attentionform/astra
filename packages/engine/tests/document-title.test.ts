@@ -9,7 +9,7 @@ const dcCreator = (parser: DocxParser) => /<dc:creator>([^<]*)<\/dc:creator>/.ex
 
 describe('placeholder titles', () => {
   it('knows the template names and empty text', () => {
-    for (const t of ['Blank Document', 'Report', 'Memo', 'Letter', 'Api Spec', 'Bar Chart 3d', '', '  ', undefined]) {
+    for (const t of ['Report', 'Memo', 'Letter', 'Api Spec', 'Bar Chart 3d', '', '  ', undefined]) {
       expect(isPlaceholderTitle(t), String(t)).toBe(true);
     }
     expect(isPlaceholderTitle('MCP Engine Evaluation 2026')).toBe(false);
@@ -20,7 +20,7 @@ describe('placeholder titles', () => {
 describe('the title is written from the content when it is still a placeholder', () => {
   it('compose: dc:title becomes the first Heading 1 and the result says where it came from', async () => {
     const parser = DocxParser.createNewDocument('blank');
-    expect(dcTitle(parser)).toBe('Blank Document');
+    expect(dcTitle(parser)).toBe('');
     const result = await composeDocument(parser, '# MCP Engine Evaluation 2026\n\nBody text.\n');
     expect(result.success).toBe(true);
     expect(result.titleSetFrom).toBe('Heading 1');
@@ -56,7 +56,7 @@ describe('the title is written from the content when it is still a placeholder',
     expect(dcTitle(parser)).toBe('Annual Report 2026');
   });
 
-  it('the seed paragraph "Blank Document" is not a candidate, so a document with nothing else keeps the placeholder', async () => {
+  it('a blank document has no content to take a title from, so its title stays empty', async () => {
     const parser = DocxParser.createNewDocument('blank');
     const ast = await parser.getAST();
     expect(deriveTitleFromContent(ast)).toBeNull();
@@ -91,7 +91,7 @@ describe('the title is written from the content when it is still a placeholder',
 });
 
 describe('the creator follows a configured author, and only replaces the tool default', () => {
-  it('replaces ASTra with the session author, and lastModifiedBy follows', async () => {
+  it('fills the empty creator of a new file with the session author, and lastModifiedBy follows', async () => {
     const parser = DocxParser.createNewDocument('blank');
     const ast = await parser.getAST();
     ast.settings.defaultAuthor = 'Ada Lovelace';
@@ -101,11 +101,11 @@ describe('the creator follows a configured author, and only replaces the tool de
     expect(coreXml(parser)).toContain('<cp:lastModifiedBy>Ada Lovelace</cp:lastModifiedBy>');
   });
 
-  it('keeps ASTra when no author is configured', async () => {
+  it('a new file has no creator when no author is configured (never "ASTra")', async () => {
     const parser = DocxParser.createNewDocument('blank');
     const ast = await parser.getAST();
     expect(applyDocumentIdentity(ast, parser).creatorSet).toBeUndefined();
-    expect(dcCreator(parser)).toBe('ASTra');
+    expect(dcCreator(parser)).toBe('');
   });
 
   it('never replaces a creator the file already had', async () => {

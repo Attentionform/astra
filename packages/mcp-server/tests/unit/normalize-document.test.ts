@@ -4,12 +4,13 @@ import { createMcpSessionStore } from '../../src/lib/session-store';
 import { readParserNormalizations } from '../../src/lib/mcp/normalize-read';
 import { handleNormalizeDocument } from '../../src/lib/mcp/handlers/parity';
 import { useReproducibleOutput } from '../../../../tests/helpers/reproducible';
+import { seededBlank } from '../../../../tests/helpers/seeded-blank';
 
 useReproducibleOutput();
 
 /** Blank package with non-canonical markup (a shading node missing its default + out-of-order props). */
 function nonCanonicalBuffer(): Buffer {
-  const buf = DocxParser.createNewDocument('blank').rezip();
+  const buf = new DocxParser(seededBlank()).rezip();
   const zip = new AdmZip(buf);
   const xml = zip.getEntry('word/document.xml')?.getData().toString('utf8') ?? '';
   expect(xml).toContain('<w:pPr>');
@@ -70,7 +71,7 @@ describe('normalize_document handler', () => {
   });
 
   it('restores the session untouched when the package stays invalid', async () => {
-    const buf = DocxParser.createNewDocument('blank').rezip();
+    const buf = new DocxParser(seededBlank()).rezip();
     const xml = new AdmZip(buf).getEntry('word/document.xml')?.getData().toString('utf8') ?? '';
     const ids = [...xml.matchAll(/w14:paraId="([^"]+)"/g)].map((m) => m[1]);
     expect(ids.length).toBeGreaterThanOrEqual(2);

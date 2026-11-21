@@ -1,18 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import {
   DocxParser,
-  createBlankDocxBuffer,
   executeInsert,
   executeDelete,
   executeTable,
   isValidParaId,
   OperationEngine,
 } from '@attentionform/astra-engine';
+import { seededBlank } from '../helpers/seeded-blank';
 
 const W14 = 'http://schemas.microsoft.com/office/word/2010/wordml';
 
 async function freshDoc(): Promise<{ parser: DocxParser; ast: any; anchor: string; trailingNodeId: string }> {
-  const parser = new DocxParser(createBlankDocxBuffer('blank'));
+  const parser = new DocxParser(seededBlank());
   const ast: any = await parser.getAST();
   const anchor = ast.sections[0].nodes[0].id as string;
   const trailingNodeId = ast.sections[0].nodes[1]?.id as string;

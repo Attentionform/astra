@@ -71,7 +71,6 @@ async function openBlankSession(): Promise<{ store: ReturnType<typeof createMcpS
   const original = DocxParser.createNewDocument('blank');
   const buf = original.rezip();
   const handle = await store.openBuffer(buf, 'memory.docx');
-  handle.parser.adoptBuiltinSeedFrom(original);
   return { store, sessionId: handle.sessionId };
 }
 
@@ -80,7 +79,6 @@ async function openReportSession(): Promise<{ store: ReturnType<typeof createMcp
   const original = DocxParser.createNewDocument('report');
   const buf = original.rezip();
   const handle = await store.openBuffer(buf, 'report.docx');
-  handle.parser.adoptBuiltinSeedFrom(original);
   return { store, sessionId: handle.sessionId };
 }
 
@@ -176,7 +174,7 @@ describe('compose_document handler', () => {
     expect(seeded.ok).toBe(true);
     const res = await handleComposeDocument(store, { sessionId, markdown: '# Appended\n\nNew body.\n' });
     expect(res.ok).toBe(true);
-    for (const query of ['Blank Document', 'User note stays', 'Appended']) {
+    for (const query of ['User note stays', 'Appended']) {
       const found = await LEAN6_HANDLERS.search_content(store, { sessionId, query });
       expect(found.ok).toBe(true);
       if (!found.ok) throw new Error(`search failed for ${query}`);
@@ -351,7 +349,7 @@ describe('compose_document handler', () => {
     expect(res.ok).toBe(false);
     if (res.ok) throw new Error('mismatched template unexpectedly composed');
     expect(res.code).toBe('E_VALIDATION');
-    expect(res.message).toContain('does not hold the report seed');
+    expect(res.message).toContain('not a fresh report template');
     expect(res.message).toContain('without template');
     expect(res.message).toContain('new_document with template "report"');
     const after = await LEAN6_HANDLERS.inspect_document(store, { sessionId });
@@ -380,7 +378,7 @@ describe('compose_document handler', () => {
     const res = await handleComposeDocument(store, { sessionId, markdown: 'Body text here.\n', template: 'memo' });
     expect(res.ok).toBe(false);
     if (res.ok) throw new Error('mismatched template unexpectedly composed');
-    expect(res.message).toContain('does not hold the memo seed');
+    expect(res.message).toContain('not a fresh memo template');
     expect(res.message).toContain('new_document with template "memo"');
   });
 
@@ -393,10 +391,6 @@ describe('compose_document handler', () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) throw new Error(`matching template compose failed: ${JSON.stringify(res)}`);
-    const found = await LEAN6_HANDLERS.search_content(store, { sessionId, query: 'Blank Document' });
-    expect(found.ok).toBe(true);
-    if (!found.ok) throw new Error('search failed');
-    expect(found.matches.length).toBe(0);
     const body = await LEAN6_HANDLERS.search_content(store, { sessionId, query: 'Composed body' });
     expect(body.ok).toBe(true);
     if (!body.ok) throw new Error('search failed');
@@ -568,9 +562,9 @@ describe('compose_document handler', () => {
     const summary = handle.parser.getStructuralSummary();
     const nodes = summary.nodes ?? [];
 
-    // First node must be the manuscript title (starts at line 1, no leftover dummy text)
-    expect(nodes[0]?.text).toBe('Research Report Title');
-    expect(nodes.some((n) => (n.text ?? '').includes('Q3 Executive'))).toBe(false);
+    // The manuscript title fills the template title slot; no placeholder text is left
+    expect(nodes.some((n) => n.text === 'Research Report Title')).toBe(true);
+    expect(nodes.some((n) => (n.text ?? '').includes('Summarise the purpose'))).toBe(false);
 
     // Check citation references in the References section
     const refHeadingIdx = nodes.findIndex((n) => n.text === 'References');

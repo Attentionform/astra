@@ -139,20 +139,18 @@
  * Ids are deterministic (`md_0001`, ...) so repeated compiles of one source
  * give identical op JSON, except image and chart file bytes which depend on
  * file content (ids stay deterministic, fitted image sizes likewise derive
- * from the same file bytes). `composeDocument` appends only, except for one
- * narrow case: a pristine blank template (exactly the two seed placeholder
- * paragraphs and nothing else, see the seed-skip heuristic in this file).
- * There the seeds are removed after the composed chunks commit, so client
- * output holds only composed content. Every other document keeps strict
- * append-only behavior: pre-existing content is never deleted.
+ * from the same file bytes). `composeDocument` appends, with one narrow
+ * exception: an untouched built-in template. Its placeholder body (the region
+ * between the `astra_body_start` and `astra_body_end` bookmarks) or, for
+ * blank, its lone empty paragraph is replaced after the composed chunks
+ * commit. The region is replaced only when its canonical hash matches the hash
+ * shipped with the engine (see template-seed.ts); an edited region, a removed
+ * marker or an already-composed template appends instead and adds a warning
+ * with a TEMPLATE_* reason code. Nothing outside the placeholder body is removed.
  *
- * Template option: `composeDocument` accepts a template name
- * (`report`, `memo`, `blank`). When given, the open document must still hold
- * that template seed text (`Q3 Executive` for report, `MEMORANDUM` for memo,
- * `Blank Document` for blank); otherwise composition fails before any write.
- * The check only gates the write: on a pristine blank template the seeds are
- * still replaced as described above, so a `{ template: 'blank' }` compose
- * proves the seed was present without leaving placeholder text behind.
+ * Template option: `composeDocument` accepts a built-in template name
+ * (`TEMPLATE_NAMES`). When given, the open document must be that template and
+ * not yet composed into; otherwise composition fails before any write.
  *
  * Atomicity: input errors throw from `compileMarkdown` before any batch
  * runs (zero writes). Runtime failures roll back through the engine's own
@@ -191,8 +189,10 @@ import { allocateSafeHyperlinkRId } from '../manipulators/relationships';
 import { auditExternalRelTarget } from '../ooxml/xxe-guard';
 import { compileMarkdownDetailed, resolveComposeStyleGuide } from './compile';
 import { sortChildrenBySchema, RPR_CHILD_ORDER } from '../ooxml/schema-order';
-import { COMPOSE_CODE_FONT, TEMPLATE_SEEDS } from './constants';
-import { pristineTemplateSeedIds } from './pristine-seed';
+import { COMPOSE_CODE_FONT } from './constants';
+import { loneEmptyParagraphIds } from './pristine-seed';
+import { fillSlot, markTemplateComposed, planTemplateSeed, readTemplateMarker, removeBoundaries, splitLeadingTitle, type TemplateSeedPlan } from './template-seed';
+import { TEMPLATE_NAMES } from '../ooxml/new-document-parts';
 import { applyDocumentIdentity } from '../document-title';
 import type { StyleGuideConfig } from '../style-guide/types';
 import { nlToSpace, segmentsNeedSplit } from './text-spans';
@@ -210,8 +210,8 @@ export interface ComposeOptions {
   chunkSize?: number;
   /** Directory that image and chart path references resolve against. Absent = path references fail closed. */
   allowedDir?: string;
-  /** Require the open document to still hold this template seed before writing. */
-  template?: 'report' | 'memo' | 'blank';
+  /** Require the open document to still be a fresh document of this template before writing. */
+  template?: (typeof TEMPLATE_NAMES)[number];
   /**
    * Active style guide: forwarded to the batch engine so composed tables,
    * charts, callouts, and fenced code blocks inherit the house skin
@@ -252,55 +252,23 @@ export function nextComposeIdPrefix(ast: { sections: Array<{ nodes: Array<{ id: 
   for (let n = 2; ; n++) if (!used(`md${n}`)) return `md${n}`;
 }
 
-export const pristineBlankSeedIds = pristineTemplateSeedIds;
-
+/**
+ * The caller named a template: the open document must be that template, not yet composed into. A mismatch is an
+ * error (nothing is written). A template whose placeholder body was edited still passes here: compose then appends
+ * and says why (TEMPLATE_REGION_EDITED), because the user's edit must be kept.
+ */
 function assertTemplateSeed(parser: DocxParser, template: string): void {
-  if (template !== 'report' && template !== 'memo' && template !== 'blank') {
+  if (!(TEMPLATE_NAMES as readonly string[]).includes(template)) {
+    throw new Error(`E_VALIDATION: line 1: template must be one of ${TEMPLATE_NAMES.join('|')}. Remedy: pass one of those names, or omit template.`);
+  }
+  const marker = readTemplateMarker(parser);
+  const matches =
+    template === 'blank'
+      ? loneEmptyParagraphIds(parser) !== null
+      : marker !== null && marker !== 'invalid' && marker.template === template && !marker.composed;
+  if (!matches) {
     throw new Error(
-      'E_VALIDATION: line 1: template must be one of report|memo|blank. Remedy: pass template report, memo, or blank, or omit it.'
-    );
-  }
-  const marker = TEMPLATE_SEEDS[template];
-  let matched = false;
-
-  // 1. Check docProps/core.xml dc:title
-  try {
-    const zip = (
-      parser as unknown as { getZipAdapter?: () => { hasFile: (p: string) => boolean; readText: (p: string) => string } }
-    ).getZipAdapter?.();
-    if (zip && typeof zip.hasFile === 'function' && zip.hasFile('docProps/core.xml')) {
-      const coreXml = zip.readText('docProps/core.xml');
-      const titleMatch = /<dc:title>([^<]*)<\/dc:title>/.exec(coreXml);
-      if (titleMatch) {
-        const title = titleMatch[1].trim().toLowerCase();
-        if (
-          title === template.toLowerCase() ||
-          (template === 'blank' && (title === 'blank document' || title === 'blank'))
-        ) {
-          matched = true;
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // 2. Check legacy marker in node texts
-  if (!matched && marker) {
-    try {
-      const summary = parser.getStructuralSummary() as { nodes?: Array<{ text?: string }> };
-      const texts = (summary.nodes ?? []).map((n) => n.text ?? '');
-      if (texts.some((t) => t.includes(marker))) {
-        matched = true;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  if (!matched) {
-    throw new Error(
-      `E_VALIDATION: line 1: open document does not hold the ${template} seed ("${marker}"). ` +
+      `E_VALIDATION: line 1: open document is not a fresh ${template} template. ` +
         `Remedy: to add to this document, call compose_document again without template; ` +
         `to start from the ${template} template, call new_document with template "${template}" first and compose into that.`
     );
@@ -582,10 +550,25 @@ export async function composeDocument(
     }
   }
   const styleGuide = resolveComposeStyleGuide(options?.styleGuide);
-  const { operations, warnings: compileWarnings } = compileMarkdownDetailed(markdown, {
+  // What may be replaced is decided now, before anything is compiled or written. A designed template is replaced only when
+  // its shipped manifest says the placeholder body is untouched; a blank document only when it is one empty paragraph.
+  // Nothing is replaced when the caller chose an anchor.
+  const seedPlan: TemplateSeedPlan = options?.anchor === undefined ? planTemplateSeed(parser) : { kind: 'ordinary' };
+  const templatePlan = seedPlan.kind === 'replace' ? seedPlan : null;
+  let composeMarkdown = markdown;
+  let slotTitle: string | null = null;
+  if (templatePlan?.slot) {
+    const split = splitLeadingTitle(markdown);
+    if (split && split.rest.trim() !== '') {
+      slotTitle = split.title;
+      composeMarkdown = split.rest;
+    }
+  }
+  const { operations, warnings: compileWarnings } = compileMarkdownDetailed(composeMarkdown, {
     idPrefix,
-    ...(options?.anchor !== undefined ? { anchor: options.anchor } : {}),
-    ...(options?.position !== undefined ? { position: options.position } : {}),
+    ...(templatePlan ? { anchor: templatePlan.anchorId, position: 'after' as const } : {}),
+    ...(templatePlan === null && options?.anchor !== undefined ? { anchor: options.anchor } : {}),
+    ...(templatePlan === null && options?.position !== undefined ? { position: options.position } : {}),
     allowedDir: options?.allowedDir,
     ...(options?.styleGuide !== undefined ? { styleGuide: options.styleGuide } : {}),
     ...(options?.dollarMath ? { dollarMath: true } : {}),
@@ -607,7 +590,7 @@ export async function composeDocument(
   const ast = liveAst;
   // Seed-skip capture runs after compile+validate (so input errors still
   // throw with zero writes) but before any batch mutates the document.
-  const blankSeedIds = pristineBlankSeedIds(parser, options?.template);
+  const blankSeedIds = templatePlan ? templatePlan.regionIds : seedPlan.kind === 'ordinary' ? loneEmptyParagraphIds(parser) : null;
   // Whole-package snapshot (every zip entry including relationships), so a
   // later rewind leaves no orphan rels or media behind. The narrower
   // document-only snapshot cannot cover hyperlink rels minted during span
@@ -625,7 +608,7 @@ export async function composeDocument(
     errors: [],
     rollbackTriggered: false,
     skippedIds: [],
-    warnings: [...compileWarnings],
+    warnings: [...compileWarnings, ...(seedPlan.kind === 'append' ? [`${seedPlan.reason}: ${seedPlan.message}`] : [])],
     revisionsPending: 0,
     possiblyStaleBodyRefs: [],
   };
@@ -739,6 +722,25 @@ export async function composeDocument(
     }
     mergeSeedCleanupMeta();
   }
+  if (templatePlan) {
+    // The placeholder body is gone and the composed content stands in its place: fill the title slot, drop the boundary
+    // bookmarks and mark the template as composed so a second compose appends. A failure rewinds the whole compose.
+    try {
+      if (slotTitle !== null && templatePlan.slot) fillSlot(templatePlan.slot, slotTitle);
+      removeBoundaries(templatePlan);
+      const marker = readTemplateMarker(parser);
+      if (marker && marker !== 'invalid') markTemplateComposed(parser, marker);
+    } catch (err: unknown) {
+      try {
+        if (preBatchSnapshot !== null) parser.restorePackageSnapshot(preBatchSnapshot);
+      } catch { /* restore best effort */ }
+      aggregate.appliedCount = 0;
+      aggregate.success = false;
+      aggregate.rollbackTriggered = true;
+      aggregate.errors.push({ operationIndex: -1, error: `Template cleanup failed: ${err instanceof Error ? err.message : String(err)}`, hint: 'Retry the compose; nothing was changed.' });
+      return aggregate;
+    }
+  }
   try {
     applyInlineSpans(parser, ast as never, operations);
   } catch (err: unknown) {
@@ -752,7 +754,7 @@ export async function composeDocument(
     throw new Error(`E_VALIDATION: line 1: inline formatting failed (${detail}). Remedy: simplify bold, italic, code, or link spans and retry.`);
   }
   // A composed document has real content now, so a title that is still a template placeholder
-  // ("Blank Document") is replaced with the first Title or Heading 1. Never touches a real title.
+  // (empty, or the name of a template) is replaced with the first Title or Heading 1. Never touches a real title.
   try {
     const identity = applyDocumentIdentity(ast, parser);
     if (identity.titleSetFrom) aggregate.titleSetFrom = identity.titleSetFrom;

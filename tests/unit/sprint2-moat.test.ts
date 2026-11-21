@@ -429,7 +429,7 @@ describe('Sprint 2 Moat Capabilities (MOAT-1, MOAT-2, MOAT-3, MOAT-0)', () => {
         return /heading\s*\d|heading\d|title/i.test(val);
       });
 
-      expect(headingParagraphs.length).toBe(6);
+      expect(headingParagraphs.length).toBe(headingSpecs.length);
       for (const h of headingParagraphs) {
         const pPr = h.getElementsByTagName('w:pPr')[0];
         expect(pPr).toBeDefined();

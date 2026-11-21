@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { DocxParser, createBlankDocxBuffer } from '../src/parser';
+import { DocxParser } from '../src/parser';
 import { OperationEngine } from '../src/operation-engine';
 import { validateDocxBuffer } from '../src/ooxml/validator-gate';
 import type { Node } from '../src/ast';
 import type { InsertOperation } from '../src/operations/insert';
 import type { TableOperation } from '../src/operations/table';
+import { seededBlank } from '../../../tests/helpers/seeded-blank';
 
 function directChildren(parent: Element, tagName: string): Element[] {
   const out: Element[] = [];
@@ -18,7 +19,7 @@ function directChildren(parent: Element, tagName: string): Element[] {
 }
 
 async function freshDoc() {
-  const parser = new DocxParser(createBlankDocxBuffer('Table Add Row Cells Test Document'));
+  const parser = new DocxParser(seededBlank());
   const ast = await parser.getAST();
   return { parser, ast };
 }

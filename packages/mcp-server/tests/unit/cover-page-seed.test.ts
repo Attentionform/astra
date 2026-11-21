@@ -26,9 +26,9 @@ function newFile(template: string): string {
 }
 
 describe('coverPage on a document opened from a template file keeps its content', () => {
-  it('a document opened from a file is not treated as a fresh template', async () => {
+  it('a report opened from a file is not treated as a fresh template', async () => {
     const store = createMcpSessionStore();
-    const opened = await LEAN6_HANDLERS.open_document(store, { path: newFile('blank') });
+    const opened = await LEAN6_HANDLERS.open_document(store, { path: newFile('report') });
     if (!opened.ok) throw new Error(JSON.stringify(opened));
     const out = await LEAN6_HANDLERS.execute_batch(store, {
       sessionId: opened.sessionId,
@@ -38,31 +38,57 @@ describe('coverPage on a document opened from a template file keeps its content'
     if (!out.ok) return;
     expect(out.results[0].removedSeedNodes).toBeUndefined();
     const inspect = await LEAN6_HANDLERS.inspect_document(store, { sessionId: opened.sessionId } as never);
-    expect(JSON.stringify(inspect)).toContain('Blank Document');
+    expect(JSON.stringify(inspect)).toContain('Summarise the purpose');
+  });
+
+  it('a blank file that is still one empty paragraph has nothing to keep: the cover replaces it', async () => {
+    const store = createMcpSessionStore();
+    const opened = await LEAN6_HANDLERS.open_document(store, { path: newFile('blank') });
+    if (!opened.ok) throw new Error(JSON.stringify(opened));
+    const out = await LEAN6_HANDLERS.execute_batch(store, {
+      sessionId: opened.sessionId,
+      operations: [{ action: 'coverPage', title: 'Annual Report' }],
+    } as never);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.results[0].removedSeedNodes).toHaveLength(1);
   });
 });
 
-describe('coverPage on a document made by new_document replaces the placeholder text', () => {
-  for (const template of ['blank', 'report', 'memo']) {
-    it(`${template}: the placeholder nodes are removed and listed in removedSeedNodes`, async () => {
+describe('coverPage on a document made by new_document', () => {
+  it('blank: the empty paragraph is removed and listed in removedSeedNodes', async () => {
+    const store = createMcpSessionStore();
+    const outPath = path.join(os.tmpdir(), `astra-cover-new-blank-${process.pid}-${Date.now()}.docx`);
+    files.push(outPath);
+    const made = await handleNewDocument(store, { outPath, template: 'blank' });
+    if (!made.ok) throw new Error(JSON.stringify(made));
+    const out = await LEAN6_HANDLERS.execute_batch(store, {
+      sessionId: made.sessionId,
+      operations: [{ action: 'coverPage', title: 'Annual Report' }],
+    } as never);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.results[0].removedSeedNodes).toHaveLength(1);
+    const after = String(((await LEAN6_HANDLERS.inspect_document(store, { sessionId: made.sessionId } as never)) as { toonText?: string }).toonText);
+    expect(after).toContain('Annual Report');
+  });
+
+  for (const template of ['report', 'memo']) {
+    it(`${template}: a designed template keeps its content; the cover is added in front`, async () => {
       const store = createMcpSessionStore();
       const outPath = path.join(os.tmpdir(), `astra-cover-new-${template}-${process.pid}-${Date.now()}.docx`);
       files.push(outPath);
       const made = await handleNewDocument(store, { outPath, template });
       if (!made.ok) throw new Error(JSON.stringify(made));
-      const before = await LEAN6_HANDLERS.inspect_document(store, { sessionId: made.sessionId } as never);
-      const seedCount = (before as { rowCount: number }).rowCount;
       const out = await LEAN6_HANDLERS.execute_batch(store, {
         sessionId: made.sessionId,
         operations: [{ action: 'coverPage', title: 'Annual Report' }],
       } as never);
       expect(out.ok).toBe(true);
       if (!out.ok) return;
-      expect(out.results[0].removedSeedNodes).toHaveLength(seedCount);
+      expect(out.results[0].removedSeedNodes).toBeUndefined();
       const after = String(((await LEAN6_HANDLERS.inspect_document(store, { sessionId: made.sessionId } as never)) as { toonText?: string }).toonText);
       expect(after).toContain('Annual Report');
-      expect(after).not.toContain('Blank Document');
-      expect(after).not.toContain('Q3 Executive');
     });
   }
 });
