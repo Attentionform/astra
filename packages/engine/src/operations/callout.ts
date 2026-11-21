@@ -7,6 +7,7 @@ import type { StyleGuideConfig } from '../style-guide/types';
 import { XMLSerializer } from '@xmldom/xmldom';
 import * as crypto from 'crypto';
 import { resolveReproducibleMode } from '../zip-hardening';
+import { textWidthTwipsOf } from './chart-size';
 import { sortChildrenBySchema, TBLPR_CHILD_ORDER, TCPR_CHILD_ORDER } from '../ooxml/schema-order';
 
 function isCalloutReproducible(): boolean {
@@ -200,7 +201,8 @@ export async function executeCallout(op: CalloutOperation, ast: DocumentAST, par
   // Table Grid
   const tblGrid = createWordElement(ownerDoc, 'w:tblGrid');
   const gridCol = createWordElement(ownerDoc, 'w:gridCol');
-  gridCol.setAttribute('w:w', '9000');
+  // 9000 twips (6.25 in) on a Letter page; never wider than the text area of the section it lands in.
+  gridCol.setAttribute('w:w', String(Math.min(9000, textWidthTwipsOf(targetSection.pageSetup))));
   tblGrid.appendChild(gridCol);
   tbl.appendChild(tblGrid);
 
