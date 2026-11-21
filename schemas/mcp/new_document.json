@@ -29,99 +29,17 @@
         "type": "object",
         "properties": {
           "size": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "width": {
-                    "$ref": "#/definitions/__schema0"
-                  },
-                  "height": {
-                    "$ref": "#/definitions/__schema0"
-                  }
-                },
-                "required": [
-                  "width",
-                  "height"
-                ],
-                "additionalProperties": false
-              }
-            ]
+            "$ref": "#/definitions/__schema0"
           },
           "orientation": {
-            "type": "string",
-            "enum": [
-              "portrait",
-              "landscape"
-            ]
+            "$ref": "#/definitions/__schema2"
           },
           "margins": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/__schema0"
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "top": {
-                    "allOf": [
-                      {
-                        "$ref": "#/definitions/__schema0"
-                      }
-                    ]
-                  },
-                  "bottom": {
-                    "allOf": [
-                      {
-                        "$ref": "#/definitions/__schema0"
-                      }
-                    ]
-                  },
-                  "left": {
-                    "allOf": [
-                      {
-                        "$ref": "#/definitions/__schema0"
-                      }
-                    ]
-                  },
-                  "right": {
-                    "allOf": [
-                      {
-                        "$ref": "#/definitions/__schema0"
-                      }
-                    ]
-                  },
-                  "header": {
-                    "allOf": [
-                      {
-                        "$ref": "#/definitions/__schema0"
-                      }
-                    ]
-                  },
-                  "footer": {
-                    "allOf": [
-                      {
-                        "$ref": "#/definitions/__schema0"
-                      }
-                    ]
-                  },
-                  "gutter": {
-                    "allOf": [
-                      {
-                        "$ref": "#/definitions/__schema0"
-                      }
-                    ]
-                  }
-                },
-                "additionalProperties": false
-              }
-            ]
+            "$ref": "#/definitions/__schema3"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Page: size, orientation, margins. Default Letter portrait."
       },
       "force": {
         "type": "boolean"
@@ -139,7 +57,7 @@
         "description": "DEPRECATED: session ids are server-minted (sess_<uuid>); omit sessionId and use the returned id. Client-supplied values are rejected with E_VALIDATION (deterministic ids are test-only via --allow-client-session-ids).",
         "allOf": [
           {
-            "$ref": "#/definitions/__schema1"
+            "$ref": "#/definitions/__schema4"
           }
         ]
       }
@@ -150,12 +68,104 @@
     "additionalProperties": false,
     "definitions": {
       "__schema0": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "width": {
+                "$ref": "#/definitions/__schema1"
+              },
+              "height": {
+                "$ref": "#/definitions/__schema1"
+              }
+            },
+            "required": [
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "__schema1": {
         "type": [
           "number",
           "string"
         ]
       },
-      "__schema1": {
+      "__schema2": {
+        "type": "string",
+        "enum": [
+          "portrait",
+          "landscape"
+        ]
+      },
+      "__schema3": {
+        "anyOf": [
+          {
+            "$ref": "#/definitions/__schema1"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "top": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema1"
+                  }
+                ]
+              },
+              "bottom": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema1"
+                  }
+                ]
+              },
+              "left": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema1"
+                  }
+                ]
+              },
+              "right": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema1"
+                  }
+                ]
+              },
+              "header": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema1"
+                  }
+                ]
+              },
+              "footer": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema1"
+                  }
+                ]
+              },
+              "gutter": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/__schema1"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "__schema4": {
         "type": "string",
         "minLength": 1,
         "maxLength": 128
