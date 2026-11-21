@@ -1,10 +1,10 @@
 import { DESIGN, DESIGN_VERSION } from './themes';
-import { A4, LETTER, buildPackage, cell, field, marker, p, pageBreak, pageXofY, para, ph, phPara, run, runningTitle, sectionBreak, table, type PageSetup } from './lib';
+import { A4, LETTER, buildPackage, coverRuleIndent, textWidth, cell, field, marker, p, pageBreak, pageXofY, para, ph, phPara, run, runningTitle, sectionBreak, table, type PageSetup } from './lib';
 
 /** The report: cover, contents, then a body region that holds labelled placeholders. */
 export function report(page: PageSetup = LETTER): Buffer {
   const cover = [
-    p('', { style: 'NoSpacing', raw: `<w:pBdr><w:top w:val="single" w:sz="36" w:space="0" w:color="${DESIGN.colors.accent}"/></w:pBdr><w:spacing w:before="2400" w:after="240"/><w:ind w:right="6800"/>` }),
+    p('', { style: 'NoSpacing', raw: `<w:pBdr><w:top w:val="single" w:sz="36" w:space="0" w:color="${DESIGN.colors.accent}"/></w:pBdr><w:spacing w:before="2400" w:after="240"/><w:ind w:right="${coverRuleIndent(page)}"/>` }),
     // Slot: the title placeholder, wrapped in a bookmark the compose shortcut may fill.
     p(['<w:bookmarkStart w:id="1" w:name="astra_slot_title"/>', ph('Report title'), '<w:bookmarkEnd w:id="1"/>'], { style: 'Title' }),
     phPara('Subtitle: one line that says what the report covers', 'Subtitle'),
@@ -35,7 +35,7 @@ export function report(page: PageSetup = LETTER): Buffer {
       style: 'AstraTable',
       header: true,
       cantSplit: true,
-      widths: [3120, 3120, 3120],
+      widths: [Math.floor(textWidth(page) / 3), Math.floor(textWidth(page) / 3), textWidth(page) - 2 * Math.floor(textWidth(page) / 3)],
       rows: [
         [cell(ph('Column')), cell(ph('Column')), cell(ph('Column'))],
         [cell(ph('Value')), cell(ph('Value')), cell(ph('Value'))],

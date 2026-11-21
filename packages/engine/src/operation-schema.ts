@@ -498,11 +498,11 @@ const sectionOp = z.object({
 }).strict();
 
 const pageLength = z.union([z.number(), z.string().min(1).max(32)]).describe('A length: a number of twips (1440 to an inch), or a string with a unit such as "25mm", "1in", "2.5cm", "72pt"');
-const pageSizeField = z.union([
+export const pageSizeField = z.union([
   z.string().min(1).max(64),
   z.object({ width: pageLength, height: pageLength }).strict(),
 ]).describe('A paper name (Letter, Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6), a size {width, height} with lengths, or a string such as "148x210mm" or "6x9in"');
-const pageMarginsField = z.union([
+export const pageMarginsField = z.union([
   pageLength,
   z.object({
     top: pageLength.optional(),
@@ -514,6 +514,16 @@ const pageMarginsField = z.union([
     gutter: pageLength.optional(),
   }).strict(),
 ]).describe('One length for all four page margins, or an object with any of top, bottom, left, right, header (distance), footer (distance) and gutter');
+
+/** The page of a new document: paper, orientation and margins. Without it the page is Letter, portrait, with the Letter margins. */
+export const newPageField = z
+  .object({
+    size: pageSizeField.optional(),
+    orientation: z.enum(['portrait', 'landscape']).optional().describe('portrait or landscape; a named paper is portrait unless this says landscape'),
+    margins: pageMarginsField.optional(),
+  })
+  .strict()
+  .describe('The page of the new document: { size: a paper name (Letter, Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6) or a size such as "148x210mm" or { width, height }, orientation, margins }. Default Letter portrait.');
 const pageSetupFields = {
   orientation: z.enum(['portrait', 'landscape']).optional(),
   paperSize: pageSizeField.optional(),

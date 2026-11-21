@@ -56,9 +56,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libreoffice-writer libreoffice-calc poppler-utils
 
-    - name: Template freshness gate (regenerate-and-diff)
-      run: npm run build:templates --workspace=@attentionform/astra-engine && git diff --exit-code -- packages/engine/templates packages/engine/src/compose/template-manifest.generated.ts
-
     - name: Run unit tests
       run: npx vitest run
 

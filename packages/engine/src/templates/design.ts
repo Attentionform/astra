@@ -83,7 +83,11 @@ export const NUM_DECIMAL = 2;
 /** numId of the multilevel heading numbering (1, 1.1, 1.1.1) used by headings that carry it directly. */
 export const NUM_HEADINGS = 3;
 
-export function stylesXml(t: Theme): string {
+/**
+ * The styles part. `textWidth` is the text width of the page in twips: the right tab stops of the header, footer and contents styles sit at it,
+ * so they end at the right margin on any page (9360 is Letter's 6.5 in).
+ */
+export function stylesXml(t: Theme, textWidth = 9360): string {
   const c = t.colors;
   const s = t.sizes;
   const keep = '<w:keepNext/><w:keepLines/>';
@@ -256,7 +260,7 @@ export function stylesXml(t: Theme): string {
       name: 'header',
       basedOn: 'Normal',
       uiPriority: 99,
-      pPr: `<w:pBdr>${rule(c.rule)}</w:pBdr><w:tabs><w:tab w:val="right" w:pos="9360"/></w:tabs><w:spacing w:after="0" w:line="240" w:lineRule="auto"/>`,
+      pPr: `<w:pBdr>${rule(c.rule)}</w:pBdr><w:tabs><w:tab w:val="right" w:pos="${textWidth}"/></w:tabs><w:spacing w:after="0" w:line="240" w:lineRule="auto"/>`,
       rPr: `<w:color w:val="${c.muted}"/><w:sz w:val="${s.small}"/><w:szCs w:val="${s.small}"/>`,
     }),
     paraStyle({
@@ -264,7 +268,7 @@ export function stylesXml(t: Theme): string {
       name: 'footer',
       basedOn: 'Normal',
       uiPriority: 99,
-      pPr: `<w:tabs><w:tab w:val="right" w:pos="9360"/></w:tabs><w:spacing w:after="0" w:line="240" w:lineRule="auto"/>`,
+      pPr: `<w:tabs><w:tab w:val="right" w:pos="${textWidth}"/></w:tabs><w:spacing w:after="0" w:line="240" w:lineRule="auto"/>`,
       rPr: `<w:color w:val="${c.muted}"/><w:sz w:val="${s.small}"/><w:szCs w:val="${s.small}"/>`,
     }),
     paraStyle({
@@ -282,7 +286,7 @@ export function stylesXml(t: Theme): string {
       basedOn: 'Normal',
       next: 'BodyText',
       uiPriority: 39,
-      pPr: `<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="9350"/></w:tabs><w:spacing w:before="80" w:after="40"/>`,
+      pPr: `<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="${textWidth - 10}"/></w:tabs><w:spacing w:before="80" w:after="40"/>`,
       rPr: '<w:b/>',
     }),
     paraStyle({
@@ -291,7 +295,7 @@ export function stylesXml(t: Theme): string {
       basedOn: 'Normal',
       next: 'BodyText',
       uiPriority: 39,
-      pPr: `<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="9350"/></w:tabs><w:spacing w:after="40"/><w:ind w:left="240"/>`,
+      pPr: `<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="${textWidth - 10}"/></w:tabs><w:spacing w:after="40"/><w:ind w:left="240"/>`,
     }),
     paraStyle({
       id: 'FootnoteText',
@@ -442,11 +446,13 @@ export function numberingXml(t: Theme): string {
   );
 }
 
-export function settingsXml(): string {
+export function settingsXml(o: { mirrorMargins?: boolean; gutterAtTop?: boolean } = {}): string {
   return (
     XML_DECL +
     `<w:settings xmlns:w="${W_NS}">` +
     '<w:zoom w:percent="100"/>' +
+    (o.mirrorMargins ? '<w:mirrorMargins/>' : '') +
+    (o.gutterAtTop ? '<w:gutterAtTop/>' : '') +
     '<w:defaultTabStop w:val="720"/>' +
     '<w:characterSpacingControl w:val="doNotCompress"/>' +
     '<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>' +

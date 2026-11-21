@@ -140,6 +140,7 @@
    "MetadataOperation",
    "MoveOperation",
    "NamedStyleOperation",
+   "NewPageOptions",
    "Node",
    "NodeMetadata",
    "NumberingMap",

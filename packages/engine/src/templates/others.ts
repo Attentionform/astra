@@ -1,6 +1,6 @@
 import { DESIGN, DESIGN_VERSION, MANUSCRIPT } from './themes';
 import { NUM_HEADINGS } from './design';
-import { LETTER, buildPackage, cell, field, marker, p, pageBreak, pageXofY, para, ph, phPara, run, runningTitle, sectionBreak, table, type PageSetup } from './lib';
+import { LETTER, buildPackage, coverRuleIndent, textWidth, cell, field, marker, p, pageBreak, pageXofY, para, ph, phPara, run, runningTitle, sectionBreak, table, type PageSetup } from './lib';
 
 const D = DESIGN;
 const slot = (id: number, name: string, inner: string): string => `<w:bookmarkStart w:id="${id}" w:name="astra_slot_${name}"/>${inner}<w:bookmarkEnd w:id="${id}"/>`;
@@ -13,7 +13,7 @@ export function blank(page: PageSetup = LETTER): Buffer {
 }
 
 export function memo(page: PageSetup = LETTER): Buffer {
-  const w = page.width - page.left - page.right;
+  const w = textWidth(page);
   const body = [
     para('Memo', 'Title'),
     table({
@@ -68,7 +68,7 @@ export function letter(page: PageSetup = LETTER): Buffer {
 }
 
 export function invoice(page: PageSetup = LETTER): Buffer {
-  const w = page.width - page.left - page.right;
+  const w = textWidth(page);
   const half = Math.floor(w / 2);
   const body = [
     para('Invoice', 'Title'),
@@ -126,7 +126,7 @@ export function invoice(page: PageSetup = LETTER): Buffer {
 
 function coverBlock(page: PageSetup, ruleColor: string): string[] {
   return [
-    p('', { style: 'NoSpacing', raw: `<w:pBdr><w:top w:val="single" w:sz="36" w:space="0" w:color="${ruleColor}"/></w:pBdr><w:spacing w:before="2400" w:after="240"/><w:ind w:right="6800"/>` }),
+    p('', { style: 'NoSpacing', raw: `<w:pBdr><w:top w:val="single" w:sz="36" w:space="0" w:color="${ruleColor}"/></w:pBdr><w:spacing w:before="2400" w:after="240"/><w:ind w:right="${coverRuleIndent(page)}"/>` }),
     p(slot(1, 'title', ph('Document title')), { style: 'Title' }),
     phPara('Subtitle: one line that says what this covers', 'Subtitle'),
     p('', { style: 'NoSpacing', raw: '<w:spacing w:before="1200"/>' }),
@@ -147,7 +147,7 @@ const contents = (): string[] => [
 ];
 
 export function proposal(page: PageSetup = LETTER): Buffer {
-  const w = page.width - page.left - page.right;
+  const w = textWidth(page);
   const body = [
     ...coverBlock(page, D.colors.accent),
     ...contents(),
@@ -193,7 +193,7 @@ export function proposal(page: PageSetup = LETTER): Buffer {
 }
 
 export function technicalSpec(page: PageSetup = LETTER): Buffer {
-  const w = page.width - page.left - page.right;
+  const w = textWidth(page);
   const body = [
     p(slot(1, 'title', ph('Service name')), { style: 'Title' }),
     phPara('Subtitle: what this specification covers', 'Subtitle'),

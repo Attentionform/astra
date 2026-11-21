@@ -1,4 +1,4 @@
-// Every built-in template, in Letter and A4, and a compose onto one.
+// Every built-in template on Letter, A4 and a custom 6 x 9 in page, and a compose onto one.
 import { join } from 'node:path';
 import { DocxParser, TEMPLATE_NAMES, composeDocument } from '@attentionform/astra-engine';
 import { assertApplied, outputDir, writeValidated } from './_shared.mjs';
@@ -6,9 +6,9 @@ import { assertApplied, outputDir, writeValidated } from './_shared.mjs';
 const dir = outputDir('07');
 
 for (const name of TEMPLATE_NAMES) {
-  for (const pageSize of ['letter', 'a4']) {
-    const parser = DocxParser.createNewDocument(name, { pageSize });
-    await writeValidated(join(dir, `${name}-${pageSize}.docx`), parser.rezip());
+  for (const size of ['Letter', 'A4', '6x9in']) {
+    const parser = DocxParser.createNewDocument(name, { page: { size, ...(name === 'invoice' || name === 'proposal' ? {} : { margins: '0.75in' }) } });
+    await writeValidated(join(dir, `${name}-${size}.docx`), parser.rezip());
   }
 }
 

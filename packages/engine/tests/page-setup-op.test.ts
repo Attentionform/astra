@@ -7,7 +7,7 @@ const sectPrs = (parser: DocxParser): string[] => (new AdmZip(parser.rezip()).re
 const attr = (xml: string, tag: string, name: string): string | undefined => new RegExp(`<${tag}\\b[^>]*\\b${name}="([^"]*)"`).exec(xml)?.[1];
 const settings = (parser: DocxParser): string => new AdmZip(parser.rezip()).readAsText('word/settings.xml');
 
-async function run(template: string, ops: object[], opts?: { pageSize?: 'letter' | 'a4' }) {
+async function run(template: string, ops: object[], opts?: { page?: { size?: string } }) {
   const parser = DocxParser.createNewDocument(template, opts);
   const engine = new OperationEngine(await parser.getAST(), parser);
   const res = await engine.executeBatch({ operations: ops as never });

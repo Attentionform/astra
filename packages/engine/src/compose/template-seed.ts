@@ -1,6 +1,9 @@
 import type { DocxParser } from '../parser';
 import { REGION_END, REGION_START, findRegion, findSlot, hashNodes } from './template-canonical';
-import { TEMPLATE_MANIFEST } from './template-manifest.generated';
+import { pageSetupFromSectPr } from '../parser/sections';
+import { pristineHashes } from '../templates/pristine';
+import { LETTER, type PageSetup } from '../templates/lib';
+import { designVersionOf } from '../templates';
 import { unescapeMarkedText } from './text-spans';
 
 /**
@@ -13,7 +16,7 @@ import { unescapeMarkedText } from './text-spans';
  */
 export type TemplateReason =
   | 'TEMPLATE_MARKER_INVALID'
-  | 'TEMPLATE_MANIFEST_MISSING'
+  | 'TEMPLATE_UNKNOWN'
   | 'TEMPLATE_BOOKMARKS_MISSING'
   | 'TEMPLATE_REGION_EDITED'
   | 'TEMPLATE_ALREADY_COMPOSED';
@@ -70,6 +73,45 @@ function otherPartsText(parser: DocxParser): string {
     .join('\n');
 }
 
+/**
+ * The page the placeholder body sits on: the section that holds its first block (the first section break at or after it, else the
+ * last section), as twips. The body of a template follows its page, so the pristine body is built for this page.
+ */
+function pageAt(parser: DocxParser, first: Element | undefined): PageSetup {
+  const body = parser.getDocumentDom().getElementsByTagName('w:body')[0];
+  let sectPr: Element | null = null;
+  for (let n: Node | null = first ?? null; n; n = n.nextSibling) {
+    if (n.nodeType !== 1) continue;
+    const found = (n as Element).getElementsByTagName?.('w:sectPr')[0];
+    if (found && (n as Element).tagName === 'w:p') {
+      sectPr = found;
+      break;
+    }
+  }
+  if (!sectPr && body) {
+    for (let c = body.lastChild; c; c = c.previousSibling) {
+      if (c.nodeType === 1 && (c as Element).tagName === 'w:sectPr') {
+        sectPr = c as Element;
+        break;
+      }
+    }
+  }
+  const ps = pageSetupFromSectPr(sectPr);
+  const settings = parser.getZipAdapter().readTextOrNull('word/settings.xml') ?? '';
+  return {
+    width: ps.pageWidthTwips ?? LETTER.width,
+    height: ps.pageHeightTwips ?? LETTER.height,
+    top: ps.marginTop ?? LETTER.top,
+    bottom: ps.marginBottom ?? LETTER.bottom,
+    left: ps.marginLeft ?? LETTER.left,
+    right: ps.marginRight ?? LETTER.right,
+    header: ps.headerDistance ?? LETTER.header,
+    footer: ps.footerDistance ?? LETTER.footer,
+    gutter: ps.gutter ?? 0,
+    gutterAtTop: /<w:gutterAtTop\b(?![^>]*w:val="(?:0|false|off)")/.test(settings),
+  };
+}
+
 export function planTemplateSeed(parser: DocxParser): TemplateSeedPlan {
   const marker = readTemplateMarker(parser);
   if (marker === null) return { kind: 'ordinary' };
@@ -82,16 +124,17 @@ export function planTemplateSeed(parser: DocxParser): TemplateSeedPlan {
   if (marker.composed) {
     return { kind: 'append', template, reason: 'TEMPLATE_ALREADY_COMPOSED', message: `The ${template} template already received composed content, so new content is appended.` };
   }
-  const entry = TEMPLATE_MANIFEST[`${template}@${marker.version}`];
-  if (!entry) {
-    return { kind: 'append', template, reason: 'TEMPLATE_MANIFEST_MISSING', message: `This engine has no manifest for ${template} design version ${marker.version}, so the document is treated as an ordinary document.` };
+  const known = designVersionOf(template);
+  if (known === undefined || known !== marker.version) {
+    return { kind: 'append', template, reason: 'TEMPLATE_UNKNOWN', message: `This engine has no ${template} template at design version ${marker.version}, so the document is treated as an ordinary document.` };
   }
   const body = parser.getDocumentDom().getElementsByTagName('w:body')[0];
   const region = body ? findRegion(body) : null;
   if (!body || !region) {
     return { kind: 'append', template, reason: 'TEMPLATE_BOOKMARKS_MISSING', message: `The ${REGION_START} and ${REGION_END} bookmarks are missing, duplicated or out of order, so nothing is replaced and the new content is appended.` };
   }
-  if (!entry.region.includes(hashNodes(region.nodes, otherPartsText(parser)))) {
+  const pristine = pristineHashes(template, pageAt(parser, region.nodes[0]));
+  if (!pristine || pristine.region !== hashNodes(region.nodes, otherPartsText(parser))) {
     return { kind: 'append', template, reason: 'TEMPLATE_REGION_EDITED', message: `The placeholder body of the ${template} template was edited, so nothing is deleted and the new content is appended.` };
   }
   const ids: string[] = [];
@@ -108,7 +151,7 @@ export function planTemplateSeed(parser: DocxParser): TemplateSeedPlan {
     return { kind: 'append', template, reason: 'TEMPLATE_REGION_EDITED', message: `The placeholder body of the ${template} template is empty, so the new content is appended.` };
   }
   let slot: ReturnType<typeof findSlot> = null;
-  const slotHash = entry.slots.title;
+  const slotHash = pristine.slots.title;
   if (slotHash !== undefined) {
     const found = findSlot(body, 'title');
     if (found && hashNodes(found.nodes, otherPartsText(parser)) === slotHash) slot = found;

@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { serverOfficeVersion } from '../lib/mcp/validation-target';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { DocxParser, TEMPLATE_NAMES, getEngineErrorCode, type EngineErrorCode, type ResolvedStyleGuide } from '@attentionform/astra-engine';
-import { assertWriteTargetNoSymlink, summarizeStyleGuide, writeFileNoFollow, type StyleGuideSummary } from '@attentionform/astra-engine/internal';
+import { DocxParser, TEMPLATE_NAMES, getEngineErrorCode, type EngineErrorCode, type NewPageOptions, type ResolvedStyleGuide } from '@attentionform/astra-engine';
+import { newPageField, assertWriteTargetNoSymlink, summarizeStyleGuide, writeFileNoFollow, type StyleGuideSummary } from '@attentionform/astra-engine/internal';
 import {
   buildClientSessionIdRejection,
   validateSaveTarget,
@@ -19,8 +19,8 @@ export const NewDocumentSchema = z
   .object({
     outPath: z.string().min(1).max(1024),
     template: z.enum(NEW_DOCUMENT_TEMPLATES).optional(),
-    // Paper size of the template: Letter (default) or A4.
-    pageSize: z.enum(['letter', 'a4']).optional(),
+    // Paper, orientation and margins of the new document (default Letter portrait).
+    page: newPageField.optional(),
     force: z.boolean().optional(),
     // Style guide attach-at-creation (bundled name or guide file path).
     // Persists for the session; batches inherit it unless they override.
@@ -46,7 +46,9 @@ export type NewDocumentInput = z.infer<typeof NewDocumentSchema>;
 
 export const NEW_DOCUMENT_DESCRIPTION =
   `Create a new .docx from a template (${NEW_DOCUMENT_TEMPLATES.join('|')}; default blank, an empty page) at outPath inside an allowed folder ` +
-  '(a template is a starting document with styles, page setup, header and footer and bracketed placeholders such as [Client name]; every part can be edited afterwards; optional pageSize letter (default) or a4). ' +
+  '(a template is a starting document with styles, page setup, header and footer and bracketed placeholders such as [Client name]; every part can be edited afterwards). ' +
+  'Optional page {size,orientation,margins} sets the paper (Letter default; Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6, or any size such as "148x210mm" or {"width":"6in","height":"9in"}, 1 in to 22 in a side), landscape, and margins (one length such as "20mm", or {top,bottom,left,right,header,footer,gutter}); the template is built for that page. ' +
+  'The old pageSize option was replaced by page.size. ' +
   '(the folders named with --allowed-dir or ASTRA_EXTRA_DOC_ROOTS; only when none are named, ./documents and the system temp folder). Validates the fresh package before writing ' +
   '(E_VALIDATION when invalid, never writes corruption); refuses to overwrite without {force:true} (E_CONFLICT). ' +
   'Success returns {ok:true,path,sessionId,revision,template,bytes} with the file opened into a session ' +
@@ -71,6 +73,8 @@ type NewDocumentOk = {
   styleGuide?: StyleGuideSummary;
   /** Parser diagnostics of the attached guide (present only when attached). */
   styleGuideWarnings?: string[];
+  /** A page that is valid but a poor fit for the template (present only then). */
+  warnings?: string[];
 };
 
 type NewDocumentErr = {
@@ -108,6 +112,9 @@ export async function handleNewDocument(
   store: McpSessionStore,
   rawArgs: unknown
 ): Promise<NewDocumentOk | NewDocumentErr> {
+  if (rawArgs !== null && typeof rawArgs === 'object' && 'pageSize' in rawArgs) {
+    return newDocError('E_VALIDATION', "new_document: 'pageSize' was replaced by page.size", 'Retry with {"page":{"size":"A4"}} (size is a paper name or a size such as "148x210mm"; orientation and margins are also in page).');
+  }
   const parsed = NewDocumentSchema.safeParse(rawArgs);
   if (!parsed.success) {
     const detail = parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
@@ -184,7 +191,7 @@ export async function handleNewDocument(
 
   let parser: DocxParser;
   try {
-    parser = DocxParser.createNewDocument(template, parsed.data.pageSize !== undefined ? { pageSize: parsed.data.pageSize } : undefined);
+    parser = DocxParser.createNewDocument(template, parsed.data.page !== undefined ? { page: parsed.data.page as NewPageOptions } : undefined);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return newDocError(
@@ -266,6 +273,7 @@ export async function handleNewDocument(
       revision: handle.revision,
       template,
       bytes,
+      ...(parser.newDocumentWarnings.length > 0 ? { warnings: [...parser.newDocumentWarnings] } : {}),
       ...(resolvedGuide !== undefined
         ? {
             styleGuide: summarizeStyleGuide(resolvedGuide.config),

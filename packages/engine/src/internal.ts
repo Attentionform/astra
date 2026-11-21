@@ -197,3 +197,4 @@ export * from './errors';
 
 export * from './restore-original';
 export * from './page';
+export type { NewPageOptions } from './templates/page';

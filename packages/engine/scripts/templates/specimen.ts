@@ -4,9 +4,9 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { CANDIDATES } from './themes';
-import { contrastChecks } from './design';
-import { A4, LETTER, buildPackage, cell, p, para, ph, phPara, pageXofY, run, runningTitle, table } from './lib';
+import { CANDIDATES } from '../../src/templates/themes';
+import { contrastChecks } from '../../src/templates/design';
+import { A4, LETTER, buildPackage, cell, p, para, ph, phPara, pageXofY, run, runningTitle, table } from '../../src/templates/lib';
 
 const out = process.argv[2];
 if (!out) throw new Error('usage: specimen <outDir>');

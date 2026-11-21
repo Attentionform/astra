@@ -2,8 +2,8 @@
  * Body helpers and package assembly shared by every template. A template file builds its body with these
  * helpers and hands it to `buildPackage`, which writes a complete, deterministic .docx.
  */
-import AdmZip from '../../src/adm-zip-safe';
-import { clampZipEntryTimes } from '../../src/zip-hardening';
+import AdmZip from '../adm-zip-safe';
+import { clampZipEntryTimes } from '../zip-hardening';
 import { W_NS, XML_DECL, esc, fontTableXml, numberingXml, settingsXml, stylesXml, themeXml, type Theme } from './design';
 
 export const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -185,6 +185,30 @@ export interface PageSetup {
   right: number;
   header: number;
   footer: number;
+  /** Extra space on the binding edge. Default 0. */
+  gutter?: number;
+  /** True when the gutter is on the top edge (a setting of the document). */
+  gutterAtTop?: boolean;
+  /** Mirror the inner and outer margins (a setting of the document). */
+  mirrorMargins?: boolean;
+  /** The printer paper code for `w:code`, for a named paper. */
+  code?: number;
+}
+
+/** The text width of a page in twips: the width less both margins, and less the gutter when it is on the left. */
+export function textWidth(page: PageSetup): number {
+  return page.width - page.left - page.right - (page.gutterAtTop ? 0 : page.gutter ?? 0);
+}
+
+/** The text height of a page in twips. */
+export function textHeight(page: PageSetup): number {
+  return page.height - page.top - page.bottom - (page.gutterAtTop ? page.gutter ?? 0 : 0);
+}
+
+/** The right indent of the cover rule: the rule is 2560 twips long on a normal page and half the text width on a very narrow one. */
+export function coverRuleIndent(page: PageSetup): number {
+  const w = textWidth(page);
+  return w - Math.min(2560, Math.floor(w / 2));
 }
 
 export const LETTER: PageSetup = { width: 12240, height: 15840, top: 1440, bottom: 1440, left: 1440, right: 1440, header: 720, footer: 720 };
@@ -210,8 +234,8 @@ export function sectPr(page: PageSetup, hf: { defaultHeader?: string; defaultFoo
     (hf.defaultFooter ? `<w:footerReference w:type="default" r:id="${hf.defaultFooter}"/>` : '') +
     (hf.firstFooter ? `<w:footerReference w:type="first" r:id="${hf.firstFooter}"/>` : '');
   return (
-    `<w:sectPr>${refs}${hf.continuous ? '<w:type w:val="continuous"/>' : ''}<w:pgSz w:w="${page.width}" w:h="${page.height}"/>` +
-    `<w:pgMar w:top="${page.top}" w:right="${page.right}" w:bottom="${page.bottom}" w:left="${page.left}" w:header="${page.header}" w:footer="${page.footer}" w:gutter="0"/>` +
+    `<w:sectPr>${refs}${hf.continuous ? '<w:type w:val="continuous"/>' : ''}<w:pgSz w:w="${page.width}" w:h="${page.height}"${page.width > page.height ? ' w:orient="landscape"' : ''}${page.code !== undefined ? ` w:code="${page.code}"` : ''}/>` +
+    `<w:pgMar w:top="${page.top}" w:right="${page.right}" w:bottom="${page.bottom}" w:left="${page.left}" w:header="${page.header}" w:footer="${page.footer}" w:gutter="${page.gutter ?? 0}"/>` +
     (hf.restartNumbering ? '<w:pgNumType w:start="1"/>' : '') +
     (hf.cols && hf.cols > 1 ? `<w:cols w:num="${hf.cols}" w:space="480"/>` : '') +
     (hf.titlePg ? '<w:titlePg/>' : '') +
@@ -326,9 +350,9 @@ export function buildPackage(inp: BuildInput): Buffer {
   add('_rels/.rels', rootRels);
   add('word/document.xml', document);
   add('word/_rels/document.xml.rels', documentRels);
-  add('word/styles.xml', stylesXml(inp.theme));
+  add('word/styles.xml', stylesXml(inp.theme, textWidth(inp.page)));
   add('word/numbering.xml', numberingXml(inp.theme));
-  add('word/settings.xml', settingsXml());
+  add('word/settings.xml', settingsXml({ mirrorMargins: inp.page.mirrorMargins, gutterAtTop: inp.page.gutterAtTop }));
   add('word/fontTable.xml', fontTableXml(inp.theme));
   add('word/theme/theme1.xml', themeXml(inp.theme));
   add('docProps/core.xml', core);

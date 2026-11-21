@@ -61,6 +61,7 @@ export type { WatermarkOperation } from './operations/watermark';
 export { exportOriginal, getOriginalInfo, originalSha256 } from './original';
 export type { OriginalInfo, OriginalUnavailableReason } from './original';
 export type { PackageReport } from './package-report';
+export type { NewPageOptions } from './templates/page';
 export { DocxParser, createBlankDocxBuffer } from './parser';
 export type { DuplicateParaIdPolicy, SaveGuardKind } from './parser';
 export type { DuplicateParaId } from './parser/para-ids';

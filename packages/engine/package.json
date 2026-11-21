@@ -7,7 +7,6 @@
   "files": [
     "dist",
     "dist/templates/guides/*.md",
-    "dist/templates/*.docx",
     "README.md",
     "LICENSE",
     "NOTICE",
@@ -66,7 +65,7 @@
   },
   "scripts": {
     "build": "node ../../scripts/check-adm-zip-imports.mjs && tsc && esbuild src/git.ts --bundle --packages=external --platform=node --target=node22 --format=cjs --outfile=dist/git.js --log-level=warning && node scripts/copy-guide-assets.js",
-    "build:templates": "esbuild scripts/templates/build.ts --bundle --platform=node --target=node22 --outfile=scripts/.build/templates.cjs --log-level=warning && node scripts/.build/templates.cjs templates src/compose/template-manifest.generated.ts",
+    "build:templates": "esbuild scripts/templates/write-samples.ts --bundle --platform=node --target=node22 --outfile=scripts/.build/templates.cjs --log-level=warning && node scripts/.build/templates.cjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --root ../.. packages/engine/tests/",
     "adm-zip-gate": "node ../../scripts/check-adm-zip-imports.mjs"

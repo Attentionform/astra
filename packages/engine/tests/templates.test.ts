@@ -2,23 +2,32 @@ import { describe, expect, it } from 'vitest';
 import AdmZip from 'adm-zip';
 import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src/internal';
 import { findRegion, findSlot, hashNodes } from '../src/compose/template-canonical';
-import { TEMPLATE_MANIFEST } from '../src/compose/template-manifest.generated';
+import { pristineHashes } from '../src/templates/pristine';
+import { LETTER } from '../src/templates';
 import { DOMParser } from '../src/ooxml/dom-parser';
-import { contrastChecks } from '../scripts/templates/design';
-import { DESIGN } from '../scripts/templates/themes';
+import { contrastChecks } from '../src/templates/design';
+import { DESIGN } from '../src/templates/themes';
+
+function pageOf(parser: DocxParser): { width: number; height: number; top: number; bottom: number; left: number; right: number; header: number; footer: number } {
+  const xml = parser.readDocumentXml();
+  const all = [...xml.matchAll(/<w:sectPr\b[\s\S]*?<\/w:sectPr>/g)];
+  const s = all[all.length - 1][0];
+  const n = (re: RegExp): number => Number(re.exec(s)?.[1]);
+  return { width: n(/w:pgSz[^>]*w:w="(\d+)"/), height: n(/w:pgSz[^>]*w:h="(\d+)"/), top: n(/w:top="(-?\d+)"/), bottom: n(/w:bottom="(-?\d+)"/), left: n(/w:left="(-?\d+)"/), right: n(/w:right="(-?\d+)"/), header: n(/w:header="(\d+)"/), footer: n(/w:footer="(\d+)"/) };
+}
 
 const part = (buf: Buffer, name: string): string => new AdmZip(buf).readAsText(name);
-const SIZES = ['letter', 'a4'] as const;
+const SIZES = ['Letter', 'A4', 'A5', 'Legal'] as const;
 const DESIGNED = TEMPLATE_NAMES.filter((n) => n !== 'blank');
 
 /** Visible text of every paragraph, field results included. */
 const textOf = (xml: string): string => Array.from(xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g), (m) => m[1]).join('\n');
 
-describe('every template, both paper sizes', () => {
+describe('every template, four paper sizes', () => {
   for (const name of TEMPLATE_NAMES) {
     for (const size of SIZES) {
       it(`${name} (${size}) is a valid, unsigned starting document`, async () => {
-        const buf = DocxParser.createNewDocument(name, { pageSize: size }).rezip();
+        const buf = DocxParser.createNewDocument(name, { page: { size } }).rezip();
         const res = await validateDocxBuffer(buf);
         expect(res.ok, JSON.stringify(res.errors)).toBe(true);
         const core = part(buf, 'docProps/core.xml');
@@ -26,7 +35,8 @@ describe('every template, both paper sizes', () => {
         expect(core).toContain('<dc:title></dc:title>');
         expect(core).not.toMatch(/ASTra/);
         const doc = part(buf, 'word/document.xml');
-        expect(doc).toMatch(size === 'a4' ? /<w:pgSz w:w="11906" w:h="16838"\/>/ : /<w:pgSz w:w="12240" w:h="15840"\/>/);
+        const dims = { Letter: [12240, 15840, 1], A4: [11906, 16838, 9], A5: [8391, 11906, 11], Legal: [12240, 20160, 5] }[size];
+        expect(doc).toContain(`<w:pgSz w:w="${dims[0]}" w:h="${dims[1]}" w:code="${dims[2]}"/>`);
         expect(part(buf, 'docProps/custom.xml')).toContain(`${name}@1`);
       });
     }
@@ -94,18 +104,17 @@ describe('the design palette meets WCAG AA', () => {
   }
 });
 
-describe('the shipped manifest matches the shipped files', () => {
+describe('the rebuilt pristine body matches a new document, in the session and after save and reopen', () => {
   for (const name of DESIGNED) {
     for (const size of SIZES) {
-      it(`${name} (${size}): body hash, in the session and after save and reopen`, () => {
-        const entry = TEMPLATE_MANIFEST[`${name}@1`];
-        expect(entry, 'manifest entry').toBeDefined();
-        const fresh = DocxParser.createNewDocument(name, { pageSize: size });
+      it(`${name} (${size})`, () => {
+        const fresh = DocxParser.createNewDocument(name, { page: { size } });
         for (const parser of [fresh, new DocxParser(Buffer.from(fresh.rezip()))]) {
           const body = parser.getDocumentDom().getElementsByTagName('w:body')[0];
           const region = findRegion(body);
           expect(region, 'region markers').not.toBeNull();
-          expect(entry.region).toContain(hashNodes(region!.nodes));
+          const pristine = pristineHashes(name, { ...LETTER, ...pageOf(parser) });
+          expect(pristine?.region).toBe(hashNodes(region!.nodes));
         }
       });
     }
@@ -125,8 +134,8 @@ describe('unknown names and sizes', () => {
     expect(() => DocxParser.createNewDocument('corporate')).toThrow(/unknown template 'corporate'.*blank, report, memo/);
     expect(() => DocxParser.createNewDocument('api-spec')).toThrow(/unknown template/);
   });
-  it('an unknown page size is an error', () => {
-    expect(() => DocxParser.createNewDocument('report', { pageSize: 'legal' as never })).toThrow(/page size/);
+  it('the old pageSize option is refused and names the replacement', () => {
+    expect(() => DocxParser.createNewDocument('report', { pageSize: 'a4' } as never)).toThrow(/pageSize.*page\.size/);
   });
 });
 
@@ -241,18 +250,18 @@ describe('compose never deletes what the user changed (R3: append plus a warning
     expect(textOf(part(parser.rezip(), 'word/document.xml'))).toContain('State in one or two sentences');
   });
 
-  it('an unknown design version: TEMPLATE_MANIFEST_MISSING, nothing deleted', async () => {
+  it('an unknown design version: TEMPLATE_UNKNOWN, nothing deleted', async () => {
     const zip = new AdmZip(DocxParser.createNewDocument('memo').rezip());
     zip.updateFile('docProps/custom.xml', Buffer.from(part(zip.toBuffer(), 'docProps/custom.xml').replace('memo@1', 'memo@99')));
     const parser = new DocxParser(zip.toBuffer());
     const res = await composeOn(parser);
-    expect(res.warnings.some((w) => w.startsWith('TEMPLATE_MANIFEST_MISSING'))).toBe(true);
+    expect(res.warnings.some((w) => w.startsWith('TEMPLATE_UNKNOWN'))).toBe(true);
     expect(textOf(part(parser.rezip(), 'word/document.xml'))).toContain('State in one or two sentences');
   });
 
-  it('a self-consistent tampered body cannot claim to be untouched: the shipped manifest decides', async () => {
+  it('a self-consistent tampered body cannot claim to be untouched: the rebuilt body decides', async () => {
     const zip = new AdmZip(DocxParser.createNewDocument('memo').rezip());
-    // The document is edited and keeps the marker and the bookmarks; only the manifest can tell.
+    // The document is edited and keeps the marker and the bookmarks; only the rebuilt body can tell.
     zip.updateFile('word/document.xml', Buffer.from(zip.readAsText('word/document.xml').replace('[State in one or two sentences why you are writing and what you need.]', '[Precious user text]')));
     const parser = new DocxParser(zip.toBuffer());
     const res = await composeOn(parser);
@@ -396,7 +405,7 @@ describe('a leading heading reads Markdown entities as the compiler does', () =>
 
 describe('input that is only a heading, and an explicit anchor', () => {
   const visible = (buf: Buffer): string[] => Array.from(part(buf, 'word/document.xml').matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g), (m) => m[1]);
-  for (const name of DESIGNED.filter((n) => TEMPLATE_MANIFEST[`${n}@1`]?.slots.title !== undefined)) {
+  for (const name of DESIGNED.filter((n) => pristineHashes(n, LETTER)?.slots.title !== undefined)) {
     it(`${name}: a heading that is the whole input fills the title slot and removes the placeholder body`, async () => {
       const fresh = DocxParser.createNewDocument(name);
       const slot = findSlot(fresh.getDocumentDom().getElementsByTagName('w:body')[0], 'title');
