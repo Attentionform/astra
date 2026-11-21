@@ -164,6 +164,10 @@ export function checkPage(g: PageGeometry, where = 'page setup', scope?: PageChe
     if (!Number.isInteger(value) || value < 0) {
       fail(`${name} must be zero or more, got ${String(value)} twips`, `give ${name} as a length of zero or more, for example "25mm"`);
     }
+    // The file format stops a margin, header distance or gutter at 22 in; a larger value makes the file invalid.
+    if (value > MAX_PAGE_SIDE) {
+      fail(`${name} is ${twipsToInches(value)} in, which is outside 0 to 22 in`, `give ${name} as a length of 22 in or less, for example "25mm"`);
+    }
   }
   const gutter = g.gutter ?? 0;
   const after = textAreaOf(g);
