@@ -107,6 +107,12 @@ export interface PageSetupProperties {
   gutterAtTop?: boolean;
   /** Number of text columns; present only when the section has more than one. */
   columns?: number;
+  /** The space between equal columns, in twips (`w:space` on `w:cols`); present only when the file gives it. Word's default is 720. */
+  columnSpace?: number;
+  /** The width of every column in twips, when the file lists them (`w:col` with `w:w`); present only when each column has a width. */
+  columnWidths?: number[];
+  /** True when the file lists the columns but not every width, so the width of one column cannot be known. */
+  columnsUnknown?: boolean;
   /** The page size exactly as the section's `w:pgSz` gives it (already turned to the orientation in use). */
   pageWidthTwips?: number;
   pageHeightTwips?: number;

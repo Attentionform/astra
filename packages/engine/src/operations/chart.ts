@@ -1,5 +1,5 @@
 import { DOMParser } from '../ooxml/dom-parser';
-import { parseChartSize, resolveNewChartSize, chartLayoutWarning, usableAreaOf, type ResolvedChartSize } from './chart-size';
+import { parseChartSize, resolveNewChartSize, chartLayoutWarning, contentBoxOf, columnLayoutNote, type ResolvedChartSize } from './chart-size';
 import { isChartDrawingFloating, readChartDrawingSize, setChartAltText, setChartDrawingSize } from '../manipulators/chart-drawing';
 import * as crypto from 'crypto';
 import { createWordElement } from '../ooxml/ns';
@@ -364,11 +364,6 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
   if (rawChartType === 'scatter') {
     assertScatterData(resolved.categories, resolved.series as Chart2DSeries[] | undefined);
   }
-  const chartSize: ResolvedChartSize = resolveNewChartSize(
-    { widthEmu: resolved.widthEmu, heightEmu: resolved.heightEmu, widthIn: resolved.widthIn, heightIn: resolved.heightIn },
-    use3D,
-    guide
-  );
   const insertAltText = validateChartAltText(resolved.altText);
   const defaultTitle = use3D ? '3D Chart Analysis' : 'Chart Analysis';
   const fallbackText = use3D ? 'Q1-Q4 Financial 3D Analysis' : 'Q1-Q4 Financial Analysis';
@@ -412,6 +407,14 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
     }
   }
   const domAnchorId = effectiveAnchor ? effectiveAnchor.id : resolved.anchor;
+  // The default size fits the text area of the section the chart goes into.
+  const targetSection = (effectiveAnchor ?? chainHost ? locateNode(ast.sections, (effectiveAnchor ?? chainHost)!.id)?.section : undefined) ?? lastSection(ast.sections);
+  const chartSize: ResolvedChartSize = resolveNewChartSize(
+    { widthEmu: resolved.widthEmu, heightEmu: resolved.heightEmu, widthIn: resolved.widthIn, heightIn: resolved.heightIn },
+    use3D,
+    guide,
+    contentBoxOf(targetSection?.pageSetup)
+  );
 
   // Execute chart insertion via the routed manipulator (2D default, 3D opt-in).
   // With a guide active, uncolored series pull from the guide chart palette
@@ -561,11 +564,18 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
     } else {
       lastSection(ast.sections)!.nodes.push(newNode);
     }
+    const placedIn = (placeAfter?.section ?? lastSection(ast.sections))?.pageSetup;
     insertWarning = chartLayoutWarning(
       chartSize,
-      usableAreaOf((placeAfter?.section ?? lastSection(ast.sections))?.pageSetup),
-      resolved.style?.floating !== undefined
+      contentBoxOf(placedIn),
+      resolved.style?.floating !== undefined,
+      (placedIn?.columns ?? 1) > 1 ? 'column width' : 'text width'
     );
+    // A chart without a size of its own follows the narrowest column; say so when the columns are not all one width.
+    if (resolved.widthEmu === undefined && resolved.widthIn === undefined) {
+      const note = columnLayoutNote(placedIn, 'the chart');
+      if (note) insertWarning = insertWarning ? `${insertWarning}; ${note}` : note;
+    }
     if (resolved.anchor && chainHost && effectiveAnchor) {
       liveChain.push(newNode);
       (chainHost as unknown as InsertChainHost)._insertAfterChain = liveChain;
@@ -1505,7 +1515,7 @@ export function executeChartUpdate(op: ChartOperation, ast: DocumentAST, parser?
       const finalSize = readChartDrawingSize(node.xml);
       const owner = ast.sections.find((section) => section.nodes.includes(node));
       if (finalSize) {
-        sizeWarning = chartLayoutWarning(finalSize, usableAreaOf(owner?.pageSetup), isChartDrawingFloating(node.xml) === true);
+        sizeWarning = chartLayoutWarning(finalSize, contentBoxOf(owner?.pageSetup), isChartDrawingFloating(node.xml) === true, (owner?.pageSetup?.columns ?? 1) > 1 ? 'column width' : 'text width');
       }
     }
     const drawingOnly =

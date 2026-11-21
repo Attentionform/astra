@@ -522,7 +522,8 @@ export const newPageField = z
     orientation: z.enum(['portrait', 'landscape']).optional(),
     margins: pageMarginsField.optional(),
   })
-  .strict();
+  .strict()
+  .describe('Page: size, orientation, margins. Default Letter portrait.');
 const pageSetupFields = {
   orientation: z.enum(['portrait', 'landscape']).optional(),
   paperSize: pageSizeField.optional(),

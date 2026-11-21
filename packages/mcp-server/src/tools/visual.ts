@@ -187,7 +187,7 @@ export type VisualInspectInput = z.infer<typeof VisualInspectSchema>;
 
 export const VISUAL_INSPECT_DESCRIPTION =
   'Inspect document visually with 2D spatial layout telemetry (ASCII wireframe, page breakdown, margins, defects) ' +
-  'A renderer is optional but recommended: after layout changes, render and check for overflow or a blank last page. ' +
+  'A renderer is not required but recommended: inspect the affected pages and check for unexpected overflow or a blank last page. ' +
   'and optional headless rendered images (withVisual: true; add outputDir to write them to a folder inside the allowed directories, for example next to the document, instead of the server temp folder). Renders the in-memory session state ' +
   '(includes unsaved execute_batch edits, not the last saved file); success returns ' +
   '{ok:true,sessionId,revision,dirty,telemetry,...} (dirty:true = unsaved edits present). ' +

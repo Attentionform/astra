@@ -68,7 +68,7 @@ One section only:
 
 Other fields: `columns`. The flat names `marginTop`, `marginBottom`, `marginLeft`, `marginRight`, `headerDistance`, `footerDistance`, `margin` and `pageSize` were replaced by `margins.top` and the others, `paperSize`; the old names are refused with an error that says which field to use, so a request is never silently ignored.
 
-**Limits, so that every file ASTra writes opens correctly in Word.** A page side is 1 in to 22 in (Word reads a larger page wrongly and the file validator rejects it). The text area that a request leaves must be at least 0.75 in wide and 0.5 in high; below that Word breaks words in the middle of a line. A request that does not meet this is refused with the number that failed and what to change. A file that already has a smaller text area still opens and can be edited; a request is refused only when it makes that area smaller. Margins under 0.25 in, and a header or footer distance larger than the margin it sits in, are accepted with a warning.
+**Limits, so that every file ASTra writes opens correctly in Word.** A page side is 1 in to 22 in (Word reads a larger page wrongly and the file validator rejects it). A margin, a header or footer distance and a gutter are each 0 to 22 in, because the file format stops there. The text area that a request leaves must be at least 0.75 in wide and 0.5 in high; below that Word breaks words in the middle of a line. A request that does not meet this is refused with the number that failed and what to change. A file that already has a smaller text area still opens and can be edited; a request is refused only when it makes that area smaller. Margins under 0.25 in, and a header or footer distance larger than the margin it sits in, are accepted with a warning.
 
 `inspect_document` reports the page: the paper name or `Custom`, the size and each margin in millimetres and inches, the gutter and the columns, with one line per section when the sections differ.
 
@@ -117,6 +117,7 @@ Set a header or footer for one section:
 ```
 
 - `columns` sets the number of columns; `spacing` is the gap between them (default 720, half an inch) and `separator` draws a line between them.
+- **Content is sized to the column it lands in.** An image, chart or table that ASTra adds without a size of its own fits one column, using the real gap that the file gives (`w:space`, half an inch when it gives none). When a section lists columns of different widths, the engine cannot tell which column a block lands in, so it sizes the content to the narrowest column and returns a warning; give `widthIn` (or an image `width`) to place it in a wider one. A size you give is kept, and a chart wider than its column gets a warning that names the column width. Setting a column count with `pageSetup` or `section setColumns` makes the columns equal and removes a stored list of widths.
 - `pageBorder` takes `style` (`single`, `double`, `dashed`, `triple`), `sz` in eighths of a point (12 is 1.5 pt), `color` as a hex value without `#`, and `marginOffset` (`page` or `text`).
 
 ## 6. Lists

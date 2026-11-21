@@ -8,6 +8,7 @@
  * a chart that is larger than the page, so a larger size is refused rather than written.
  */
 import type { StyleGuideConfig } from '../style-guide/types';
+import { findPaper } from '../page/papers';
 
 export const EMU_PER_INCH = 914_400;
 /** 0.1 in. */
@@ -99,14 +100,17 @@ function guideEmu(inches: unknown): number | undefined {
  * The size of a new chart: each dimension is the operation's value, else the guide's, else the built-in default.
  * Giving only the width does not scale the height.
  */
-export function resolveNewChartSize(input: ChartSizeInput, is3D: boolean, guide?: StyleGuideConfig): ResolvedChartSize {
+export function resolveNewChartSize(input: ChartSizeInput, is3D: boolean, guide?: StyleGuideConfig, area?: UsableArea): ResolvedChartSize {
   const given = parseChartSize(input);
   const charts = guide?.charts;
   const guideWidth = guideEmu(is3D ? charts?.width3dIn ?? charts?.widthIn : charts?.widthIn);
   const guideHeight = guideEmu(is3D ? charts?.height3dIn : charts?.heightIn);
+  // The built-in default follows the page: it is never larger than the text area it is placed in. A size that the operation or the
+  // guide gives is kept as it is (a layout warning tells the caller when it does not fit).
+  const fit = (value: number, room: number | undefined): number => (room !== undefined && room > 0 ? Math.max(CHART_MIN_EMU, Math.min(value, room)) : value);
   return {
-    widthEmu: given.widthEmu ?? guideWidth ?? DEFAULT_CHART_WIDTH_EMU,
-    heightEmu: given.heightEmu ?? guideHeight ?? (is3D ? DEFAULT_CHART_HEIGHT_3D_EMU : DEFAULT_CHART_HEIGHT_2D_EMU),
+    widthEmu: given.widthEmu ?? guideWidth ?? fit(DEFAULT_CHART_WIDTH_EMU, area?.widthEmu),
+    heightEmu: given.heightEmu ?? guideHeight ?? fit(is3D ? DEFAULT_CHART_HEIGHT_3D_EMU : DEFAULT_CHART_HEIGHT_2D_EMU, area?.heightEmu),
   };
 }
 
@@ -122,12 +126,13 @@ export interface UsableArea {
 export function chartLayoutWarning(
   size: ResolvedChartSize,
   area: UsableArea | undefined,
-  floating: boolean
+  floating: boolean,
+  widthName: 'text width' | 'column width' = 'text width'
 ): string | undefined {
   if (floating || !area) return undefined;
   const parts: string[] = [];
   if (size.widthEmu > area.widthEmu) {
-    parts.push(`${fmtIn(size.widthEmu)} in wide, the text width is ${fmtIn(area.widthEmu)} in`);
+    parts.push(`${fmtIn(size.widthEmu)} in wide, the ${widthName} is ${fmtIn(area.widthEmu)} in`);
   }
   if (size.heightEmu > area.heightEmu) {
     parts.push(`${fmtIn(size.heightEmu)} in tall, the usable page height is ${fmtIn(area.heightEmu)} in`);
@@ -140,13 +145,6 @@ function fmtIn(emu: number): string {
   return String(Math.round((emu / EMU_PER_INCH) * 100) / 100);
 }
 
-/** Page sizes in twips (portrait) for the paper names a section can carry. */
-const PAPER_TWIPS: Record<string, { width: number; height: number }> = {
-  Letter: { width: 12240, height: 15840 },
-  A4: { width: 11906, height: 16838 },
-  Legal: { width: 12240, height: 20160 },
-  A3: { width: 16838, height: 23811 },
-};
 
 /**
  * Text width and usable page height in EMU for a section's page setup. The size comes from the section's own
@@ -172,7 +170,7 @@ export function usableAreaOf(pageSetup: {
     widthTw = pageSetup.pageWidthTwips;
     heightTw = pageSetup.pageHeightTwips;
   } else {
-    const paper = PAPER_TWIPS[pageSetup?.paperSize ?? 'Letter'] ?? PAPER_TWIPS.Letter;
+    const paper = findPaper(pageSetup?.paperSize ?? 'Letter') ?? findPaper('Letter')!;
     widthTw = paper.width;
     heightTw = paper.height;
     if (pageSetup?.orientation === 'landscape') [widthTw, heightTw] = [heightTw, widthTw];
@@ -195,17 +193,54 @@ export function usableAreaOf(pageSetup: {
 /** The Letter content box that the image cap was written for: 6.5 in wide and 9 in high. */
 export const LETTER_CONTENT_BOX: UsableArea = { widthEmu: 5943600, heightEmu: 8229600 };
 
+/** The default space between columns, in twips: Word's, used when the file does not give one. */
+const DEFAULT_COLUMN_SPACE_TWIPS = 720;
+
+type ColumnPage = Parameters<typeof usableAreaOf>[0] & { columns?: number; columnSpace?: number; columnWidths?: number[]; columnsUnknown?: boolean };
+
 /**
- * The box that content placed in a section has to fit: the usable area, with the text width shared among columns when the section has
- * more than one (a column gap of 0.5 in, the usual one, is taken off). A section without a page size gets the Letter box.
+ * The width of the narrowest text column of a section in EMU, and whether the columns are of different widths or not known.
+ * Equal columns: the text width less the real space between them (`w:space`, 0.5 in when the file gives none), shared by the count.
+ * Listed columns of different widths: the narrowest, so that content placed in any of them fits.
+ * A listing without every width: the equal share as a best guess, flagged as not known.
  */
-export function contentBoxOf(pageSetup: (Parameters<typeof usableAreaOf>[0] & { columns?: number }) | null | undefined): UsableArea {
-  if (!pageSetup || !pageSetup.pageWidthTwips) return LETTER_CONTENT_BOX;
-  const area = usableAreaOf(pageSetup);
+export function columnLayoutOf(pageSetup: ColumnPage | null | undefined): { widthEmu: number; unequal: boolean; unknown: boolean } | undefined {
+  if (!pageSetup) return undefined;
   const columns = pageSetup.columns && pageSetup.columns > 1 ? pageSetup.columns : 1;
-  if (columns === 1) return area;
-  const gap = (EMU_PER_INCH / 2) * (columns - 1);
-  return { widthEmu: Math.max(0, Math.floor((area.widthEmu - gap) / columns)), heightEmu: area.heightEmu };
+  if (columns === 1) return undefined;
+  const twipsToEmu = EMU_PER_INCH / 1440;
+  const area = usableAreaOf(pageSetup);
+  const widths = pageSetup.columnWidths;
+  if (widths && widths.length === columns) {
+    const narrowest = Math.min(...widths);
+    const widest = Math.max(...widths);
+    return { widthEmu: Math.max(0, Math.floor(narrowest * twipsToEmu)), unequal: widest - narrowest > Math.max(1, widest * 0.01), unknown: false };
+  }
+  const gap = (pageSetup.columnSpace ?? DEFAULT_COLUMN_SPACE_TWIPS) * twipsToEmu * (columns - 1);
+  return { widthEmu: Math.max(0, Math.floor((area.widthEmu - gap) / columns)), unequal: false, unknown: pageSetup.columnsUnknown === true };
+}
+
+/**
+ * A note for the caller when content placed in a section with columns of different or unknown widths was sized to the narrowest
+ * column, because the engine cannot tell which column the content lands in. Undefined for one column and for equal columns.
+ */
+export function columnLayoutNote(pageSetup: ColumnPage | null | undefined, what: string): string | undefined {
+  const layout = columnLayoutOf(pageSetup);
+  if (!layout || (!layout.unequal && !layout.unknown)) return undefined;
+  const inches = Math.round((layout.widthEmu / EMU_PER_INCH) * 100) / 100;
+  return `${what} was sized to ${inches} in, the ${layout.unknown ? 'estimated' : 'narrowest'} column of a section whose columns ${layout.unknown ? 'are not all given a width' : 'have different widths'}; give an explicit size if it goes into a wider column`;
+}
+
+/**
+ * The box that content placed in a section has to fit: the usable area, narrowed to one text column when the section has more than one
+ * (see `columnLayoutOf`). A section without a page size gets the Letter box.
+ */
+export function contentBoxOf(pageSetup: ColumnPage | null | undefined): UsableArea {
+  // A section without a page size still has its margins and columns: the size falls back to Letter inside usableAreaOf.
+  if (!pageSetup) return LETTER_CONTENT_BOX;
+  const area = usableAreaOf(pageSetup);
+  const layout = columnLayoutOf(pageSetup);
+  return layout ? { widthEmu: layout.widthEmu, heightEmu: area.heightEmu } : area;
 }
 
 /** Letter's text width in twips: 6.5 in. What an engine-written table grid or tab stop used before the page could differ. */
@@ -213,7 +248,7 @@ export const LETTER_TEXT_WIDTH_TWIPS = 9360;
 
 /** The text width of a section in twips (one column's width when the section has columns). A section without a page size gets Letter's. */
 export function textWidthTwipsOf(pageSetup: Parameters<typeof contentBoxOf>[0]): number {
-  if (!pageSetup || !pageSetup.pageWidthTwips) return LETTER_TEXT_WIDTH_TWIPS;
+  if (!pageSetup) return LETTER_TEXT_WIDTH_TWIPS;
   const twips = Math.round(contentBoxOf(pageSetup).widthEmu / (EMU_PER_INCH / 1440));
   return Math.max(1, twips);
 }

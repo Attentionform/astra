@@ -97,10 +97,22 @@ export function pageSetupFromSectPr(sectPr: Element | null): PageSetupProperties
 
   const cols = sectPr.getElementsByTagName('w:cols')[0];
   if (cols) {
-    const listed = cols.getElementsByTagName('w:col').length;
+    const listed = Array.from(cols.getElementsByTagName('w:col'));
     const num = parseInt(cols.getAttribute('w:num') || '1', 10);
-    const count = listed > 0 ? listed : Number.isFinite(num) ? num : 1;
-    if (count > 1) resolved.columns = count;
+    // equalWidth="1" means the listed columns, if any, are ignored and the count is w:num.
+    const equalFlag = (cols.getAttribute('w:equalWidth') ?? '').toLowerCase();
+    const equal = equalFlag === '1' || equalFlag === 'true' || equalFlag === 'on';
+    const count = !equal && listed.length > 0 ? listed.length : Number.isFinite(num) ? num : 1;
+    if (count > 1) {
+      resolved.columns = count;
+      const space = parseInt(cols.getAttribute('w:space') || '', 10);
+      if (!isNaN(space) && space >= 0) resolved.columnSpace = space;
+      if (!equal && listed.length > 1) {
+        const widths = listed.map((c) => parseInt(c.getAttribute('w:w') || '', 10));
+        if (widths.every((w) => !isNaN(w) && w > 0)) resolved.columnWidths = widths;
+        else resolved.columnsUnknown = true;
+      }
+    }
   }
 
   const pgMar = sectPr.getElementsByTagName('w:pgMar')[0];
