@@ -1,4 +1,5 @@
-import { DocxParser, ToonGenerator, VISUAL_PROMPT_LAW, packageNotes } from '@attentionform/astra-engine';
+import { DocxParser, ToonGenerator } from '@attentionform/astra-engine';
+import { VISUAL_PROMPT_LAW, packageNotes } from '@attentionform/astra-engine/internal';
 import { CLI_NAME, EXIT_OK, type Fidelity, type GlobalOpts, print, printJson, printStderr, resolveInspectWidth } from './output';
 import { cleanCliMessage, failHuman, rewriteMcpRemedies } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';

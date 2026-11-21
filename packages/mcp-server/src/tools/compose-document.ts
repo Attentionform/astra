@@ -2,24 +2,8 @@ import * as fs from 'fs';
 import { serverOfficeVersion } from '../lib/mcp/validation-target';
 import * as path from 'path';
 import { z } from 'zod';
-import {
-  compileMarkdown,
-  composeDocument,
-  getEngineErrorCode,
-  hasUriScheme,
-  isFileGuideRef,
-  refreshAstInPlace,
-  resolveStyleGuide,
-  revisionsRemedy,
-  summarizeStyleGuide,
-  TEMPLATE_NAMES,
-  validateComposedOperations,
-  nextComposeIdPrefix,
-  type EngineErrorCode,
-  type ResolvedStyleGuide,
-  type StyleGuideConfig,
-  type StyleGuideSummary,
-} from '@attentionform/astra-engine';
+import { composeDocument, getEngineErrorCode, resolveStyleGuide, TEMPLATE_NAMES, type EngineErrorCode, type ResolvedStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { compileMarkdown, hasUriScheme, isFileGuideRef, refreshAstInPlace, revisionsRemedy, summarizeStyleGuide, validateComposedOperations, nextComposeIdPrefix, type StyleGuideSummary } from '@attentionform/astra-engine/internal';
 import {
   canonicalizeForMcp,
   describeAllowedFolders,

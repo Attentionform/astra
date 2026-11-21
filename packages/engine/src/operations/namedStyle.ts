@@ -4,6 +4,9 @@ import { DocumentAST, Node } from '../ast';
 import { BaseOperation, findNode } from './base';
 import { appendInSchemaOrder, PPR_CHILD_ORDER } from '../ooxml/schema-order';
 
+/**
+ * Apply, create, change or delete a named Word style such as Heading 1 (`action: 'namedStyle'`).
+ */
 export interface NamedStyleOperation extends BaseOperation {
   action: 'namedStyle';
   operation: 'apply' | 'create' | 'modify' | 'delete';

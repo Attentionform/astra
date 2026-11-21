@@ -1,6 +1,6 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { AdmZip, clampZipEntryTimes, ZIP_CEILING_MAX_RATIO_ENV, ZIP_CEILING_MAX_UNCOMPRESSED_ENV } from '@attentionform/astra-engine';
+import { AdmZip, clampZipEntryTimes, ZIP_CEILING_MAX_RATIO_ENV, ZIP_CEILING_MAX_UNCOMPRESSED_ENV } from '@attentionform/astra-engine/internal';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 export async function readDocx(file: string): Promise<Buffer> {
@@ -204,7 +204,8 @@ export async function withAuthorEnv<T>(author: string | undefined, fn: () => T |
 // Document census counters live in @attentionform/astra-engine (single source of truth
 // shared with MCP `get_stats`). Re-exported here so existing CLI importers
 // (`stats-cmd`, `inspect-cmd`) keep working unchanged.
-export { computeDocStats, describePageEstimate, PAGE_ESTIMATE_RECIPE, roundedPageTerms, tableCellTextSpaced } from '@attentionform/astra-engine';
+export { computeDocStats } from '@attentionform/astra-engine';
+export { describePageEstimate, PAGE_ESTIMATE_RECIPE, roundedPageTerms, tableCellTextSpaced } from '@attentionform/astra-engine/internal';
 export type { DocStats } from '@attentionform/astra-engine';
 
 export function escapeXmlText(text: string): string {

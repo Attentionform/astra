@@ -8,7 +8,9 @@ import { ownElements, readTableMerges, type TableMerges } from './table-merges';
 import { effectiveRunItalic, useStylesForExport } from './style-italic';
 import { newDocumentTitle } from '../ooxml/new-document-parts';
 
-/** Narrow export duck-typing without behavior change (replaces `any`). */
+/**
+ * The shape of a node that the HTML and Markdown exporters read.
+ */
 export type ExportNodeLike = {
   id?: string;
   type?: string;
@@ -1000,6 +1002,10 @@ export function htmlDocumentTitle(ast: DocumentAST, fallback: string): string {
   return own.length > 0 && !TEMPLATE_PLACEHOLDER_TITLES.has(own) ? own : fallback;
 }
 
+/**
+ * Turns a document's AST into a single HTML page. `title` is the page title when the document has none of its own.
+ * Pass `{ printMode: true }` for a layout made for printing. Pass the parser so that footnotes and endnotes are included.
+ */
 export function convertAstToHtml(
   ast: DocumentAST,
   title = 'Document',

@@ -84,7 +84,10 @@ export function getVisualArtifactsBaseDir(): string {
   return dir;
 }
 
-/** Run-scoped artifacts dir: `<base>/<sub>`. Created 0700 on demand. */
+/**
+ * The folder where render files are written: a temporary folder for ASTra, or `subDir` inside it. `subDir` is cut to one safe name, so it cannot point outside.
+ * The folder is created with owner-only access when it does not exist.
+ */
 export function getVisualArtifactsDir(subDir?: string): string {
   const base = getVisualArtifactsBaseDir();
   if (!subDir || subDir.trim() === '') return base;
@@ -363,12 +366,9 @@ async function rasterizeWithWindows(
 }
 
 /**
- * Render a DOCX buffer to page images.
- *
- * DOCX -> PDF uses Word (Windows; `auto` prefers it there) or LibreOffice; PDF -> images uses the Windows built-in renderer or
- * Poppler. `renderer`, `pdfToImage` and `allowNetworkReferences` (or their environment variables) choose.
- * Throws `E_DEPENDENCY` when no usable program exists (mock PATH in tests by clearing `process.env.PATH` or
- * passing bogus `sofficeBin`/`pdftoppmBin`).
+ * Draws the pages of a .docx file as images. The first step makes a PDF with Word (on Windows, where `auto` prefers it) or with LibreOffice.
+ * The second step makes the images with the Windows built-in renderer or with Poppler. `renderer`, `pdfToImage` and `allowNetworkReferences`, or their environment variables, choose.
+ * It throws `E_DEPENDENCY` when no usable program is installed. `getVisualBackendStatus()` tells you beforehand.
  */
 export async function renderDocxToImages(
   docxBuffer: Buffer,

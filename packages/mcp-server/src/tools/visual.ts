@@ -24,29 +24,8 @@ import * as path from 'path';
 import { z } from 'zod';
 import { getMcpAllowedRoots, type McpSessionStore } from '../lib/session-store';
 import { assertPathAllowed } from './compose-document';
-import {
-  AdmZip,
-  buildVisualTelemetry,
-  DocxParser,
-  estimateTokenCount,
-  getEngineErrorCode,
-  getVisualArtifactsDir,
-  hasVisualPdfBackend as hasPdfBackend,
-  renderDocxToImages,
-  VISUAL_PROMPT_LAW,
-  VISUAL_TELEMETRY_TOKEN_BUDGET,
-  VISUAL_VERIFY_RULE,
-  writeFileNoFollowSync,
-  type DocumentAST,
-  type EngineErrorCode,
-  type RasterizerReport,
-  type MarkupReport,
-  type ReferenceReport,
-  type RendererReport,
-  type VisualImageFormat,
-  type VisualPageMap,
-  type VisualTelemetry,
-} from '@attentionform/astra-engine';
+import { DocxParser, getEngineErrorCode, getVisualArtifactsDir, renderDocxToImages, type DocumentAST, type EngineErrorCode, type RasterizerReport, type MarkupReport, type ReferenceReport, type RendererReport, type VisualImageFormat } from '@attentionform/astra-engine';
+import { AdmZip, buildVisualTelemetry, estimateTokenCount, hasVisualPdfBackend as hasPdfBackend, VISUAL_PROMPT_LAW, VISUAL_TELEMETRY_TOKEN_BUDGET, VISUAL_VERIFY_RULE, writeFileNoFollowSync, type VisualPageMap, type VisualTelemetry } from '@attentionform/astra-engine/internal';
 import { NETWORK_REFERENCES_PARAM_NOTE, SHOW_MARKUP_PARAM_NOTE, mcpFlagNames, renderNotes } from '../lib/mcp/render-notes';
 
 /** Legacy argv helper; opt-in renders use the withVisual tool param (startup rejects unknown flags). */

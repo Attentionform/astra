@@ -8,12 +8,24 @@
  * Rasterizer (PDF -> PNG): auto | windows | poppler        flag --pdf-to-image   env ASTRA_PDF_TO_IMAGE
  */
 
+/**
+ * Which program makes a PDF from a .docx file: `auto`, `word` or `libreoffice`. The `ASTRA_RENDERER` variable sets the default, and an explicit option wins over it.
+ */
 export type RendererPreference = 'auto' | 'word' | 'libreoffice';
+/**
+ * A program that makes a PDF from a .docx file: `word` or `libreoffice`.
+ */
 export type RendererId = 'word' | 'libreoffice';
 export const RENDERER_PREFERENCES: readonly RendererPreference[] = ['auto', 'word', 'libreoffice'];
 export const RENDERER_ENV = 'ASTRA_RENDERER';
 
+/**
+ * Which program turns a PDF into images: `auto`, `windows` or `poppler`. The `ASTRA_PDF_TO_IMAGE` variable sets the default.
+ */
 export type RasterizerPreference = 'auto' | 'windows' | 'poppler';
+/**
+ * A program that turns a PDF into images: `windows` (the built-in Windows renderer) or `poppler`.
+ */
 export type RasterizerId = 'windows' | 'poppler';
 export const RASTERIZER_PREFERENCES: readonly RasterizerPreference[] = ['auto', 'windows', 'poppler'];
 export const PDF_TO_IMAGE_ENV = 'ASTRA_PDF_TO_IMAGE';
@@ -192,7 +204,9 @@ export function planRasterizers(pref: RasterizerPreference, probe: RasterizerPro
   return { requested: pref, engines, canFallBack: engines.length > 1 };
 }
 
-/** Facts about which engine ran, in every render result. */
+/**
+ * Which program a render asked for and which it used. When `auto` fell back, `fallbackFrom` and `fallbackReason` say why.
+ */
 export interface RendererReport {
   requested: RendererPreference;
   used: RendererId;
@@ -203,6 +217,9 @@ export interface RendererReport {
   fallbackReason?: string;
 }
 
+/**
+ * Which image program a render asked for and which it used, and why it fell back when it did.
+ */
 export interface RasterizerReport {
   requested: RasterizerPreference;
   used: RasterizerId;
@@ -211,9 +228,7 @@ export interface RasterizerReport {
 }
 
 /**
- * A failure that says nothing about the document: the machine, a policy or the program itself is at fault
- * (`infrastructure`); or the document is (`document`); or the engine is healthy but cannot honour this request,
- * for example the review view (`request`). Only `infrastructure` opens a circuit breaker.
+ * Who is at fault when a render fails: `infrastructure` (the machine, a policy or the program), `document` (the document itself) or `request` (the program works, but cannot do what was asked, such as the review view).
  */
 export type FailureClass = 'infrastructure' | 'document' | 'request';
 

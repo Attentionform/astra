@@ -1,19 +1,8 @@
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 1476-1776).
 // Zero logic edits.
 import * as path from 'path';
-import {
-  assertEngineQuotas,
-  type BaseOperation,
-  type OperationInput,
-  BatchOperationsSchema,
-  cellAddressesMatching,
-  chartHoleSizeSchemaRemedy,
-  chartTypeSchemaRemedy,
-  operationIssueRemedy,
-  getEngineErrorCode,
-  revisionsRemedy,
-  validateOperationsStrict,
-} from '@attentionform/astra-engine';
+import { type BaseOperation, type OperationInput, getEngineErrorCode } from '@attentionform/astra-engine';
+import { assertEngineQuotas, BatchOperationsSchema, cellAddressesMatching, chartHoleSizeSchemaRemedy, chartTypeSchemaRemedy, operationIssueRemedy, revisionsRemedy, validateOperationsStrict } from '@attentionform/astra-engine/internal';
 import { canonicalizeForMcp, getMcpAllowedRoots, type McpSessionStore } from '../../session-store';
 import { assertPathAllowed, resolveMcpStyleGuide } from '../../../tools/compose-document';
 import { readEngineNormalized, readParserNormalizations, mergeNormalized } from '../normalize-read';

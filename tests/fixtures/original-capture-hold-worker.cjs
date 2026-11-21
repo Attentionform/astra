@@ -1,6 +1,6 @@
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const engine = require('@attentionform/astra-engine');
+const engine = require('@attentionform/astra-engine/internal');
 
 async function main() {
   const [document, payloadBase64, readyFile] = process.argv.slice(2);

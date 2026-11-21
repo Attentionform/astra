@@ -9,12 +9,18 @@ import { assertHistoryReadyForWrite, checkoutCommit, commitChange, getHistory, g
 import { createVerifiedBackup, newRestoreBackupPath, originalSha256, readOriginal, replaceFileAtomic } from './original';
 import { assertWriteTargetNoSymlink } from './sandbox/paths';
 
+/**
+ * Options for `restoreOriginal`. `expectedSha256` makes the restore refuse when the current file is not the one that you expect, and `macroPolicy` applies the usual macro rules to the original.
+ */
 export interface RestoreOriginalOptions {
   /** Optional expected hash of the current file, for clients with a saved baseline. */
   expectedSha256?: string;
   /** The original must satisfy the same macro policy as any other opened document. */
   macroPolicy?: DocxParserMacroOptions;
 }
+/**
+ * What `restoreOriginal` reports: the `path`, the SHA-256 of the restored file, and the id of the history entry that records the restore. `durabilityUnconfirmed` is true when the system could not confirm that the write reached the disk, and `warning` says more.
+ */
 export interface RestoreOriginalResult {
   path: string;
   sha256: string;
@@ -71,11 +77,10 @@ export async function rollbackReplacedFile(
 }
 
 /**
- * Restore the exact originally captured DOCX bytes and append a history commit.
- * The caller must serialize concurrent access to this path, including any in-memory session.
- * The current on-disk document must match a complete history head. A hash check immediately
- * before replacement detects most outside edits, but cannot exclude a writer racing the rename.
- * This low-level file API does not update any live DocxParser, AST, or MCP session.
+ * Puts the original bytes of a document back, exactly as they were when its history began, and records the restore as a new version in the history.
+ * The file on disk must match the newest version of a complete history. The caller must make sure that nothing else uses this path at the same time, including an open session.
+ * The check just before the replace finds most outside edits, but it cannot rule out a writer that races the replace. This function works on the file only. It does not update an open
+ * `DocxParser`, AST or MCP session.
  */
 export async function restoreOriginal(docPath: string, options: RestoreOriginalOptions = {}): Promise<RestoreOriginalResult> {
   const target = path.resolve(docPath);

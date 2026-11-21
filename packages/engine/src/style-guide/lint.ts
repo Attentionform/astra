@@ -15,6 +15,9 @@ import {
   TABLE_CONTRAST_MIN_RATIO,
 } from '../operations/table';
 
+/**
+ * One piece of advice from checking a document against a style guide. `nodeId` is the node, `rule` names the rule, and `message` says what to change.
+ */
 export interface StyleWarning {
   nodeId: string;
   rule: string;
@@ -254,9 +257,8 @@ function lintChartDuplicates(
 }
 
 /**
- * Advisory style pass over the live AST. Returns warnings only — never
- * throws for document content (a corrupt node yields no warning, not a
- * failed save). Empty array when no guide is active.
+ * Checks a document against a style guide and returns warnings. It never throws for the content of a document, and a warning never fails a save.
+ * It returns an empty list when there is no guide. `getChartXml` gives the XML of a chart node, so that chart styles can be checked too.
  */
 export function lintDocumentStyle(
   ast: DocumentAST,

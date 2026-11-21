@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@attentionform/astra-engine": ["packages/engine/src/index.ts"],
+      "@attentionform/astra-engine/internal": ["packages/engine/src/internal.ts"],
+      "@attentionform/astra-engine/internal/*": ["packages/engine/src/*"],
+      "@attentionform/astra-engine/history": ["packages/engine/src/api/history.ts"],
+      "@attentionform/astra-engine/ooxml": ["packages/engine/src/api/ooxml.ts"],
+      "@attentionform/astra-engine/search": ["packages/engine/src/api/search.ts"],
+      "@attentionform/ooxml-validator": ["packages/ooxml-validator/src/index.ts"],
+      "@attentionform/astra-mcp-server": ["packages/mcp-server/src/index.ts"]
+    }
+  },
+  "include": ["packages/cli/src/**/*.ts", "packages/mcp-server/src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -133,8 +133,14 @@ export const SanitizeOptionsSchema = z
   })
   .strict();
 
+/**
+ * What `sanitizeDocxBuffer` removes: `purgeAuthors`, `purgeRSIDs`, `purgeExif`, `purgePII`, `acceptAllRevisions`, `stripComments` and `stripMacros`. `zeroRetention` makes sure that the report never repeats a removed value and that no original bytes stay in memory after the purge. `allowMacros` keeps macros, and `replacementAuthor` is the name that authors become.
+ */
 export type SanitizeOptions = z.infer<typeof SanitizeOptionsSchema>;
 
+/**
+ * What `sanitizeDocxBuffer` did, as counts and part names, never as the removed values. Each field says what it counts.
+ */
 export interface SanitizeReport {
   ok: true;
   zeroRetention: boolean;
@@ -144,74 +150,36 @@ export interface SanitizeReport {
   purgedPII: number;
   bodyPII: number;
   propsPII: number;
-  /** Revision nodes accepted (del/moveFrom/cellDel dropped, ins/moveTo unwrapped, range + cell + *Change markers resolved). */
+  /** How many tracked changes were accepted: deletions and moves away were removed, and insertions and moves in were kept. */
   acceptedRevisions: number;
   unresolvedRevisions?: UnresolvedRevision[];
   revisionByKind?: Record<string, number>;
-  /**
-   * Comment parts (+ orphan part rels) removed + comment reference elements
-   * purged + comment relationship / content-type entries removed
-   * (stripComments). Counts only.
-   */
+  /** How many comment parts, comment references and comment entries in the package were removed. Counts only. */
   strippedComments: number;
   filesTouched: string[];
   /**
-   * Content-scanned parts (sorted entry names): every package entry that
-   * passed through a content-sanitizing scan in this run — document XML
-   * parts (RSID/author/revision/comment/body-PII, including embedded
-   * `word/embeddings/*.xml` and inner workbook sheet text), docProps core/app/custom
-   * (author/PII), word/media/* binaries (EXIF gate), and
-   * [Content_Types].xml / *.rels entries when the comment-trace strip ran.
-   * Pass-through blobs (theme/fontTable, unexamined rels) and name-gate
-   * drops (droppedRogue, dropped comment parts) are NOT listed here; they
-   * have their own evidence lists. Purpose: a zero purge count alongside a
-   * non-empty scannedParts reads as "scanned, none found" instead of
-   * "maybe never scanned". Additive only — old JSON readers ignore it.
+   * The parts that the sanitizer scanned for content, sorted by name: the document and its embedded parts, the document properties, the images (for metadata), and the package lists when the comment strip ran.
+   * A purge count of zero next to a list here means that the parts were scanned and nothing was found.
    */
   scannedParts: string[];
-  /** Scalar mirror of scannedParts.length ("scanned:N" at a glance). */
+  /** The number of parts in `scannedParts`. */
   scannedCount: number;
   /**
-   * Names of zip entries removed before sanitizing: traversal / absolute /
-   * drive-letter / control-char rogue entries plus denied executable and
-   * active entries (exe dll bat cmd ps1 psm1 vbs js jse ws wsf scr msi lnk
-   * jar hta cpl com pif reg url,
-   * case-insensitive on the final segment). Length is the drop count.
-   * Choice (documented): silent drop+count, not a loud throw, so one
-   * hostile entry cannot break export of an otherwise legit package and
-   * opaque third-party parts keep flowing; visibility comes from this list
-   * (names, never echoed bytes).
+   * The names of package entries that were removed before sanitizing: entries with unsafe paths and entries of a program or script type, such as `.exe`, `.dll`, `.bat`, `.js` and `.lnk`.
+   * The list has the names only, never the content. One such entry does not stop the export of an otherwise valid package. The length of the list is the number of entries removed.
    */
   droppedRogue: string[];
   /**
-   * Macro/active-content parts detected in the input package (sorted entry
-   * names): `vbaProject.bin` by name, `word/activeX/*` cluster parts by
-   * directory, `oleObject*.bin`/`activeX*.bin` bins corroborated by a package
-   * relationship, plus `.rels` files containing a macro relationship.
-   * Present in every report ([] when none) so a refuse/allow/strip decision
-   * stays auditable. Additive only — old JSON readers ignore it.
+   * The macro and ActiveX parts that the input package holds, sorted by name, whether or not they were removed. It is in every report, and empty when there are none,
+   * so that a decision to refuse, allow or strip them can be checked afterwards.
    */
   macroParts: string[];
   /**
-   * SVG media parts (`word/media/*.svg`) where script-capable constructs
-   * (script, foreignObject, event-handler attributes, XInclude/XSLT/stylesheet
-   * PI, javascript:/vbscript:/data:text/html hrefs, plus strip-only <style>)
-   * were stripped by the sanitize path (D5 strip-loud contract: kinds are
-   * reported by the xxe-guard helper, this list names the parts — never the
-   * payload). Sorted entry names; [] when no SVG needed stripping. Clean SVGs
-   * (plain shapes, https hrefs, data:image/* raster embeds, data:font/*)
-   * pass through byte-identical. Compose ingest still refuses hostile SVGs
-   * (assert path, untouched by this strip) while allowing <style> +
-   * data:image/font. Additive only.
+   * The names of SVG images in `word/media` from which active content was removed: scripts, `foreignObject`, event handlers and links that run code. The list has the names only, never the content.
+   * It is empty when no SVG needed this. An SVG that holds only shapes passes through unchanged.
    */
   strippedSvgActive: string[];
-  /**
-   * Macro entries removed by `stripMacros` (sorted): macro bins, same-stem
-   * companion XMLs, and macro-only rel files. Kept `.rels` files that only
-   * lost Relationship elements (plus `[Content_Types].xml` override sweeps)
-   * are reported via `filesTouched`, not here. [] unless stripping removed
-   * entries. Additive only.
-   */
+  /** The macro entries that `stripMacros` removed, sorted by name. It is empty unless the strip removed entries. Relationship files that only lost entries are listed in `filesTouched`. */
   strippedMacros: string[];
 }
 
@@ -734,7 +702,9 @@ export function macroChoiceError(): Error {
   return err;
 }
 
-/** Minimal entry-store seam so one strip routine serves Maps and live zips. */
+/**
+ * A store of package entries that the macro strip works on. It has the four calls that the strip needs, so that it can run on a Map and on a live zip.
+ */
 export interface MacroEntryStore {
   names(): string[];
   readText(name: string): string | null;
@@ -1724,7 +1694,7 @@ function applyRevisionAndCommentPass(
     if (residual.length) {
       throw Object.assign(new Error(
         `E_VALIDATION: Cannot sanitize ${context}: revision markup remains that accept-all cannot resolve safely (${residual.join(', ')}). ` +
-        'Remedy: accept or reject these revisions in Word, then sanitize again (or set stripComments when the cause is a comment that is also anchored outside the removed text). Sanitizing without acceptAllRevisions can leave deleted content and reviewer names and dates in the file.'
+        'Remedy: accept or reject these revisions in Word, then sanitize again (or set stripComments when the cause is a comment that is also anchored outside the removed text). Sanitizing without acceptAllRevisions can leave deleted content and author names and dates in the file.'
       ), { code: 'E_VALIDATION' });
     }
   }
@@ -2507,8 +2477,8 @@ function assertSanitizePostconditions(out: Map<string, Buffer>, o: Required<Pick
 }
 
 /**
- * Export entry point: sanitizes a DOCX buffer and returns a fresh buffer plus
- * a zero-retention-safe report (counts only — never original values).
+ * Removes personal and hidden data from a .docx file and returns the new bytes with a report. The options choose what to remove: author names, revision ids, image metadata,
+ * personal data such as email addresses, comments and tracked changes. The report holds counts and part names only, never the values that were removed.
  */
 export function sanitizeDocxBuffer(
   docx: Buffer,

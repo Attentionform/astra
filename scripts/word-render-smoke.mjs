@@ -26,7 +26,7 @@ import { countInk } from './lib/png-ink.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
-const engine = require(path.join(root, 'packages', 'engine', 'dist', 'index.js'));
+const engine = require(path.join(root, 'packages', 'engine', 'dist', 'internal.js'));
 
 const expectWord = process.argv.includes('--expect-word');
 const skipListener = process.argv.includes('--no-listener');

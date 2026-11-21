@@ -3,6 +3,9 @@ import { BaseOperation } from './base';
 import { DocxParser } from '../parser';
 import { CorePropertiesManipulator } from '../manipulators/core-properties';
 
+/**
+ * Set document properties such as the title, the author, the subject and the keywords (`action: 'metadata'`).
+ */
 export interface MetadataOperation extends BaseOperation {
   action: 'metadata';
   operation: 'setProperties';

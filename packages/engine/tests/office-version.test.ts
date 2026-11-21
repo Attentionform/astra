@@ -10,7 +10,7 @@ import {
   parseOfficeVersion,
   resolveOfficeVersion,
   validateDocxBuffer,
-} from '../src';
+} from '../src/internal';
 
 const OFFICE2010_ONLY = readFileSync(
   fileURLToPath(new URL('../../ooxml-validator/tests/fixtures/office2010-only.docx', import.meta.url)),

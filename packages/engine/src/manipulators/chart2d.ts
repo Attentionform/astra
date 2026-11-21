@@ -21,15 +21,7 @@ export { BAR_2D_VARIANTS, barChartVariantOf } from './chart2d-types';
 export type { BarChartVariant, Chart2DBarType } from './chart2d-types';
 
 /**
- * Requestable 2D chart types. Base families keep their short names; stacked
- * variants append the OOXML grouping to the family (columnStacked writes
- * <c:grouping val="stacked"/>, columnPercentStacked writes
- * <c:grouping val="percentStacked"/>), matching the column3D/bar3D suffix
- * convention. All variants of one family share c:barChart and differ only in
- * c:barDir/c:grouping. Doughnut is the pie family with a hole: same series and
- * percent labels inside <c:doughnutChart> plus <c:holeSize val="50"/>.
- * Scatter uses numeric x categories plus per-series y values inside
- * <c:scatterChart>, with a value/value (c:valAx) axis pair.
+ * The 2D chart types: the bar and column types, `line`, `pie`, `doughnut`, `area`, `scatter` and `combo`.
  */
 export type Chart2DType = Chart2DBarType | 'line' | 'pie' | 'doughnut' | 'area' | 'scatter' | 'combo';
 export const SUPPORTED_CHART_2D_TYPES = [
@@ -37,6 +29,9 @@ export const SUPPORTED_CHART_2D_TYPES = [
   'columnStacked', 'barStacked', 'columnPercentStacked', 'barPercentStacked',
 ] as const;
 
+/**
+ * One series of a 2D chart: a `name`, its `values` and an optional `color`. `xValues` is for scatter charts, and `chartType` and `axis` are for combination charts.
+ */
 export interface Chart2DSeries {
   name: string;
   values: number[];

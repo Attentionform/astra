@@ -144,12 +144,12 @@ What this does not cover: a reference ASTra does not recognise as one inside con
 
 ## 8. Review Marks in Renders
 
-A document can carry tracked changes and comments that a reader of the final text does not see: who edited it, text that was deleted and notes that reviewers wrote. A render can show them, and the image or PDF then holds that content.
+A document can carry tracked changes and comments that a reader of the final text does not see: who edited it, text that was deleted and notes that other people wrote. A render can show them, and the image or PDF then holds that content.
 
 - **Default: content only.** What the default render shows depends on the program. Word draws the content only, with tracked changes as if accepted and no comments. LibreOffice draws tracked changes with their marks even without `--show-markup`, and draws no comments. Check a LibreOffice render of a document with tracked changes before you share it, with or without the switch.
-- **Opt in per call.** `--show-markup`, MCP `showMarkup: true` or `ASTRA_SHOW_MARKUP=1` draws tracked changes and comments. The output then shows reviewer names, deleted text and comments. A value on the command line or in the MCP call beats the environment variable.
-- **A notice with every markup render.** The command line prints a `note:` line on stderr and the MCP tools return `notes`. Both say that the output shows reviewer names, deleted text and comments and must be checked before it is shared.
+- **Opt in per call.** `--show-markup`, MCP `showMarkup: true` or `ASTRA_SHOW_MARKUP=1` draws tracked changes and comments. The output then shows author names, deleted text and comments. A value on the command line or in the MCP call beats the environment variable.
+- **A notice with every markup render.** The command line prints a `note:` line on stderr and the MCP tools return `notes`. Both say that the output shows author names, deleted text and comments and must be checked before it is shared.
 - **For MCP clients.** The tool descriptions carry the same sentence. Set `showMarkup` when the user asked to see tracked changes or comments, and tell the user to check the output before it is shared.
-- **Word.** To draw the review view, ASTra changes the view settings of its own hidden Word (markup mode, comment display, reviewer visibility) and restores them before it closes the document. It never touches a Word the user has open. The result lists a setting that Word did not take in `markup.warnings`.
+- **Word.** To draw the review view, ASTra changes the view settings of its own hidden Word (markup mode, comment display, whose changes are shown) and restores them before it closes the document. It never touches a Word the user has open. The result lists a setting that Word did not take in `markup.warnings`.
 
-ASTra does not remove reviewer names or comments from the file. To share a document without them, accept or reject the changes and delete the comments in the document first.
+ASTra does not remove author names or comments from the file. To share a document without them, accept or reject the changes and delete the comments in the document first.

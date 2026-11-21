@@ -1,4 +1,5 @@
-import { BASELINE_MAX_ERRORS, DocxParser, commitStateIfDiffersFromHead, repairDocxBuffer } from '@attentionform/astra-engine';
+import { DocxParser } from '@attentionform/astra-engine';
+import { BASELINE_MAX_ERRORS, commitStateIfDiffersFromHead, repairDocxBuffer } from '@attentionform/astra-engine/internal';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, applyNormalizerForDisplay, formatNormalizedInline, previewNormalizedForDisplay, print, printJson, printStderr, type NormalizedRewrite } from './output';
 import { classifyFileReadError, failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';

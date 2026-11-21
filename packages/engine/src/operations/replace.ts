@@ -7,6 +7,9 @@ import { RPR_CHILD_ORDER, sortChildrenBySchema } from '../ooxml/schema-order';
 import { parseFontSize } from '../operation-schema';
 import { takeRevisionId } from '../ooxml/revision-ids';
 
+/**
+ * Replace the text of a node and keep its style (`action: 'replace'`). With `trackChanges` the change is recorded as a tracked change.
+ */
 export interface ReplaceOperation extends BaseOperation {
   action: 'replace';
   target: string;
@@ -21,6 +24,9 @@ export interface ReplaceOperation extends BaseOperation {
   params?: Record<string, unknown>;
 }
 
+/**
+ * What a replace operation reports. `warnings` are advice, and `revisionIds` are the tracked changes that it made.
+ */
 export interface ReplaceOperationResult {
   /** Advisory warnings (e.g. dropped note references). Ops still apply; never a failure. */
   warnings: string[];

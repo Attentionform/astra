@@ -3,6 +3,9 @@ import { decodePartUri, decodeXmlEntities } from '../ooxml/xml-entities';
 
 export type PreflightSeverity = 'blocker' | 'warning';
 
+/**
+ * One problem that the check before a PDF export found. `check` names the check, `severity` says whether it blocks, and `code` and `message` describe it.
+ */
 export interface PreflightIssue {
   check: string;
   severity: PreflightSeverity;
@@ -25,6 +28,10 @@ export interface PreflightCheck {
   run: (ctx: PreflightContext) => PreflightIssue[];
 }
 
+/**
+ * Thrown when PDF export is refused before it starts, because the document has a problem that would make the PDF wrong.
+ * `blockers` lists each problem with a code and a message. `code` is `E_PREFLIGHT`.
+ */
 export class PreflightError extends Error {
   code = 'E_PREFLIGHT';
   blockers: PreflightIssue[];

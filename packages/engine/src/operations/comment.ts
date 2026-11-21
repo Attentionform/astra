@@ -20,6 +20,9 @@ const COMMENT_TARGET = /^(?:comment:)?\d+$/;
 const COMMENT_TARGET_MESSAGE = 'E_VALIDATION: Supply a comment id such as 3 or comment:3 (the form search_content returns).';
 const commentIdOf = (target: string): number => parseInt(target.replace(/^comment:/, ''), 10);
 
+/**
+ * Add, reply to, resolve, reopen or delete a comment (`action: 'comment'`). `target` is the node that the comment is on, or the comment that you answer.
+ */
 export interface CommentOperation extends BaseOperation {
   action: 'comment';
   operation: 'insert' | 'reply' | 'resolve' | 'unresolve' | 'delete';

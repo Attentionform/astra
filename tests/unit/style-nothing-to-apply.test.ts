@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { DocxParser } from '../../packages/engine/src';
+import { DocxParser } from '../../packages/engine/src/internal';
 import { executeStyle, type StyleOperation } from '../../packages/engine/src/operations/style';
 
 const GALLERY = path.resolve(__dirname, '../../test-gallery/T2_edit_target.docx');

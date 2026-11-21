@@ -146,11 +146,16 @@ export function createEmptyDocument(templateType: string = 'blank', options?: { 
   return DocxParser.createNewDocument(templateType, options);
 }
 
+/**
+ * The bytes of a new document from a built-in template, ready to write to a file. Same as `DocxParser.createNewDocument(templateType, options).rezip()`.
+ */
 export function createBlankDocxBuffer(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): Buffer {
   return DocxParser.createNewDocument(templateType, options).rezip();
 }
 
-/** Marker prop naming which fail-closed save guard refused (for ok:false mapping). */
+/**
+ * The check that refused a save. The only one now is `duplicate-paraid`, a repeated paragraph id.
+ */
 export type SaveGuardKind = 'duplicate-paraid';
 
 function guardKindOf(err: unknown): SaveGuardKind | null {
@@ -255,12 +260,28 @@ function canonicaliseText(xml: string, part: string): string {
   }
 }
 
+/**
+ * Opens a .docx file and gives access to its contents. The package is read once; edits go through `OperationEngine` and are written out with `rezip()`.
+ *
+ * ```ts
+ * const parser = new DocxParser(readFileSync('report.docx'));   // or a path
+ * const ast = await parser.getAST();                            // paragraphs and tables, each with a stable id
+ * const bytes = parser.rezip();                                 // the edited package, as a Buffer
+ * ```
+ *
+ * `DocxParser.createNewDocument(template)` starts from a built-in template instead. The members listed on this page are the supported ones.
+ * The class has more public members, used by the ASTra command-line tool and MCP server. They may change in any release.
+ */
 export class DocxParser {
   /** Parts rewritten to the usual prefixes at open (DN3). Empty for a canonical package. */
   public canonicalisedParts: Array<{ part: string; renames: Rename[] }> = [];
   private packageSigned = false;
 
-  /** What the open found out about the package: rewritten prefixes and a digital signature. Empty for a canonical, unsigned package. */
+  /**
+   * What the open found out about the package: rewritten prefixes and a digital signature. Empty for a canonical, unsigned package.
+   *
+   * @public
+   */
   public getPackageReport(): PackageReport {
     return {
       canonicalised: this.canonicalisedParts.map((p) => ({
@@ -688,6 +709,12 @@ export class DocxParser {
     this._nodePagesCache = null;
   }
 
+  /**
+   * Opens a document from its bytes or from a file path. It throws when the input is not a valid .docx package. A package that holds macros is refused
+   * unless `opts` sets `allowMacros` (keep them) or `stripMacros` (remove them).
+   *
+   * @public
+   */
   constructor(input: Buffer | string, opts?: DocxParserMacroOptions) {
     let buffer: Buffer;
     if (typeof input === 'string') {
@@ -1297,6 +1324,11 @@ export class DocxParser {
     return this.documentDom;
   }
 
+  /**
+   * What is around the body: whether there are tracked changes, the styles XML, the headers and footers, and the charts.
+   *
+   * @public
+   */
   public getStructuralSummary(): StructuralSummary {
     const summary: StructuralSummary = {
       hasTrackedChanges: false,
@@ -1767,6 +1799,12 @@ export class DocxParser {
     });
   }
 
+  /**
+   * The document as typed data: `metadata`, `sections` with their `nodes` (paragraphs and tables, each with a stable `id`), `styles`, `numbering` and `relationships`.
+   * Edits name a node by its id.
+   *
+   * @public
+   */
   public async getAST(): Promise<DocumentAST> {
     const ast: DocumentAST = {
       metadata: {},
@@ -2887,6 +2925,9 @@ export class DocxParser {
           const parserError = doc.getElementsByTagName('parsererror');
           if (hasError || parserError.length > 0) {
             errors.push(`XML Well-Formedness Error in ${name}: ${errorMessage || parserError[0]?.textContent || 'Invalid XML'}`);
+          } else if (!doc.documentElement || !/^\s*</.test(content.replace(/^\uFEFF/, '')) || !/>\s*$/.test(content)) {
+            // The parser is lenient: text with no element, or text before or after the root, parses without an error.
+            errors.push(`XML Well-Formedness Error in ${name}: the part is not one XML element (no root element, or text outside it)`);
           }
         } catch (err: unknown) {
           let msg: string;
@@ -2901,6 +2942,15 @@ export class DocxParser {
     return { isValid: errors.length === 0, errors, warnings };
   }
 
+  /**
+   * Writes the document as a .docx package and returns its bytes.
+   *
+   * By default it refuses to write a document whose paragraph ids repeat, and it pins the zip times and the modified date so that the same document gives the same bytes.
+   * Options: `validate: false` skips the repeated-id check. `skipValidation: true` also skips the XML integrity check. `duplicateParaIds: 'renumber'` repairs repeated ids instead of refusing.
+   * `reproducible: false` uses the current time. The macro and XML external entity checks always run. For a check against the Office schema, use `validateDocxBuffer` on the result.
+   *
+   * @public
+   */
   public rezip(astOrOptions?: DocumentAST | { skipValidation?: boolean; validate?: boolean; reproducible?: boolean; noReproducible?: boolean; duplicateParaIds?: DuplicateParaIdPolicy; ast?: DocumentAST }, options?: { skipValidation?: boolean; validate?: boolean; reproducible?: boolean; noReproducible?: boolean; duplicateParaIds?: DuplicateParaIdPolicy }): Buffer {
     // Backward-compatible arg resolution: supports rezip(), rezip({ skipValidation }),
     // rezip(ast), and rezip(ast, { skipValidation }). Deterministic by default;
@@ -3694,11 +3744,10 @@ export class DocxParser {
   }
 
   /**
-   * Validates this document against official Microsoft Office ECMA-376 XSD schemas using @attentionform/ooxml-validator.
-   * Fail-closed save guards (duplicate paraIds, unknown tags) refuse as
-   * `{ok:false}` entries here — every `if (!validation.ok)` caller keeps
-   * working unchanged — while direct-`rezip()` writers get the thrown
-   * E_VALIDATION. Integrity/XXE/macro throws still propagate, as before.
+   * Checks this document against the Office schema, with the validator package, and returns the result. A document that a save guard would refuse, such as one with repeated paragraph ids,
+   * comes back as `{ ok: false }` with the reason, in the same shape as a schema error. A macro, an XML external entity or a corrupt package still throws.
+   *
+   * @public
    */
   public async validateOOXML(options?: { officeVersion?: OfficeVersion; maxErrors?: number; duplicateParaIds?: DuplicateParaIdPolicy }): Promise<ValidationResult> {
     let buf: Buffer;
@@ -3712,6 +3761,11 @@ export class DocxParser {
     return await validateDocxBuffer(buf, options);
   }
 
+  /**
+   * Accepts or rejects every tracked change in the document, and says what it did.
+   *
+   * @public
+   */
   public applyTrackedChanges(mode: 'accept' | 'reject'): RevisionResolution {
     return this.resolvePackageRevisions(mode);
   }
@@ -4091,9 +4145,10 @@ export class DocxParser {
   }
 
   /**
-   * A new document from a built-in template. The templates are .docx files built by `npm run build:templates`
-   * (packages/engine/scripts/templates) and shipped in `dist/templates`. `pageSize` picks the Letter (default) or A4 file.
-   * An unknown name is an error that lists the valid names.
+   * A new document from a built-in template. `TEMPLATE_NAMES` lists the names. `pageSize` picks Letter (the default) or A4.
+   * An unknown name or page size is an `E_VALIDATION` error that lists the valid values.
+   *
+   * @public
    */
   public static createNewDocument(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): DocxParser {
     const name = (templateType || 'blank').toLowerCase().trim() || 'blank';

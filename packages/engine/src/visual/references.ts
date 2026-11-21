@@ -42,9 +42,15 @@ export const INERT_TARGET = 'astra-reference-not-loaded';
 /** Report lists are capped so a document with thousands of links cannot produce a huge payload; counts stay exact. */
 export const REFERENCE_LIST_CAP = 50;
 
+/**
+ * What kind of reference was found in a document: `network`, `unknown-scheme`, `unparseable`, `dde`, `local` or `embedded-content`.
+ */
 export type ReferenceClass = 'network' | 'unknown-scheme' | 'unparseable' | 'dde' | 'local' | 'embedded-content';
 export type ReferenceScheme = 'http' | 'https' | 'ftp' | 'file' | 'unc' | 'other';
 
+/**
+ * One reference that the render check found: the package part, its id, whether it is a relationship or a field, its type, and its class.
+ */
 export interface ReferenceEntry {
   /** Package part holding the reference (document-internal name, e.g. `word/_rels/document.xml.rels`). */
   part: string;
@@ -791,6 +797,9 @@ export function neutraliseReferences(docx: Buffer): ReferenceAnalysis {
 // What a render result says about references
 // ---------------------------------------------------------------------------------------------------------
 
+/**
+ * What a render did about references in the document that point outside it, such as linked images and templates: whether network references were allowed, which ones were left out, and counts of the rest.
+ */
 export interface ReferenceReport {
   /** The choice that applied to this render (and to a fallback engine). */
   networkReferencesAllowed: boolean;

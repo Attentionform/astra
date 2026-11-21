@@ -9,6 +9,9 @@ import { resolveRevisionStamp } from '../ooxml/track-changes-emitter';
 import { PPR_CHILD_ORDER, sortChildrenBySchema } from '../ooxml/schema-order';
 import { takeRevisionId } from '../ooxml/revision-ids';
 
+/**
+ * Accept or reject tracked changes, or insert or delete text as a tracked change (`action: 'trackedChange'`). `accept` and `reject` take `ids`, `author` or `target` to pick which changes. `acceptAll` and `rejectAll` take none of them and resolve every change.
+ */
 export interface TrackedChangeOperation extends BaseOperation {
   action: 'trackedChange';
   operation: 'acceptAll' | 'rejectAll' | 'accept' | 'reject' | 'insert' | 'delete';

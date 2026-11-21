@@ -22,26 +22,8 @@ import { serverOfficeVersion } from '../validation-target';
 import { adoptForkNumbering } from '../../fork-numbering';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  AdmZip,
-  DocxParser,
-  type DocumentAST,
-  PII_COVERAGE,
-  computeDocStats,
-  roundedPageTerms,
-  piiCoverageSentence,
-  refreshAstInPlace,
-  revisionsRemedy,
-  sanitizeDocxBuffer,
-  toError,
-  validateSanitizeOptionsStrict,
-  BASELINE_MAX_ERRORS,
-  judgeAgainstBaseline,
-  repairDocxBuffer,
-  commitStateIfDiffersFromHead,
-  type BaselineVerdict,
-  type ValidationResult,
-} from '@attentionform/astra-engine';
+import { DocxParser, type DocumentAST, computeDocStats, sanitizeDocxBuffer, type ValidationResult } from '@attentionform/astra-engine';
+import { AdmZip, PII_COVERAGE, roundedPageTerms, piiCoverageSentence, refreshAstInPlace, revisionsRemedy, toError, validateSanitizeOptionsStrict, BASELINE_MAX_ERRORS, judgeAgainstBaseline, repairDocxBuffer, commitStateIfDiffersFromHead, type BaselineVerdict } from '@attentionform/astra-engine/internal';
 import { introducedError, resolveBaseline, strictValidationDefault, toAuditValidation, type AuditValidation } from '../baseline-gate';
 import {
   canonicalizeForMcp,

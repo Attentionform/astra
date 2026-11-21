@@ -1,18 +1,7 @@
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 1078-1118 + 1129-1474).
 // Zero logic edits.
-import {
-  computeDocStats,
-  countHeadings,
-  resolveSectionScope,
-  type DocumentAST,
-  DocxParser,
-  ensureAstraGitRepo,
-  getHistory,
-  getTemplatePalette,
-  summarizeStyleGuide,
-  packageNotes,
-  type StyleGuideSummary,
-} from '@attentionform/astra-engine';
+import { computeDocStats, type DocumentAST, DocxParser } from '@attentionform/astra-engine';
+import { countHeadings, resolveSectionScope, ensureAstraGitRepo, getHistory, getTemplatePalette, summarizeStyleGuide, packageNotes, type StyleGuideSummary } from '@attentionform/astra-engine/internal';
 import type { McpSessionStore } from '../../session-store';
 import {
   mcpErrorFrom,

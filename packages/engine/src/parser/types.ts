@@ -1,9 +1,14 @@
-/** Macro/active-content disposition for open + save (refuse-default). */
+/**
+ * What to do with macros and other active content when a document is opened and saved. By default they are refused. `allowMacros` keeps them, and `stripMacros` removes them.
+ */
 export interface DocxParserMacroOptions {
   allowMacros?: boolean;
   stripMacros?: boolean;
 }
 
+/**
+ * The zip operations that `DocxParser` needs to read and write the parts of a package. The parser has its own implementation.
+ */
 export interface DocxZipAdapter {
   hasFile(path: string): boolean;
   readText(path: string): string;
@@ -18,6 +23,9 @@ export interface DocxZipAdapter {
   removeFile?(path: string): void;
 }
 
+/**
+ * What the parser found out about a table: its headers, its size, its caption and its rows.
+ */
 export interface TableMetadata {
   headers?: string[];
   tableDimensions?: { rows: number; cols: number };
@@ -26,17 +34,20 @@ export interface TableMetadata {
   [key: string]: unknown;
 }
 
+/**
+ * What is around the body of a document, as `DocxParser.getStructuralSummary` returns it: whether it has tracked changes, the styles, theme and numbering XML, the headers and footers, charts, media, relationships, and one entry per node with a short preview.
+ */
 export interface StructuralSummary {
   hasTrackedChanges: boolean;
   stylesXml?: string | null;
-  /** ST-04: word/theme/theme1.xml payload (accent map + fonts) for theme resolution. */
+  /** The theme (`word/theme/theme1.xml`): its accent colours and fonts. */
   themeXml?: string | null;
-  /** ST-05: word/numbering.xml payload (abstractNum→lvl) for list rendering. */
+  /** The numbering definitions (`word/numbering.xml`) that give lists their levels and bullets. */
   numberingXml?: string | null;
   pageSetup?: { rawXml?: string } & Record<string, unknown>;
   headers?: { id: string; type: string; xml: string }[];
   footers?: { id: string; type: string; xml: string }[];
-  /** ST-09 G1b: sectPr parity flags gating first/even use (w:titlePg, w:evenAndOddHeaders). */
+  /** Section flags that decide whether the first-page and even-page headers and footers apply (`w:titlePg`, `w:evenAndOddHeaders`). */
   sectPrFlags?: { titlePg: boolean; evenAndOddHeaders: boolean };
   charts?: { id: string; xml: string }[];
   mediaFiles?: Record<string, { base64: string; mimeType: string }>;
@@ -54,12 +65,8 @@ export interface StructuralSummary {
     metadata?: TableMetadata | Record<string, unknown>;
   }[];
   /**
-   * IN-07: renderer-compatible node→page map embedded at summary time, plus
-   * the page geometry params it was derived from. The map uses the same
-   * explicit-break semantics as the canvas paginator; line-density fallback
-   * is geometry-scaled (not a fixed 45). Consumers (visual_review) must
-   * prefer a live renderer map when available; this embedded map carries
-   * `pageMapSource: 'estimate'` unless a renderer map was supplied.
+   * The page of each node, as a map from node id to page number, with the page geometry that it came from. It is an estimate unless a renderer supplied the map; `pageMapSource` says which.
+   * Prefer a map from a real render when you have one.
    */
   nodePages?: Record<string, number>;
   totalPages?: number;
@@ -67,6 +74,9 @@ export interface StructuralSummary {
   pageMapEstimate?: boolean;
 }
 
+/**
+ * A saved state of a document, as `DocumentManager.createSnapshot` returns it: its `id`, a `label`, the time, and the document XML.
+ */
 export interface DocumentSnapshot {
   id: string;
   timestamp: number;

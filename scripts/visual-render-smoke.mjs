@@ -18,7 +18,7 @@ import { countInk } from './lib/png-ink.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
-const engine = require(path.join(root, 'packages', 'engine', 'dist', 'index.js'));
+const engine = require(path.join(root, 'packages', 'engine', 'dist', 'internal.js'));
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 

@@ -62,9 +62,14 @@ function typecheckConsumer(source: string): void {
 describe('engine consumer typecheck (npm distribution)', () => {
   it.runIf(distBuilt)('declared types entry exists and re-exports the engine surface', () => {
     expect(pkg.name).toBe('@attentionform/astra-engine');
+    // The root is the curated public API: named re-exports. The full surface is the internal barrel.
     const dts = fs.readFileSync(distTypes, 'utf8');
-    expect(dts).toMatch(/export \* from '\.\/document-manager'/);
-    expect(dts).toMatch(/export \* from '\.\/parser'/);
+    expect(dts).toMatch(/export \{[^}]*\bDocumentManager\b[^}]*\} from '\.\/document-manager'/);
+    expect(dts).toMatch(/export \{[^}]*\bDocxParser\b[^}]*\} from '\.\/parser'/);
+    expect(dts).not.toMatch(/export \* from/);
+    const internalDts = fs.readFileSync(path.join(pkgDir, 'dist', 'internal.d.ts'), 'utf8');
+    expect(internalDts).toMatch(/export \* from '\.\/document-manager'/);
+    expect(internalDts).toMatch(/export \* from '\.\/parser'/);
   });
 
   it.runIf(distBuilt)('scratch consumer importing @attentionform/astra-engine typechecks clean', () => {

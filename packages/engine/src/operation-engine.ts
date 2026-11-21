@@ -59,6 +59,10 @@ export const ENGINE_MAX_BYTES = 200 * 1024 * 1024;
 /** Documented default hint only (25) — NOT an enforced ceiling. Omit maxSteps for unbounded. */
 export const ENGINE_MAX_STEPS = 25;
 
+/**
+ * Thrown when a request is over a limit that the engine enforces, such as the number of operations in a batch or the size of a document.
+ * `code` is `E_QUOTA`. `remedy` says what to change. It is never worth retrying unchanged.
+ */
 export class EngineQuotaError extends Error {
   readonly code = 'E_QUOTA' as const;
   readonly remedy: string;
@@ -70,6 +74,10 @@ export class EngineQuotaError extends Error {
   }
 }
 
+/**
+ * Thrown when an input is not valid: a malformed operation, an unknown template or an argument out of range.
+ * `code` is `E_VALIDATION`. `remedy` says how to fix the input. It is never worth retrying unchanged.
+ */
 export class EngineValidationError extends Error {
   readonly code = 'E_VALIDATION' as const;
   readonly remedy: string;
@@ -154,6 +162,9 @@ export function assertEngineQuotas(
   return { ok: true };
 }
 
+/**
+ * A batch of operations and the options that control how it runs. Pass it to `OperationEngine.executeBatch`.
+ */
 export interface BatchPayload {
   /**
    * Typed operations: an unknown `action`, an unknown field or a missing required field is a compile error.
@@ -161,33 +172,21 @@ export interface BatchPayload {
    */
   operations: OperationInput[];
   /**
-   * Track-B: sequential defaults to TRUE (document order preserved).
-   * Pass sequential:false explicitly to opt into the legacy sort-order path.
+   * The operations run in the order that you list them. Pass `false` to run them in a fixed order that avoids conflicts between operation kinds instead.
    */
   sequential?: boolean;
   rollbackOnError?: boolean;
   /**
-   * Jail for batch image `filePath` reads. Wins over the constructor
-   * `OperationEngineOptions.allowedDir` when both are set. Omitted (and no
-   * constructor jail) + a relative `filePath` fails closed with E_SANDBOX;
-   * batches without `filePath` ops never touch the filesystem.
+   * The folder that image `filePath` reads may come from. It wins over `OperationEngineOptions.allowedDir`. Without either, an image `filePath` that is relative throws `E_SANDBOX`.
+   * A batch with no `filePath` never reads the file system.
    */
   allowedDir?: string;
-  /**
-   * Optional per-request step budget (positive integer, no ceiling).
-   * Omitted = unbounded (loops end by natural completion/abort).
-   * ENGINE_MAX_STEPS (25) is a documented default hint only for callers
-   * that want a suggestion — it enforces nothing.
-   */
+  /** The most steps that one request may take, as a positive integer. There is no limit when it is omitted. */
   maxSteps?: number;
   /**
-   * Preview mode: validate and apply fully in memory, then rewind
-   * everything (package bytes, AST, history) and persist nothing.
-   * success/appliedCount describe the rewound attempt; preview lists the
-   * affected nodes; dryRunBytes carries the post-batch package so callers
-   * can run out-of-band validation (present only when a parser is
-   * attached). Failures behave exactly like a normal batch failure
-   * (success=false, rolled back, nothing persisted).
+   * Try the batch and change nothing. The batch is validated and applied in memory, and then everything is put back: the package, the AST and the history. `success` and `appliedCount` describe that attempt,
+   * `preview` lists the nodes it would change, and `dryRunBytes` holds the resulting package so that you can validate it yourself (when a parser is attached).
+   * A failure is the same as in a normal batch: `success` is false and nothing is kept.
    */
   dryRun?: boolean;
   /** Emitted per applied operation plus a terminal 'completed'/'error' event. */
@@ -195,10 +194,7 @@ export interface BatchPayload {
 }
 
 /**
- * One affected node from a dryRun batch. before=null means the node was
- * created by the batch; after=null means it was deleted. before===after
- * means the op addressed the node without changing its text (for example
- * a style-only op) — the node is still reported as affected.
+ * One node that a `dryRun` batch would change. `before` is its text now and `after` its text after the batch. `before` is `null` for a new node, and `after` is `null` for a deleted one.
  */
 export interface DryRunPreview {
   nodeId: string;
@@ -206,48 +202,44 @@ export interface DryRunPreview {
   after: string | null;
 }
 
+/**
+ * What `executeBatch` returns. `success` says whether every operation applied, and when it is false `errors` say which failed and why, and `rollbackTriggered` is true. The other fields report tracked changes, skipped ids, advice, package clean-up and chart updates.
+ */
 export interface ExecutionResult {
   success: boolean;
   appliedCount: number;
   errors: { operationIndex: number; error: string; hint?: string; remedy?: string; libraryRemedy?: string }[];
   rollbackTriggered: boolean;
-  /** OX-04: ids a delete op skipped (idempotent miss, non-strict) inside this batch. */
+  /** The ids that a delete skipped because they were not in the document. Without `strict`, a missing target is not a failure. */
   skippedIds: string[];
   /** Advisory table warnings (e.g. low-contrast fills). Additive, never a failure. */
   warnings: string[];
-  /** R-1: pending tracked revisions (w:ins + w:del) remaining in the doc after the batch. */
+  /** Tracked changes (insertions and deletions) that are still pending in the document after the batch. */
   revisionsPending: number;
   revisionResolution?: RevisionResolution;
   /** Every revision id created by tracked edits in this batch, in operation order. */
   revisionIds?: number[];
-  /** R-1: remedy, present only when revisionsPending > 0. Names acceptAll only when running it can still help. */
+  /** What to do about the pending tracked changes. Present only when `revisionsPending` is above 0. */
   revisionsRemedy?: string;
-  /** FX-07: revisions in `revisionsPending` that this batch's resolution tried and could not resolve. Absent when none. */
+  /** How many of the pending tracked changes this batch tried to accept or reject and could not. Absent when none. */
   revisionsUnresolved?: number;
-  /** 0.5.3: package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
+  /** Package parts removed because this batch left them unreachable (a deleted chart's part and workbook, a deleted picture's file). Absent when none. */
   prunedParts?: string[];
-  /** 0.5.3: why the package cleanup after a delete did not run or was refused. The save is unaffected. Absent when nothing went wrong. */
+  /** Why the package cleanup after a delete did not run or was refused. The save is unaffected. Absent when nothing went wrong. */
   cleanupSkipped?: string;
-  /** 0.5.3: defects the file already had that the cleanup saw and left alone (a relationship to a missing part). Absent when none. */
+  /** Defects the file already had that the cleanup saw and left alone (a relationship to a missing part). Absent when none. */
   existingDefects?: string[];
-  /** R-14: advisory chart stale body refs (same shape [{nodeId, preview}]). Additive, never a failure. */
+  /** Paragraphs that mention a chart that this batch changed, as `{ nodeId, preview }`. Advice only; it never fails a batch. */
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
-  /** 0.5.3: one entry per chart update: in-place or rebuilt, what happened to the workbook, and what a rebuild did not keep. Absent when no chart was updated. */
+  /** One entry per chart update: in-place or rebuilt, what happened to the workbook, and what a rebuild did not keep. Absent when no chart was updated. */
   chartUpdates?: ChartUpdateReport[];
   /** Compose: where the document title was taken from when it was still a template placeholder. */
   titleSetFrom?: string;
-  /**
-   * True when this result comes from a dryRun batch. The attempt was fully
-   * validated and applied in memory, then rewound — nothing was persisted.
-   */
+  /** True when this result is from a `dryRun` batch: the batch was applied in memory and then undone, and nothing was kept. */
   dryRun?: boolean;
   /** Affected nodes, populated only for a successful dryRun batch. */
   preview?: DryRunPreview[];
-  /**
-   * Post-batch package bytes captured before the dryRun rewind, for
-   * out-of-band validation by the caller. Present only when a parser is
-   * attached and the dryRun attempt succeeded.
-   */
+  /** The package as it would be after the batch, for you to validate. It is present only when a parser is attached and the `dryRun` batch succeeded. */
   dryRunBytes?: Buffer;
 }
 
@@ -406,28 +398,28 @@ function buildDryRunPreview(
  * Construction-time options for the operation engine.
  */
 export interface OperationEngineOptions {
-  /**
-   * Jail for batch image `filePath` reads (same trust as the compose
-   * `allowedDir`). Read by `executeImage`; a per-batch `BatchPayload`
-   * `allowedDir` wins over this when both are set. No silent grants: a
-   * `filePath` with no jail configured fails closed with E_SANDBOX.
-   */
+  /** The folder that image `filePath` reads may come from. A `BatchPayload.allowedDir` wins over it. Without either, an image `filePath` that is relative throws `E_SANDBOX`. */
   allowedDir?: string;
   /**
-   * Active style guide ("aesthetic skin"). Applies as omitted-param
-   * defaults inside table/chart/callout/code-block ops under a global
-   * precedence invariant: explicit op param > guide value > built-in
-   * default. A caller-passed value always wins (even when it clashes with
-   * the guide — clashes surface as advisory warnings, never silent
-   * overrides); guide values fill only omitted params; chart palettes fill
-   * only uncolored series in order without shifting explicit indices.
-   * Omitted (no guide) = legacy built-in behavior, byte-identical.
-   * Replace via `setStyleGuide` (session guides persist; per-batch
-   * overrides belong to the caller layer).
+   * The style guide in use. It gives table, chart, callout and code-block operations their values for the parameters that you leave out. An explicit parameter always wins over the guide,
+   * and the guide wins over the built-in value. When an explicit value clashes with the guide, you get a warning and the explicit value is used. A guide colours only the chart series that have no colour.
+   * With no guide, the built-in values apply. Replace the guide with `setStyleGuide`.
    */
   styleGuide?: StyleGuideConfig;
 }
 
+/**
+ * Applies operations to an open document. Make one from the document's AST and its parser, then call `executeBatch`:
+ *
+ * ```ts
+ * const parser = new DocxParser(buffer);
+ * const engine = new OperationEngine(await parser.getAST(), parser);
+ * const result = await engine.executeBatch({ operations: [{ action: 'replace', target: id, text: 'New text' }] });
+ * ```
+ *
+ * A batch is all or nothing: when one operation fails, none of the batch is applied and `result.rollbackTriggered` is true.
+ * Pass `{ styleGuide }` as the third constructor argument to give omitted table, callout and chart parameters their values from a style guide.
+ */
 export class OperationEngine {
   private ast: DocumentAST;
   private parser?: DocxParser;
@@ -473,20 +465,38 @@ export class OperationEngine {
     this.activeGuide = options?.styleGuide;
   }
 
-  /** Active style guide (undefined = legacy built-ins, no defaulting). */
+  /**
+   * The style guide in use, or `undefined` when there is none. Without one, omitted parameters take the built-in values.
+   *
+   * @public
+   */
   public getStyleGuide(): StyleGuideConfig | undefined {
     return this.activeGuide;
   }
 
-  /** Attaches (or clears, when omitted) the active style guide. */
+  /**
+   * Sets the style guide, or clears it when called without one.
+   *
+   * @public
+   */
   public setStyleGuide(guide?: StyleGuideConfig): void {
     this.activeGuide = guide;
   }
 
+  /**
+   * The operations that this engine has applied so far, in order.
+   *
+   * @public
+   */
   public getHistory(): BaseOperation[] {
     return this.history;
   }
 
+  /**
+   * Applies one operation. It throws when the operation cannot apply. Prefer `executeBatch`, which checks a whole list first and applies it as one unit.
+   *
+   * @public
+   */
   public async execute(op: BaseOperation): Promise<{ warnings: string[] }> {
     this.insertParaIds = null;
     this.validateOperation(op);
@@ -529,6 +539,13 @@ export class OperationEngine {
   }
 
   // 4.3 Batch Execution (Track-B: sequential defaults true; quotas throw E_QUOTA)
+  /**
+   * Applies a list of operations as one unit. They run in the order that you list them; set `sequential: false` in the batch to run them in a fixed order that avoids
+   * conflicts between operation kinds. When one fails, the document is restored to its state before the batch and the result lists each failure with a `hint` and a `remedy`.
+   * Check `result.success` before you save. Throws `EngineQuotaError` when the batch is over a limit.
+   *
+   * @public
+   */
   public async executeBatch(batch: BatchPayload): Promise<ExecutionResult> {
     this.insertParaIds = null;
     const result: ExecutionResult = {
@@ -844,10 +861,10 @@ export class OperationEngine {
   }
 
   /**
-   * R-1: counts pending tracked revisions (w:ins + w:del) in the live doc.
-   * Prefers the parser document DOM (complete); falls back to an AST XML
-   * scan for parser-less engines. Best-effort, never throws. Does NOT
-   * mutate, accept, or change any trackChanges default.
+   * Counts the tracked changes (insertions and deletions) that are still pending in the document. It reads the parser's document when there is one,
+   * and the AST otherwise. It never throws and changes nothing.
+   *
+   * @public
    */
   public countPendingRevisions(): number {
     try {

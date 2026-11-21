@@ -9,6 +9,9 @@ import { assertNoXxe } from '../ooxml/xxe-guard';
 import { SETTINGS_CHILD_ORDER } from '../ooxml/schema-order';
 import { relationshipsRoot, relationshipElements, createRelationshipElement } from '../ooxml/relationships-dom';
 
+/**
+ * Add a footnote (`action: 'footnote'`). `anchor` is the paragraph that gets the mark, `text` is the note, and `offset` is the character position in the paragraph where the mark goes. Without `offset` it goes at the end.
+ */
 export interface FootnoteOperation extends BaseOperation {
   action: 'footnote';
   operation?: 'insert';
@@ -18,6 +21,9 @@ export interface FootnoteOperation extends BaseOperation {
   offset?: number;
 }
 
+/**
+ * Add an endnote (`action: 'endnote'`). `anchor` is the paragraph that gets the mark, `text` is the note, and `offset` is the character position in the paragraph where the mark goes. Without `offset` it goes at the end.
+ */
 export interface EndnoteOperation extends BaseOperation {
   action: 'endnote';
   operation?: 'insert';

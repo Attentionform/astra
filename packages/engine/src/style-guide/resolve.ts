@@ -25,14 +25,17 @@ import { createDefaultStyleGuide } from './defaults';
 import { canonicalizeForAsset, hasUriScheme, isPathInsideDir } from '../sandbox/paths';
 import { toError } from '../errors';
 
+/**
+ * Options for `resolveStyleGuide`. `allowedDir` is the folder that file paths are resolved in.
+ */
 export interface ResolveStyleGuideOptions {
-  /**
-   * Jail for relative file refs (same trust as batch image `allowedDir`).
-   * Omitted = relative refs anchor at the process working directory.
-   */
+  /** The folder that a relative file path is resolved in. Without it, a relative path is resolved from the current directory. */
   allowedDir?: string;
 }
 
+/**
+ * A style guide that was found and read: its `config`, the `warnings` from reading it, and the absolute `filePath` that it came from.
+ */
 export interface ResolvedStyleGuide {
   config: StyleGuideConfig;
   /** Parser diagnostics for the resolved file (defaulted sections, hex fixes). */
@@ -110,7 +113,7 @@ function installedEngineDir(): string | undefined {
   return undefined;
 }
 
-/** Bundled names currently installed on disk (empty until guides ship). */
+/** The names of the style guides that ship with the engine: `report`, `legal` and `technical`. A name goes to `resolveStyleGuide`. */
 export function listBundledGuides(): string[] {
   const out = new Set<string>();
   const dirs = [
@@ -202,10 +205,8 @@ function resolveFileGuide(ref: string, opts?: ResolveStyleGuideOptions): Resolve
 }
 
 /**
- * Resolves a guide ref to a parsed config. File-backed refs (`.md`
- * suffix, path separators) read from disk under the jail; anything else
- * is a bundled name. Unknown names and missing files fail closed with a
- * coded `E_VALIDATION` (never null, never silent defaults).
+ * Finds a style guide from a name or a path and reads it. A value that ends in `.md`, or holds a path separator, is a file and is read from disk inside the allowed folder.
+ * Any other value is the name of a bundled guide. An unknown name or a missing file throws `E_VALIDATION`. It never falls back to defaults.
  */
 export function resolveStyleGuide(
   ref: string,

@@ -1,24 +1,6 @@
 import * as path from 'path';
-import {
-  DocxParser,
-  checkoutCommit,
-  commitChange,
-  assertHistoryReadyForWrite,
-  getEngineErrorCode,
-  getHistory,
-  getHistoryCommitCount,
-  getRepoDir,
-  initAstraRepo,
-  getOriginalInfo,
-  exportOriginal,
-  restoreOriginal,
-  BASELINE_MAX_ERRORS,
-  buildBaseline,
-  INCOMPLETE_SNAPSHOT_WARNING,
-  trackedPredicateFor,
-  judgeAgainstBaseline,
-  validateDocxBuffer,
-} from '@attentionform/astra-engine';
+import { DocxParser, getEngineErrorCode, getOriginalInfo, exportOriginal, restoreOriginal, validateDocxBuffer } from '@attentionform/astra-engine';
+import { checkoutCommit, commitChange, assertHistoryReadyForWrite, getHistory, getHistoryCommitCount, getRepoDir, initAstraRepo, BASELINE_MAX_ERRORS, buildBaseline, INCOMPLETE_SNAPSHOT_WARNING, trackedPredicateFor, judgeAgainstBaseline } from '@attentionform/astra-engine/internal';
 import type { OfficeVersion } from '@attentionform/astra-engine';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, readErrRemedyProp } from './errors';

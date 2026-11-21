@@ -45,6 +45,9 @@ jobs:
     - name: Typecheck
       run: npx tsc --noEmit
 
+    - name: Typecheck the CLI and MCP server against the curated public root
+      run: npx tsc --noEmit -p tsconfig.consumers.json
+
     - name: Lint (errors fail the build)
       run: npx eslint . --quiet
 
@@ -61,6 +64,9 @@ jobs:
 
     - name: Run the library examples (each must validate its output)
       run: node packages/engine/examples/run-all.mjs
+
+    - name: Check the public API from the packed package (JavaScript and TypeScript consumers)
+      run: node scripts/check-packed-consumer.mjs
 
     - name: Validate OOXML documents
       run: npm run validate:docs

@@ -287,6 +287,9 @@ export type TableParams =
   | { op: "setBorder" }
   | { op: "setShading" };
 
+/**
+ * Change a table: cells, rows, columns, merging, borders, shading, widths and heights, alignment, captions and the repeating header row (`action: 'table'`). `operation` picks the kind of change. Many fields have a short alias that is also accepted inside `params`.
+ */
 export interface TableOperation extends BaseOperation {
   action: 'table';
   /** Table node id (e.g. 't_001'). Alias: tableId. */
@@ -349,6 +352,9 @@ export interface TableOperation extends BaseOperation {
   toCol?: number;
 }
 
+/**
+ * What a table operation reports. `warnings` are advice, such as a low-contrast fill, and `revisionIds` are the tracked changes that it made.
+ */
 export interface TableOperationResult {
   /** Advisory warnings (e.g. low-contrast fills). Ops still apply; never a failure. */
   warnings: string[];

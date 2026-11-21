@@ -13,6 +13,9 @@
 import { createWordElement } from './ns';
 import { sortChildrenBySchema, PPR_CHILD_ORDER, TRPR_CHILD_ORDER } from './schema-order';
 
+/**
+ * One change that the typography pass made: the rule (`keepNext`, `cantSplit`, `tblHeader` or `widowControl`), the node, the element, and a description.
+ */
 export interface TypographicFix {
   rule: 'keepNext' | 'cantSplit' | 'tblHeader' | 'widowControl';
   targetId: string;
@@ -25,6 +28,9 @@ export interface TypographyLintResult {
   fixes: TypographicFix[];
 }
 
+/**
+ * Which typography rules to apply: keep headings with the next paragraph, keep table rows whole, repeat the table header row, and control widow and orphan lines. `enabled: false` turns them all off.
+ */
 export interface TypographyOptions {
   enabled?: boolean; // default true
   keepNextHeadings?: boolean; // default true

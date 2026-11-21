@@ -23,7 +23,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const engine = createRequire(import.meta.url)(path.join(root, 'packages', 'engine', 'dist', 'index.js'));
+const engine = createRequire(import.meta.url)(path.join(root, 'packages', 'engine', 'dist', 'internal.js'));
 
 if (process.platform !== 'win32') {
   console.log('word-edge-smoke: SKIP (not Windows)');

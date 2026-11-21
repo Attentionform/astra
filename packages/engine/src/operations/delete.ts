@@ -3,6 +3,9 @@ import { BaseOperation, validateVersion } from './base';
 import { DocxParser } from '../parser';
 import { executeTrackedChange } from './trackedChange';
 
+/**
+ * Remove one or more nodes (`action: 'delete'`). With `trackChanges` the deletion is a tracked change by `author` on `date`. A target that is not in the document is skipped, and `strict` makes it an error.
+ */
 export interface DeleteOperation extends BaseOperation {
   action: 'delete';
   target: string | string[];
@@ -17,13 +20,8 @@ export interface DeleteOperation extends BaseOperation {
 }
 
 /**
- * OX-04: idempotent delete reports what it skipped.
- *
- * Policy (deliberate idempotency kept): a missing target WITHOUT strict:true
- * is a success with an entry in `skipped` — this masks nothing because the
- * caller sees exactly which ids were stale/hallucinated. WITH strict:true
- * the same miss throws (batch then rolls back). Silent by design: the typed
- * `skipped` array (and batch `skippedIds`) is the channel, no stderr logging.
+ * What a delete operation reports. `deleted` are the ids that were removed and `skipped` are the ids that were not in the document. A missing id is skipped and is not an error, unless `strict` is set, which makes it throw and rolls the batch back.
+ * `revisionIds` are the tracked changes that it made.
  */
 export interface DeleteResult {
   deleted: string[];

@@ -12,7 +12,8 @@ import { cmdCreate } from './create-cmd';
 import { cmdImport } from './import-cmd';
 import { cmdStats } from './stats-cmd';
 import { cmdVisual } from './visual-cmd';
-import { isOfficeVersion, officeVersionChoices, resolveOfficeVersion, setDuplicateParaIdPolicy, type OfficeVersion } from '@attentionform/astra-engine';
+import { isOfficeVersion, type OfficeVersion } from '@attentionform/astra-engine';
+import { officeVersionChoices, resolveOfficeVersion, setDuplicateParaIdPolicy } from '@attentionform/astra-engine/internal';
 import { cmdHistory, cmdPreviewRevert, cmdRedo, cmdRevert } from './history-cmd';
 
 /**

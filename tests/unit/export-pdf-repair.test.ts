@@ -3,7 +3,7 @@ import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { AdmZip, createBlankDocxBuffer, validateDocxBuffer } from '../../packages/engine/src';
+import { AdmZip, createBlankDocxBuffer, validateDocxBuffer } from '../../packages/engine/src/internal';
 import { setPdfBackendBinaryForTesting, resetPdfBackendCache } from '../../packages/engine/src/export/pdf';
 import { run as runCli, EXIT_FAIL, EXIT_OK } from '../../packages/cli/src/cli';
 import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session-store';

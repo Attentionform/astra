@@ -10,9 +10,8 @@ import { assertWriteTargetNoSymlink, writeFileNoFollow } from './sandbox/paths';
 import { toError } from './errors';
 
 /**
- * `ASTRA_HISTORY_DIR`: keep every document's history sidecar (and its tombstone
- * registry) under this directory instead of next to the document. Unset or
- * empty keeps the default `<docDir>/.astra/`.
+ * The name of the environment variable `ASTRA_HISTORY_DIR`. Set it to a folder to keep the history of every document there. When it is unset or empty,
+ * each document keeps its history in a `.astra` folder beside it.
  */
 export const HISTORY_DIR_ENV = 'ASTRA_HISTORY_DIR';
 
@@ -54,7 +53,9 @@ function isRepoDirTarget(target: string): boolean {
   }
 }
 
-// Helper to get the hidden .astra repository directory for a specific docx file
+/**
+ * The folder that holds the history of a document: `.astra/<file name>` beside the document, or a folder under `ASTRA_HISTORY_DIR` when that is set.
+ */
 export function getRepoDir(docPath: string): string {
   // e.g. /home/user/thesis.astra.docx -> /home/user/.astra/thesis.astra.docx/
   // With ASTRA_HISTORY_DIR=/h: /h/<16-hex key of /home/user>/thesis.astra.docx/
@@ -425,15 +426,25 @@ function resolveCommitAuthor(author?: string): string {
  */
 export const HISTORY_MAX_COMMITS_PER_DOC = 1000;
 export const HISTORY_MAX_SIDECAR_BYTES = 500 * 1024 * 1024;
-/** Env overrides for the history quotas (positive integers, bytes for the latter). */
+/**
+ * The name of the environment variable `ASTRA_HISTORY_MAX_COMMITS`: the most versions that the history of one document may hold. The default is 1000 and the largest value is 100000.
+ */
 export const HISTORY_MAX_COMMITS_ENV = 'ASTRA_HISTORY_MAX_COMMITS';
+/**
+ * The name of the environment variable `ASTRA_HISTORY_MAX_SIDECAR_BYTES`: the most bytes that the history of one document may take on disk. The default is 500 MB and the largest value is 5 GB.
+ */
 export const HISTORY_MAX_SIDECAR_BYTES_ENV = 'ASTRA_HISTORY_MAX_SIDECAR_BYTES';
 /** L1 upper clamps: env/explicit values above these are capped (env-driven memory/disk exhaustion). */
 export const HISTORY_MAX_COMMITS_CLAMP = 100_000;
 export const HISTORY_MAX_SIDECAR_BYTES_CLAMP = 5 * 1024 * 1024 * 1024;
-/** Error code for history quota refusals. */
+/**
+ * The error code, `E_QUOTA`, that a save carries when it would take the history over a limit.
+ */
 export const HISTORY_QUOTA_CODE = 'E_QUOTA' as const;
 
+/**
+ * Limits on the history of one document: `maxCommits` is the most versions, and `maxSidecarBytes` is the most bytes on disk. A missing value takes the default or the environment variable.
+ */
 export interface HistoryQuotaLimits {
   maxCommits?: number;
   maxSidecarBytes?: number;
@@ -499,7 +510,9 @@ export async function getSidecarBytes(repoDir: string): Promise<number> {
   return total;
 }
 
-/** Best-effort commit count for a repo dir (0 when history is unreadable). Never throws. */
+/**
+ * The number of versions in a history folder, which `getRepoDir` finds. It returns 0 when the history cannot be read, and never throws.
+ */
 export async function getHistoryCommitCount(repoDir: string): Promise<number> {
   try {
     await assertUsableSidecarGit(repoDir);
@@ -583,10 +596,8 @@ export async function assertNoGitInitializationInProgress(repoDir: string): Prom
   if (await gitInitializationLockExists(repoDir)) throw await gitInitializationConflictError(gitInitializationLockPath(repoDir));
 }
 /**
- * Call before changing a document that records history, before its file is touched: fails with the same error a
- * later commit would raise while an initialization lock is held or an interrupted initialization left no commit,
- * so a save never writes the file only to roll it back. The lock can still appear after this check; it narrows
- * the window, it does not close it.
+ * Call this before you change a file that records history. It throws the error that a save would throw when another process is still starting the history, or when an interrupted start
+ * left no version, so that a save never changes the file and then has to undo it. Another process can still start between this check and the save. The check narrows that window and does not close it.
  */
 export async function assertHistoryReadyForWrite(docPath: string): Promise<void> {
   const repoDir = getRepoDir(docPath);
@@ -1060,6 +1071,10 @@ export async function ensureAstraGitRepo(target: string): Promise<string> {
   return repoDir;
 }
 
+/**
+ * Starts the history of a document. It records the first version, named `Initial state`, and returns the history folder. `initialXml` is the document XML and `extraFiles`
+ * the other package parts. `originalBytes` is the exact file, kept so that `exportOriginal` can give it back.
+ */
 export async function initAstraRepo(
   docPath: string,
   initialXml: string,
@@ -1133,6 +1148,11 @@ export async function initAstraRepo(
   return repoDir;
 }
 
+/**
+ * Records a new version in the history of a document and returns its id. `xmlContent` is the document XML, `message` is the text of the entry, and `author` is its author (`ASTra Agent` when omitted).
+ * `extraFiles` maps part names to the other package parts to record, and `deletedFiles` names parts to drop. It throws `E_QUOTA` when the history would pass `limits`
+ * (1000 versions and 500 MB by default) and leaves the history unchanged.
+ */
 export async function commitChange(
   docPath: string,
   xmlContent: string,
@@ -1284,17 +1304,18 @@ export async function commitChange(
   return sha;
 }
 
+/**
+ * Whether the history of a document is set up. See `state` for the values.
+ */
 export interface HistoryInitializationState {
-  /**
-   * `absent`: no history and no initializer. `in-progress`: an initialization lock is held. `incomplete`: a history
-   * with no commit, or whose first commit is not a complete package snapshot. `complete`: the lock is gone and the
-   * first ("Initial state") commit exists and is a complete snapshot. The current head plays no part: later edits
-   * do not change it.
-   */
+  /** `absent`: there is no history and none is being started. `in-progress`: another process is starting one, or an earlier start was interrupted. `incomplete`: the history has no version, or its first version is not a complete snapshot. `complete`: the first version, `Initial state`, exists and is a complete snapshot. Later edits do not change this. */
   state: 'absent' | 'in-progress' | 'incomplete' | 'complete';
   detail?: string;
 }
-/** Read-only; never throws. */
+/**
+ * Says whether the history of a document is set up: `absent`, `in-progress`, `incomplete` or `complete`, with a `detail` when it is not complete.
+ * It changes nothing and never throws.
+ */
 export async function getHistoryInitializationState(docPath: string): Promise<HistoryInitializationState> {
   const repoDir = getRepoDir(docPath);
   try {
@@ -1314,6 +1335,9 @@ export async function getHistoryInitializationState(docPath: string): Promise<Hi
   }
 }
 
+/**
+ * Lists the versions in the history of a document, newest first, as `{ oid, message, author, timestamp }`. It throws when the document has no history yet.
+ */
 export async function getHistory(docPath: string) {
   const repoDir = getRepoDir(docPath);
   await assertNoGitInitializationInProgress(repoDir);
@@ -1413,10 +1437,8 @@ async function collectRepoFiles(repoDir: string): Promise<Map<string, Buffer>> {
 }
 
 /**
- * A commit read back from history. `extra` holds the package parts the commit recorded (all of them
- * when `complete`, only the legacy set otherwise). `complete` is true when the commit carries the
- * snapshot-format marker: restoring from it replaces every package part. A commit without the marker
- * was written by an older ASTra version; restore it with isLegacyTrackedPackageFile.
+ * A version read back from the history. `xml` is the document XML and `extra` holds the other package parts that the version recorded. `complete` is true when the version recorded every part,
+ * so a restore from it is exact. A version that an older ASTra recorded is not complete.
  */
 export interface CommitPackage {
   xml: string;
@@ -1424,12 +1446,16 @@ export interface CommitPackage {
   complete: boolean;
 }
 
-/** Which parts a restore from this commit may delete and replace. */
+/**
+ * Returns a function that says whether a package part may be replaced and deleted by a restore from this version. A complete version covers every part, and an older one covers fewer.
+ */
 export function trackedPredicateFor(target: { complete: boolean }): (entryName: string) => boolean {
   return target.complete ? isTrackedPackageFile : isLegacyTrackedPackageFile;
 }
 
-/** Plain-words notice that a restore from an unmarked commit is not exact. */
+/**
+ * The notice for a restore from a version that an older ASTra recorded. Such a restore is not exact, because the older version did not record every part of the package.
+ */
 export const INCOMPLETE_SNAPSHOT_WARNING =
   'This commit was recorded by an older ASTra version and predates complete snapshots: parts it never ' +
   'recorded (for example comment metadata, document properties, custom XML) keep their current content ' +
@@ -1502,11 +1528,8 @@ export async function undo(docPath: string): Promise<string> {
 }
 
 /**
- * Read-only checkout of an arbitrary commit by oid.
- * Never moves refs, never touches the working tree or HEAD — the caller
- * decides whether to restore the result via a new commit.
- * Reads the commit tree directly via readTree/readBlob so concurrent
- * checkouts are safe.
+ * Reads one version from the history and changes nothing: not the history, not the file. `commitOid` is the id of a version, as `getHistory` returns it.
+ * The result holds the document XML, the other parts of the package, and whether the version is a complete snapshot. Several reads can run at the same time.
  */
 export async function checkoutCommit(
   docPath: string,

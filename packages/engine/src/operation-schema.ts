@@ -942,13 +942,13 @@ export const OperationSchema = z.discriminatedUnion('action', [
   metadataOp,
 ]);
 
+/**
+ * An operation after the schema has parsed it. Use `OperationInput` for an operation that you write.
+ */
 export type Operation = z.infer<typeof OperationSchema>;
 
 /**
- * An operation as a caller writes it: the input side of the schema. `executeBatch` takes this type, so an
- * unknown `action`, an unknown field or a missing required field is a compile error. Fields that are
- * required only for a chosen sub-operation (for example `operation: 'addRow'` on a table) and rules that
- * span several fields are still checked when the batch runs, or earlier by `parseBatch()`.
+ * An operation as you write it. `executeBatch` takes this type, so an unknown `action`, an unknown field or a missing required field is a compile error. A field that is only required for one kind of operation, such as `operation: 'addRow'` on a table, and rules that span several fields are checked when the batch runs, or earlier by `parseBatch()`.
  */
 export type OperationInput = z.input<typeof OperationSchema>;
 
@@ -1002,6 +1002,9 @@ export const BatchOperationsSchema = z.object({
   maxUncompressedBytes: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
 }).strict();
 
+/**
+ * The type of a batch as the schema describes it. `BatchPayload` is the type to use when you call `executeBatch`.
+ */
 export type BatchInput = z.infer<typeof BatchOperationsSchema>;
 
 function formatZodIssues(issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string; code: string }>): string {
@@ -1184,13 +1187,15 @@ export interface BatchParseIssue {
   message: string;
 }
 
-/** A batch that passed `parseBatch()`: typed operations plus the envelope options. */
+/**
+ * A batch that passed `parseBatch()`: typed operations and the options of the batch.
+ */
 export interface ParsedBatch {
   operations: OperationInput[];
   sequential?: boolean;
   rollbackOnError?: boolean;
   maxSteps?: number;
-  /** Per-batch zip-bomb ceilings (same meaning as the CLI flags). */
+  /** Limits on how far a package may expand when it is read: the largest ratio, and the largest size in bytes. They mean the same as the command-line flags. */
   maxRatio?: number;
   maxUncompressedBytes?: number;
   /** Folder that image `filePath` operations may read from. */

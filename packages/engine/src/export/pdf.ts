@@ -39,6 +39,10 @@ import {
 } from '../visual/markup';
 import type { VisualTestHooks } from '../visual/provider';
 
+/**
+ * Thrown when a program that the call needs is missing, such as LibreOffice or Poppler for PDF export. `code` is `E_DEPENDENCY`.
+ * The message names the program and how to install it.
+ */
 export class DependencyError extends Error {
   code = 'E_DEPENDENCY';
   constructor(message: string) {
@@ -47,6 +51,10 @@ export class DependencyError extends Error {
   }
 }
 
+/**
+ * Thrown when LibreOffice could not render the document. `stage` says which run failed, `exitCode` is the process exit code when it is known,
+ * and `remedy` says how to repair the document. `code` is `E_RENDER`.
+ */
 export class RenderError extends Error {
   code = 'E_RENDER';
   taggedDetail: string;
@@ -93,12 +101,15 @@ function parseLoExitCode(detail: string): number | undefined {
 export { PreflightError, runPreflightChecks } from './preflight';
 export type { PreflightIssue, PreflightReport } from './preflight';
 
+/**
+ * Options for PDF export: the time limit, the LibreOffice program, tagged output, strict checks, the renderer, network references and markup. See each field.
+ */
 export interface PdfExportOptions {
   timeoutMs?: number;
   binary?: string;
-  /** Tagged (accessible) PDF render. Default true. */
+  /** Make a tagged PDF, which is accessible to screen readers. The default is true. */
   tagged?: boolean;
-  /** Fail closed on preflight blockers. Default false (warn-only). */
+  /** Throw `PreflightError` when the check before the export finds a problem that would make the PDF wrong. The default is false, and a problem is then a warning. */
   strict?: boolean;
   /** DOCX -> PDF program: auto (default), word (Windows only) or libreoffice. Falls back to ASTRA_RENDERER, then auto. */
   renderer?: RendererPreference;
@@ -112,11 +123,15 @@ export interface PdfExportOptions {
    * markup; LibreOffice: comments in the margin. Pages can be scaled and pagination can change.
    */
   showMarkup?: boolean;
-  /** Tests only: replace what the machine would report and the PowerShell host. */
+  /**
+   * @internal Tests only: replace what the machine would report and the PowerShell host.
+   */
   testHooks?: VisualTestHooks;
 }
 
-/** What a PDF export did, beyond the file it wrote. */
+/**
+ * What a PDF export did besides writing the file: the `path`, and reports on the renderer, the references and the markup.
+ */
 export interface PdfConversionResult {
   path: string;
   renderer: RendererReport;
@@ -181,6 +196,10 @@ export function planPdfRenderers(
   return { plan, word };
 }
 
+/**
+ * True when a program that can draw a PDF from a .docx is installed. Use it to decide whether to offer PDF export.
+ * `getVisualBackendStatus()` says which programs were found, and which are missing.
+ */
 export function hasPdfBackend(): boolean {
   return getPdfBackendBinary() !== null;
 }
@@ -213,13 +232,10 @@ export async function convertDocxToPdf(
  * the fallback if Word fails, and LibreOffice everywhere else; `renderer: 'word'` or `'libreoffice'` names one and never
  * falls back. `binary` only says where LibreOffice is; it does not choose LibreOffice, so pass `renderer: 'libreoffice'`
  * to force it on a Windows machine that has Word.
- * Runs export preflight first: warn-only by default, fail-closed with
- * `strict: true` when blockers are present. Network references are retargeted on the render copy unless
- * `allowNetworkReferences` is true (the source bytes are never changed).
- * With LibreOffice, a failed tagged render is retried once as an untagged render; if both
- * fail a structured RenderError (code 'E_RENDER') is thrown. A Word failure is thrown as a WordRenderError
- * (`code`, `remedy` and `failureClass` set), never wrapped.
- * Throws DependencyError (code 'E_DEPENDENCY') if no renderer is installed.
+ * It checks the document first. By default a problem is a warning; with `strict: true` a problem that would make the PDF wrong throws `PreflightError`.
+ * A network reference, such as a linked image or template, is retargeted on the copy that is drawn, unless `allowNetworkReferences` is true. The source bytes never change.
+ * With LibreOffice, a failed render is tried once more without tags, and when both fail it throws `RenderError` (`E_RENDER`). A Word failure throws `WordRenderError`, with `code`, `remedy` and `failureClass` set.
+ * It throws `DependencyError` (`E_DEPENDENCY`) when no renderer is installed.
  */
 export async function convertDocxToPdfDetailed(
   docxBuffer: Buffer,

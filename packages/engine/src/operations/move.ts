@@ -3,6 +3,9 @@ import { BaseOperation, validateVersion } from './base';
 import { DocxParser } from '../parser';
 import { insertIntoSection } from '../parser/sections';
 
+/**
+ * Move one or more nodes next to another node (`action: 'move'`). `anchor` is the node and `position` says on which side.
+ */
 export interface MoveOperation extends BaseOperation {
   action: 'move';
   target: string | string[];

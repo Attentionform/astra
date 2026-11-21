@@ -47,7 +47,9 @@ export function paragraphXPath(node: Element): string {
   return elementXPath(node);
 }
 
-/** One natively duplicated w14:paraId: the id, repeat count, repeat xPaths. */
+/**
+ * A paragraph id (`w14:paraId`) that is used more than once: the id, how many times, and the XPaths of the copies.
+ */
 export interface DuplicateParaId {
   paraId: string;
   count: number;

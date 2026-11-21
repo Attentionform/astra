@@ -448,16 +448,18 @@ export function verifyOrderOnlyRepair(partName: string, originalXml: string, rep
   }
 }
 
+/**
+ * What `normalizePackage` returns: the repaired `parts`, and `normalized`, which lists each repair.
+ */
 export interface NormalizePackageResult {
   parts: Record<string, string>;
   normalized: string[];
 }
 
 /**
- * Normalizes a package (part name -> XML string). Iterates parts in sorted
- * name order; counts aggregate across parts. Syntax errors in ANY part fail
- * closed (E_VALIDATION naming the part) before any output is produced.
- * Idempotent: normalizing the result yields itself with an empty list.
+ * Repairs known structural problems in the XML of a package that another program wrote. `parts` maps each part name to its XML.
+ * It renames elements that have an alias, fills in required defaults, and sorts the children of the containers that need an order. `normalized` lists each repair.
+ * A part with an XML syntax error throws `E_VALIDATION` that names the part, and nothing is returned. Normalizing the result again gives the same parts and an empty list.
  */
 export function normalizePackage(parts: Record<string, string>): NormalizePackageResult {
   const names = Object.keys(parts).sort();
@@ -480,8 +482,7 @@ export function normalizePackage(parts: Record<string, string>): NormalizePackag
 }
 
 /**
- * Dry-run preview: enumerates the would-be normalizations for a package
- * without writing anything. Same fail-closed syntax gate as normalizePackage.
+ * Lists the repairs that `normalizePackage` would make, and changes nothing. A part with an XML syntax error throws the same error.
  */
 export function previewNormalizations(parts: Record<string, string>): string[] {
   const names = Object.keys(parts).sort();

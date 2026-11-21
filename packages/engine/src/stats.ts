@@ -141,9 +141,7 @@ export function countExplicitPageBreaks(node: { type?: string; metadata?: { text
 }
 
 /**
- * What the page estimate is made of, each term in pages, before the ceiling. The terms add up to the budget
- * that `pages` rounds up. Only `words` is measured from text; the other three are fixed weights per table or
- * callout (0.45), per image (0.50) and per explicit page break (1), because the estimate cannot size them.
+ * The four terms of the page estimate, each in pages, before rounding up: words, tables and callouts, images and page breaks. Only the words are measured. A table or callout counts 0.45 page, an image 0.5 and a page break 1.
  */
 export interface PageTerms {
   words: number;
@@ -152,6 +150,9 @@ export interface PageTerms {
   pageBreaks: number;
 }
 
+/**
+ * The counts that `computeDocStats` returns: words, paragraphs, tables, callouts and images, and an estimated page count.
+ */
 export interface DocStats {
   words: number;
   paragraphs: number;
@@ -166,14 +167,12 @@ export interface DocStats {
   images: number;
 }
 
-/** Stable word/paragraph/table/image/page stats over the AST node texts.
- *  tables counts AST-registered table nodes that are not callouts and the w:tbl
- *  elements nested inside any table's cells (+1 each); callouts counts the one-cell
- *  filled tables (see isCalloutTable); a table that only lives in a textbox/shape
- *  in a plain body paragraph has no AST node and is not counted, so this can
- *  trail a raw document.xml w:tbl census.
- *  pages is an estimated editorial budget: max(1, ceil(words/450 + (tables + callouts)*0.45 + images*0.50 + pageBreaks)).
- *  pageTerms holds the four terms of that sum, in pages. */
+/**
+ * Counts the words, paragraphs, tables, callouts and images of a document, and estimates its pages. It reads the AST, so it is fast.
+ * `tables` counts the table nodes that are not callouts, and the tables nested in their cells. A table that sits inside a text box or a shape has no node of its own and is not counted,
+ * so `tables` can be lower than a count of `w:tbl` elements in the file. `callouts` counts the one-cell tables with a fill.
+ * `pages` is an estimate, `max(1, ceil(words / 450 + (tables + callouts) * 0.45 + images * 0.5 + pageBreaks))`, and `pageTerms` holds the four terms of that sum.
+ */
 export function computeDocStats(ast: { sections: Array<{ nodes: Array<{ type: string; metadata: { text?: string; hasImage?: boolean }; xml?: unknown }> }> }): DocStats {
   let words = 0;
   let paragraphs = 0;

@@ -5,7 +5,8 @@
  * later check, so a save compares like with like. Tools take no such parameter, and an agent cannot
  * change it. Every call site passes `serverOfficeVersion()` to the validator explicitly.
  */
-import { resolveOfficeVersion, type OfficeVersion } from '@attentionform/astra-engine';
+import { type OfficeVersion } from '@attentionform/astra-engine';
+import { resolveOfficeVersion } from '@attentionform/astra-engine/internal';
 
 let configured: OfficeVersion | undefined;
 

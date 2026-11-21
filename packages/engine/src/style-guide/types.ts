@@ -1,9 +1,5 @@
 /**
- * Style guide schema — typed design system for machine-built documents.
- *
- * A guide is authored as Markdown (`style-guide.md`), parsed by
- * `./parser` into a `StyleGuideConfig`, and (from a later slice) applied
- * by `OperationEngine` as omitted-param defaults plus advisory linting.
+ * The colours of a style guide: the main colour, optional secondary and accent colours, dark and light neutrals, and the colours for chart series, in order.
  */
 export interface StyleGuidePalette {
   primary: string; // 6-char uppercase hex, no leading `#` (e.g. `1E3A8A`)
@@ -14,6 +10,9 @@ export interface StyleGuidePalette {
   chartPalette: string[]; // at least 4 hex colors, series order
 }
 
+/**
+ * The table settings of a style guide: header fill and text, alternating row fill, borders, whether rows stay together, and the space after a table.
+ */
 export interface StyleGuideTables {
   headerFill?: string;
   headerText?: string; // contrast text color for header cells
@@ -26,9 +25,7 @@ export interface StyleGuideTables {
 }
 
 /**
- * Chart defaults from the guide's `## Charts` section. Sizes are stored in inches and text sizes in points,
- * whatever unit the guide file used (`in`, `cm`, `mm`, `pt`). Every key is optional: a missing key means the
- * built-in default applies.
+ * The chart defaults of a style guide: sizes in inches, text sizes in points, the gridline colour and the font. A key that is missing means that the built-in default applies.
  */
 export interface StyleGuideCharts {
   widthIn?: number;
@@ -41,6 +38,9 @@ export interface StyleGuideCharts {
   titleSizePt?: number;
 }
 
+/**
+ * The type settings of a style guide: the font, the code font, and the look of the first two heading levels. They are checked and not drawn.
+ */
 export interface StyleGuideTypography {
   fontFamily?: string;
   codeFont?: string;
@@ -48,7 +48,9 @@ export interface StyleGuideTypography {
   heading2?: StyleGuideHeading;
 }
 
-/** Heading style from `- Heading 1: #1E3A8A, bold` (color + bold only). */
+/**
+ * The look of a heading in a style guide: its colour, and whether it is bold.
+ */
 export interface StyleGuideHeading {
   color?: string; // 6-char uppercase hex, no leading `#` (e.g. `1E3A8A`)
   bold?: boolean;
@@ -62,12 +64,21 @@ export const STYLE_GUIDE_CALLOUT_THEMES = [
   'rose',
 ] as const;
 
+/**
+ * A callout colour theme.
+ */
 export type StyleGuideCalloutTheme =
   (typeof STYLE_GUIDE_CALLOUT_THEMES)[number];
 
+/**
+ * An alert tag that Markdown can use, as in `> [!NOTE]`.
+ */
 export type StyleGuideCalloutTag =
   'note' | 'tip' | 'important' | 'warning' | 'caution';
 
+/**
+ * The callout settings of a style guide: the default theme, the preferred themes, a theme for each alert tag, and the space after a callout.
+ */
 export interface StyleGuideCallouts {
   defaultTheme?: StyleGuideCalloutTheme;
   preferredThemes?: StyleGuideCalloutTheme[];
@@ -76,6 +87,9 @@ export interface StyleGuideCallouts {
   spaceAfterPt?: number;
 }
 
+/**
+ * The code block settings of a style guide: the background and the border colour.
+ */
 export interface StyleGuideCodeBlocks {
   background?: string;
   borderColor?: string;
@@ -83,14 +97,23 @@ export interface StyleGuideCodeBlocks {
 
 export const STYLE_GUIDE_MARGINS = ['standard', 'narrow', 'wide'] as const;
 
+/**
+ * A margin size that a style guide can ask for.
+ */
 export type StyleGuideMargin = (typeof STYLE_GUIDE_MARGINS)[number];
 
+/**
+ * The layout settings of a style guide: the margin, and the control of lonely headings and widow lines. They are checked and not drawn.
+ */
 export interface StyleGuideLayout {
   margin?: StyleGuideMargin;
   preventOrphanHeadings?: boolean;
   widowControl?: boolean;
 }
 
+/**
+ * A style guide after it has been read: its name, a palette and settings for tables, charts, typography, callouts, code blocks and layout.
+ */
 export interface StyleGuideConfig {
   name: string;
   version: 1; // guide format version — parser warns (never throws) on unknown
@@ -105,9 +128,14 @@ export interface StyleGuideConfig {
   layout: StyleGuideLayout;
 }
 
-/** One human-readable diagnostic; value problems name their 1-based line. */
+/**
+ * One note from reading a style guide. A note about a value names its line, counted from 1.
+ */
 export type StyleGuideWarning = string;
 
+/**
+ * What `parseStyleGuide` returns: the `config`, and `warnings` for what it could not use.
+ */
 export interface StyleGuideParseResult {
   config: StyleGuideConfig;
   warnings: StyleGuideWarning[];

@@ -10,7 +10,7 @@ import {
   executeNamedStyle,
   executeTable,
   DocumentAST,
-} from '../../packages/engine/src';
+} from '../../packages/engine/src/internal';
 
 function parseXml(xmlStr: string): Element {
   const doc = new DOMParser().parseFromString(xmlStr, 'text/xml');

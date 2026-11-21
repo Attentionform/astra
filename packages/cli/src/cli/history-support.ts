@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { DocxParser, assertHistoryReadyForWrite, commitChange, getEngineErrorCode, getRepoDir, isTrackedPackageFile } from '@attentionform/astra-engine';
+import { DocxParser, getEngineErrorCode } from '@attentionform/astra-engine';
+import { assertHistoryReadyForWrite, commitChange, getRepoDir, isTrackedPackageFile } from '@attentionform/astra-engine/internal';
 import { CLI_NAME, type GlobalOpts, printStderr } from './output';
 import { failWithCode, readErrRemedyProp } from './errors';
 

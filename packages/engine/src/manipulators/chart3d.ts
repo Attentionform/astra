@@ -17,15 +17,18 @@ import { normalizeColour } from '../operations/colour';
 import { createRelationshipElement, relationshipElements } from '../ooxml/relationships-dom';
 
 /**
- * Requestable 3D chart types: exactly the four the writer produces (identical
- * to SUPPORTED_CHART_TYPES). Read-only surfacing (`summarize3DChartXml`) may
- * still report 'area3D'/'surface3D' for foreign parts it detects, but those
- * are refused by the update/insert gates and are never produced here.
+ * The 3D chart types that can be made: `bar3D`, `column3D`, `line3D` and `pie3D`.
  */
 export type Chart3DType = 'bar3D' | 'pie3D' | 'line3D' | 'column3D';
 export const SUPPORTED_CHART_TYPES = ['bar3D', 'line3D', 'pie3D', 'column3D'] as const;
+/**
+ * The shape of the bars of a 3D bar chart.
+ */
 export type Bar3DShape = 'box' | 'cone' | 'cylinder' | 'pyramid';
 
+/**
+ * The 3D view of a chart: the rotation around each axis in degrees, the perspective, right-angle axes, and the height and depth as percentages.
+ */
 export interface View3DProperties {
   rotX?: number; // Range [-90, 90]
   rotY?: number; // Range [0, 360]
@@ -35,6 +38,9 @@ export interface View3DProperties {
   depthPercent?: number; // Depth percent [20, 2000]
 }
 
+/**
+ * One series of a 3D chart: a `name`, its `values` and an optional `color`.
+ */
 export interface Chart3DSeries {
   name: string;
   values: number[];

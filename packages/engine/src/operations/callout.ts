@@ -39,6 +39,9 @@ const THEMES: Record<string, CalloutTheme> = {
   rose: { bg: 'FFF1F2', border: 'E11D48', titleColor: '9F1239' }
 };
 
+/**
+ * Insert a highlighted note box (`action: 'callout'`). `theme` picks the colour, and `anchor` and `position` say where it goes.
+ */
 export interface CalloutOperation extends BaseOperation {
   action: 'callout';
   anchor?: string;
@@ -51,6 +54,9 @@ export interface CalloutOperation extends BaseOperation {
   params?: Record<string, unknown>;
 }
 
+/**
+ * What a callout operation reports. `warnings` are advice, such as an unknown theme that was replaced.
+ */
 export interface CalloutOperationResult {
   /** Advisory warnings (e.g. unknown theme fallback). Ops still apply; never a failure. */
   warnings: string[];

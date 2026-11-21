@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import AdmZip from 'adm-zip';
-import { DocxParser, OperationEngine, applyDocumentIdentity, deriveTitleFromContent, isPlaceholderTitle, DERIVED_TITLE_MAX } from '../src/index';
+import { DocxParser, OperationEngine, applyDocumentIdentity, deriveTitleFromContent, isPlaceholderTitle, DERIVED_TITLE_MAX } from '../src/internal';
 import { composeDocument } from '../src/compose/markdown';
 
 const coreXml = (parser: DocxParser) => new AdmZip(parser.rezip()).readAsText('docProps/core.xml');

@@ -4,7 +4,7 @@
  * validator. Schema validity is checked by `validateDocxBuffer()` or `parser.validateOOXML()`.
  */
 import { describe, expect, it } from 'vitest';
-import { DocxParser, validateDocxBuffer } from '../src';
+import { DocxParser, validateDocxBuffer } from '../src/internal';
 
 const BAD_SIZE = '<w:p><w:r><w:rPr><w:sz w:val="notanumber"/></w:rPr><w:t>bad size</w:t></w:r></w:p>';
 

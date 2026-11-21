@@ -19,8 +19,14 @@ import { toError } from '../errors';
 import { readImageFileBytes } from './image-file';
 import { decodeImagePixels, fitImageEmus } from '../compose/assets';
 
+/**
+ * How text flows around an image: `inline` puts it in the line of text, and the other values are the Word wrapping styles.
+ */
 export type ImageWrapMode = 'inline' | 'square' | 'tight' | 'through' | 'topAndBottom' | 'behindText' | 'inFrontOfText';
 
+/**
+ * Insert an image, resize it, move it, set its wrapping, caption or alternative text, or delete it (`action: 'image'`). The picture is given as `fileData` or as a `filePath` inside the allowed folder.
+ */
 export interface ImageOperation extends BaseOperation {
   action: 'image';
   operation: 'insert' | 'resize' | 'reposition' | 'setWrap' | 'setCaption' | 'delete' | 'setAltText';

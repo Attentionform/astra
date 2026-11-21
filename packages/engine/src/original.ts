@@ -6,7 +6,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import { getRepoDir, getSidecarBytes, resolveHistoryMaxSidecarBytes } from './git';
 import { assertWriteTargetNoSymlink } from './sandbox/paths';
 
+/**
+ * Why the original is not available: the history began before originals were kept (`predates-feature`), the capture failed or the original was too large for the history limit (`capture-failed`, `too-large`), the capture was never finished (`incomplete`), the stored copy fails its hash (`corrupt`), the path is not absolute or no bytes were given (`not-applicable`), or the history is still being set up (`initializing`).
+ */
 export type OriginalUnavailableReason = 'predates-feature' | 'capture-failed' | 'incomplete' | 'corrupt' | 'too-large' | 'not-applicable' | 'initializing';
+/**
+ * Whether the original bytes of a document are available. When they are, `sha256`, `bytes` and `capturedAt` describe them. When they are not, `reason` says why.
+ */
 export type OriginalInfo =
   | { available: true; sha256: string; bytes: number; capturedAt: string }
   | { available: false; reason: OriginalUnavailableReason; detail?: string };
@@ -15,6 +21,9 @@ const SNAPSHOT_NAME = 'original.snapshot';
 const SNAPSHOT_MAGIC = Buffer.from('ASTRA-ORIGINAL\n');
 const MAX_SNAPSHOT_HEADER = 4096;
 export interface AtomicReplaceResult { outcome: 'replaced'; durabilityUnconfirmed?: boolean }
+/**
+ * The SHA-256 of some bytes, as lowercase hex. It is the hash that `getOriginalInfo` reports.
+ */
 export function originalSha256(bytes: Buffer): string { return createHash('sha256').update(bytes).digest('hex'); }
 function coded(message: string, code = 'E_IO'): Error & { code: string } { return Object.assign(new Error(message), { code }); }
 function errno(e: unknown): string { return typeof e === 'object' && e !== null && 'code' in e ? String(e.code) : ''; }
@@ -257,6 +266,10 @@ async function verifiedSnapshot(docPath: string): Promise<{ meta: SnapshotMeta; 
   const raw = await readSafe(file);
   return decodeSnapshot(raw);
 }
+/**
+ * Says whether the original bytes of a document are available: `{ available: true, sha256, bytes, capturedAt }`,
+ * or `{ available: false, reason }` with why not. `docPath` must be an absolute path.
+ */
 export async function getOriginalInfo(docPath: string): Promise<OriginalInfo> {
   if (!path.isAbsolute(docPath)) return { available: false, reason: 'not-applicable' };
   const dir = originalDir(docPath);
@@ -322,6 +335,10 @@ export async function readOriginal(docPath: string): Promise<Buffer> {
   }
   return (await verifiedSnapshot(docPath)).bytes;
 }
+/**
+ * Writes the original bytes of a document, as they were when its history began, to `outPath`. It checks the bytes against their stored hash first.
+ * It refuses to overwrite an existing file unless `overwrite` is true, and refuses to write over the working file; use `restoreOriginal` for that.
+ */
 export async function exportOriginal(docPath: string, outPath: string, opts?: { overwrite?: boolean }): Promise<OriginalInfo> {
   const bytes = await readOriginal(docPath);
   const source = await fsp.realpath(docPath).catch((e: unknown) => { if (errno(e) === 'ENOENT') return path.resolve(docPath); throw e; });

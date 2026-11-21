@@ -38,6 +38,9 @@ function collectFieldLiveIds(ast: DocumentAST): Set<string> {
   return live;
 }
 
+/**
+ * Insert a table of contents, a table of figures, a page number or a word count, update fields, or remove one (`action: 'field'`). `target` and `pageType` choose where a page number goes.
+ */
 export interface FieldOperation extends BaseOperation {
   action: 'field';
   operation: 'insertTOC' | 'insertTOF' | 'insertPageNumber' | 'insertWordCount' | 'updateFields' | 'removeField';

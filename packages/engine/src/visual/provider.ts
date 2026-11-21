@@ -12,40 +12,49 @@ import type { ReferenceReport } from './references';
 import type { WordInstall, WordStartState } from './word';
 import type { MarkupReport } from './markup';
 
+/**
+ * The format of a page image: `png` or `jpeg`.
+ */
 export type VisualImageFormat = 'png' | 'jpeg';
 
+/**
+ * One rendered page: its number, the file that holds the image, the format and the size.
+ */
 export interface VisualPageImage {
   /** 1-indexed page number. */
   page: number;
-  /** Absolute file path to the rendered image (server-side artifact). */
+  /** The absolute path of the image file. */
   path: string;
-  /** Image encoding. PNG default (lossless glyphs); JPEG opt-in. */
+  /** The image format. The default is PNG, and JPEG is optional. */
   format: VisualImageFormat;
   /** File size in bytes. */
   bytes: number;
-  /** Pixel width when known (pdftoppm output). */
+  /** The width in pixels, when it is known. */
   width?: number;
-  /** Pixel height when known. */
+  /** The height in pixels, when it is known. */
   height?: number;
 }
 
+/**
+ * Options for `renderDocxToImages`: which pages, the format and quality, the resolution, the output folder, the program paths, the time limit, the page limit, the renderer, network references and markup.
+ */
 export interface VisualRenderOptions {
   /** 1-indexed pages to keep. Default: all pages (capped by maxPages). */
   pages?: number[];
-  /** PNG default (lossless); JPEG opt-in for bandwidth-sensitive hosts. */
+  /** The image format. The default is PNG, which is lossless. JPEG files are smaller. */
   format?: VisualImageFormat;
   /** JPEG quality 1..100. Default 90. Ignored for PNG. */
   jpegQuality?: number;
   /** Render DPI. Default 150. Clamped 72..300. */
   dpi?: number;
-  /** Artifacts output dir. Default: getVisualArtifactsDir(runId). */
+  /** The folder for the images. The default is a new folder from `getVisualArtifactsDir`. */
   outDir?: string;
-  /** Explicit binary paths (tests use these to simulate missing deps). */
+  /** The paths of the LibreOffice (`sofficeBin`) and Poppler (`pdftoppmBin`) programs, when they are not on the PATH. */
   sofficeBin?: string;
   pdftoppmBin?: string;
-  /** Per-binary timeout ms. Default 60000 (soffice) / 30000 (pdftoppm). */
+  /** The time limit for each program, in milliseconds. The default is 60000 for LibreOffice and 30000 for Poppler. */
   timeoutMs?: number;
-  /** Max pages returned. Default 4 (matches visual_review cap). */
+  /** The most pages to return. The default is 4. */
   maxPages?: number;
   /** DOCX -> PDF program: auto (default), word (Windows only) or libreoffice. Falls back to ASTRA_RENDERER, then auto. */
   renderer?: RendererPreference;
@@ -61,7 +70,9 @@ export interface VisualRenderOptions {
    * by a different layout mode: pages can be scaled and pagination can change, so page numbers refer to this render.
    */
   showMarkup?: boolean;
-  /** Tests only: replace what the machine would report (platform, Word, Windows renderer) and the PowerShell host. */
+  /**
+   * @internal Tests only: replace what the machine would report (platform, Word, Windows renderer) and the PowerShell host.
+   */
   testHooks?: VisualTestHooks;
 }
 
@@ -80,6 +91,9 @@ export interface VisualTestHooks {
   autoPrefersWord?: boolean;
 }
 
+/**
+ * What `renderDocxToImages` returns: the page `images`, the total number of pages, the output folder, and reports on the renderer, the references and the markup.
+ */
 export interface VisualRenderResult {
   ok: true;
   images: VisualPageImage[];

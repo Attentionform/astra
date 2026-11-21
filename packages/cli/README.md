@@ -110,7 +110,7 @@ Renders one saved-file page to PNG/JPEG via a headless renderer (same renderer a
 - `--pdf-to-image auto|windows|poppler` picks the page-image program. On Windows `auto` tries the built-in renderer, then Poppler. Env `ASTRA_PDF_TO_IMAGE`.
 - `--allow-network-references` lets the renderer load content from network locations the document names. Default: not loaded (the references are changed on a copy). Env `ASTRA_ALLOW_NETWORK_REFERENCES=1`.
 
-- `--show-markup` draws tracked changes and comments in the render (default: Word draws content only, LibreOffice draws tracked changes but no comments). The output shows reviewer names, deleted text and comments. Env `ASTRA_SHOW_MARKUP=1`; `--no-show-markup` overrides it.
+- `--show-markup` draws tracked changes and comments in the render (default: Word draws content only, LibreOffice draws tracked changes but no comments). The output shows author names, deleted text and comments. Env `ASTRA_SHOW_MARKUP=1`; `--no-show-markup` overrides it.
 
 `export --format pdf` takes `--renderer`, the network flag and `--show-markup` too.
 
@@ -217,7 +217,7 @@ node packages/cli/dist/cli.js --help
 
 ## License
 
-Business Source License 1.1 (`BUSL-1.1`): source-available, free for individuals, education, non-profits, public bodies, small organizations and small products (see LICENSING.md); other production use needs a commercial license. Plans and prices: https://attentionform.com/pricing. Each version converts to Apache-2.0 four years after release. See [LICENSE](LICENSE) and write to astra@attentionform.com for a commercial license.
+Business Source License 1.1 (`BUSL-1.1`): source-available. Who can use it for free and who needs a commercial license is set out at https://attentionform.com/licensing. Plans and prices: https://attentionform.com/pricing. Each version converts to Apache-2.0 four years after release. See [LICENSE](LICENSE) and write to astra@attentionform.com for a commercial license.
 
 ### Recover the original file
 

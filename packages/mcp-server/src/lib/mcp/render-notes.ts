@@ -1,4 +1,5 @@
-import { describeReferenceReport, markupNotes, type MarkupReport, type RasterizerReport, type ReferenceReport, type RendererReport } from '@attentionform/astra-engine';
+import { type MarkupReport, type RasterizerReport, type ReferenceReport, type RendererReport } from '@attentionform/astra-engine';
+import { describeReferenceReport, markupNotes } from '@attentionform/astra-engine/internal';
 
 /** Shared by visual_inspect and export_document: the one sentence that tells a model when it may set allowNetworkReferences. */
 export const NETWORK_REFERENCES_PARAM_NOTE =
@@ -13,7 +14,7 @@ export const NETWORK_REFERENCES_PARAM_NOTE =
 export const SHOW_MARKUP_PARAM_NOTE =
   'showMarkup: default false. Without it Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments. Set true to draw tracked changes and comments (Word: inline marks and comment balloons; LibreOffice: comments in the margin). ' +
   'It uses a different layout mode: pages can be scaled and pagination can change, so page numbers refer to the render that was produced. ' +
-  'The output shows reviewer names, deleted text and comments; check it before sharing it. ' +
+  'The output shows author names, deleted text and comments; check it before sharing it. ' +
   'The result reports markup:{requested,renderer,mode,warnings} (what was asked and which mode the renderer was told to use; it does not check the image), and a LibreOffice below the tested minimum fails with E_DEPENDENCY.';
 
 /** Plain-language notes for a render result: a fallback to another program, network references (not) loaded, and markup. */

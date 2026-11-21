@@ -1,7 +1,7 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { DocxParser, TEMPLATE_NAMES, resolveStyleGuide, summarizeStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
-import { composeDocument } from '@attentionform/astra-engine/compose/markdown';
+import { composeDocument, DocxParser, TEMPLATE_NAMES, resolveStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
+import { summarizeStyleGuide } from '@attentionform/astra-engine/internal';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';

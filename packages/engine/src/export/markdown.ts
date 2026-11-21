@@ -531,6 +531,9 @@ export function codeBlockLanguage(node: MarkdownNodeLike): string {
   return '';
 }
 
+/**
+ * Options for `convertAstToMarkdown`. `imageMode` is `embed` for images inside the Markdown or `file` for image files, and `assetPrefix` is the path that links to those files start with.
+ */
 export interface MarkdownExportOptions {
   imageMode?: 'embed' | 'file';
   assetPrefix?: string;
@@ -1023,6 +1026,9 @@ export function renderTableMarkdown(node: MarkdownNodeLike): string {
   return parts.join('\n');
 }
 
+/**
+ * Turns a document's AST into Markdown. Pass the parser to export images, and `imageMode` and `assetPrefix` in the options to choose how they are written.
+ */
 export function convertAstToMarkdown(ast: DocumentAST, parser?: DocxParser, options?: MarkdownExportOptions): string;
 export function convertAstToMarkdown(ast: DocumentAST, options?: MarkdownExportOptions): string;
 export function convertAstToMarkdown(

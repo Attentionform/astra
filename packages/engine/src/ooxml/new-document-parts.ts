@@ -143,4 +143,7 @@ export function newDocumentTitle(templateType: string): string {
 
 /** The built-in template names, in the order they are listed to users. */
 export const TEMPLATE_NAMES = ['blank', 'report', 'memo', 'letter', 'proposal', 'invoice', 'technical-spec', 'research-paper', 'novel', 'newsletter'] as const;
+/**
+ * The name of a built-in template. `TEMPLATE_NAMES` lists them.
+ */
 export type TemplateName = (typeof TEMPLATE_NAMES)[number];

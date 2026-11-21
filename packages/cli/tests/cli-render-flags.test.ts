@@ -158,7 +158,7 @@ describe.skipIf(!POSIX)('render flags through the CLI', () => {
     expect(json.markup).toMatchObject({ requested: true, renderer: 'libreoffice', mode: 'comments-in-margin' });
     expect(json.markup.warnings[0]).toMatch(/cut short in the margin/);
     expect(r.stderr).toMatch(/note: markup view: pages are scaled and may differ .* page numbers refer to this render/);
-    expect(r.stderr).toMatch(/note: markup view: the output shows reviewer names, deleted text and comments/);
+    expect(r.stderr).toMatch(/note: markup view: the output shows author names, deleted text and comments/);
     expect(r.stderr).toMatch(/note: markup warning: LibreOffice can show a long comment cut short/);
   });
 
@@ -216,7 +216,7 @@ describe.skipIf(!POSIX)('render flags through the CLI', () => {
     const r = await cli(['--json', 'export', doc, '--format', 'pdf', '--out', pdf, '--show-markup']);
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout).markup).toMatchObject({ requested: true, renderer: 'libreoffice', mode: 'comments-in-margin' });
-    expect(r.stderr).toMatch(/note: markup view: the output shows reviewer names/);
+    expect(r.stderr).toMatch(/note: markup view: the output shows author names/);
     const html = await cli(['export', doc, '--format', 'html', '--show-markup']);
     expect(html.status).toBe(2);
     expect(html.stderr).toMatch(/--show-markup/);

@@ -4,6 +4,9 @@ import { BaseOperation } from './base';
 import { HeaderFooterManipulator } from '../manipulators/header-footer';
 import { normalizeColour } from './colour';
 
+/**
+ * Add a text watermark (`action: 'watermark'`).
+ */
 export interface WatermarkOperation extends BaseOperation {
   action: 'watermark';
   text?: string;

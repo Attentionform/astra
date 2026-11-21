@@ -9,7 +9,7 @@ import {
   collectMarkdownImageAssets,
 } from '../../packages/engine/src/export/markdown';
 import type { DocumentAST } from '../../packages/engine/src/ast';
-import { DocxParser } from '../../packages/engine/src';
+import { DocxParser } from '../../packages/engine/src/internal';
 import { composeDocument } from '../../packages/engine/src/compose/markdown';
 import { validateDocxBuffer } from '../../packages/engine/src/ooxml/validator-gate';
 import { executeExport } from '../../packages/cli/src/export';

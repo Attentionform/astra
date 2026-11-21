@@ -63,8 +63,7 @@ import { normalizeColour } from './colour';
 import { relationshipElements } from '../ooxml/relationships-dom';
 
 /**
- * Unified chart type system: 2D DrawingML types are the default;
- * 3D types remain as explicit opt-ins (unchanged 3D output paths).
+ * Every chart type that you can ask for: the 2D types and the 3D types.
  */
 export type ChartType = Chart2DType | Chart3DType;
 export const SUPPORTED_CHART_2D_AND_3D_TYPES = [...SUPPORTED_CHART_2D_TYPES, ...SUPPORTED_CHART_TYPES] as const;
@@ -227,6 +226,9 @@ function withGuideSeriesColors<T extends { color?: unknown }>(
   });
 }
 
+/**
+ * Insert or update a native Word chart, or change the 3D view of one (`action: 'chart'`). `operation` picks which. `chartType` and `series` give the data, and `style` gives the look.
+ */
 export interface ChartOperation extends BaseOperation {
   action: 'chart';
   operation?: 'insert' | 'update' | 'updateView3D';
@@ -1284,19 +1286,28 @@ function validateUpdatePayload(op: ChartOperation): void {
   }
 }
 
+/**
+ * A paragraph that mentions a chart that was changed, so that its text may no longer match the chart. `preview` is the start of its text.
+ */
 export interface ChartStaleBodyRef {
   nodeId: string;
   preview: string;
 }
 
+/**
+ * What a chart update reports: `possiblyStaleBodyRefs` lists paragraphs that mention the chart, `warnings` are advice, and `chartUpdate` says what happened to the chart part and its workbook.
+ */
 export interface ChartUpdateResult {
   possiblyStaleBodyRefs: ChartStaleBodyRef[];
   /** Advisory messages (for example `layoutWarning: ...`); never a failure. */
   warnings?: string[];
-  /** What a chart update did to the part and the workbook (0.5.3). */
+  /** What a chart update did to the part and the workbook. */
   chartUpdate?: ChartUpdateReport;
 }
 
+/**
+ * What one chart update did. `nodeId` is the chart node and `chartPath` its part in the package. See the fields for the update mode and the workbook.
+ */
 export interface ChartUpdateReport {
   nodeId: string;
   chartPath: string;

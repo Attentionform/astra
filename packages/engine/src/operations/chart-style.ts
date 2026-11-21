@@ -26,6 +26,9 @@ export interface ChartLegendStyle {
   overlay?: boolean;
 }
 
+/**
+ * Which labels a chart shows on its data points, where they sit, and the number format.
+ */
 export interface ChartDataLabelStyle {
   show?: boolean;
   position?: 'ctr' | 'inBase' | 'inEnd' | 'outEnd' | 'bestFit' | 'b' | 't' | 'l' | 'r';
@@ -37,8 +40,14 @@ export interface ChartDataLabelStyle {
   showLegendKey?: boolean;
 }
 
+/**
+ * Where the labels of an axis sit: next to the axis, at the high or low end of the plot, or not shown.
+ */
 export type ChartTickLabelPosition = 'nextTo' | 'high' | 'low' | 'none';
 
+/**
+ * The look of the category axis: label size and angle, the axis line, a title, gridlines and the position of the labels.
+ */
 export interface ChartCategoryAxisStyle {
   /** Tick label size in points (1-400). */
   labelSizePt?: number;
@@ -54,6 +63,9 @@ export interface ChartCategoryAxisStyle {
   majorGridlines?: boolean;
 }
 
+/**
+ * The look of the value axis: label size and angle, the axis line, a title, gridlines, the lowest and highest value, and the number format.
+ */
 export interface ChartValueAxisStyle {
   /** Tick label size in points (1-400). */
   labelSizePt?: number;
@@ -72,13 +84,22 @@ export interface ChartValueAxisStyle {
   tickLabelPosition?: ChartTickLabelPosition;
 }
 
+/**
+ * The look of the category axis (the labels along the bottom) and of the value axis (the numbers).
+ */
 export interface ChartAxesStyle {
   category?: ChartCategoryAxisStyle;
   value?: ChartValueAxisStyle;
 }
 
+/**
+ * The kind of trendline. `none` removes it.
+ */
 export type ChartTrendlineType = 'linear' | 'exponential' | 'logarithmic' | 'movingAvg' | 'polynomial' | 'power' | 'none';
 
+/**
+ * A trendline for one or more series: its `type`, which series it is on, its order or period, and whether it shows the equation and the R squared.
+ */
 export interface ChartTrendlineStyle {
   type: ChartTrendlineType;
   /** Series numbers, counted from 1 in the order the chart lists its series. */
@@ -89,6 +110,9 @@ export interface ChartTrendlineStyle {
   displayRSquared?: boolean;
 }
 
+/**
+ * How a chart sits on the page when it is not in a line of text: alignment, and whether it is behind the text or wraps it.
+ */
 export interface ChartFloatingStyle {
   horizontalAlign?: 'left' | 'center' | 'right';
   verticalAlign?: 'top' | 'middle' | 'bottom';
@@ -103,12 +127,18 @@ export interface ChartTitleFormatStyle {
   color?: string;
 }
 
+/**
+ * The colour of one data point. `pointNumber` counts from 1.
+ */
 export interface ChartPointStyle {
   /** Counted from 1: the first category of the series (the first slice of a pie, the first bar). */
   pointNumber: number;
   color: string;
 }
 
+/**
+ * The colours of the points of one series. `seriesNumber` counts from 1.
+ */
 export interface ChartSeriesStyle {
   /** Counted from 1, in the order the chart lists its series. */
   seriesNumber: number;
@@ -122,6 +152,9 @@ export interface ChartFontStyle {
   color?: string;
 }
 
+/**
+ * The spacing of the bars or columns of a chart.
+ */
 export interface ChartBarsStyle {
   /** Gap between bar groups as a percentage of bar width, 0-500. */
   gapPercent?: number;
@@ -129,6 +162,9 @@ export interface ChartBarsStyle {
   overlapPercent?: number;
 }
 
+/**
+ * The look of the lines of a line chart: width, smoothing and markers.
+ */
 export interface ChartLinesStyle {
   widthPt?: number;
   smooth?: boolean;
@@ -141,6 +177,9 @@ export interface ChartAreaStyle {
   borderColor?: string;
 }
 
+/**
+ * The look of a chart. Every part is optional, and a part that you leave out keeps what the chart has.
+ */
 export interface ChartStyle {
   chartFont?: ChartFontStyle;
   bars?: ChartBarsStyle;

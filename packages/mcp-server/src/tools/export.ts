@@ -5,27 +5,8 @@ import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { McpSessionStore, canonicalizeForMcp, getMcpAllowedRoots } from '../lib/session-store';
-import {
-  AdmZip,
-  assertValidDocx,
-  assertWriteTargetNoSymlink,
-  collectMarkdownImageAssets,
-  convertAstToHtml,
-  htmlDocumentTitle,
-  convertAstToMarkdown,
-  convertDocxToPdfDetailed,
-  DocxParser,
-  getEngineErrorCode,
-  effectiveRendererPreference,
-  planPdfRenderers,
-  runPreflightChecks,
-  type DocumentAST,
-  type PreflightIssue,
-  type MarkupReport,
-  type ReferenceReport,
-  type RendererReport,
-  writeFileNoFollow,
-} from '@attentionform/astra-engine';
+import { assertValidDocx, convertAstToHtml, convertAstToMarkdown, convertDocxToPdfDetailed, DocxParser, getEngineErrorCode, type DocumentAST, type PreflightIssue, type MarkupReport, type ReferenceReport, type RendererReport } from '@attentionform/astra-engine';
+import { AdmZip, assertWriteTargetNoSymlink, collectMarkdownImageAssets, htmlDocumentTitle, effectiveRendererPreference, planPdfRenderers, runPreflightChecks, writeFileNoFollow } from '@attentionform/astra-engine/internal';
 import { NETWORK_REFERENCES_PARAM_NOTE, SHOW_MARKUP_PARAM_NOTE, mcpFlagNames, renderNotes } from '../lib/mcp/render-notes';
 
 export const ExportDocumentSchema = z.object({
@@ -49,7 +30,7 @@ export const EXPORT_DOCUMENT_DESCRIPTION =
   'Renders the in-memory session state (includes unsaved execute_batch edits, not the last saved file); ' +
   'success returns {ok:true,format,path|content,bytes,dirty,revision,imageMode,assetPrefix,assets,assetCount} (dirty:true = unsaved edits present). ' +
   'For Markdown exports, images default to extracted files in a unique generation within a sibling <doc_basename>_assets/ directory when outPath is specified; in-memory exports default to embedded base64 data URIs. ' +
-  'PDF renders with Microsoft Word on Windows when it is installed, else with headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug), and with LibreOffice again if Word fails; renderer:"word" or renderer:"libreoffice" names one and never falls back. The result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). Without showMarkup, Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments; showMarkup (PDF only) draws tracked changes and comments in both, and the output then shows reviewer names, deleted text and comments. ' +
+  'PDF renders with Microsoft Word on Windows when it is installed, else with headless LibreOffice (a ~11s first-render cold start is expected behavior, not a bug), and with LibreOffice again if Word fails; renderer:"word" or renderer:"libreoffice" names one and never falls back. The result reports which one ran. Network references in the document are not loaded unless allowNetworkReferences is set (see that parameter). Without showMarkup, Word draws the content only (tracked changes as if accepted, no comments) and LibreOffice draws tracked changes, deleted text included, but no comments; showMarkup (PDF only) draws tracked changes and comments in both, and the output then shows author names, deleted text and comments. ' +
   'Failures return {ok:false,code,message,remedy}.';
 
 /**

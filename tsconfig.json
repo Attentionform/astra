@@ -25,7 +25,22 @@
     "baseUrl": ".",
     "paths": {
       "@attentionform/astra-engine": [
-        "packages/engine/src/index.ts"
+        "packages/engine/src/internal.ts"
+      ],
+      "@attentionform/astra-engine/internal": [
+        "packages/engine/src/internal.ts"
+      ],
+      "@attentionform/astra-engine/internal/*": [
+        "packages/engine/src/*"
+      ],
+      "@attentionform/astra-engine/history": [
+        "packages/engine/src/api/history.ts"
+      ],
+      "@attentionform/astra-engine/ooxml": [
+        "packages/engine/src/api/ooxml.ts"
+      ],
+      "@attentionform/astra-engine/search": [
+        "packages/engine/src/api/search.ts"
       ],
       "@attentionform/astra-engine/*": [
         "packages/engine/src/*"

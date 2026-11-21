@@ -8,7 +8,7 @@ import {
   convertDocxToPdf,
   pdfFilterSpec,
   RenderError,
-} from '../../packages/engine/src';
+} from '../../packages/engine/src/internal';
 import { runPreflightChecks } from '../../packages/engine/src/export/preflight';
 import { run as runCli, EXIT_OK, EXIT_FAIL } from '../../packages/cli/src/cli';
 import { createMcpSessionStore } from '../../packages/mcp-server/src/lib/session-store';

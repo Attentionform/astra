@@ -1,33 +1,34 @@
 # @attentionform/astra-engine
 
-The core headless OOXML engine for ASTra.
+The engine behind ASTra, as a package for Node.js. It opens a Word (`.docx`) file, gives each paragraph and table a stable id, changes them with typed operations that either all apply or none do,
+checks the result against the Office schema, and keeps a history that you can step back through. It runs on your machine and needs Node.js 22.19 or newer.
 
-`@attentionform/astra-engine` provides transactional, in-memory manipulation of Microsoft Word (`.docx`) documents with strict ISO/IEC 29500 / ECMA-376 schema compliance, persistent DOM node addressing, atomic batch execution with rollback, and Token-Optimized Outline Notation (TOON).
+Full documentation, with an API reference for every exported name, is at https://attentionform.com/docs/library.
 
 ---
 
-## Installation & Quickstart
+## Install and first use
 
 ```bash
 npm install @attentionform/astra-engine
 ```
 
-### Basic Example: Inspecting and Mutating a Document
+### Read and change a document
 
 ```typescript
 import { DocxParser, OperationEngine, validateDocxBuffer } from '@attentionform/astra-engine';
 import * as fs from 'node:fs';
 
 async function main() {
-  // 1. Load an existing .docx file into an in-memory DOM
+  // 1. Open an existing .docx file
   const fileBuffer = fs.readFileSync('document.docx');
   const parser = new DocxParser(fileBuffer);
   
-  // 2. Access the typed Document AST and structural summary
+  // 2. Read the document as typed data (the AST)
   const ast = await parser.getAST();
   console.log(`Document loaded with ${ast.sections.length} section(s).`);
 
-  // 3. Execute an atomic batch mutation with automatic rollback on error
+  // 3. Apply a batch of operations. If one fails, none of them is applied
   const engine = new OperationEngine(ast, parser);
   const result = await engine.executeBatch({
     operations: [
@@ -49,9 +50,9 @@ async function main() {
   if (result.success) {
     console.log(`Applied ${result.appliedCount} operations successfully.`);
     
-    // 4. Serialize back to a .docx buffer, then validate it before you write it.
-    //    rezip() runs integrity checks (duplicate paragraph ids, XXE, macros, package integrity).
-    //    It does NOT run the Microsoft schema validator: validateDocxBuffer() does.
+    // 4. Write the package, then validate it before you save it.
+    //    rezip() checks the package (repeated paragraph ids, XML external entities, macros, integrity).
+    //    It does not run the Office schema validator. validateDocxBuffer() does.
     const outBuffer = parser.rezip();
     const validation = await validateDocxBuffer(outBuffer);
     if (!validation.ok) {
@@ -80,28 +81,106 @@ fs.writeFileSync('memo.docx', parser.rezip());
 
 `blank` is one empty paragraph. The other nine are designed starting documents with placeholder text in square brackets. Runnable examples are in `packages/engine/examples/`.
 
+### Typed operations and untyped data
+
+`executeBatch` takes typed operations. An unknown `action`, an unknown field or a missing required field is a compile error. Annotate your own values with `OperationInput` (one
+operation) and `BatchPayload` (the whole batch):
+
+```typescript
+import type { BatchPayload, OperationInput } from '@attentionform/astra-engine';
+
+const operations: OperationInput[] = [{ action: 'replace', target: 'p_001', text: 'New text' }];
+const batch: BatchPayload = { operations };
+await engine.executeBatch(batch);
+```
+
+Some rules cannot be written as a type: a field that is required only for one sub-operation, or a rule that spans several fields. `executeBatch` checks those when it
+runs, and `parseBatch` checks them earlier. For data that arrives untyped (JSON from a file, a request, a model), call `parseBatch` first. It returns
+`{ ok: true, batch }` with typed operations, or `{ ok: false, errors }` with every problem and where it is:
+
+```typescript
+import { parseBatch } from '@attentionform/astra-engine';
+
+const parsed = parseBatch(JSON.parse(text));
+if (!parsed.ok) throw new Error(parsed.errors.map((e) => e.message).join('; '));
+await engine.executeBatch(parsed.batch);
+```
+
+`BatchInput` is the form after parsing, not the form that you write. Use `BatchPayload` for a batch that you write by hand.
+
 ---
 
-## Core Engine Capabilities
+## What is public
 
-### 1. In-Memory DOM Level 2 with Stable Addressing
-- Parses `.docx` archives directly in memory using an internal ZIP adapter with zero extraction to disk.
-- Automatically assigns persistent tracking IDs (`data-astra-id`) to every paragraph (`p_001` or `w14:paraId`), table (`t_001`), and container.
-- AI agents and automation scripts can reference exact nodes without fragile string offsets or line numbers.
+The package has four supported entry points. Everything else is internal.
 
-### 2. 27 Atomic Operations with Transactional Rollback
-The `OperationEngine` dispatches across 27 distinct operation types defined as a strict discriminated union:
+| Import | What it holds | Promise |
+|--------|---------------|---------|
+| `@attentionform/astra-engine` | 44 functions, classes and constants, and 163 types: create and open documents, edit with operations, compose Markdown, export and render, validate, sanitize, history and original recovery, style guides, read a document, errors | Documented, semantic versioning |
+| `@attentionform/astra-engine/history` | The recorded history of a document: start it, record a state, list states, read a state back (14 functions and constants, 3 types) | Documented, semantic versioning |
+| `@attentionform/astra-engine/ooxml` | `normalizePackage` and `previewNormalizations`: fix the structure of a package that another producer wrote | Documented, semantic versioning |
+| `@attentionform/astra-engine/search` | `grepNodes`: search a list of nodes that you prepared. It is not a search of a whole document | Documented, semantic versioning |
+| `@attentionform/astra-engine/internal` and `/internal/*` | Everything the command-line tool and the MCP server need, and more | **No promise.** For ASTra's own packages. Names and shapes can change in any release |
+
+The exact names are in [`api-surface.json`](./api-surface.json). CI installs the packed package in a clean project and checks that every
+entry point exports exactly those runtime values, that every type imports under `NodeNext` and `Bundler` resolution, and that a deep import such
+as `@attentionform/astra-engine/git` is refused.
+
+Some types are public only because a public class or function mentions them, for example the chart style types that `ChartOperation` carries. They
+are part of the public declarations: changing their shape can break TypeScript code, so they follow the same versioning as everything else.
+
+Test hooks (`testHooks` on the render options) are not part of the public types. They remain in the code for ASTra's own tests.
+
+`@attentionform/astra-engine/internal` is reachable because the package map has to give the command-line tool and the MCP server a way in. That is
+not a promise that it is safe to use: if a name you need is only in `/internal`, open an issue so that it can be documented and supported.
+
+### Which renderer is installed
+
+`getVisualBackendStatus()` reports what is installed: `renderers.word` (found, executable, version), `renderers.libreoffice` (found, path),
+`rasterizers.poppler` and `rasterizers.windows`, the order a default call would try (`plan`), and what is missing. Its `available` field means that a
+renderer **and** a page-image program were found. A machine with LibreOffice but without Poppler reports `available: false`, although a PDF can be made.
+Use `hasPdfBackend()` for that question. The [render example](./examples/10-render.mjs) shows both.
+
+### Handling errors
+
+Handle a failure by its code: `getEngineErrorCode(err)` returns one of `ENGINE_ERROR_CODES`, or `undefined`, and `getEngineRemedy(code)` returns the default advice for a code. The classes (`EngineQuotaError`, `EngineValidationError`, `OoxmlValidationError`, `PreflightError`, `RenderError`,
+`WordRenderError`, `WindowsPdfError`, `DependencyError`) are exported for `instanceof` checks, but the code is the contract.
+The [validation example](./examples/08-validate.mjs) shows it.
+
+### Reading an older version
+
+Open a document with `DocumentManager` to get undo, redo, the version list and original recovery. To preview what a revert would change, or to read an
+older state as a document, use `getHistory`, `checkoutCommit` and `trackedPredicateFor` from `/history`.
+The [history example](./examples/09-history-older-version.mjs) previews additions, removals and changes of every recorded part,
+including an image that a later state added, and reads the older document back and validates it.
+
+### Reading inside a .docx
+
+The engine does not export its zip helper. To look inside a `.docx` yourself, use any zip library, for example `adm-zip`.
+
+---
+
+## How the engine works
+
+### Stable node ids
+- The package is read in memory. Nothing is extracted to disk.
+- Each paragraph (`p_001`, or its `w14:paraId`), table (`t_001`) and container gets an id that stays the same between edits.
+- An operation names a node by its id, so an agent or a script never depends on a text offset or a line number.
+
+### Operations and batches
+`OperationEngine` applies 27 kinds of operation. Each has an `action` name, and TypeScript checks the fields of each one.
 - **Content:** `insert`, `replace`, `delete`, `move`
 - **Formatting:** `style`, `clearFormat`, `namedStyle`
-- **Tables & Structure:** `table`, `section`, `pageSetup`, `pageBorder`, `coverPage`
-- **Complex Elements:** `chart`, `image`, `equation`, `callout`, `field`, `list`
-- **References & Annotations:** `footnote`, `endnote`, `hyperlink`, `bookmark`, `comment`, `headerFooter`, `watermark`
-- **Revisions & Compliance:** `trackedChange`, `metadata`
+- **Tables and structure:** `table`, `section`, `pageSetup`, `pageBorder`, `coverPage`
+- **Complex elements:** `chart`, `image`, `equation`, `callout`, `field`, `list`
+- **References and notes:** `footnote`, `endnote`, `hyperlink`, `bookmark`, `comment`, `headerFooter`, `watermark`
+- **Revisions and properties:** `trackedChange`, `metadata`
 
-**Transactions:** Before executing a batch, the engine captures an immutable snapshot of both the AST and package zip. If any operation violates schema rules or throws an unhandled exception, operations are automatically rolled back (`rollbackOnError: true`).
+A batch is all or nothing. Before it runs, the engine keeps a copy of the AST and the package. When an operation breaks a schema rule or throws, the batch is rolled back
+and `result.rollbackTriggered` is true.
 
-### 3. ECMA-376 Schema Validation
-ASTra validates documents with `@attentionform/ooxml-validator` (the Microsoft Open XML SDK validator). Where the check runs depends on the path you use:
+### Validation
+ASTra validates documents with `@attentionform/ooxml-validator`, which uses the Microsoft Open XML SDK validator. Where the check runs depends on the path you use:
 
 | Path | What it does |
 |------|--------------|
@@ -113,26 +192,62 @@ ASTra validates documents with `@attentionform/ooxml-validator` (the Microsoft O
 
 Passing means the selected Open XML SDK validation run reported no errors. It does not prove how the document renders or that its content is right.
 
-### 4. Token-Optimized Outline Notation (TOON)
-Converts verbose OpenXML markup into dense, tabular outlines tailored for LLM context windows:
-- **`compact`**: Terse pipe-delimited outline displaying node IDs, types, and text (about 89 % median reduction; 45 % of documents reach 90 %).
-- **`standard`**: Compact outline plus inline styling flags (`[B]`, `[I]`, `[C:hex]`, `[SZ:n]`, `[HDR]`, `[ZEBRA]`).
-- **`full`**: Deep structural dump including margins, borders, and XML property trees (section-scoped).
+#### `rezip()` options
 
-### 5. Style Guides (Omitted-Param Defaults + Advisory Linting)
-Attach a parsed guide (`parseStyleGuide` in `src/style-guide/parser.ts`) as the engine's aesthetic skin:
+`parser.rezip(options?)` writes the package to a `Buffer`. The forms are `rezip()`, `rezip(options)`, `rezip(ast)`, `rezip(ast, options)` and `rezip({ ast, ...options })`.
+
+Whatever the options, `rezip()` drops rogue zip entries, refuses macro parts under the default policy, and refuses an XML part that declares a DTD or entity (the XXE check).
+
+| Option | Effect |
+|--------|--------|
+| *(none)* | Refuses two paragraphs with the same `w14:paraId` (`E_VALIDATION`, naming the id). Refuses an XML part that does not parse, has no root element, or has text outside the root. It does not catch every malformation: a mismatched closing tag passes, and `validateDocxBuffer()` reports it. |
+| `validate: false` | Skips the duplicate-id check. The XML check still runs. |
+| `skipValidation: true` | Skips the duplicate-id check **and** the XML check. The XXE and macro checks still run. |
+| `duplicateParaIds: 'renumber'` | Repairs a repeated id and records the change, instead of refusing. The default is `'refuse'`. It has no effect with `validate: false` or `skipValidation: true`. |
+| `reproducible: true` | Pins the zip entry times, the `modified` date and the revision and comment stamps to `SOURCE_DATE_EPOCH`, or to 1980-01-01Z when that is not set. The same input bytes then give the same output bytes. The `created` date is left as it is, so documents that `createNewDocument` made at different times still differ by that date. |
+| `reproducible: false`, `noReproducible: true` | Real dates, even when `ASTRA_REPRODUCIBLE` or `SOURCE_DATE_EPOCH` is set. |
+
+Without a `reproducible` option, `ASTRA_REPRODUCIBLE=1` or `SOURCE_DATE_EPOCH` turns pinning on, `ASTRA_NO_REPRODUCIBLE=1` turns it off, and otherwise the dates are the real ones.
+
+None of these options runs the Microsoft schema validator. Call `validateDocxBuffer()` for that.
+
+
+### The outline for agents
+An agent reads a compact table in place of the XML: one row per paragraph or table, with its id, style, text and flags. It is much shorter than the markup, so more of a document fits in a model's context.
+`ToonGenerator` builds it at four levels of detail:
+- **`outline`**: the headings only.
+- **`compact`**: every node, with the node id, type and text.
+- **`standard`**: the default. It adds style flags such as `[B]`, `[I]`, `[C:hex]`, `[SZ:n]`, `[HDR]` and `[ZEBRA]`.
+- **`full`**: a deep dump of one section, with margins, borders and the XML properties.
+
+### Style guides
+A style guide is a Markdown file that sets the look of tables, charts, callouts and code blocks. Read it with `parseStyleGuide` and give it to the engine:
+
 ```typescript
 import { OperationEngine, parseStyleGuide } from '@attentionform/astra-engine';
 
 const { config: styleGuide } = parseStyleGuide(guideMarkdown);
 const engine = new OperationEngine(ast, parser, { styleGuide });
-// or attach later: engine.setStyleGuide(styleGuide);
+// or later: engine.setStyleGuide(styleGuide);
 ```
-Precedence is global: **explicit op param > guide value > built-in default**. Guides fill only omitted params (dark table fills gain the guide header text by computed WCAG AA contrast, uncolored chart series pull the guide palette in order, callouts fall back to the guide theme, code blocks take the guide background/borders); caller-passed values always win. Composed Markdown has no per-table or per-alert theme syntax, so a guided compose skins tables with `tables.headerFill` (and shades the odd data rows with `tables.alternatingFill`) and `> [!TAG]` alerts with `callouts.defaultTheme` outright. A compose with no guide uses the built-in *Default Corporate* guide (navy header, bold white header text, striped rows, per-tag alert colours); pass `styleGuide: 'legacy'` for the old gray headers. Palette base colors, `typography.*`, `tables.borderColor`, `callouts.preferredThemes`, and `layout.*` are advisory-only: parsed and linted, never rendered. `lintDocumentStyle(ast, guide)` reports `{ nodeId, rule, message }` findings (header contrast, duplicate chart colors, splittable tables) without ever failing; `DocumentManager` save/validate paths carry them as additive `styleWarnings`. Guide-parse notes ride the same machine keys (`guide-parse` entries on validate, string notes on create/import/batch, MCP `warnings`/`styleGuideWarnings`). Resolve file or bundled refs with `resolveStyleGuide(ref, { allowedDir })`; unknown names and missing files fail closed with `E_VALIDATION`. Full file spec, precedence table, sandbox matrix, and session semantics: `docs/cli-guide.md` §6. Bundled ref `report` carries display title `Corporate`.
+
+- **Precedence:** an explicit parameter wins over the guide, and the guide wins over the built-in value. A guide fills in only the parameters that you leave out.
+  When an explicit value clashes with the guide, you get a warning and the explicit value is used.
+- **What a guide sets:** table header fills and text colour (chosen for WCAG AA contrast), the colours of chart series that have none, the theme of callouts, and the background and borders of code blocks.
+  Colours of the palette, `typography.*`, `tables.borderColor`, `callouts.preferredThemes` and `layout.*` are read and checked, but they are not drawn.
+- **Composing from Markdown:** Markdown has no syntax for a table or alert theme, so the guide's `tables.headerFill` and `callouts.defaultTheme` apply to composed tables and `> [!TAG]` alerts.
+  Without a guide, the built-in Default Corporate guide applies. Pass `styleGuide: 'legacy'` for the older look with grey table headers.
+- **Checking:** `lintDocumentStyle(ast, guide)` returns warnings (`{ nodeId, rule, message }`) for header contrast, repeated chart colours and tables that can split across pages. A warning never fails a save.
+  `DocumentManager` returns them as `styleWarnings`.
+- **Finding a guide:** `resolveStyleGuide(ref, { allowedDir })` reads a bundled guide by name (`report`, `legal` or `technical`) or a `.md` file. An unknown name or a missing file throws `E_VALIDATION`.
+
+See [Style guides](https://attentionform.com/docs/guides/style-guides) for the file format.
 
 ---
 
-## API Reference
+## More examples
+
+Every exported name, with its declaration and description, is in the [API reference](https://attentionform.com/docs/library/api). These are the most used parts.
 
 ### `DocxParser`
 The primary entry point for reading and parsing Word documents:
@@ -143,19 +258,19 @@ import { DocxParser } from '@attentionform/astra-engine';
 // From Buffer
 const parser = new DocxParser(buffer);
 
-// Create fresh document from template ('report' | 'memo' | 'blank')
+// Create a fresh document from a template: blank, report, memo, letter, proposal, invoice, technical-spec, research-paper, novel or newsletter
 const freshDoc = DocxParser.createNewDocument('report');
 
-// Retrieve typed AST
+// Read the typed AST
 const ast = await parser.getAST();
 
-// Retrieve structural summary
+// Read the structural summary
 const summary = parser.getStructuralSummary();
 
-// Validate OOXML schema compliance
+// Check the document against the Office schema
 const validation = await parser.validateOOXML();
 
-// Rezip into .docx Buffer with canonical namespace normalization
+// Write the package as .docx bytes
 const outputBuffer = parser.rezip();
 ```
 
@@ -196,15 +311,15 @@ const { buffer: cleanBuffer, report } = sanitizeDocxBuffer(buffer, {
 console.log(`Scrubbed ${report.removedRSIDs} RSIDs and ${report.strippedComments} comments.`);
 ```
 
-With `acceptAllRevisions`, `sanitizeDocxBuffer` throws `E_VALIDATION` (naming the part and the revision kinds) and returns no buffer when revision markup remains that cannot be resolved safely, because a partly cleaned file could still contain deleted text and reviewer names.
+With `acceptAllRevisions`, `sanitizeDocxBuffer` throws `E_VALIDATION` (naming the part and the revision kinds) and returns no buffer when revision markup remains that cannot be resolved safely, because a partly cleaned file could still contain deleted text and author names.
 
-### TOON Generator
+### Outline generator (`ToonGenerator`)
 ```typescript
 import { ToonGenerator } from '@attentionform/astra-engine';
 
 const generator = new ToonGenerator();
 
-// Generate standard outline
+// Build an outline
 const table = generator.generateToon(ast, undefined, { fidelity: 'compact' });
 const outline = generator.renderToonText(table);
 
@@ -217,18 +332,6 @@ const { rendered: budgetOutline, tokenCount, truncated, hasMore, nextOffset } =
 
 ---
 
-## Building & Testing Locally
-
-```bash
-# Build engine package
-npm run build -w @attentionform/astra-engine
-
-# Run unit tests
-npm test -w @attentionform/astra-engine
-```
-
----
-
 ## License
 
-Business Source License 1.1 (`BUSL-1.1`): source-available, free for individuals, education, non-profits, public bodies, small organizations and small products (see LICENSING.md); other production use needs a commercial license. Plans and prices: https://attentionform.com/pricing. Each version converts to Apache-2.0 four years after release. See [LICENSE](LICENSE) and write to astra@attentionform.com for a commercial license.
+Business Source License 1.1 (`BUSL-1.1`): source-available. Who can use it for free and who needs a commercial license is set out at https://attentionform.com/licensing. Plans and prices: https://attentionform.com/pricing. Each version converts to Apache-2.0 four years after release. See [LICENSE](LICENSE) and write to astra@attentionform.com for a commercial license.

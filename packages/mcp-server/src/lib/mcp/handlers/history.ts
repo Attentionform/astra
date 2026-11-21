@@ -3,19 +3,8 @@ import { createHash } from 'crypto';
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 2275-2290 + 2300-3029).
 // Zero logic edits (sidecar/COMMIT_OID_RE/refresh/restore helpers live in ../diff and ../errors).
 import * as fsp from 'fs/promises';
-import {
-  assertWriteTargetNoSymlink,
-  checkoutCommit,
-  commitChange,
-  assertHistoryReadyForWrite,
-  getEngineErrorCode,
-  getHistory,
-  type OriginalInfo,
-  getSidecarHistoryWarning,
-  INCOMPLETE_SNAPSHOT_WARNING,
-  trackedPredicateFor,
-  writeFileNoFollow,
-} from '@attentionform/astra-engine';
+import { getEngineErrorCode, type OriginalInfo } from '@attentionform/astra-engine';
+import { assertWriteTargetNoSymlink, checkoutCommit, commitChange, assertHistoryReadyForWrite, getHistory, getSidecarHistoryWarning, INCOMPLETE_SNAPSHOT_WARNING, trackedPredicateFor, writeFileNoFollow } from '@attentionform/astra-engine/internal';
 import type { McpSessionStore } from '../../session-store';
 import { collectTrackedExtrasForGit, ensureGitRepo, resolveSessionOriginal } from '../../session-store';
 import {

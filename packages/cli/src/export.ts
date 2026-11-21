@@ -1,20 +1,9 @@
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import {
-  convertAstToHtml,
-  htmlDocumentTitle,
-  convertAstToMarkdown,
-  collectMarkdownImageAssets,
-  prepareDocxForPdfExport,
-  convertDocxToPdfDetailed,
-  DocxParser,
-  type MarkupReport,
-  type ReferenceReport,
-  type RendererReport,
-  type OfficeVersion,
-} from '@attentionform/astra-engine';
-import { canonicalizeForAsset, isPathInsideDir } from '@attentionform/astra-engine';
+import { convertAstToHtml, convertAstToMarkdown, convertDocxToPdfDetailed, DocxParser, type MarkupReport, type ReferenceReport, type RendererReport, type OfficeVersion } from '@attentionform/astra-engine';
+import { htmlDocumentTitle, collectMarkdownImageAssets, prepareDocxForPdfExport } from '@attentionform/astra-engine/internal';
+import { canonicalizeForAsset, isPathInsideDir } from '@attentionform/astra-engine/internal';
 
 export interface ExportResult {
   ok: boolean;

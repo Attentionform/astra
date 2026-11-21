@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AdmZip, createBlankDocxBuffer, validateDocxBuffer } from '../../packages/engine/src';
+import { AdmZip, createBlankDocxBuffer, validateDocxBuffer } from '../../packages/engine/src/internal';
 import { prepareDocxForPdfExport, PDF_SOURCE_REMEDY } from '../../packages/engine/src/export/pdf-source';
 
 /**

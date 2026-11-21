@@ -7,7 +7,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { AdmZip, DocxParser, OperationEngine } from '../../packages/engine/src';
+import { AdmZip, DocxParser, OperationEngine } from '../../packages/engine/src/internal';
 import { validateDocxBuffer } from '../../packages/engine/src/ooxml/validator-gate';
 import { run as runCli } from '../../packages/cli/src/cli';
 

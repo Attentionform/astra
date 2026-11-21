@@ -3,6 +3,9 @@ import { DocumentAST, Node, NodeMetadata, calculateNodeChecksum } from '../ast';
 import { createWordElement } from '../ooxml/ns';
 import { toError } from '../errors';
 
+/**
+ * The fields that every operation has. `action` names the kind of operation, `target` is the id of the node, or the ids of the nodes, that it works on, and `expectedVersion` makes the operation fail with `E_VALIDATION` when the node has changed since you read it. The other fields depend on the kind.
+ */
 export interface BaseOperation {
   action: string;
   target?: string | string[];
