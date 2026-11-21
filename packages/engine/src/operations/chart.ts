@@ -364,11 +364,6 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
   if (rawChartType === 'scatter') {
     assertScatterData(resolved.categories, resolved.series as Chart2DSeries[] | undefined);
   }
-  const chartSize: ResolvedChartSize = resolveNewChartSize(
-    { widthEmu: resolved.widthEmu, heightEmu: resolved.heightEmu, widthIn: resolved.widthIn, heightIn: resolved.heightIn },
-    use3D,
-    guide
-  );
   const insertAltText = validateChartAltText(resolved.altText);
   const defaultTitle = use3D ? '3D Chart Analysis' : 'Chart Analysis';
   const fallbackText = use3D ? 'Q1-Q4 Financial 3D Analysis' : 'Q1-Q4 Financial Analysis';
@@ -412,6 +407,14 @@ export function executeChart(op: ChartOperation, ast: DocumentAST, parser?: Docx
     }
   }
   const domAnchorId = effectiveAnchor ? effectiveAnchor.id : resolved.anchor;
+  // The default size fits the text area of the section the chart goes into.
+  const targetSection = (effectiveAnchor ?? chainHost ? locateNode(ast.sections, (effectiveAnchor ?? chainHost)!.id)?.section : undefined) ?? lastSection(ast.sections);
+  const chartSize: ResolvedChartSize = resolveNewChartSize(
+    { widthEmu: resolved.widthEmu, heightEmu: resolved.heightEmu, widthIn: resolved.widthIn, heightIn: resolved.heightIn },
+    use3D,
+    guide,
+    usableAreaOf(targetSection?.pageSetup)
+  );
 
   // Execute chart insertion via the routed manipulator (2D default, 3D opt-in).
   // With a guide active, uncolored series pull from the guide chart palette

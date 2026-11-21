@@ -99,14 +99,17 @@ function guideEmu(inches: unknown): number | undefined {
  * The size of a new chart: each dimension is the operation's value, else the guide's, else the built-in default.
  * Giving only the width does not scale the height.
  */
-export function resolveNewChartSize(input: ChartSizeInput, is3D: boolean, guide?: StyleGuideConfig): ResolvedChartSize {
+export function resolveNewChartSize(input: ChartSizeInput, is3D: boolean, guide?: StyleGuideConfig, area?: UsableArea): ResolvedChartSize {
   const given = parseChartSize(input);
   const charts = guide?.charts;
   const guideWidth = guideEmu(is3D ? charts?.width3dIn ?? charts?.widthIn : charts?.widthIn);
   const guideHeight = guideEmu(is3D ? charts?.height3dIn : charts?.heightIn);
+  // The built-in default follows the page: it is never larger than the text area it is placed in. A size that the operation or the
+  // guide gives is kept as it is (a layout warning tells the caller when it does not fit).
+  const fit = (value: number, room: number | undefined): number => (room !== undefined && room > 0 ? Math.max(CHART_MIN_EMU, Math.min(value, room)) : value);
   return {
-    widthEmu: given.widthEmu ?? guideWidth ?? DEFAULT_CHART_WIDTH_EMU,
-    heightEmu: given.heightEmu ?? guideHeight ?? (is3D ? DEFAULT_CHART_HEIGHT_3D_EMU : DEFAULT_CHART_HEIGHT_2D_EMU),
+    widthEmu: given.widthEmu ?? guideWidth ?? fit(DEFAULT_CHART_WIDTH_EMU, area?.widthEmu),
+    heightEmu: given.heightEmu ?? guideHeight ?? fit(is3D ? DEFAULT_CHART_HEIGHT_3D_EMU : DEFAULT_CHART_HEIGHT_2D_EMU, area?.heightEmu),
   };
 }
 

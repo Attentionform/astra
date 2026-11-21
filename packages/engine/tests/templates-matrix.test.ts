@@ -1,11 +1,11 @@
 /**
  * Every designed template on ten pages (named papers, custom sizes, landscape): create, compose Markdown with a table, an image and a callout,
- * then check the file is valid, the section size is what was asked for, and no table or tab stop reaches past the text area.
+ * then insert a native chart without a size, then check the file is valid, the section size is what was asked for, and no table or tab stop reaches past the text area.
  */
 import { describe, expect, it } from 'vitest';
 import zlib from 'node:zlib';
 import AdmZip from 'adm-zip';
-import { DocxParser, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src/internal';
+import { DocxParser, OperationEngine, TEMPLATE_NAMES, composeDocument, validateDocxBuffer } from '../src/internal';
 
 const png = (w: number, h: number): Buffer => {
   const chunk = (type: string, data: Buffer): Buffer => {
@@ -40,6 +40,12 @@ describe.each(PAGES)('templates on $label', ({ page, w, h }) => {
       const parser = DocxParser.createNewDocument(name, { page });
       const res = await composeDocument(parser, MD, { template: name } as never);
       expect(res.success, JSON.stringify(res.errors)).toBe(true);
+      const ast = await parser.getAST();
+      const last = ast.sections[ast.sections.length - 1].nodes;
+      const chart = await new OperationEngine(ast, parser).executeBatch({
+        operations: [{ action: 'chart', operation: 'insert', chartType: 'column', title: 'Matrix', categories: ['A', 'B'], series: [{ name: 'S', values: [1, 2] }], anchor: last[last.length - 1].id, position: 'after' }] as never,
+      });
+      expect(chart.success, JSON.stringify(chart.errors)).toBe(true);
       const out = parser.rezip();
       const valid = await validateDocxBuffer(out);
       expect(valid.ok, JSON.stringify(valid.errors)).toBe(true);
@@ -52,6 +58,9 @@ describe.each(PAGES)('templates on $label', ({ page, w, h }) => {
       expect(Math.abs(num(/<w:pgSz[^>]*w:w="(\d+)"/) - w)).toBeLessThanOrEqual(1);
       expect(Math.abs(num(/<w:pgSz[^>]*w:h="(\d+)"/) - h)).toBeLessThanOrEqual(1);
       const text = num(/<w:pgSz[^>]*w:w="(\d+)"/) - num(/w:left="(\d+)"/) - num(/w:right="(\d+)"/) - num(/w:gutter="(\d+)"/);
+      // A chart inserted without a size fits the text width (an image of the same kind is capped the same way).
+      for (const m of doc.matchAll(/<wp:extent cx="(\d+)"/g)) expect(Number(m[1]), `an image or chart ${m[1]} EMU wide on a ${text} twip text width`).toBeLessThanOrEqual((text + 3) * 635);
+      expect(doc).toContain('c:chart');
       // Every table's grid fits the text width of the widest section that holds it (columns only narrow it, so the page text width is the bound).
       for (const tbl of doc.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)) {
         if (/<w:tbl>[\s\S]*<w:tbl>/.test(tbl[0].slice(7))) continue; // nested: the outer grid is checked
