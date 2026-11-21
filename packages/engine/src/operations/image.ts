@@ -18,6 +18,7 @@ import { resolveReproducibleMode } from '../zip-hardening';
 import { toError } from '../errors';
 import { readImageFileBytes } from './image-file';
 import { decodeImagePixels, fitImageEmus } from '../compose/assets';
+import { contentBoxOf } from './chart-size';
 
 /**
  * How text flows around an image: `inline` puts it in the line of text, and the other values are the Word wrapping styles.
@@ -747,7 +748,9 @@ export function executeImage(op: ImageOperation, ast: DocumentAST, parser?: Docx
   }
 
   const px = decodeImagePixels(imgBuffer, ext);
-  const intrinsic = fitImageEmus(px);
+  // A standalone insert fits the text area of the section that it goes into.
+  const targetSection = op.anchor !== undefined ? locateNode(ast.sections, op.anchor)?.section : undefined;
+  const intrinsic = fitImageEmus(px, (targetSection ?? lastSection(ast.sections))?.pageSetup ? contentBoxOf((targetSection ?? lastSection(ast.sections))!.pageSetup!) : undefined);
   const given = (v: unknown): number | undefined => (typeof v === 'number' && v > 0 ? v : undefined);
   const wGiven = given(op.width);
   const hGiven = given(op.height);

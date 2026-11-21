@@ -70,6 +70,8 @@ export type { RestoreOriginalOptions, RestoreOriginalResult } from './restore-or
 export { sanitizeDocxBuffer } from './sanitizer';
 export type { MacroEntryStore, SanitizeOptions, SanitizeReport } from './sanitizer';
 export { computeDocStats } from './stats';
+export { PAPERS, PAPER_NAMES, MAX_PAGE_SIDE, MIN_PAGE_SIDE, MIN_TEXT_HEIGHT, MIN_TEXT_WIDTH, defaultMarginsFor, describePage, detectPaper, findPaper, parseLength, resolveMargins, resolvePageSize } from './page';
+export type { LengthInput, MarginsInput, PageDescription, PageLength, PageMargins, PageSizeInput, Paper } from './page';
 export type { DocStats, PageTerms } from './stats';
 export { lintDocumentStyle } from './style-guide/lint';
 export type { StyleWarning } from './style-guide/lint';

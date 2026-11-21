@@ -297,7 +297,8 @@ export class TOCManipulator {
     title = 'Table of Contents',
     entries: TOCEntry[],
     fieldId?: string,
-    levels = 3
+    levels = 3,
+    textWidthTwips = 9360
   ): Promise<Node[]> {
     // Sprint-3 strict gate: malformed entries fail closed here with a remedy
     // instead of emitting corrupt TOC XML downstream.
@@ -425,12 +426,12 @@ export class TOCManipulator {
         itemPPr.appendChild(ind);
       }
 
-      // Right-aligned tab stop with dot leader at position 9360 DXA (6.5 inches)
+      // Right-aligned tab stop with dot leader at the text width (9360 DXA, 6.5 inches, on a Letter page)
       const tabs = createWordElement(doc, 'w:tabs');
       const tab = createWordElement(doc, 'w:tab');
       tab.setAttribute('w:val', 'right');
       tab.setAttribute('w:leader', 'dot');
-      tab.setAttribute('w:pos', '9360');
+      tab.setAttribute('w:pos', String(textWidthTwips));
       tabs.appendChild(tab);
       itemPPr.appendChild(tabs);
 

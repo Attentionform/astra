@@ -44,7 +44,6 @@ import { readDocxFileBuffer, getMimeType } from './parser/io';
 import { toError } from './errors';
 import { assertWordPrefix } from './ooxml/word-prefix-guard';
 import type { PackageReport } from './package-report';
-import { upsertSectPrChild } from './parser/sect-pr';
 import { addNodeInDocumentOrder, bodySectPr, listFileSections, splitIntoSections } from './parser/sections';
 import {
   chartElementDescendants,
@@ -84,7 +83,6 @@ import {
 } from './parser/package-errors';
 import {
   nodeHasTrackedChanges,
-  getOrCreateChild,
 } from './parser/dom-utils';
 import {
   partNameForRelationshipTarget,
@@ -2283,6 +2281,12 @@ export class DocxParser {
 
     // One section per section the file defines; a file with no break has just sec_root.
     ast.sections.push(...splitIntoSections(rootNodes, fileSections));
+    // The gutter edge is a setting of the document, not of a section; every section carries it so that width arithmetic can use it.
+    try {
+      const settingsXml = this.getZipAdapter().readTextOrNull('word/settings.xml');
+      const atTop = settingsXml !== null && /<w:gutterAtTop(\s[^>]*)?\/?>/.test(settingsXml) && !/<w:gutterAtTop[^>]*w:val="(0|false|off)"/.test(settingsXml);
+      if (atTop) for (const s of ast.sections) if (s.pageSetup) s.pageSetup.gutterAtTop = true;
+    } catch { /* a document without settings has the gutter on the left */ }
     // BX-03: cache the live AST reference for bare-rezip numbering sync (see
     // field docs). Mutations via NumberingManipulator land in this object.
     //

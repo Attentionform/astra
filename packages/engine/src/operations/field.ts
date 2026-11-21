@@ -1,3 +1,4 @@
+import { textWidthTwipsOf } from './chart-size';
 import { createWordElement } from '../ooxml/ns';
 import { DocumentAST, Node, calculateNodeChecksum } from '../ast';
 import { BaseOperation, createTextElement } from './base';
@@ -124,7 +125,7 @@ export async function executeField(op: FieldOperation, ast: DocumentAST, parser?
         }
       } catch { rendererMap = undefined; }
       const entries = TOCManipulator.scanHeadings(ast, resolvedLevels || 3, rendererMap);
-      const tocNodes = await TOCManipulator.generateTOCNode(doc, resolvedTitle || 'Table of Contents', entries, fieldId, resolvedLevels || 3);
+      const tocNodes = await TOCManipulator.generateTOCNode(doc, resolvedTitle || 'Table of Contents', entries, fieldId, resolvedLevels || 3, textWidthTwipsOf(targetSection.pageSetup));
 
       // Insert into live DOM preserving sibling order ([container, ...entries])
       if (anchorNode && anchorNode.xml && anchorNode.xml.parentNode) {

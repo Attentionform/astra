@@ -78,6 +78,8 @@ export interface CompileOptions {
   anchor?: string;
   /** Side of `anchor` the first block goes on. Default `after`. */
   position?: 'before' | 'after';
+  /** The box that an image has to fit, in EMU: the text area of the section that the blocks land in. Absent = the Letter box. */
+  contentBox?: { widthEmu: number; heightEmu: number };
 }
 
 /**
@@ -523,7 +525,7 @@ export function compileMarkdownDetailed(
       }
       const inlineMime =
         inlineKind === 'jpeg' ? 'image/jpeg' : inlineKind === 'svg' ? 'image/svg+xml' : inlineKind === 'tiff' ? 'image/tiff' : `image/${inlineKind}`;
-      const inlineFitted = fitImageEmus(decodeImagePixels(inlineBuf, inlineKind));
+      const inlineFitted = fitImageEmus(decodeImagePixels(inlineBuf, inlineKind), options?.contentBox);
       const inlineId = nextId();
       const inlineAnchor = insertAnchor();
       ops.push({
@@ -575,7 +577,7 @@ export function compileMarkdownDetailed(
       lastInsertId = id;
       return { id, kind: 'chart' };
     }
-    const asset = readImageAsset(absPath, line, allowedDir as string);
+    const asset = readImageAsset(absPath, line, allowedDir as string, options?.contentBox);
     const anchor = insertAnchor();
     ops.push({
       action: 'insert',

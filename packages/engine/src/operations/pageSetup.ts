@@ -265,12 +265,14 @@ export function executePageSetup(op: PageSetupOperation, ast: DocumentAST, parse
   }
 
   // Keep the AST section metadata in sync with the changed XML.
-  const syncSections = sectionIndex === undefined || changesAllSections ? ast.sections : ast.sections.slice(sectionIndex, sectionIndex + 1);
+  const syncSections = sectionIndex === undefined || changesAllSections || f.gutterPosition !== undefined ? ast.sections : ast.sections.slice(sectionIndex, sectionIndex + 1);
   for (const section of syncSections) {
     const sectPr = sectPrs[ast.sections.indexOf(section)];
     const fresh = sectPr ? pageSetupFromSectPr(sectPr) : {};
     const merged = { ...(section.pageSetup ?? {}), ...fresh };
     if (fresh.columns === undefined) delete merged.columns;
+    if (gutterAtTop) merged.gutterAtTop = true;
+    else delete merged.gutterAtTop;
     section.pageSetup = merged;
     section.version += 1;
   }

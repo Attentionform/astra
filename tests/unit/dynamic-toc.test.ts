@@ -78,7 +78,8 @@ describe('Dynamic Table of Contents (TOC) Engine Test Suite', () => {
 
     const xml = parser.readDocumentXml();
     expect(xml).toContain('Contents Overview');
-    expect(xml).toContain('w:val="right" w:leader="dot" w:pos="9360"');
+    // The right tab stop is at the text width of the page: A4 (11906) minus two 720 margins, not Letter's 9360.
+    expect(xml).toContain('w:val="right" w:leader="dot" w:pos="10466"');
     expect(xml).toContain('w:hyperlink');
     expect(xml).toContain('Executive Summary');
   });

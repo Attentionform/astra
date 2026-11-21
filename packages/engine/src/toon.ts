@@ -1173,7 +1173,8 @@ export class ToonGenerator {
         if (ps && typeof ps === 'object') {
           combined += `ps:${ps.orientation ?? '-'}:${ps.paperSize ?? '-'}:` +
             `${ps.marginTop ?? '-'}:${ps.marginBottom ?? '-'}:` +
-            `${ps.marginLeft ?? '-'}:${ps.marginRight ?? '-'};`;
+            `${ps.marginLeft ?? '-'}:${ps.marginRight ?? '-'}:` +
+            `${ps.pageWidthTwips ?? '-'}:${ps.pageHeightTwips ?? '-'}:${ps.gutter ?? '-'}:${ps.columns ?? 1};`;
         }
       } catch {
         combined += 'ps:?;';

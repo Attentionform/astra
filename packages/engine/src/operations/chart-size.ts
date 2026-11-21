@@ -160,6 +160,9 @@ export function usableAreaOf(pageSetup: {
   marginBottom?: number;
   marginLeft?: number;
   marginRight?: number;
+  gutter?: number;
+  /** True when the gutter is on the top edge (a setting of the document); it is on the left edge otherwise. */
+  gutterAtTop?: boolean;
   pageWidthTwips?: number;
   pageHeightTwips?: number;
 } | null | undefined): UsableArea {
@@ -178,9 +181,39 @@ export function usableAreaOf(pageSetup: {
   const right = pageSetup?.marginRight ?? 1440;
   const top = pageSetup?.marginTop ?? 1440;
   const bottom = pageSetup?.marginBottom ?? 1440;
+  // The gutter is binding space: it comes off the width when it is on the left, and off the height when it is on the top.
+  const gutter = pageSetup?.gutter ?? 0;
+  const gutterWidth = pageSetup?.gutterAtTop ? 0 : gutter;
+  const gutterHeight = pageSetup?.gutterAtTop ? gutter : 0;
   const twipsToEmu = EMU_PER_INCH / 1440;
   return {
-    widthEmu: Math.max(0, Math.round((widthTw - left - right) * twipsToEmu)),
-    heightEmu: Math.max(0, Math.round((heightTw - top - bottom) * twipsToEmu)),
+    widthEmu: Math.max(0, Math.round((widthTw - left - right - gutterWidth) * twipsToEmu)),
+    heightEmu: Math.max(0, Math.round((heightTw - top - bottom - gutterHeight) * twipsToEmu)),
   };
+}
+
+/** The Letter content box that the image cap was written for: 6.5 in wide and 9 in high. */
+export const LETTER_CONTENT_BOX: UsableArea = { widthEmu: 5943600, heightEmu: 8229600 };
+
+/**
+ * The box that content placed in a section has to fit: the usable area, with the text width shared among columns when the section has
+ * more than one (a column gap of 0.5 in, the usual one, is taken off). A section without a page size gets the Letter box.
+ */
+export function contentBoxOf(pageSetup: (Parameters<typeof usableAreaOf>[0] & { columns?: number }) | null | undefined): UsableArea {
+  if (!pageSetup || !pageSetup.pageWidthTwips) return LETTER_CONTENT_BOX;
+  const area = usableAreaOf(pageSetup);
+  const columns = pageSetup.columns && pageSetup.columns > 1 ? pageSetup.columns : 1;
+  if (columns === 1) return area;
+  const gap = (EMU_PER_INCH / 2) * (columns - 1);
+  return { widthEmu: Math.max(0, Math.floor((area.widthEmu - gap) / columns)), heightEmu: area.heightEmu };
+}
+
+/** Letter's text width in twips: 6.5 in. What an engine-written table grid or tab stop used before the page could differ. */
+export const LETTER_TEXT_WIDTH_TWIPS = 9360;
+
+/** The text width of a section in twips (one column's width when the section has columns). A section without a page size gets Letter's. */
+export function textWidthTwipsOf(pageSetup: Parameters<typeof contentBoxOf>[0]): number {
+  if (!pageSetup || !pageSetup.pageWidthTwips) return LETTER_TEXT_WIDTH_TWIPS;
+  const twips = Math.round(contentBoxOf(pageSetup).widthEmu / (EMU_PER_INCH / 1440));
+  return Math.max(1, twips);
 }

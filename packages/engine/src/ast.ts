@@ -103,6 +103,8 @@ export interface PageSetupProperties {
   paperSize?: string;
   /** The extra space on the binding edge, in twips. */
   gutter?: number;
+  /** True when the document puts the gutter on the top edge (`w:gutterAtTop` in settings); absent when it is on the left. */
+  gutterAtTop?: boolean;
   /** Number of text columns; present only when the section has more than one. */
   columns?: number;
   /** The page size exactly as the section's `w:pgSz` gives it (already turned to the orientation in use). */

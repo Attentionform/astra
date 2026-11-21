@@ -1,6 +1,6 @@
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 1078-1118 + 1129-1474).
 // Zero logic edits.
-import { computeDocStats, type DocumentAST, DocxParser } from '@attentionform/astra-engine';
+import { computeDocStats, describePage, type DocumentAST, DocxParser, type PageDescription } from '@attentionform/astra-engine';
 import { countHeadings, resolveSectionScope, ensureAstraGitRepo, getHistory, getTemplatePalette, summarizeStyleGuide, packageNotes, type StyleGuideSummary } from '@attentionform/astra-engine/internal';
 import type { McpSessionStore } from '../../session-store';
 import {
@@ -181,6 +181,21 @@ export function readPendingNormalizations(handle: { parser?: { getPendingNormali
   }
 }
 
+/**
+ * The page of the document as the file has it: the paper name (or `Custom`), the size and the margins in millimetres and inches.
+ * `page` is the first section; `pageBySection` is added only when a later section differs, with its section number counted from 1.
+ */
+function pageOf(ast: DocumentAST): { page?: PageDescription; pageBySection?: Array<{ section: number; summary: string }> } {
+  const described = ast.sections.map((s) => describePage(s.pageSetup));
+  const first = described[0];
+  if (!first) return {};
+  const differs = described.some((d) => d !== null && d.summary !== first.summary);
+  return {
+    page: first,
+    ...(differs ? { pageBySection: described.map((d, i) => ({ section: i + 1, summary: d?.summary ?? 'no page size' })) } : {}),
+  };
+}
+
 function outlineCountsOf(ast: DocumentAST): OutlineCounts {
   const stats = computeDocStats(ast);
   let nodes = 0;
@@ -221,6 +236,10 @@ export async function handleInspectDocument(
       aroundResolvedTo?: string | null;
       /** Outline tier: why a window is empty or not centred where aroundNode pointed. */
       note?: string;
+      /** The page as the file has it (paper name or Custom, size and margins in mm and in); the first section. */
+      page?: PageDescription;
+      /** Present only when a later section has a different page, one summary line per section counted from 1. */
+      pageBySection?: Array<{ section: number; summary: string }>;
       /** Compact summary of the session style guide (absent when none attached). */
       styleGuide?: StyleGuideSummary;
       comments?: unknown;
@@ -346,6 +365,7 @@ export async function handleInspectDocument(
           metadata,
           ...review,
           pendingNormalizations: readPendingNormalizations(handle),
+          ...pageOf(handle.ast),
           ...(handle.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(handle.styleGuide) } : {}),
           toonText: fullText,
           ...(fidelity === 'outline' ? { outline: outlineCountsOf(handle.ast) } : {}),
@@ -503,6 +523,8 @@ export async function handleInspectDocument(
         aroundResolvedTo?: string | null;
         note?: string;
         styleGuide?: StyleGuideSummary;
+        page?: PageDescription;
+        pageBySection?: Array<{ section: number; summary: string }>;
         comments?: unknown;
         revisions?: unknown;
       } = {
@@ -515,6 +537,7 @@ export async function handleInspectDocument(
         metadata,
         ...review,
         pendingNormalizations: readPendingNormalizations(handle),
+        ...pageOf(handle.ast),
         ...(handle.styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(handle.styleGuide) } : {}),
         toonText,
         ...(fidelity === 'outline' ? { outline: outlineCountsOf(handle.ast) } : {}),
