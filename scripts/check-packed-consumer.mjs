@@ -35,11 +35,15 @@ console.log(`working in ${work}`);
 // Pack and install.
 const packOut = run('npm', ['pack', '--pack-destination', work, '--json'], engineDir);
 const tarball = join(work, JSON.parse(packOut)[0].filename);
+// The engine depends on the validator wrapper at the same version. A new version is not on npm until it is released, so the wrapper is
+// packed from this checkout and installed with the engine; npm then uses it for the engine's dependency instead of asking the registry.
+const wrapperOut = run('npm', ['pack', '--pack-destination', work, '--json'], join(root, 'packages', 'ooxml-validator'));
+const wrapperTarball = join(work, JSON.parse(wrapperOut)[0].filename);
 const consumer = join(work, 'consumer');
 mkdirSync(consumer);
 writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: 'consumer', version: '1.0.0', private: true }));
-run('npm', ['install', '--no-audit', '--no-fund', tarball, 'typescript@5', '@types/node@22'], consumer);
-ok(`installed ${tarball.split('/').pop()}`);
+run('npm', ['install', '--no-audit', '--no-fund', tarball, wrapperTarball, 'typescript@5', '@types/node@22'], consumer);
+ok(`installed ${tarball.split('/').pop()} with ${wrapperTarball.split('/').pop()}`);
 
 // 1. JavaScript: exact runtime names, from ESM and from CommonJS.
 const esmCheck = `
