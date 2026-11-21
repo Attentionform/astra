@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { serverOfficeVersion } from '../lib/mcp/validation-target';
 import { adoptForkNumbering } from '../lib/fork-numbering';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
@@ -392,7 +393,7 @@ export async function handleExportDocument(
       // M1: refuse dangling-symlink PDF targets before spawning LibreOffice.
       assertWriteTargetNoSymlink(validatedPdfPath!);
       const buf = serializeSessionCopy(session.parser, session.ast);
-      await assertValidDocx(buf, 'PDF export source');
+      await assertValidDocx(buf, 'PDF export source', { officeVersion: serverOfficeVersion() });
       let preflight: { warnings: PreflightIssue[]; blockers: PreflightIssue[] } | undefined;
       try {
         const report = runPreflightChecks(buf);

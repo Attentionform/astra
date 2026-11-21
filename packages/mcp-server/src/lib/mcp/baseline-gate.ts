@@ -11,11 +11,13 @@ import {
   judgeAgainstBaseline,
   validateDocxBuffer,
   type BaselineVerdict,
+  type OfficeVersion,
   type ValidationBaseline,
   type ValidationResult,
 } from '@attentionform/astra-engine';
 import type { DocHandle } from '../session-store';
 import { COMMIT_MESSAGE_MAX } from './errors';
+import { serverOfficeVersion } from './validation-target';
 import { remedyForValidationError } from './diff';
 
 const DEFAULT_OPEN_VALIDATION_TIMEOUT_MS = 5000;
@@ -53,7 +55,7 @@ export function sha256Hex(bytes: Buffer): string {
 
 /** Validates a package with the full error list, so the result can be compared. */
 export function validateForBaseline(bytes: Buffer): Promise<ValidationResult> {
-  return validateDocxBuffer(bytes, { maxErrors: BASELINE_MAX_ERRORS });
+  return validateDocxBuffer(bytes, { maxErrors: BASELINE_MAX_ERRORS, officeVersion: serverOfficeVersion() });
 }
 
 /** Stores the baseline of a package the session now holds as its saved state. */
@@ -119,6 +121,10 @@ export interface AuditValidation {
   valid: boolean;
   errorCount: number;
   errors: Array<{ description: string; xPath?: string }>;
+  /** The Office version this server asked the validator to use. */
+  requestedOfficeVersion?: string;
+  /** The version the validator reported for a completed run. */
+  office?: string;
 }
 
 /** The first `max` errors as {description, xPath?}, each cut to a readable length. */
@@ -138,14 +144,23 @@ export function summarizeValidationErrors(errors: unknown, max: number = AUDIT_V
 
 /** The shape validate_document returns: valid, how many errors, and the first of them. */
 export function toAuditValidation(
-  validation: { ok: boolean; errors?: unknown },
+  validation: { ok: boolean; errors?: unknown; office?: unknown; requestedOfficeVersion?: unknown },
   max: number = AUDIT_VALIDATION_ERRORS_MAX
 ): AuditValidation {
   return {
     valid: validation.ok,
     errorCount: Array.isArray(validation.errors) ? validation.errors.length : 0,
     errors: summarizeValidationErrors(validation.errors, max),
+    ...targetFields(validation),
   };
+}
+
+/** `requestedOfficeVersion` always (when the result carries it); `office` only when the validator reported one. */
+export function targetFields(result: { office?: unknown; requestedOfficeVersion?: unknown }): { requestedOfficeVersion?: string; office?: string } {
+  const out: { requestedOfficeVersion?: string; office?: string } = {};
+  if (typeof result.requestedOfficeVersion === 'string') out.requestedOfficeVersion = result.requestedOfficeVersion;
+  if (typeof result.office === 'string') out.office = result.office;
+  return out;
 }
 
 /** The error a save or normalize raises when the edit adds validator errors. */
@@ -180,10 +195,11 @@ export function validationField(result: ValidationResult, verdict: BaselineVerdi
       messages: firstMessages(result),
       valid: false as const,
       errorCount: Array.isArray(result.errors) ? result.errors.length : verdict.preExisting,
+      ...targetFields(result),
     };
   }
   // `valid` and `errorCount` sit next to `ok` so a save reads like validate_document's answer.
-  return { ok: true as const, valid: true as const, errorCount: 0 as const };
+  return { ok: true as const, valid: true as const, errorCount: 0 as const, ...targetFields(result) };
 }
 
 /** Adds the note about existing errors to a commit message; the message is cut, the note never. */
@@ -193,7 +209,15 @@ export function withToleratedNote(message: string, preExisting: number): string 
   return (message.length > room ? message.slice(0, room) : message) + note;
 }
 
-export type OpenValidationField =
+/**
+ * `requestedOfficeVersion` is always present: the target this server was set to. `office` is present only
+ * when the validator completed a run and reported its target; a skipped, timed-out or unavailable check
+ * ran no target, so it has none.
+ */
+type OpenValidationTarget = { requestedOfficeVersion: OfficeVersion; office?: string };
+
+export type OpenValidationField = OpenValidationTarget &
+  (
   | { status: 'valid' }
   | {
       status: 'invalid';
@@ -204,22 +228,24 @@ export type OpenValidationField =
       note: string;
     }
   | { status: 'timed-out'; degraded: 'unknown'; note: string }
-  | { status: 'skipped'; note?: string };
+  | { status: 'skipped'; note?: string }
+  );
 
 /**
  * Validates the file that was just opened and stores its baseline on the handle. The open itself is
  * never refused for these reasons, and nothing is reported as valid unless the validator said so.
  */
 export async function validateAtOpen(handle: DocHandle, timeoutMs: number): Promise<OpenValidationField> {
+  const requestedOfficeVersion = serverOfficeVersion();
   let bytes: Buffer;
   try {
     bytes = await fsp.readFile(handle.filePath);
   } catch (err: unknown) {
-    return { status: 'skipped', note: `the file could not be read for validation: ${err instanceof Error ? err.message : String(err)}` };
+    return { requestedOfficeVersion, status: 'skipped', note: `the file could not be read for validation: ${err instanceof Error ? err.message : String(err)}` };
   }
   // Kept even when the check is skipped, so the first save can validate the opened file if it is still unchanged.
   handle.openSha256 = sha256Hex(bytes);
-  if (timeoutMs === 0) return { status: 'skipped' };
+  if (timeoutMs === 0) return { requestedOfficeVersion, status: 'skipped' };
   const pending = validateForBaseline(bytes);
   // A late result of a check that was given up on is dropped, but must not become an unhandled rejection.
   pending.catch(() => undefined);
@@ -231,12 +257,13 @@ export async function validateAtOpen(handle: DocHandle, timeoutMs: number): Prom
   try {
     result = await Promise.race([pending, timeout]);
   } catch (err: unknown) {
-    return { status: 'skipped', note: `the validator is not available: ${err instanceof Error ? err.message : String(err)}` };
+    return { requestedOfficeVersion, status: 'skipped', note: `the validator is not available: ${err instanceof Error ? err.message : String(err)}` };
   } finally {
     if (timer) clearTimeout(timer);
   }
   if (result === 'timeout') {
     return {
+      requestedOfficeVersion,
       status: 'timed-out',
       degraded: 'unknown',
       note: `validation did not finish within ${timeoutMs} ms; the file may have errors; they will be checked at first save`,
@@ -245,10 +272,13 @@ export async function validateAtOpen(handle: DocHandle, timeoutMs: number): Prom
   const baseline = buildBaseline(result);
   handle.validationBaseline = baseline;
   handle.openBaseline = baseline;
-  if (result.ok) return { status: 'valid' };
+  const office = typeof result.office === 'string' ? result.office : undefined;
+  if (result.ok) return { requestedOfficeVersion, ...(office ? { office } : {}), status: 'valid' };
   const comparable = baseline !== null;
   const stricter = 'The validator is stricter than Word, so Word may still open the file.';
   return {
+    requestedOfficeVersion,
+    ...(office ? { office } : {}),
     status: 'invalid',
     preExistingErrors: result.errors?.length ?? result.errorCount ?? 0,
     baselineComparable: comparable,

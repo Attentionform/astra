@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 // MS-Q2b PART1_QUALITY Q2.2: verbatim split from lib/mcp-tool-adapter.ts (lines 1926-2196 + 2203-2273).
 // Zero logic edits (pathDirname + restore helpers live in ../diff and are imported).
+import { serverOfficeVersion } from '../validation-target';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import {
@@ -199,7 +200,7 @@ export async function executeSaveDocument(
     } catch {
       /* the properties are advisory; a failure here must not block the save */
     }
-    const validation = await handle.parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, duplicateParaIds: paraIdPolicy });
+    const validation = await handle.parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, duplicateParaIds: paraIdPolicy, officeVersion: serverOfficeVersion() });
     // A file that already had validator errors may be saved when this edit adds none (not in strict
     // mode). Anything that cannot be compared is refused exactly as before.
     const verdict = validation.ok

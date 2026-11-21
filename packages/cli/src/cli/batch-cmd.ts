@@ -1070,8 +1070,8 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       // R-8: flag/file ceilings scope the DocxParser zip-bomb gate.
       const cleared = await withZipCeilingEnv(ceilings, () => new DocxParser(working, ctx.macroOpts));
       if (!skipValidate) {
-        const validation = await withGatedEngineOutput(out, () => cleared.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
-        const verdict = await judgeGate(validation, ctx.strict, () => docx);
+        const validation = await withGatedEngineOutput(out, () => cleared.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, officeVersion: out.officeVersion }));
+        const verdict = await judgeGate(validation, ctx.strict, () => docx, out.officeVersion);
         if (verdict.kind === 'tolerated') tolerated = verdict;
         if (refuses(verdict)) {
           return failWithCode(
@@ -1230,8 +1230,8 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
             err
           );
         }
-        const validation = await withGatedEngineOutput(out, () => postParser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
-        const dryVerdict = await judgeGate(validation, ctx.strict, () => docx);
+        const validation = await withGatedEngineOutput(out, () => postParser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, officeVersion: out.officeVersion }));
+        const dryVerdict = await judgeGate(validation, ctx.strict, () => docx, out.officeVersion);
         if (refuses(dryVerdict)) {
           const firstGate = validation.errors[0] as
             | { description?: unknown; message?: unknown; xpath?: unknown; xPath?: unknown; path?: unknown }
@@ -1276,8 +1276,8 @@ export async function runBatchJob(out: GlobalOpts, ctx: RunBatchJobCtx): Promise
       return EXIT_OK;
     }
     if (!skipValidate) {
-      const validation = await withGatedEngineOutput(out, () => parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
-      const verdict = await judgeGate(validation, ctx.strict, () => docx);
+      const validation = await withGatedEngineOutput(out, () => parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, officeVersion: out.officeVersion }));
+      const verdict = await judgeGate(validation, ctx.strict, () => docx, out.officeVersion);
       if (verdict.kind === 'tolerated') tolerated = verdict;
       if (refuses(verdict)) {
         const first = validation.errors[0] as
@@ -1703,9 +1703,9 @@ export async function runStreamSession(
   > => {
     try {
       if (!skipValidate) {
-        const validation = await withGatedEngineOutput(out, () => parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS }));
+        const validation = await withGatedEngineOutput(out, () => parser.validateOOXML({ maxErrors: BASELINE_MAX_ERRORS, officeVersion: out.officeVersion }));
         // The baseline is the file as it was last written (or the input before the first write).
-        const verdict = await judgeGate(validation, opts.strict === true, () => lastWritten ?? backupSource);
+        const verdict = await judgeGate(validation, opts.strict === true, () => lastWritten ?? backupSource, out.officeVersion);
         if (verdict.kind === 'tolerated') {
           printStderr(`${CLI_NAME}: NOTE: ${toleratedNote(verdict)}`);
         }

@@ -8,6 +8,7 @@ import {
   judgeAgainstBaseline,
   validateDocxBuffer,
   type BaselineVerdict,
+  type OfficeVersion,
   type ValidationResult,
 } from '@attentionform/astra-engine';
 
@@ -20,12 +21,12 @@ export type IntroducedVerdict = Extract<BaselineVerdict, { kind: 'introduced' }>
  * Judges the result of a gate. A valid result is clean. Otherwise, unless `strict`, the errors are
  * compared with those of the original bytes, which are validated only now and only when needed.
  */
-export async function judgeGate(result: ValidationResult, strict: boolean, original: () => Buffer): Promise<BaselineVerdict> {
+export async function judgeGate(result: ValidationResult, strict: boolean, original: () => Buffer, officeVersion?: OfficeVersion): Promise<BaselineVerdict> {
   if (result.ok) return { kind: 'clean' };
   if (strict) return { kind: 'incomparable', reason: 'no-baseline' };
   let baseline = null;
   try {
-    baseline = buildBaseline(await validateDocxBuffer(original(), { maxErrors: BASELINE_MAX_ERRORS }));
+    baseline = buildBaseline(await validateDocxBuffer(original(), { maxErrors: BASELINE_MAX_ERRORS, officeVersion }));
   } catch {
     baseline = null;
   }

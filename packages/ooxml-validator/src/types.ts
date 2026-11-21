@@ -12,6 +12,36 @@ export const OFFICE_VERSIONS = [
 
 export type OfficeVersion = (typeof OFFICE_VERSIONS)[number];
 
+/** Document families the validator opens: Word, PowerPoint and Excel packages. */
+export const DOCUMENT_KINDS = ['docx', 'pptx', 'xlsx'] as const;
+
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
+/**
+ * File extension (lower case, with the dot) to document family. The native
+ * file validator and `createValidator().validateFile()` choose the family from
+ * the extension with this table.
+ */
+export const EXTENSION_KINDS: Readonly<Record<string, DocumentKind>> = {
+  '.docx': 'docx',
+  '.docm': 'docx',
+  '.dotx': 'docx',
+  '.dotm': 'docx',
+  '.pptx': 'pptx',
+  '.pptm': 'pptx',
+  '.potx': 'pptx',
+  '.potm': 'pptx',
+  '.ppsx': 'pptx',
+  '.ppsm': 'pptx',
+  '.xlsx': 'xlsx',
+  '.xlsm': 'xlsx',
+  '.xltx': 'xlsx',
+  '.xltm': 'xlsx',
+  '.xlam': 'xlsx',
+};
+
+export type ValidationStatus = 'completed' | 'skipped' | 'timed-out' | 'failed-to-start';
+
 export interface ErrorNode {
   localName?: string | null;
   namespaceUri?: string | null;
@@ -56,15 +86,38 @@ export interface ValidationResult {
   durationMs?: number;
   truncated?: boolean;
   errorCount?: number;
+  /** The Office version the caller asked for (always set by the buffer and worker APIs). */
+  requestedOfficeVersion?: string;
+  /**
+   * `completed` when the validator ran and reported. Callers that skip the check, give up waiting
+   * for it, or cannot start it report `skipped`, `timed-out` or `failed-to-start` and leave `office` unset.
+   */
+  validationStatus?: ValidationStatus;
+  /** The document family the package was opened as (buffer and worker APIs). */
+  kind?: DocumentKind;
   [key: string]: unknown;
 }
 
+/**
+ * Options for the file APIs: the standalone `validateFile()`, `isValid()` and
+ * the CLI. The family comes from the file extension, so there is no `kind`.
+ */
 export interface ValidateOptions {
   /** Open XML schema version to validate against. Defaults to `Microsoft365` for one-shot, `Office2019` for buffer. */
   officeVersion?: OfficeVersion;
   maxErrors?: number;
   timeoutMs?: number;
   maxDocBytes?: number;
+}
+
+/** Options for the buffer and worker APIs. */
+export interface ValidateBufferOptions extends ValidateOptions {
+  /**
+   * Document family of the bytes. Defaults to `docx` for a buffer. For
+   * `createValidator().validateFile()` the default is inferred from the file
+   * extension and an explicit `kind` overrides it.
+   */
+  kind?: DocumentKind;
 }
 
 export interface ValidatorPoolOptions {
@@ -84,7 +137,7 @@ export interface BackendInfo {
 }
 
 export interface ValidatorInstance {
-  validate(bytes: Buffer | Uint8Array, opts?: ValidateOptions): Promise<ValidationResult>;
-  validateFile(path: string, opts?: ValidateOptions): Promise<ValidationResult>;
+  validate(bytes: Buffer | Uint8Array, opts?: ValidateBufferOptions): Promise<ValidationResult>;
+  validateFile(path: string, opts?: ValidateBufferOptions): Promise<ValidationResult>;
   close(): Promise<void>;
 }

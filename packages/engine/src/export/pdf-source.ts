@@ -19,7 +19,7 @@
  */
 import { createHash } from 'crypto';
 import AdmZip from '../adm-zip-safe';
-import { OoxmlValidationError, validateDocxBuffer } from '../ooxml/validator-gate';
+import { OoxmlValidationError, validateDocxBuffer, type OfficeVersion } from '../ooxml/validator-gate';
 import { reorderPartXml, verifyOrderOnlyRepair } from '../ooxml/normalize';
 import { assertNoXxeAdjacent } from '../ooxml/xxe-guard';
 import { checkZipBombCeilings } from '../zip-hardening';
@@ -80,7 +80,8 @@ export function establishedUtf8Text(data: Buffer): string | null {
 
 export async function prepareDocxForPdfExport(
   original: Buffer,
-  context: string = 'PDF export source'
+  context: string = 'PDF export source',
+  options: { officeVersion?: OfficeVersion } = {}
 ): Promise<PdfSourcePreparation> {
   // 0. Package limits, for every input and before the validator or the renderer starts. Headers only: nothing
   // is inflated. An unreadable package is left to the validator, which reports it. A breach throws `E_LIMIT`.
@@ -95,7 +96,7 @@ export async function prepareDocxForPdfExport(
   if (source) checkZipBombCeilings(source, { sourceCompressedBytes: original.length });
 
   // 1. A valid original goes to the renderer untouched.
-  const first = await validateDocxBuffer(original);
+  const first = await validateDocxBuffer(original, { officeVersion: options.officeVersion });
   if (!source) {
     // The validator may accept a package that cannot be read as a zip here (for example a duplicate entry name,
     // which `adm-zip` refuses). Nothing is rendered from it either way.
@@ -158,7 +159,7 @@ export async function prepareDocxForPdfExport(
   }
 
   // 5. The copy must be valid; a mixed file (order errors plus real ones) is refused with what remains.
-  const second = await validateDocxBuffer(copy);
+  const second = await validateDocxBuffer(copy, { officeVersion: options.officeVersion });
   if (!second.ok) return refuse(second.errors);
   return { buffer: copy, repaired: true, repairedParts, reorderedContainers };
 }

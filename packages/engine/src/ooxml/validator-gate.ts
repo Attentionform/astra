@@ -6,8 +6,10 @@
  */
 
 import { getValidatorBackend, type ValidationResult, type ValidateOptions } from './validator-backend';
+import { resolveOfficeVersion } from './office-version';
 
 export type { ValidationResult, ValidateOptions };
+export * from './office-version';
 
 export interface ValidationError {
   description?: string | null;
@@ -72,16 +74,20 @@ export class OoxmlValidationError extends Error {
  */
 export async function validateDocxBuffer(buffer: Buffer, options: ValidateOptions = {}): Promise<ValidationResult> {
   const backend = getValidatorBackend();
-  return backend.validateBuffer(buffer, options);
+  // One explicit version goes to the validator: the explicit option, ASTRA_OFFICE_VERSION, then Office2019.
+  const officeVersion = resolveOfficeVersion(options.officeVersion);
+  const result = await backend.validateBuffer(buffer, { ...options, officeVersion });
+  return { ...result, requestedOfficeVersion: officeVersion, validationStatus: 'completed' };
 }
 
 /**
  * Validates a DOCX file from disk using the native validator backend.
  */
 export async function validateDocxFile(filePath: string, options: ValidateOptions = {}): Promise<ValidationResult> {
-  const officeVersion = options.officeVersion || 'Office2019';
+  const officeVersion = resolveOfficeVersion(options.officeVersion);
   const backend = getValidatorBackend();
-  return backend.validateFile(filePath, { officeVersion });
+  const result = await backend.validateFile(filePath, { officeVersion });
+  return { ...result, requestedOfficeVersion: officeVersion, validationStatus: 'completed' };
 }
 
 /**

@@ -361,7 +361,7 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
       const { buffer, report } = sanitizeDocxBuffer(buf, opts);
       const refusal = macroOutputRefusal('sanitize', output, report.macroParts, stripMacros);
       if (refusal) return usage(out, refusal);
-      await assertValidDocx(buffer, 'Sanitized document');
+      await assertValidDocx(buffer, 'Sanitized document', { officeVersion: out.officeVersion });
       await writeDocx(output, buffer);
       const bodyLocations = collectBodyPiiLocations(buf);
       const locDisplay =
@@ -478,7 +478,7 @@ export async function cmdSanitize(out: GlobalOpts, args: string[]): Promise<numb
     } catch (err: unknown) {
       return failHuman(out, err, { file: input, fallbackCode: 'E_VALIDATION' });
     }
-    await assertValidDocx(finalBuffer, 'Sanitized document');
+    await assertValidDocx(finalBuffer, 'Sanitized document', { officeVersion: out.officeVersion });
     await writeDocx(output, finalBuffer);
     const bodyLocations: string[] = [];
     print(out, sanitizedLine(input, output, report, 'none', metadataOnly));

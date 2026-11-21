@@ -146,6 +146,7 @@ export async function cmdExport(out: GlobalOpts, args: string[]): Promise<number
     const result = await executeExport(docxPath, format, outPath, {
       untagged,
       strict,
+      officeVersion: out.officeVersion,
       ...(macroOpts !== undefined ? { macroOpts } : {}),
       ...(imageMode !== undefined ? { imageMode: imageMode as 'embed' | 'file' } : {}),
       ...(assetPrefix !== undefined ? { assetPrefix } : {}),

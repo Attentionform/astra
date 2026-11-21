@@ -31,7 +31,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 // ── Engine wiring: local lib imports ─────────
-import { setDuplicateParaIdPolicy } from '@attentionform/astra-engine';
+import { isOfficeVersion, officeVersionChoices, setDuplicateParaIdPolicy, type OfficeVersion } from '@attentionform/astra-engine';
+import { configureOfficeVersion, serverOfficeVersion } from './lib/mcp/validation-target';
 import { setOpenValidationTimeoutMs, setStrictValidationDefault, strictValidationDefault } from './lib/mcp/baseline-gate';
 import {
   createMcpSessionStore,
@@ -151,6 +152,10 @@ export function buildUsageText(): string {
     '  --open-validation-timeout <ms>',
     '                          How long open_document waits for the validator (default 5000;',
     '                          0 skips; also ASTRA_OPEN_VALIDATION_TIMEOUT_MS)',
+    '  --office-version <version>',
+    '                          Office schema version every check runs against, one of',
+    `                          ${officeVersionChoices()}`,
+    '                          (default Office2019; also ASTRA_OFFICE_VERSION). Fixed for the whole run.',
     '  --dump-schemas <dir>    Write one JSON schema per served tool into <dir>',
     '                          (each stamped with the server version); refreshes',
     '                          file-based client copies; server never starts',
@@ -368,6 +373,17 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--allow-client-session-ids' || arg === '--strict-validation') continue;
+    if (arg === '--office-version' || arg.startsWith('--office-version=')) {
+      const value = arg.includes('=') ? arg.slice(arg.indexOf('=') + 1) : args[i + 1];
+      if (value === undefined || !isOfficeVersion(value)) {
+        process.stderr.write(
+          `Invalid --office-version ${JSON.stringify(value ?? '')}. Expected one of: ${officeVersionChoices()}\n` + buildUsageText() + '\n',
+        );
+        return CLI_USAGE_ERROR;
+      }
+      if (!arg.includes('=')) i++;
+      continue;
+    }
     if (arg === '--open-validation-timeout' || arg.startsWith('--open-validation-timeout=')) {
       const value = arg.includes('=') ? arg.slice(arg.indexOf('=') + 1) : args[i + 1];
       if (value === undefined || !/^\d+$/.test(value)) {
@@ -420,6 +436,15 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   if (args.includes('--strict-validation')) setStrictValidationDefault(true);
   // A save repairs paragraphs that share a w14:paraId and logs each one; strict validation keeps the refusal.
   setDuplicateParaIdPolicy(strictValidationDefault() ? 'refuse' : 'renumber');
+  // The Office version is read once here and then fixed for the whole run: the flag, then ASTRA_OFFICE_VERSION.
+  const officeFlag = takeDirFlag(argv, '--office-version');
+  configureOfficeVersion(officeFlag as OfficeVersion | undefined);
+  try {
+    serverOfficeVersion();
+  } catch (err) {
+    process.stderr.write(`${(err as Error).message}\n` + buildUsageText() + '\n');
+    return CLI_USAGE_ERROR;
+  }
   const openTimeout = takeDirFlag(argv, '--open-validation-timeout');
   if (openTimeout !== undefined) setOpenValidationTimeoutMs(Number(openTimeout));
   const dumpDir = takeDirFlag(argv, '--dump-schemas');
@@ -445,7 +470,7 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   );
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[${SERVER_NAME} v${SERVER_VERSION}] serving ${getServedToolNames().length} tools on stdio; allowed roots: ${getMcpAllowedRoots().join(', ')}`);
+  console.error(`[${SERVER_NAME} v${SERVER_VERSION}] serving ${getServedToolNames().length} tools on stdio; validating against ${serverOfficeVersion()}; allowed roots: ${getMcpAllowedRoots().join(', ')}`);
   return 0;
 }
 
