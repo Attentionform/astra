@@ -108,6 +108,13 @@ export function executeSection(op: SectionOperation, ast: DocumentAST, parser?: 
         cols.setAttribute('w:num', String(colsCount));
         cols.setAttribute('w:space', String(spacing));
         cols.setAttribute('w:equalWidth', '1');
+        // Equal columns: a list of columns from before no longer applies, and the section now has the gap that was written.
+        for (const col of Array.from(cols.getElementsByTagName('w:col'))) cols.removeChild(col);
+        if (targetSection.pageSetup) {
+          targetSection.pageSetup.columnSpace = spacing;
+          delete targetSection.pageSetup.columnWidths;
+          delete targetSection.pageSetup.columnsUnknown;
+        }
         if (resolvedSeparator !== undefined) {
           cols.setAttribute('w:sep', resolvedSeparator ? '1' : '0');
         }

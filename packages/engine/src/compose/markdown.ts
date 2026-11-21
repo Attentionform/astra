@@ -188,7 +188,7 @@ import { HYPERLINK_REL_TYPE } from '../operations/hyperlink';
 import { allocateSafeHyperlinkRId } from '../manipulators/relationships';
 import { auditExternalRelTarget } from '../ooxml/xxe-guard';
 import { compileMarkdownDetailed, resolveComposeStyleGuide } from './compile';
-import { contentBoxOf } from '../operations/chart-size';
+import { contentBoxOf, columnLayoutNote } from '../operations/chart-size';
 import { lastSection, locateNode } from '../parser/sections';
 import { sortChildrenBySchema, RPR_CHILD_ORDER } from '../ooxml/schema-order';
 import { COMPOSE_CODE_FONT } from './constants';
@@ -596,6 +596,12 @@ export async function composeDocument(
   }
 
   const ast = liveAst;
+  // Images and tables are sized to the narrowest column; tell the caller when the columns are not all one width.
+  const columnNotes: string[] = [];
+  if (/!\[[^\]]*\]\(|^\s*\|?\s*:?-{3,}/m.test(composeMarkdown)) {
+    const note = columnLayoutNote(landing?.pageSetup, 'Images and tables in this content');
+    if (note) columnNotes.push(note);
+  }
   // Seed-skip capture runs after compile+validate (so input errors still
   // throw with zero writes) but before any batch mutates the document.
   // A caller who names an anchor asked for an append: the blank paragraph stays, and so does its id.
@@ -617,7 +623,7 @@ export async function composeDocument(
     errors: [],
     rollbackTriggered: false,
     skippedIds: [],
-    warnings: [...compileWarnings, ...(seedPlan.kind === 'append' ? [`${seedPlan.reason}: ${seedPlan.message}`] : [])],
+    warnings: [...compileWarnings, ...columnNotes, ...(seedPlan.kind === 'append' ? [`${seedPlan.reason}: ${seedPlan.message}`] : [])],
     revisionsPending: 0,
     possiblyStaleBodyRefs: [],
   };

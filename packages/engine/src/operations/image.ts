@@ -18,7 +18,7 @@ import { resolveReproducibleMode } from '../zip-hardening';
 import { toError } from '../errors';
 import { readImageFileBytes } from './image-file';
 import { decodeImagePixels, fitImageEmus } from '../compose/assets';
-import { contentBoxOf } from './chart-size';
+import { contentBoxOf, columnLayoutNote } from './chart-size';
 
 /**
  * How text flows around an image: `inline` puts it in the line of text, and the other values are the Word wrapping styles.
@@ -971,12 +971,16 @@ export function executeImage(op: ImageOperation, ast: DocumentAST, parser?: Docx
   if (op.captionText) {
     executeImage({ action: 'image', operation: 'setCaption', target: imgId, captionText: op.captionText }, ast, parser);
   }
-  if (!altProvided) {
-    return {
-      warnings: [
-        `Image '${imgId}' has no alt text: exports render it as a generic image. ` +
-          `Remedy: pass altText on insert, or set it later with { action:'image', operation:'setAltText', target:'${imgId}', altText:'...' }.`,
-      ],
-    };
+  const warnings: string[] = [];
+  if (wGiven === undefined && hGiven === undefined) {
+    const note = columnLayoutNote((targetSection ?? lastSection(ast.sections))?.pageSetup, `Image '${imgId}'`);
+    if (note) warnings.push(note);
   }
+  if (!altProvided) {
+    warnings.push(
+      `Image '${imgId}' has no alt text: exports render it as a generic image. ` +
+        `Remedy: pass altText on insert, or set it later with { action:'image', operation:'setAltText', target:'${imgId}', altText:'...' }.`
+    );
+  }
+  if (warnings.length > 0) return { warnings };
 }

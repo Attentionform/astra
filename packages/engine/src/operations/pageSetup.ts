@@ -254,7 +254,13 @@ export function executePageSetup(op: PageSetupOperation, ast: DocumentAST, parse
   }
 
   if (columns !== undefined) {
-    for (const sectPr of targets) upsertSectPrChild(sectPr, 'w:cols').setAttribute('w:num', String(columns));
+    for (const sectPr of targets) {
+      const cols = upsertSectPrChild(sectPr, 'w:cols');
+      cols.setAttribute('w:num', String(columns));
+      // A new column count means equal columns: a list of columns of the old count would no longer match it.
+      for (const col of Array.from(cols.getElementsByTagName('w:col'))) cols.removeChild(col);
+      cols.removeAttribute('w:equalWidth');
+    }
   }
 
   if (f.mirrorMargins !== undefined || f.gutterPosition !== undefined) {
@@ -271,6 +277,8 @@ export function executePageSetup(op: PageSetupOperation, ast: DocumentAST, parse
     const fresh = sectPr ? pageSetupFromSectPr(sectPr) : {};
     const merged = { ...(section.pageSetup ?? {}), ...fresh };
     if (fresh.columns === undefined) delete merged.columns;
+    // The column geometry is the file's: what it no longer gives is gone.
+    for (const key of ['columnSpace', 'columnWidths', 'columnsUnknown'] as const) if (fresh[key] === undefined) delete merged[key];
     if (gutterAtTop) merged.gutterAtTop = true;
     else delete merged.gutterAtTop;
     section.pageSetup = merged;

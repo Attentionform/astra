@@ -125,12 +125,13 @@ export interface UsableArea {
 export function chartLayoutWarning(
   size: ResolvedChartSize,
   area: UsableArea | undefined,
-  floating: boolean
+  floating: boolean,
+  widthName: 'text width' | 'column width' = 'text width'
 ): string | undefined {
   if (floating || !area) return undefined;
   const parts: string[] = [];
   if (size.widthEmu > area.widthEmu) {
-    parts.push(`${fmtIn(size.widthEmu)} in wide, the text width is ${fmtIn(area.widthEmu)} in`);
+    parts.push(`${fmtIn(size.widthEmu)} in wide, the ${widthName} is ${fmtIn(area.widthEmu)} in`);
   }
   if (size.heightEmu > area.heightEmu) {
     parts.push(`${fmtIn(size.heightEmu)} in tall, the usable page height is ${fmtIn(area.heightEmu)} in`);
@@ -198,17 +199,53 @@ export function usableAreaOf(pageSetup: {
 /** The Letter content box that the image cap was written for: 6.5 in wide and 9 in high. */
 export const LETTER_CONTENT_BOX: UsableArea = { widthEmu: 5943600, heightEmu: 8229600 };
 
+/** The default space between columns, in twips: Word's, used when the file does not give one. */
+const DEFAULT_COLUMN_SPACE_TWIPS = 720;
+
+type ColumnPage = Parameters<typeof usableAreaOf>[0] & { columns?: number; columnSpace?: number; columnWidths?: number[]; columnsUnknown?: boolean };
+
 /**
- * The box that content placed in a section has to fit: the usable area, with the text width shared among columns when the section has
- * more than one (a column gap of 0.5 in, the usual one, is taken off). A section without a page size gets the Letter box.
+ * The width of the narrowest text column of a section in EMU, and whether the columns are of different widths or not known.
+ * Equal columns: the text width less the real space between them (`w:space`, 0.5 in when the file gives none), shared by the count.
+ * Listed columns of different widths: the narrowest, so that content placed in any of them fits.
+ * A listing without every width: the equal share as a best guess, flagged as not known.
  */
-export function contentBoxOf(pageSetup: (Parameters<typeof usableAreaOf>[0] & { columns?: number }) | null | undefined): UsableArea {
+export function columnLayoutOf(pageSetup: ColumnPage | null | undefined): { widthEmu: number; unequal: boolean; unknown: boolean } | undefined {
+  if (!pageSetup || !pageSetup.pageWidthTwips) return undefined;
+  const columns = pageSetup.columns && pageSetup.columns > 1 ? pageSetup.columns : 1;
+  if (columns === 1) return undefined;
+  const twipsToEmu = EMU_PER_INCH / 1440;
+  const area = usableAreaOf(pageSetup);
+  const widths = pageSetup.columnWidths;
+  if (widths && widths.length === columns) {
+    const narrowest = Math.min(...widths);
+    const widest = Math.max(...widths);
+    return { widthEmu: Math.max(0, Math.floor(narrowest * twipsToEmu)), unequal: widest - narrowest > Math.max(1, widest * 0.01), unknown: false };
+  }
+  const gap = (pageSetup.columnSpace ?? DEFAULT_COLUMN_SPACE_TWIPS) * twipsToEmu * (columns - 1);
+  return { widthEmu: Math.max(0, Math.floor((area.widthEmu - gap) / columns)), unequal: false, unknown: pageSetup.columnsUnknown === true };
+}
+
+/**
+ * A note for the caller when content placed in a section with columns of different or unknown widths was sized to the narrowest
+ * column, because the engine cannot tell which column the content lands in. Undefined for one column and for equal columns.
+ */
+export function columnLayoutNote(pageSetup: ColumnPage | null | undefined, what: string): string | undefined {
+  const layout = columnLayoutOf(pageSetup);
+  if (!layout || (!layout.unequal && !layout.unknown)) return undefined;
+  const inches = Math.round((layout.widthEmu / EMU_PER_INCH) * 100) / 100;
+  return `${what} was sized to ${inches} in, the ${layout.unknown ? 'estimated' : 'narrowest'} column of a section whose columns ${layout.unknown ? 'are not all given a width' : 'have different widths'}; give an explicit size if it goes into a wider column`;
+}
+
+/**
+ * The box that content placed in a section has to fit: the usable area, narrowed to one text column when the section has more than one
+ * (see `columnLayoutOf`). A section without a page size gets the Letter box.
+ */
+export function contentBoxOf(pageSetup: ColumnPage | null | undefined): UsableArea {
   if (!pageSetup || !pageSetup.pageWidthTwips) return LETTER_CONTENT_BOX;
   const area = usableAreaOf(pageSetup);
-  const columns = pageSetup.columns && pageSetup.columns > 1 ? pageSetup.columns : 1;
-  if (columns === 1) return area;
-  const gap = (EMU_PER_INCH / 2) * (columns - 1);
-  return { widthEmu: Math.max(0, Math.floor((area.widthEmu - gap) / columns)), heightEmu: area.heightEmu };
+  const layout = columnLayoutOf(pageSetup);
+  return layout ? { widthEmu: layout.widthEmu, heightEmu: area.heightEmu } : area;
 }
 
 /** Letter's text width in twips: 6.5 in. What an engine-written table grid or tab stop used before the page could differ. */

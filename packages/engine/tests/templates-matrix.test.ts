@@ -59,7 +59,12 @@ describe.each(PAGES)('templates on $label', ({ page, w, h }) => {
       expect(Math.abs(num(/<w:pgSz[^>]*w:h="(\d+)"/) - h)).toBeLessThanOrEqual(1);
       const text = num(/<w:pgSz[^>]*w:w="(\d+)"/) - num(/w:left="(\d+)"/) - num(/w:right="(\d+)"/) - num(/w:gutter="(\d+)"/);
       // A chart inserted without a size fits the text width (an image of the same kind is capped the same way).
-      for (const m of doc.matchAll(/<wp:extent cx="(\d+)"/g)) expect(Number(m[1]), `an image or chart ${m[1]} EMU wide on a ${text} twip text width`).toBeLessThanOrEqual((text + 3) * 635);
+      // With columns in the body section, one column is the bound.
+      const colsTag = /<w:cols\b[^>]*>/.exec(sect)?.[0] ?? '';
+      const colCount = Number(/w:num="(\d+)"/.exec(colsTag)?.[1] ?? 1);
+      const colSpace = Number(/w:space="(\d+)"/.exec(colsTag)?.[1] ?? 720);
+      const room = colCount > 1 ? (text - colSpace * (colCount - 1)) / colCount : text;
+      for (const m of doc.matchAll(/<wp:extent cx="(\d+)"/g)) expect(Number(m[1]), `an image or chart ${m[1]} EMU wide in a ${room} twip column`).toBeLessThanOrEqual((room + 3) * 635);
       expect(doc).toContain('c:chart');
       // Every table's grid fits the text width of the widest section that holds it (columns only narrow it, so the page text width is the bound).
       for (const tbl of doc.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)) {

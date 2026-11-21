@@ -117,6 +117,7 @@ Set a header or footer for one section:
 ```
 
 - `columns` sets the number of columns; `spacing` is the gap between them (default 720, half an inch) and `separator` draws a line between them.
+- **Content is sized to the column it lands in.** An image, chart or table that ASTra adds without a size of its own fits one column, using the real gap that the file gives (`w:space`, half an inch when it gives none). When a section lists columns of different widths, the engine cannot tell which column a block lands in, so it sizes the content to the narrowest column and returns a warning; give `widthIn` (or an image `width`) to place it in a wider one. A size you give is kept, and a chart wider than its column gets a warning that names the column width. Setting a column count with `pageSetup` or `section setColumns` makes the columns equal and removes a stored list of widths.
 - `pageBorder` takes `style` (`single`, `double`, `dashed`, `triple`), `sz` in eighths of a point (12 is 1.5 pt), `color` as a hex value without `#`, and `marginOffset` (`page` or `text`).
 
 ## 6. Lists
