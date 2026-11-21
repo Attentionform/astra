@@ -14,7 +14,7 @@ export const TEAL: Theme = {
 export const NAVY: Theme = {
   name: 'Navy',
   fonts: { body: 'Calibri', heading: 'Cambria', mono: 'Consolas' },
-  colors: { ink: '1B2430', muted: '566170', accent: '1F3A5F', accentSoft: 'E8EDF4', rule: 'C9D1DC', wash: 'F2F4F7', placeholder: '666F7D' },
+  colors: { ink: '1B2430', muted: '47515F', accent: '1F3A5F', accentSoft: 'E8EDF4', rule: 'C9D1DC', wash: 'F2F4F7', placeholder: '4C5664' },
   sizes,
 };
 

@@ -1,25 +1,32 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { composeDocument, DocxParser, resolveStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
-import { summarizeStyleGuide } from '@attentionform/astra-engine/internal';
+import { describePage, summarizeStyleGuide } from '@attentionform/astra-engine/internal';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
+import { pageOptionsFrom, readPageFlag, type PageFlags } from './page-flags';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { writeDocx } from './io';
-import { CREATE_TEMPLATES, PAGE_SIZES, type CreateTemplate } from './create-cmd';
+import { CREATE_TEMPLATES, type CreateTemplate } from './create-cmd';
 
 export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'import');
   let src: string | undefined;
   let outRaw: string | undefined;
   let templateRaw: string | undefined;
-  let pageSizeRaw: string | undefined;
+  const pageFlags: PageFlags = {};
   let allowedDirRaw: string | undefined;
   let styleGuideRaw: string | undefined;
   let dollarMath = false;
   let force = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
+    const page = readPageFlag('import', args, i, pageFlags);
+    if (page !== null) {
+      if ('error' in page) return usage(out, page.error);
+      i = page.last;
+      continue;
+    }
     if (a === '--template') {
       const next = args[i + 1];
       if (next === undefined || next.length === 0 || next.startsWith('-')) {
@@ -28,12 +35,6 @@ export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number
       templateRaw = args[++i];
     }
     else if (a.startsWith('--template=')) templateRaw = a.slice('--template='.length);
-    else if (a === '--page-size') {
-      const next = args[i + 1];
-      if (next === undefined || next.length === 0 || next.startsWith('-')) return usage(out, 'import --page-size requires a value (letter|a4)');
-      pageSizeRaw = args[++i];
-    }
-    else if (a.startsWith('--page-size=')) pageSizeRaw = a.slice('--page-size='.length);
     else if (a === '--allowed-dir') {
       const next = args[i + 1];
       if (next === undefined || next.length === 0 || next.startsWith('-')) {
@@ -80,10 +81,8 @@ export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number
   if (!(CREATE_TEMPLATES as readonly string[]).includes(template)) {
     return usage(out, `import --template must be one of ${CREATE_TEMPLATES.join('|')} (got "${template}")`);
   }
-  const pageSize = pageSizeRaw ?? 'letter';
-  if (!(PAGE_SIZES as readonly string[]).includes(pageSize)) {
-    return usage(out, `import --page-size must be one of ${PAGE_SIZES.join('|')} (got "${pageSize}")`);
-  }
+  const pageOptions = pageOptionsFrom('import', pageFlags);
+  if (pageOptions !== undefined && 'error' in pageOptions) return usage(out, pageOptions.error);
   const srcExt = path.extname(src).toLowerCase();
   if (srcExt === '.html' || srcExt === '.htm') {
     return failWithCode(
@@ -142,7 +141,7 @@ export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number
         return failWithCode(out, rawMsg, inferBatchCode(err, 'E_VALIDATION'), undefined, undefined, err);
       }
     }
-    const parser = DocxParser.createNewDocument(template as CreateTemplate, { pageSize: pageSize as 'letter' | 'a4' });
+    const parser = DocxParser.createNewDocument(template as CreateTemplate, pageOptions === undefined ? undefined : { page: pageOptions });
     const composed = await withGatedEngineOutput(out, () =>
       composeDocument(parser, mdSource, {
         ...(allowedDirRaw !== undefined ? { allowedDir: allowedDirRaw } : {}),
@@ -173,6 +172,8 @@ export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number
         fallbackRemedy: 'retry with --template blank and report the template name',
       });
     }
+    const pageSummary = describePage((await parser.getAST()).sections[0]?.pageSetup)?.summary;
+    for (const w of parser.newDocumentWarnings) printStderr(`${CLI_NAME}: WARNING: ${w}`);
     await writeDocx(dest, parser.rezip());
     print(out, `IMPORTED ${src} -> ${dest} (template=${template}, applied=${composed.appliedCount})`);
     printJson(out, {
@@ -181,7 +182,8 @@ export async function cmdImport(out: GlobalOpts, args: string[]): Promise<number
       src,
       file: dest,
       template,
-      pageSize,
+      page: pageSummary,
+      ...(parser.newDocumentWarnings.length > 0 ? { pageWarnings: parser.newDocumentWarnings } : {}),
       appliedCount: composed.appliedCount,
       valid: true,
       ...(allowedDirRaw !== undefined ? { allowedDir: allowedDirRaw } : {}),

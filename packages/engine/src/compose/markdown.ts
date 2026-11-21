@@ -188,6 +188,8 @@ import { HYPERLINK_REL_TYPE } from '../operations/hyperlink';
 import { allocateSafeHyperlinkRId } from '../manipulators/relationships';
 import { auditExternalRelTarget } from '../ooxml/xxe-guard';
 import { compileMarkdownDetailed, resolveComposeStyleGuide } from './compile';
+import { contentBoxOf } from '../operations/chart-size';
+import { lastSection, locateNode } from '../parser/sections';
 import { sortChildrenBySchema, RPR_CHILD_ORDER } from '../ooxml/schema-order';
 import { COMPOSE_CODE_FONT } from './constants';
 import { loneEmptyParagraphIds } from './pristine-seed';
@@ -562,6 +564,11 @@ export async function composeDocument(
   // A heading that is the whole input fills the title and leaves no body content: the placeholder body is removed and nothing
   // takes its place. Any other input must hold at least one block, and compile says so when it does not.
   const titleOnly = slotTitle !== null && composeMarkdown.trim() === '';
+  // An image has to fit the text area of the section that it lands in: the section of the anchor, or the last section when the blocks are appended.
+  const landsAfter = templatePlan?.anchorId ?? options?.anchor;
+  const landing = (landsAfter !== undefined && anchorAliasOf(landsAfter) === null ? locateNode(liveAst.sections, landsAfter)?.section : undefined)
+    ?? (landsAfter !== undefined && anchorAliasOf(landsAfter) === 'start' ? liveAst.sections[0] : lastSection(liveAst.sections));
+  const contentBox = landing?.pageSetup ? contentBoxOf(landing.pageSetup) : undefined;
   const { operations, warnings: compileWarnings } = titleOnly
     ? { operations: [] as Operation[], warnings: [] as string[] }
     : compileMarkdownDetailed(composeMarkdown, {
@@ -572,6 +579,7 @@ export async function composeDocument(
         allowedDir: options?.allowedDir,
         ...(options?.styleGuide !== undefined ? { styleGuide: options.styleGuide } : {}),
         ...(options?.dollarMath ? { dollarMath: true } : {}),
+        ...(contentBox ? { contentBox } : {}),
       });
   if (!titleOnly) validateComposedOperations(operations);
   // A quote is written in the Quote paragraph style; an opened document that lacks the style gets it first.

@@ -130,7 +130,7 @@ describe('orientation turns the page (the matrix from the findings report)', () 
   it('margins given with orientation are written as given, never rotated', async () => {
     const f = await blank();
     const before = marginsOf(f);
-    await setup(f, { orientation: 'landscape', marginTop: 1000, marginLeft: 2000 });
+    await setup(f, { orientation: 'landscape', margins: { top: 1000, left: 2000 } });
     expect(pageOf(f)).toMatchObject({ ...LETTER_TURNED, orient: 'landscape' });
     expect(marginsOf(f)).toEqual({ ...before, top: '1000', left: '2000' });
   });
@@ -214,10 +214,10 @@ describe('sections and odd files', () => {
     expect(pageOf(f)).toMatchObject({ w: '12000', h: '12000', orient: 'landscape' });
   });
 
-  it('a new paper size drops the old printer paper code', async () => {
+  it('a new paper size replaces the old printer paper code with its own', async () => {
     const f = await withSectPr('<w:pgSz w:w="11906" w:h="16838" w:code="9"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>');
     await setup(f, { paperSize: 'Letter' });
-    expect(pageOf(f)).toMatchObject({ ...LETTER, code: null });
+    expect(pageOf(f)).toMatchObject({ ...LETTER, code: '1' });
     const reopened = await fixtureFor(new DocxParser(f.parser.rezip()));
     expect(reopened.ast.sections[0].pageSetup?.paperSize).toBe('Letter');
   });
@@ -255,7 +255,7 @@ describe('the model and the saved file agree', () => {
     const out = await f.engine.executeBatch({
       operations: [
         { action: 'pageSetup', orientation: 'landscape' },
-        { action: 'pageSetup', paperSize: 'Tabloid' },
+        { action: 'pageSetup', paperSize: 'Imaginary' },
       ] as never,
     });
     expect(out.success).toBe(false);

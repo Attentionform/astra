@@ -119,8 +119,8 @@ Autonomous agents should interact with documents through this canonical lifecycl
 4. execute_batch (or compose_document)
    └── Executes atomic array of operations with transactional rollback on error.
 
-5. visual_inspect / export_document (Optional)
-   └── Verifies layout telemetry, renders page images, or exports to PDF/Markdown.
+5. visual_inspect / export_document (Optional, recommended after layout changes)
+   └── Verifies layout telemetry, renders page images, or exports to PDF/Markdown. A renderer is not required for ASTra to work, but looking at the page is how an agent finds overflow, a blank last page, a table that is too wide or a margin that does not suit the content. Render after creating a document or changing paper size, margins, columns or layout.
 
 6. save_document
    └── Runs ECMA-376 pre-write schema validation gate and commits changes to disk.
@@ -181,7 +181,8 @@ Creates a fresh `.docx` file from a verified ECMA-376 template and opens it into
 | Parameter | Type | Required | Description |
 |---|---|:---:|---|
 | `outPath` | `string` | Yes | Target destination file path inside an allowed directory. |
-| `template` | `string` | No | Template type: `"report"`, `"memo"`, or `"blank"` (default: `"blank"`). |
+| `template` | `string` | No | Template type: `"blank"` (default), `"report"`, `"memo"`, `"letter"`, `"proposal"`, `"invoice"`, `"technical-spec"`, `"research-paper"`, `"novel"` or `"newsletter"`. |
+| `page` | `object` | No | The page of the new document: `{ size, orientation, margins }`. `size` is a paper name (Letter by default; Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5, B6), a size string such as `"148x210mm"` or `"6x9in"`, or `{ width, height }`; each side is 1 in to 22 in. `orientation` is `portrait` or `landscape`. `margins` is one length (`"20mm"`) or `{ top, bottom, left, right, header, footer, gutter }`. Lengths are twips or strings with a unit (`mm`, `cm`, `in`, `pt`). The template is built for that page. A page that cannot be laid out (text narrower than 0.75 in or lower than 0.5 in; too narrow for the invoice or proposal tables) is refused with `E_VALIDATION`; a page that suits another template better returns `warnings`. The old `pageSize` option was replaced by `page.size` and is refused. |
 | `force` | `boolean` | No | Overwrite file if it already exists (default: `false`). |
 | `styleGuide` | `string` | No | Bundled guide name or guide `.md` path to attach. |
 | `author` | `string` | No | Default author (≤ 128 chars) for tracked changes and comments in this session that do not name one. Falls back to the server's `ASTRA_AUTHOR`, then `ASTra`. An operation's own `author` always wins. Not the version-history author of `save_document`. |
@@ -848,6 +849,7 @@ When passing formatting options to `execute_batch` or inspecting TOON telemetry,
 
 - **`style` with `match` needs a paragraph.** `match` styles part of a paragraph's text, so `{ action: "style", target: "<tableId>", match: "..." }` is refused (`style 'match' only supports paragraph nodes ('w:p'), got 'w:tbl'`). To style words inside a table, target the cell as `<tableId>:r<row>c<col>`; for a whole-table look use the `table` operations (`setShading`, `setCellShading`, `setKeepTogether`).
 - **A callout is a one-cell table.** The note box (`callout`) is written as a 1×1 shaded table with a left border bar, so structure listings show it as a table and a screen reader announces one. The visual wireframe labels it `[CALLOUT]`.
+- **Page fields are lengths.** `pageSetup` takes `paperSize` (a name or a size), `orientation`, `margins` (one length, or `top`, `bottom`, `left`, `right`, `header`, `footer`, `gutter`), `gutterPosition`, `mirrorMargins` and `columns`, as numbers of twips or strings with a unit. The flat fields `marginTop`, `marginBottom`, `marginLeft`, `marginRight`, `headerDistance`, `footerDistance`, `margin` and `pageSize` were replaced and are refused with the new name. A side must be 1 in to 22 in and the text area at least 0.75 in by 0.5 in (a request that makes an already smaller area smaller is refused; one that leaves it alone is not). `inspect_document` returns `page` (and `pageBySection` when sections differ). See [Page Layout](page-layout.md#2-paper-size-orientation-and-margins).
 - **Turning the page leaves the margins alone.** `pageSetup` with `orientation` swaps the section's width and height (Word and LibreOffice lay a page out from those, not from the orientation flag), so `landscape` on a Letter page gives 15840 × 12240 twips and `portrait` turns it back. The margins are written exactly as given; Word's own Orientation button also rotates them, and ASTra does not. A `paperSize` given on its own keeps the orientation the section already has, and a new paper size drops the old printer paper code.
 - **Paragraphs carry `w14:paraId`.** Word writes a `w14:paraId` on each paragraph and so does ASTra; it is the paragraph id `inspect_document` shows after a save and reopen, and what keeps ids stable between sessions. It is not formatting and is safe to leave in place.
 

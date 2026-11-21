@@ -296,12 +296,16 @@ export function decodeSvgPixels(buf: Buffer): ImagePixelSize | null {
  * size (scale never exceeds 1); larger ones shrink until both caps hold.
  * Returns null when no usable size was decoded (engine fallback applies).
  */
-export function fitImageEmus(px: ImagePixelSize | null): { width: number; height: number } | null {
+export function fitImageEmus(px: ImagePixelSize | null, box?: { widthEmu: number; heightEmu: number }): { width: number; height: number } | null {
   if (!px) return null;
   const rawW = px.widthPx * COMPOSE_EMU_PER_PX;
   const rawH = px.heightPx * COMPOSE_EMU_PER_PX;
   if (!Number.isFinite(rawW) || !Number.isFinite(rawH) || rawW <= 0 || rawH <= 0) return null;
-  const scale = Math.min(1, COMPOSE_IMAGE_MAX_WIDTH_EMU / rawW, COMPOSE_IMAGE_MAX_HEIGHT_EMU / rawH);
+  // The caps come from the box the image has to fit. On the Letter box they are the old fixed ones (6 in wide, 9 in high); on a smaller
+  // page they follow it: the width keeps a little room (0.5 in, or 8% of a narrow box) and the height uses the whole box.
+  const capW = box ? Math.max(1, box.widthEmu - Math.min(457200, Math.floor(box.widthEmu * 0.08))) : COMPOSE_IMAGE_MAX_WIDTH_EMU;
+  const capH = box ? Math.max(1, box.heightEmu) : COMPOSE_IMAGE_MAX_HEIGHT_EMU;
+  const scale = Math.min(1, capW / rawW, capH / rawH);
   return {
     width: Math.max(1, Math.round(rawW * scale)),
     height: Math.max(1, Math.round(rawH * scale)),
@@ -426,7 +430,7 @@ export function assertSvgAssetClean(text: string, line: number, base: string): v
   }
 }
 
-export function readImageAsset(absPath: string, line: number, allowedDir: string): { dataUrl: string; width?: number; height?: number } {
+export function readImageAsset(absPath: string, line: number, allowedDir: string, box?: { widthEmu: number; heightEmu: number }): { dataUrl: string; width?: number; height?: number } {
   const ext = path.extname(absPath).toLowerCase().replace(/^\./, '');
   if (!ALLOWED_IMAGE_EXTS.has(ext)) {
     fail(line, `image file extension .${ext || '(none)'} is not supported`, 'use png, jpg, gif, webp, bmp, tiff, or svg');
@@ -453,7 +457,7 @@ export function readImageAsset(absPath: string, line: number, allowedDir: string
     assertSvgAssetClean(buf.toString('utf8'), line, path.basename(absPath));
   }
   const mime = kind === 'jpeg' ? 'image/jpeg' : kind === 'svg' ? 'image/svg+xml' : kind === 'tiff' ? 'image/tiff' : `image/${kind}`;
-  const fitted = fitImageEmus(decodeImagePixels(buf, kind as string));
+  const fitted = fitImageEmus(decodeImagePixels(buf, kind as string), box);
   if (!fitted) {
     return { dataUrl: `data:${mime};base64,${buf.toString('base64')}` };
   }

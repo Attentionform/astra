@@ -1,3 +1,4 @@
+import { detectPaper } from '../page';
 import type { Node, PageSetupProperties, Section } from '../ast';
 
 /**
@@ -80,19 +81,14 @@ export function pageSetupFromSectPr(sectPr: Element | null): PageSetupProperties
     const wVal = parseInt(pgSz.getAttribute('w:w') || '0', 10);
     const hVal = parseInt(pgSz.getAttribute('w:h') || '0', 10);
     const orientAttr = pgSz.getAttribute('w:orient');
-    const codeAttr = pgSz.getAttribute('w:code');
 
     let orientation: 'portrait' | 'landscape' = 'portrait';
     if (orientAttr === 'landscape' || (wVal > hVal && orientAttr !== 'portrait')) {
       orientation = 'landscape';
     }
 
-    const near = (w: number, h: number): boolean =>
-      (Math.abs(wVal - w) < 200 && Math.abs(hVal - h) < 200) || (Math.abs(wVal - h) < 200 && Math.abs(hVal - w) < 200);
-    let paperSize: 'A4' | 'Letter' | 'Legal' | 'A3' = 'Letter';
-    if (codeAttr === '9' || near(11906, 16838)) paperSize = 'A4';
-    else if (near(16838, 23811)) paperSize = 'A3';
-    else if (near(12240, 20160)) paperSize = 'Legal';
+    // A page that matches a named paper (within one twip, in either orientation) is called by its name; any other page is Custom.
+    const paperSize = wVal > 0 && hVal > 0 ? detectPaper(wVal, hVal)?.name ?? 'Custom' : 'Letter';
 
     resolved = { ...resolved, orientation, paperSize };
     // The real page size, so width and height arithmetic does not depend on the label above.
@@ -109,14 +105,18 @@ export function pageSetupFromSectPr(sectPr: Element | null): PageSetupProperties
 
   const pgMar = sectPr.getElementsByTagName('w:pgMar')[0];
   if (pgMar) {
-    const top = parseInt(pgMar.getAttribute('w:top') || '', 10);
-    const bottom = parseInt(pgMar.getAttribute('w:bottom') || '', 10);
-    const left = parseInt(pgMar.getAttribute('w:left') || '', 10);
-    const right = parseInt(pgMar.getAttribute('w:right') || '', 10);
-    if (!isNaN(top)) resolved.marginTop = top;
-    if (!isNaN(bottom)) resolved.marginBottom = bottom;
-    if (!isNaN(left)) resolved.marginLeft = left;
-    if (!isNaN(right)) resolved.marginRight = right;
+    const read = (name: string): number | undefined => {
+      const v = parseInt(pgMar.getAttribute(name) || '', 10);
+      return isNaN(v) ? undefined : v;
+    };
+    const fields: Array<[keyof PageSetupProperties, string]> = [
+      ['marginTop', 'w:top'], ['marginBottom', 'w:bottom'], ['marginLeft', 'w:left'], ['marginRight', 'w:right'],
+      ['headerDistance', 'w:header'], ['footerDistance', 'w:footer'], ['gutter', 'w:gutter'],
+    ];
+    for (const [key, attr] of fields) {
+      const v = read(attr);
+      if (v !== undefined) (resolved as Record<string, unknown>)[key] = v;
+    }
   }
   return resolved;
 }

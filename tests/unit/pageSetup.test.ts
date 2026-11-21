@@ -36,10 +36,7 @@ describe('pageSetup Operation Test Suite', () => {
 
     executePageSetup({
       action: 'pageSetup',
-      marginTop: HALF_INCH_TWIPS,
-      marginBottom: HALF_INCH_TWIPS,
-      marginLeft: HALF_INCH_TWIPS,
-      marginRight: HALF_INCH_TWIPS,
+      margins: { top: HALF_INCH_TWIPS, bottom: HALF_INCH_TWIPS, left: HALF_INCH_TWIPS, right: HALF_INCH_TWIPS },
       paperSize: 'A4',
       orientation: 'portrait'
     }, ast, parser);
@@ -66,10 +63,7 @@ describe('pageSetup Operation Test Suite', () => {
     executePageSetup({
       action: 'pageSetup',
       params: {
-        marginTop: 1000,
-        marginBottom: 1000,
-        marginLeft: 1000,
-        marginRight: 1000,
+        margins: { top: 1000, bottom: 1000, left: 1000, right: 1000 },
         paperSize: 'Letter',
         orientation: 'landscape'
       }
@@ -96,10 +90,7 @@ describe('pageSetup Operation Test Suite', () => {
       operations: [
         {
           action: 'pageSetup',
-          marginTop: 500,
-          marginBottom: 500,
-          marginLeft: 500,
-          marginRight: 500,
+          margins: { top: 500, bottom: 500, left: 500, right: 500 },
           paperSize: 'A4'
         }
       ]

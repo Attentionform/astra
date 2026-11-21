@@ -1,21 +1,21 @@
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { composeDocument, DocxParser, TEMPLATE_NAMES, resolveStyleGuide, type StyleGuideConfig } from '@attentionform/astra-engine';
-import { summarizeStyleGuide } from '@attentionform/astra-engine/internal';
+import { describePage, summarizeStyleGuide } from '@attentionform/astra-engine/internal';
 import { CLI_NAME, EXIT_OK, type GlobalOpts, print, printJson, printStderr } from './output';
 import { failHuman, failWithCode, inferBatchCode, withGatedEngineOutput } from './errors';
+import { pageOptionsFrom, readPageFlag, type PageFlags } from './page-flags';
 import { hasHelpFlag, printCommandHelp, usage } from './usage';
 import { writeDocx } from './io';
 
 export const CREATE_TEMPLATES = TEMPLATE_NAMES;
 export type CreateTemplate = (typeof CREATE_TEMPLATES)[number];
-export const PAGE_SIZES = ['letter', 'a4'] as const;
 
 export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number> {
   if (hasHelpFlag(args)) return printCommandHelp(out, 'create');
   let dest: string | undefined;
   let templateRaw: string | undefined;
-  let pageSizeRaw: string | undefined;
+  const pageFlags: PageFlags = {};
   let fromMdRaw: string | undefined;
   let allowedDirRaw: string | undefined;
   let styleGuideRaw: string | undefined;
@@ -23,6 +23,12 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
   let force = false;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
+    const page = readPageFlag('create', args, i, pageFlags);
+    if (page !== null) {
+      if ('error' in page) return usage(out, page.error);
+      i = page.last;
+      continue;
+    }
     if (a === '--template') {
       const next = args[i + 1];
       if (next === undefined || next.length === 0 || next.startsWith('-')) {
@@ -31,12 +37,6 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
       templateRaw = args[++i];
     }
     else if (a.startsWith('--template=')) templateRaw = a.slice('--template='.length);
-    else if (a === '--page-size') {
-      const next = args[i + 1];
-      if (next === undefined || next.length === 0 || next.startsWith('-')) return usage(out, 'create --page-size requires a value (letter|a4)');
-      pageSizeRaw = args[++i];
-    }
-    else if (a.startsWith('--page-size=')) pageSizeRaw = a.slice('--page-size='.length);
     else if (a === '--from-md') {
       const next = args[i + 1];
       if (next === undefined || next.length === 0 || next.startsWith('-')) {
@@ -81,10 +81,8 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
   if (!(CREATE_TEMPLATES as readonly string[]).includes(template)) {
     return usage(out, `create --template must be one of ${CREATE_TEMPLATES.join('|')} (got "${template}")`);
   }
-  const pageSize = pageSizeRaw ?? 'letter';
-  if (!(PAGE_SIZES as readonly string[]).includes(pageSize)) {
-    return usage(out, `create --page-size must be one of ${PAGE_SIZES.join('|')} (got "${pageSize}")`);
-  }
+  const pageOptions = pageOptionsFrom('create', pageFlags);
+  if (pageOptions !== undefined && 'error' in pageOptions) return usage(out, pageOptions.error);
   if (!force) {
     try {
       await fsp.access(dest);
@@ -129,7 +127,7 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
     }
     // Reuse the existing blank-doc builder (no new package edges): templates
     // are engine-owned, the CLI only gates + writes.
-    const parser = DocxParser.createNewDocument(template as CreateTemplate, { pageSize: pageSize as 'letter' | 'a4' });
+    const parser = DocxParser.createNewDocument(template as CreateTemplate, pageOptions === undefined ? undefined : { page: pageOptions });
     let appliedCount = 0;
     const composeWarnings: string[] = [];
     if (mdSource !== undefined) {
@@ -170,14 +168,17 @@ export async function cmdCreate(out: GlobalOpts, args: string[]): Promise<number
         fallbackRemedy: 'retry with --template blank and report the template name',
       });
     }
+    const pageSummary = describePage((await parser.getAST()).sections[0]?.pageSetup)?.summary;
+    for (const w of parser.newDocumentWarnings) printStderr(`${CLI_NAME}: WARNING: ${w}`);
     await writeDocx(dest, parser.rezip());
     const fromMdSuffix = mdSource !== undefined ? `, fromMd=${path.basename(fromMdRaw as string)}, applied=${appliedCount}` : '';
-    print(out, `CREATED ${dest} (template=${template}${pageSize === 'a4' ? ', page-size=a4' : ''}${fromMdSuffix})`);
+    print(out, `CREATED ${dest} (template=${template}${pageSummary ? `, page=${pageSummary.split(';')[0]}` : ''}${fromMdSuffix})`);
     printJson(out, {
       ok: true,
       file: dest,
       template,
-      pageSize,
+      page: pageSummary,
+      ...(parser.newDocumentWarnings.length > 0 ? { pageWarnings: parser.newDocumentWarnings } : {}),
       ...(mdSource !== undefined ? { fromMd: fromMdRaw, appliedCount, valid: true } : {}),
       ...(allowedDirRaw !== undefined ? { allowedDir: allowedDirRaw } : {}),
       ...(styleGuide === 'legacy' ? { styleGuide: 'legacy' } : styleGuide !== undefined ? { styleGuide: summarizeStyleGuide(styleGuide) } : {}),

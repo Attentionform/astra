@@ -132,7 +132,9 @@ The agent found the list by its ID and added one item; nothing else on the page 
 
 You need Node.js 22.19 or newer. Reading, editing, validating, sanitizing and the text page wireframe need nothing else; `npx` fetches what they need.
 
-**PDF export and page images need two tools on your `PATH`:** [LibreOffice](https://www.libreoffice.org/) (`soffice`) exports PDFs and lays out pages, and [Poppler](https://poppler.freedesktop.org/) (`pdftoppm`) turns those pages into images. PDF export needs only LibreOffice; page images need both.
+**A renderer is not required, but it is recommended.** ASTra reads, edits, validates and saves without one; PDF export and page images are the only calls that need it. For an agent it is also how the page gets checked: the text outline cannot show where a page breaks, whether a table fits, how a margin looks or whether the last page is blank. After you create a document, change the paper size, margins or columns, or make a large formatting change, render the affected pages and look at them. Inspect the affected pages and check for unexpected overflow or a blank last page. On Linux and macOS install LibreOffice and Poppler as below. On Windows use Microsoft Word when it is installed, or LibreOffice (see the next paragraph).
+
+**To render a PDF or a page image you need two tools on your `PATH`:** [LibreOffice](https://www.libreoffice.org/) (`soffice`) exports PDFs and lays out pages, and [Poppler](https://poppler.freedesktop.org/) (`pdftoppm`) turns those pages into images. PDF export needs only LibreOffice; page images need both.
 
 ```bash
 # Ubuntu / Debian / WSL
@@ -145,7 +147,7 @@ brew install --cask libreoffice && brew install poppler
 which soffice pdftoppm
 ```
 
-Without them, those calls fail with `E_DEPENDENCY` and write nothing; everything else keeps working.
+Without them, those calls fail with `E_DEPENDENCY` and write nothing; everything else keeps working. Fonts matter for a faithful render: LibreOffice uses Carlito and Caladea in place of Calibri and Cambria (`fonts-crosextra-carlito` and `fonts-crosextra-caladea` on Debian and Ubuntu).
 
 **On Windows** you can also use what is already installed. Windows 10 and later turn PDF pages into images without Poppler (`--pdf-to-image windows`, tried first by default, with Poppler as the fallback). With Microsoft Word 2010 or later installed, `--renderer word` (env `ASTRA_RENDERER=word`, MCP `renderer: "word"`) lays out the document with Word and never falls back. By default (`auto`) ASTra on Windows tries Word first when it is installed and falls back to LibreOffice if Word fails. WSL is a Linux process, so under WSL ASTra uses LibreOffice and Poppler, as on any Linux machine.
 
@@ -317,7 +319,7 @@ This is the wireframe for page 1 of the demo report:
 
 The wireframe answers the routine layout questions: did the table land under the right heading, did the list renumber, is the callout there, did a chart go missing. It shows what sits on each page and where; fonts, colors and spacing show up in the page image. Without LibreOffice the wireframe still covers the whole structure and gives an estimated page count. With LibreOffice installed, ASTra uses LibreOffice's page count and flags any difference from its own estimate. Page images are rendered by LibreOffice, and the document's XML stays the source of truth.
 
-A good rhythm for an agent is to work from the outline and the wireframe, and to ask for an image once at the end, or when the layout is the point.
+A good rhythm for an agent is to work from the outline and the wireframe, and to ask for an image at the end and after any change to paper size, margins, columns or layout. Inspect the affected pages and check for unexpected overflow or a blank last page.
 
 ## How it keeps documents safe
 

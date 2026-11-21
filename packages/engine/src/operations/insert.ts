@@ -6,6 +6,7 @@ import { DOMParser } from '../ooxml/dom-parser';
 import * as crypto from 'crypto';
 import { DocxParser, isValidParaId, W14_NS, upsertSectPrChild } from '../parser';
 import { insertIntoSection } from '../parser/sections';
+import { textWidthTwipsOf } from './chart-size';
 import { executeTable } from './table';
 import type { StyleGuideConfig } from '../style-guide/types';
 import { createWordElement, stampRevision } from '../ooxml/ns';
@@ -1096,7 +1097,8 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
     // ECMA-376 requires <w:tblGrid> between <w:tblPr> and <w:tr>
     const colCount = Math.max(defaultHeaders.length, defaultRows.length > 0 ? defaultRows[0].length : 1);
     const tblGrid = createWordElement(doc, 'w:tblGrid');
-    const colWidth = Math.round(9360 / colCount);
+    // The grid fills the text width of the section that the table goes into (Letter's 6.5 in when the section has no page size).
+    const colWidth = Math.round(textWidthTwipsOf(bodyAnchorSection.pageSetup) / colCount);
     for (let c = 0; c < colCount; c++) {
       const gridCol = createWordElement(doc, 'w:gridCol');
       gridCol.setAttribute('w:w', String(colWidth));

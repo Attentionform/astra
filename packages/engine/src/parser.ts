@@ -3,7 +3,6 @@ import { relationshipElements, createRelationshipElement } from './ooxml/relatio
 import { firstFreeRevisionId, maxRevisionId, REVISION_TAGS, takeRevisionId } from './ooxml/revision-ids';
 import { countRevisions, resolveRevisions, listRevisions, readRevision, expandMoveSelection, type RevisionResolution, type RevisionSelector } from './ooxml/revisions';
 import { commentThreadMap, commentThreadsCoveredBy, deleteCommentThread, listComments } from './ooxml/comments';
-import fs from 'fs';
 import path from 'path';
 import AdmZip from './adm-zip-safe';
 import { XMLSerializer } from '@xmldom/xmldom';
@@ -42,9 +41,10 @@ import {
 } from './sanitizer';
 import { readDocxFileBuffer, getMimeType } from './parser/io';
 import { toError } from './errors';
+import { buildTemplate } from './templates';
+import { resolveNewPage, type NewPageOptions } from './templates/page';
 import { assertWordPrefix } from './ooxml/word-prefix-guard';
 import type { PackageReport } from './package-report';
-import { upsertSectPrChild } from './parser/sect-pr';
 import { addNodeInDocumentOrder, bodySectPr, listFileSections, splitIntoSections } from './parser/sections';
 import {
   chartElementDescendants,
@@ -84,7 +84,6 @@ import {
 } from './parser/package-errors';
 import {
   nodeHasTrackedChanges,
-  getOrCreateChild,
 } from './parser/dom-utils';
 import {
   partNameForRelationshipTarget,
@@ -142,14 +141,14 @@ function hasAncestorTag(el: Element, tag: string): boolean {
   return false;
 }
 
-export function createEmptyDocument(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): DocxParser {
+export function createEmptyDocument(templateType: string = 'blank', options?: { page?: NewPageOptions }): DocxParser {
   return DocxParser.createNewDocument(templateType, options);
 }
 
 /**
  * The bytes of a new document from a built-in template, ready to write to a file. Same as `DocxParser.createNewDocument(templateType, options).rezip()`.
  */
-export function createBlankDocxBuffer(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): Buffer {
+export function createBlankDocxBuffer(templateType: string = 'blank', options?: { page?: NewPageOptions }): Buffer {
   return DocxParser.createNewDocument(templateType, options).rezip();
 }
 
@@ -275,6 +274,8 @@ function canonicaliseText(xml: string, part: string): string {
 export class DocxParser {
   /** Parts rewritten to the usual prefixes at open (DN3). Empty for a canonical package. */
   public canonicalisedParts: Array<{ part: string; renames: Rename[] }> = [];
+  /** Warnings from making a new document: a page that is valid but a poor fit for its template. Empty for an opened file. */
+  public newDocumentWarnings: string[] = [];
   private packageSigned = false;
 
   /**
@@ -292,102 +293,6 @@ export class DocxParser {
       signed: this.packageSigned,
     };
   }
-  /**
-   * F2a follow-up item 2 — extra template search dirs (packaged hook ONLY).
-   * `resolveTemplateCandidatePaths` in electron/main.ts documents the
-   * packaged-first order (extraResource → asar → dev); that helper was dead
-   * (zero production callers) while this parser only probed cwd/__dirname.
-   * Main now pushes those dirs here at startup via `setExtraTemplateDirs`
-   * and/or `process.env.STATIC_TEMPLATE_DIRS` (delimiter-separated). Both
-   * sources are prepended (packaged-first) ahead of the legacy
-   * cwd/__dirname probes in `resolveTemplateSearchPaths` / `createNewDocument`.
-   * No other parser logic is touched by this hook.
-   */
-  private static extraTemplateDirs: string[] = [];
-
-  /** Main-startup hook: prepend packaged template dirs (deduped, resolved). */
-  public static setExtraTemplateDirs(dirs: unknown): void {
-    if (!Array.isArray(dirs)) {
-      DocxParser.extraTemplateDirs = [];
-      return;
-    }
-    const clean: string[] = [];
-    for (const d of dirs) {
-      if (typeof d !== 'string' || d.trim() === '') continue;
-      try {
-        const resolved = path.resolve(d.trim());
-        if (!clean.includes(resolved)) clean.push(resolved);
-      } catch {
-        /* ignore unresolvable entries */
-      }
-    }
-    DocxParser.extraTemplateDirs = clean;
-  }
-
-  /** Test hook: read back the static extra dirs. */
-  public static getExtraTemplateDirs(): string[] {
-    return [...DocxParser.extraTemplateDirs];
-  }
-
-  /** Test hook: clear the static extra dirs. */
-  public static clearExtraTemplateDirs(): void {
-    DocxParser.extraTemplateDirs = [];
-  }
-
-  /** Env hook: `STATIC_TEMPLATE_DIRS` (path.delimiter-separated dirs). */
-  public static getEnvTemplateDirs(): string[] {
-    try {
-      const raw = (process.env.STATIC_TEMPLATE_DIRS || '').trim();
-      if (!raw) return [];
-      const parts = raw
-        .split(path.delimiter)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const out: string[] = [];
-      for (const p of parts) {
-        try {
-          const resolved = path.resolve(p);
-          if (resolved && !out.includes(resolved)) out.push(resolved);
-        } catch {
-          /* ignore */
-        }
-      }
-      return out;
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Ordered template file search paths for `templateType` (packaged-first):
-   * static extra dirs → `STATIC_TEMPLATE_DIRS` env dirs → legacy
-   * cwd/__dirname probes. Exported for unit tests.
-   */
-  public static resolveTemplateSearchPaths(templateType: string = 'blank'): string[] {
-    const normalizedType = (templateType || 'blank').toLowerCase().trim() || 'blank';
-    const fileName = `${normalizedType}.docx`;
-    const ordered: string[] = [];
-    for (const dir of [...DocxParser.getExtraTemplateDirs(), ...DocxParser.getEnvTemplateDirs()]) {
-      try {
-        ordered.push(path.resolve(dir, fileName));
-      } catch {
-        /* ignore */
-      }
-    }
-    // Only the folders next to the engine: a `templates` folder in the working directory is not consulted, so a project's own
-    // files can never replace a built-in template.
-    ordered.push(path.resolve(__dirname, '..', 'templates', fileName), path.resolve(__dirname, 'templates', fileName));
-    // The command-line tool bundles the engine code, so its own folder holds no templates: look for the installed engine package.
-    let dir = __dirname;
-    for (let i = 0; i < 6; i++) {
-      ordered.push(path.join(dir, 'node_modules', '@attentionform', 'astra-engine', 'dist', 'templates', fileName));
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-    return [...new Set(ordered)];
-  }
-
   private zip: AdmZip;
   private documentDom: Document;
   private stylesDom: Document | null = null;
@@ -2283,6 +2188,12 @@ export class DocxParser {
 
     // One section per section the file defines; a file with no break has just sec_root.
     ast.sections.push(...splitIntoSections(rootNodes, fileSections));
+    // The gutter edge is a setting of the document, not of a section; every section carries it so that width arithmetic can use it.
+    try {
+      const settingsXml = this.getZipAdapter().readTextOrNull('word/settings.xml');
+      const atTop = settingsXml !== null && /<w:gutterAtTop(\s[^>]*)?\/?>/.test(settingsXml) && !/<w:gutterAtTop[^>]*w:val="(0|false|off)"/.test(settingsXml);
+      if (atTop) for (const s of ast.sections) if (s.pageSetup) s.pageSetup.gutterAtTop = true;
+    } catch { /* a document without settings has the gutter on the left */ }
     // BX-03: cache the live AST reference for bare-rezip numbering sync (see
     // field docs). Mutations via NumberingManipulator land in this object.
     //
@@ -4060,119 +3971,29 @@ export class DocxParser {
     this._bumpNodePagesRevision();
   }
 
-  public updateDocumentProperties(properties: { 
-    margins?: { top?: number; bottom?: number; left?: number; right?: number },
-    pageSize?: { preset?: 'A4' | 'Letter' | 'Legal'; width?: number; height?: number; orientation?: 'portrait' | 'landscape' },
-    defaultFont?: { name?: string; size?: number; ascii?: string; hAnsi?: string; eastAsia?: string; cs?: string }
-  }): void {
-    const sectPrs = this.documentDom.getElementsByTagName('w:sectPr');
-    const pageSizePresets: Record<string, { width: number; height: number }> = {
-      A4: { width: 11906, height: 16838 },
-      Letter: { width: 12240, height: 15840 },
-      Legal: { width: 12240, height: 20160 }
-    };
-
-    for (let i = 0; i < sectPrs.length; i++) {
-      const sectPr = sectPrs[i];
-      // Replace-in-place with schema-correct child order (pgSz must precede pgMar)
-      const pgMar = upsertSectPrChild(sectPr, 'w:pgMar');
-      
-      if (properties.margins) {
-        if (properties.margins.top !== undefined) pgMar.setAttribute('w:top', properties.margins.top.toString());
-        if (properties.margins.bottom !== undefined) pgMar.setAttribute('w:bottom', properties.margins.bottom.toString());
-        if (properties.margins.left !== undefined) pgMar.setAttribute('w:left', properties.margins.left.toString());
-        if (properties.margins.right !== undefined) pgMar.setAttribute('w:right', properties.margins.right.toString());
-      }
-
-      if (properties.pageSize) {
-        const pgSz = upsertSectPrChild(sectPr, 'w:pgSz');
-
-        let width = properties.pageSize.width;
-        let height = properties.pageSize.height;
-        if (properties.pageSize.preset) {
-          const preset = pageSizePresets[properties.pageSize.preset];
-          if (preset) {
-            width = preset.width;
-            height = preset.height;
-          }
-        }
-
-        if (properties.pageSize.orientation) {
-          pgSz.setAttribute('w:orient', properties.pageSize.orientation);
-        }
-
-        if (width && height) {
-          if (properties.pageSize.orientation === 'landscape' && height > width) {
-            [width, height] = [height, width];
-          }
-          pgSz.setAttribute('w:w', width.toString());
-          pgSz.setAttribute('w:h', height.toString());
-        }
-      }
-    }
-
-    if (properties.defaultFont) {
-      if (!this.stylesDom) throw new Error('word/styles.xml not found in this document');
-
-      const stylesRoot = this.stylesDom.documentElement;
-      const docDefaults = getOrCreateChild(stylesRoot, 'w:docDefaults', this.stylesDom);
-      const rPrDefault = getOrCreateChild(docDefaults, 'w:rPrDefault', this.stylesDom);
-      const rPr = getOrCreateChild(rPrDefault, 'w:rPr', this.stylesDom);
-      const rFonts = getOrCreateChild(rPr, 'w:rFonts', this.stylesDom);
-
-      const fallbackFont = properties.defaultFont.name;
-      const ascii = properties.defaultFont.ascii ?? fallbackFont;
-      const hAnsi = properties.defaultFont.hAnsi ?? fallbackFont;
-      const eastAsia = properties.defaultFont.eastAsia ?? fallbackFont;
-      const cs = properties.defaultFont.cs ?? fallbackFont;
-
-      if (ascii) rFonts.setAttribute('w:ascii', ascii);
-      if (hAnsi) rFonts.setAttribute('w:hAnsi', hAnsi);
-      if (eastAsia) rFonts.setAttribute('w:eastAsia', eastAsia);
-      if (cs) rFonts.setAttribute('w:cs', cs);
-
-      if (properties.defaultFont.size !== undefined) {
-        const halfPoints = Math.round(properties.defaultFont.size * 2);
-        const sz = getOrCreateChild(rPr, 'w:sz', this.stylesDom);
-        const szCs = getOrCreateChild(rPr, 'w:szCs', this.stylesDom);
-        sz.setAttribute('w:val', halfPoints.toString());
-        szCs.setAttribute('w:val', halfPoints.toString());
-      }
-    }
-    // Geometry (margins/page-size) feeds linesPerPageFromSectPr, so the cached
-    // embedded map must invalidate too.
-    this._bumpNodePagesRevision();
-  }
-
   /**
-   * A new document from a built-in template. `TEMPLATE_NAMES` lists the names. `pageSize` picks Letter (the default) or A4.
-   * An unknown name or page size is an `E_VALIDATION` error that lists the valid values.
+   * A new document from a built-in template. `TEMPLATE_NAMES` lists the names. `page` sets the paper, orientation and margins:
+   * `{ size: 'A4' }`, `{ size: '148x210mm', margins: '20mm' }`, `{ size: 'Letter', orientation: 'landscape' }`. Without it the page is Letter.
+   * The template is built for that page, so its tables and tab stops fit it. An unknown name, a page that cannot be laid out, or the old
+   * `pageSize` option is an `E_VALIDATION` error that says what to use. `newDocumentWarnings` on the result lists a poor fit.
    *
    * @public
    */
-  public static createNewDocument(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): DocxParser {
+  public static createNewDocument(templateType: string = 'blank', options?: { page?: NewPageOptions }): DocxParser {
     const name = (templateType || 'blank').toLowerCase().trim() || 'blank';
     if (!(TEMPLATE_NAMES as readonly string[]).includes(name)) {
       throw new Error(`E_VALIDATION: unknown template '${templateType}'. Remedy: use one of ${TEMPLATE_NAMES.join(', ')}.`);
     }
-    const pageSize = options?.pageSize ?? 'letter';
-    if (pageSize !== 'letter' && pageSize !== 'a4') {
-      throw new Error(`E_VALIDATION: unknown page size '${String(pageSize)}'. Remedy: use letter or a4.`);
+    const given = options as Record<string, unknown> | undefined;
+    if (given && Object.keys(given).some((k) => k !== 'page')) {
+      const old = Object.keys(given).filter((k) => k !== 'page');
+      throw new Error(
+        `E_VALIDATION: unknown option ${old.map((k) => `'${k}'`).join(', ')}.${old.includes('pageSize') ? " 'pageSize' was replaced by page.size." : ''} Remedy: pass { page: { size, orientation, margins } }, for example { page: { size: 'A4' } }.`
+      );
     }
-    const file = pageSize === 'a4' ? `${name}.a4` : name;
-    let buf: Buffer | undefined;
-    for (const candidate of DocxParser.resolveTemplateSearchPaths(file)) {
-      try {
-        if (fs.existsSync(candidate)) {
-          buf = fs.readFileSync(candidate);
-          break;
-        }
-      } catch { /* try the next location */ }
-    }
-    if (!buf) {
-      throw new Error(`E_VALIDATION: the ${name} template file (${file}.docx) was not found next to the engine. Remedy: reinstall the package, or point STATIC_TEMPLATE_DIRS at a folder that holds it.`);
-    }
-    // The file carries the build date and no author. A new document is stamped with the time it is made (or the pinned
+    const { page, warnings } = resolveNewPage(name, given?.page);
+    const buf = buildTemplate(name, page);
+    // The template carries the build date and no author. A new document is stamped with the time it is made (or the pinned
     // reproducible time) and, only when ASTRA_AUTHOR is set, that author.
     const zip = new AdmZip(buf);
     const pinned = resolveReproducibleMode(undefined);
@@ -4185,10 +4006,11 @@ export class DocxParser {
     if (pinned) clampZipEntryTimes(zip, resolveDeterministicZipDate());
     const parser = new DocxParser(zip.toBuffer());
     parser.getStructuralSummary();
+    parser.newDocumentWarnings = warnings;
     return parser;
   }
 
-  public static createEmptyDocument(templateType: string = 'blank', options?: { pageSize?: 'letter' | 'a4' }): DocxParser {
+  public static createEmptyDocument(templateType: string = 'blank', options?: { page?: NewPageOptions }): DocxParser {
     return DocxParser.createNewDocument(templateType, options);
   }
 }

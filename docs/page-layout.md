@@ -1,6 +1,6 @@
 # Page Layout: Sections, Headers, Footers and Lists
 
-A task guide for laying out a document with ASTra: page orientation and size, separate sections, a different header or footer for each section, columns, page borders and multi-level lists.
+A task guide for laying out a document with ASTra: paper size, margins and orientation, separate sections, a different header or footer for each section, columns, page borders and multi-level lists.
 
 Every example is a list of operations. The same list works in all three places:
 
@@ -13,7 +13,7 @@ The three give the same file. This was checked by running one scenario through a
 ## Contents
 
 1. [Concepts](#1-concepts)
-2. [Orientation and paper size](#2-orientation-and-paper-size)
+2. [Paper size, orientation and margins](#2-paper-size-orientation-and-margins)
 3. [Sections](#3-sections)
 4. [Headers and footers](#4-headers-and-footers)
 5. [Columns and page borders](#5-columns-and-page-borders)
@@ -32,7 +32,7 @@ The three give the same file. This was checked by running one scenario through a
 - **Sections are read from the file.** If an edit adds, deletes or moves a section break, ASTra rebuilds its section list from the file, so the list never disagrees with what Word will show.
 - **Node IDs belong to a session.** A paragraph you insert gets the ID you give it in `id` for the rest of that batch. In a later command or session, read the IDs again with `astra inspect` or `astra search`.
 
-## 2. Orientation and paper size
+## 2. Paper size, orientation and margins
 
 Landscape for the whole document:
 
@@ -40,13 +40,25 @@ Landscape for the whole document:
 [{ "action": "pageSetup", "orientation": "landscape" }]
 ```
 
-A4, portrait, with narrower side margins (measured in twentieths of a point; 1440 is one inch):
+A4 with 20 mm margins all round:
 
 ```json
-[{ "action": "pageSetup", "paperSize": "A4", "orientation": "portrait", "marginLeft": 1080, "marginRight": 1080 }]
+[{ "action": "pageSetup", "paperSize": "A4", "margins": "20mm" }]
 ```
 
-`paperSize` is `A4`, `Letter`, `Legal` or `A3`. Landscape swaps the page width and height and leaves the margins as they are.
+A custom 6 x 9 in page with its own margins, a header 0.4 in from the top edge and a 0.25 in gutter for binding:
+
+```json
+[{ "action": "pageSetup", "paperSize": "6x9in", "margins": { "top": "0.9in", "bottom": "0.9in", "left": "0.8in", "right": "0.8in", "header": "0.4in", "footer": "0.4in", "gutter": "0.25in" } }]
+```
+
+**Lengths** are a number of twips (1440 to an inch) or a string with a unit: `"25mm"`, `"2.5cm"`, `"1in"`, `"72pt"`, `"1440tw"`. A bare number is twips.
+
+**`paperSize`** is a paper name, a size written `"WxH[unit]"` (`"148x210mm"`, `"6x9in"`), or `{ "width": "150mm", "height": "200mm" }`. The names are Letter, Legal, Tabloid, Executive, Statement, Folio, A3, A4, A5, A6, B4, B5 and B6. A page whose size matches a name within one twip reads back as that name; any other size reads back as `Custom`. A new document of a named paper gets that paper's usual margins (1 in on Letter, 25 mm at the sides on A4, 20 mm on A5, 15 mm on A6); you can set every one of them.
+
+**`orientation`** turns the page: it swaps the width and height and leaves the margins as they are.
+
+**`margins`** is one length for the four page margins, or an object with any of `top`, `bottom`, `left`, `right`, `header` (distance from the page edge to the header), `footer` and `gutter` (extra space on the binding edge). `gutterPosition` is `left` (default) or `top`, and `mirrorMargins: true` makes the inner and outer margins mirror on facing pages. A top gutter cannot be combined with mirrored margins.
 
 One section only:
 
@@ -54,7 +66,17 @@ One section only:
 [{ "action": "pageSetup", "sectionIndex": 2, "orientation": "landscape" }]
 ```
 
-Other fields: `marginTop`, `marginBottom`, `headerDistance`, `footerDistance` and `columns`.
+Other fields: `columns`. The flat names `marginTop`, `marginBottom`, `marginLeft`, `marginRight`, `headerDistance`, `footerDistance`, `margin` and `pageSize` were replaced by `margins.top` and the others, `paperSize`; the old names are refused with an error that says which field to use, so a request is never silently ignored.
+
+**Limits, so that every file ASTra writes opens correctly in Word.** A page side is 1 in to 22 in (Word reads a larger page wrongly and the file validator rejects it). The text area that a request leaves must be at least 0.75 in wide and 0.5 in high; below that Word breaks words in the middle of a line. A request that does not meet this is refused with the number that failed and what to change. A file that already has a smaller text area still opens and can be edited; a request is refused only when it makes that area smaller. Margins under 0.25 in, and a header or footer distance larger than the margin it sits in, are accepted with a warning.
+
+`inspect_document` reports the page: the paper name or `Custom`, the size and each margin in millimetres and inches, the gutter and the columns, with one line per section when the sections differ.
+
+Everything ASTra writes follows the page of the section it lands in. Images are fitted to that section's text width and height (a 6 in by 9 in cap on a Letter page), tables inserted without widths fill its text width, and the right tab stop of a table of contents sits at its right margin. A page estimate assumes about a Letter text area; for a very different page, render it.
+
+**Templates are built for the page.** Create a document with the paper and margins you want and the template's tables, tab stops and cover fit it (`createNewDocument(name, { page })`, `new_document` with `page`, `astra create --page-size`). Changing the paper of a template that you already made does not resize the tables it holds, so compose then keeps the placeholder text and appends instead of replacing it.
+
+After you change paper size, margins or columns, render the affected pages and look at them: inspect the affected pages and check for unexpected overflow or a blank last page. A renderer is not required for ASTra to work, but it is how a page gets checked.
 
 ## 3. Sections
 
