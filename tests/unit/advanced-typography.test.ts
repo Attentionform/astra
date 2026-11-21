@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DocxParser,
   OperationEngine,
+  type OperationInput,
   StyleOperation,
 } from '@attentionform/astra-engine';
 
@@ -60,7 +61,7 @@ describe('Advanced Typography Suite', () => {
       }
     };
 
-    const result = await engine.executeBatch({ operations: [styleOp] });
+    const result = await engine.executeBatch({ operations: [styleOp as unknown as OperationInput] });
     expect(result.success).toBe(true);
 
     const node = ast.sections[0].nodes.find(n => n.id === '11111111');
@@ -88,7 +89,7 @@ describe('Advanced Typography Suite', () => {
       }
     };
 
-    const result = await engine.executeBatch({ operations: [styleOp] });
+    const result = await engine.executeBatch({ operations: [styleOp as unknown as OperationInput] });
     expect(result.success).toBe(true);
 
     const node = ast.sections[0].nodes.find(n => n.id === '11111111');

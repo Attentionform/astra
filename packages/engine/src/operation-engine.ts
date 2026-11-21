@@ -4,7 +4,8 @@ import { DocumentAST, cloneAST } from './ast';
 import { refreshAstInPlace } from './ast-refresh';
 import { reconcileSections } from './parser/sections';
 import { DocxParser } from './parser';
-import { getEngineErrorCode, toError } from './errors';
+import type { OperationInput } from './operation-schema';
+import { getEngineErrorCode, libraryRemedy, toError } from './errors';
 import { BaseOperation, assertNoCellAddress, parseCellAddress, syncCellStandIns } from './operations/base';
 import { ReplaceOperation, executeReplace } from './operations/replace';
 import { StyleOperation, executeStyle, unknownStyleKeyWarnings } from './operations/style';
@@ -154,7 +155,11 @@ export function assertEngineQuotas(
 }
 
 export interface BatchPayload {
-  operations: BaseOperation[];
+  /**
+   * Typed operations: an unknown `action`, an unknown field or a missing required field is a compile error.
+   * For data that arrives untyped (JSON, a request, a model) call `parseBatch()` first.
+   */
+  operations: OperationInput[];
   /**
    * Track-B: sequential defaults to TRUE (document order preserved).
    * Pass sequential:false explicitly to opt into the legacy sort-order path.
@@ -204,7 +209,7 @@ export interface DryRunPreview {
 export interface ExecutionResult {
   success: boolean;
   appliedCount: number;
-  errors: { operationIndex: number; error: string; hint?: string; remedy?: string }[];
+  errors: { operationIndex: number; error: string; hint?: string; remedy?: string; libraryRemedy?: string }[];
   rollbackTriggered: boolean;
   /** OX-04: ids a delete op skipped (idempotent miss, non-strict) inside this batch. */
   skippedIds: string[];
@@ -728,11 +733,15 @@ export class OperationEngine {
           const rawRemedy = (err as { remedy?: unknown } | null | undefined)?.remedy;
           const propRemedy =
             typeof rawRemedy === 'string' && rawRemedy.trim() !== '' ? rawRemedy : undefined;
+          // The remedy and the hint keep naming MCP tools (agents act on those names). When they do,
+          // `libraryRemedy` gives the same text with the library equivalent next to each tool.
+          const library = libraryRemedy(propRemedy ?? hint);
           result.errors.push({
             operationIndex: i,
             error: stack,
             hint,
             ...(propRemedy !== undefined ? { remedy: propRemedy } : {}),
+            ...(library !== undefined ? { libraryRemedy: library } : {}),
           });
 
           if (sequential || batch.rollbackOnError === true) {

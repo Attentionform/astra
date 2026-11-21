@@ -15,7 +15,7 @@ npm install @attentionform/astra-engine
 ### Basic Example: Inspecting and Mutating a Document
 
 ```typescript
-import { DocxParser, OperationEngine } from '@attentionform/astra-engine';
+import { DocxParser, OperationEngine, validateDocxBuffer } from '@attentionform/astra-engine';
 import * as fs from 'node:fs';
 
 async function main() {
@@ -49,8 +49,14 @@ async function main() {
   if (result.success) {
     console.log(`Applied ${result.appliedCount} operations successfully.`);
     
-    // 4. Validate ECMA-376 schema and serialize back to .docx buffer
+    // 4. Serialize back to a .docx buffer, then validate it before you write it.
+    //    rezip() runs integrity checks (duplicate paragraph ids, XXE, macros, package integrity).
+    //    It does NOT run the Microsoft schema validator: validateDocxBuffer() does.
     const outBuffer = parser.rezip();
+    const validation = await validateDocxBuffer(outBuffer);
+    if (!validation.ok) {
+      throw new Error(`Not written: ${validation.errors[0]?.description}`);
+    }
     fs.writeFileSync('document_updated.docx', outBuffer);
   } else {
     console.error('Batch failed:', result.errors);
@@ -80,8 +86,18 @@ The `OperationEngine` dispatches across 27 distinct operation types defined as a
 
 **Transactions:** Before executing a batch, the engine captures an immutable snapshot of both the AST and package zip. If any operation violates schema rules or throws an unhandled exception, operations are automatically rolled back (`rollbackOnError: true`).
 
-### 3. Pre-Write ECMA-376 Schema Gate
-ASTra integrates `@attentionform/ooxml-validator` directly into its serialization pipeline. No mutated file is committed to storage unless every internal XML part passes strict OpenXML schema validation.
+### 3. ECMA-376 Schema Validation
+ASTra validates documents with `@attentionform/ooxml-validator` (the Microsoft Open XML SDK validator). Where the check runs depends on the path you use:
+
+| Path | What it does |
+|------|--------------|
+| `parser.rezip()` | Serializes the package and runs its integrity checks: duplicate paragraph ids, XXE, macro policy and package integrity. It does **not** run the schema validator. A well-formed but schema-invalid edit (for example `<w:sz w:val="notanumber"/>`) passes `rezip()`. |
+| `validateDocxBuffer(buffer)` and `parser.validateOOXML()` | Run the schema validator and return the result. You decide whether to write the file. Call one of them after `rezip()` and before you write. |
+| `DocumentManager` (`createNewDocument`, `saveAsDocument`, `saveDocument`, and every write of an open document) | Validates the exact bytes before writing. Any reported error refuses the write, leaves the file untouched and returns memory to the last saved state. |
+| MCP `save_document` | Validates on save. By default a file that already had validator errors can be saved when the edit adds no new error; `--strict-validation` refuses every reported error. |
+| CLI `batch` and `normalize` | Validate before writing, with the same default policy. `--strict` refuses every reported error. `batch --no-validate` skips the check. |
+
+Passing means the selected Open XML SDK validation run reported no errors. It does not prove how the document renders or that its content is right.
 
 ### 4. Token-Optimized Outline Notation (TOON)
 Converts verbose OpenXML markup into dense, tabular outlines tailored for LLM context windows:

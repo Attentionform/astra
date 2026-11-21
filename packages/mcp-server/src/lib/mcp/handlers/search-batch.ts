@@ -4,6 +4,7 @@ import * as path from 'path';
 import {
   assertEngineQuotas,
   type BaseOperation,
+  type OperationInput,
   BatchOperationsSchema,
   cellAddressesMatching,
   chartHoleSizeSchemaRemedy,
@@ -386,7 +387,7 @@ export async function handleExecuteBatch(
       let res: Awaited<ReturnType<typeof handle.engine.executeBatch>>;
       try {
         res = await handle.engine.executeBatch({
-          operations: parsed.data.operations as unknown as BaseOperation[],
+          operations: parsed.data.operations as unknown as OperationInput[],
           sequential,
           rollbackOnError: parsed.data.rollbackOnError,
           maxSteps: parsed.data.maxSteps,

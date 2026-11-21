@@ -1371,6 +1371,9 @@ export async function executeInsert(op: InsertOperation, ast: DocumentAST, parse
     throw new Error(
       `Unsupported insert type '${insertType}'. ` +
       `Supported: paragraph, pageBreak, sectionBreak, table, xml, divider, horizontalRule. ` +
+      (String(insertType).toLowerCase() === 'heading'
+        ? `A heading is a paragraph with a heading style: insert type 'paragraph' with an id, then apply the style in the same batch with {action:'namedStyle',operation:'apply',styleName:'Heading 1',target:<that id>} (Heading 2, Heading 3 for lower levels). `
+        : ``) +
       `Re-read the current structure with inspect_document and retry with a supported type.`
     );
   }

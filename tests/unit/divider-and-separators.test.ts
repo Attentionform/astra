@@ -3,6 +3,7 @@ import {
   DocxParser,
   InsertOperation,
   OperationEngine,
+  type OperationInput,
   SectionOperation,
   StyleOperation,
   convertAstToHtml,
@@ -65,7 +66,7 @@ describe('Page Separation & Divider Engine Suite', () => {
       spacingAfter: 180
     };
 
-    const result = await engine.executeBatch({ operations: [divOp] });
+    const result = await engine.executeBatch({ operations: [divOp as unknown as OperationInput] });
     expect(result.success).toBe(true);
 
     const dividerNode = ast.sections[0].nodes[1];
@@ -91,7 +92,7 @@ describe('Page Separation & Divider Engine Suite', () => {
       separator: true
     };
 
-    const result = await engine.executeBatch({ operations: [secOp] });
+    const result = await engine.executeBatch({ operations: [secOp as unknown as OperationInput] });
     expect(result.success).toBe(true);
 
     const doc = ast.sections[0].nodes[0].xml.ownerDocument;
@@ -116,7 +117,7 @@ describe('Page Separation & Divider Engine Suite', () => {
       }
     };
 
-    const result = await engine.executeBatch({ operations: [styleOp] });
+    const result = await engine.executeBatch({ operations: [styleOp as unknown as OperationInput] });
     expect(result.success).toBe(true);
 
     const node = ast.sections[0].nodes.find(n => n.id === '11111111');
@@ -137,7 +138,7 @@ describe('Multi-line paragraph inserts split newlines into break runs', () => {
       action: 'insert', type: 'paragraph', anchor: '11111111', position: 'after', text,
     };
     (op as any).id = id;
-    const result = await engine.executeBatch({ operations: [op] });
+    const result = await engine.executeBatch({ operations: [op as unknown as OperationInput] });
     expect(result.success).toBe(true);
     const node = ast.sections[0].nodes.find(n => n.id === id);
     expect(node).toBeDefined();

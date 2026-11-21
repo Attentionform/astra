@@ -945,6 +945,14 @@ export const OperationSchema = z.discriminatedUnion('action', [
 export type Operation = z.infer<typeof OperationSchema>;
 
 /**
+ * An operation as a caller writes it: the input side of the schema. `executeBatch` takes this type, so an
+ * unknown `action`, an unknown field or a missing required field is a compile error. Fields that are
+ * required only for a chosen sub-operation (for example `operation: 'addRow'` on a table) and rules that
+ * span several fields are still checked when the batch runs, or earlier by `parseBatch()`.
+ */
+export type OperationInput = z.input<typeof OperationSchema>;
+
+/**
  * Keys read from `params` that the operation does not declare as flat keys
  * (flat and nested are otherwise interchangeable). Everything else an operation
  * may carry inside params is derived from its own strict schema below, so a new
@@ -1165,4 +1173,64 @@ export function validateOperationsStrict(ops: unknown): { ok: true; operations: 
     );
   }
   return { ok: true, operations: parsedOps };
+}
+
+/** One problem found by `parseBatch()`. `operationIndex` is set when the problem belongs to one operation. */
+export interface BatchParseIssue {
+  /** Index into `operations`, when the problem is in one operation. */
+  operationIndex?: number;
+  /** Where the problem is, for example `operations.2.target` or `(root)`. */
+  path: string;
+  message: string;
+}
+
+/** A batch that passed `parseBatch()`: typed operations plus the envelope options. */
+export interface ParsedBatch {
+  operations: OperationInput[];
+  sequential?: boolean;
+  rollbackOnError?: boolean;
+  maxSteps?: number;
+  /** Per-batch zip-bomb ceilings (same meaning as the CLI flags). */
+  maxRatio?: number;
+  maxUncompressedBytes?: number;
+  /** Folder that image `filePath` operations may read from. */
+  allowedDir?: string;
+}
+
+const ParseBatchEnvelope = BatchOperationsSchema.extend({ allowedDir: z.string().min(1).optional() });
+
+/**
+ * Parses a batch that arrives as data (JSON from a file, a request or a model) into a typed batch,
+ * or lists what is wrong with it. Nothing is applied and nothing throws for bad input.
+ *
+ * Accepts `{ operations: [...], sequential?, rollbackOnError?, maxSteps?, maxRatio?, maxUncompressedBytes?, allowedDir? }`
+ * or a bare array of operations. It checks the envelope, every operation against its schema, and the rules that
+ * span fields (body inserts need an anchor and position, an image insert needs one source, a combo chart needs
+ * plot fields, unknown keys inside `params`). Each issue carries the operation index.
+ */
+export function parseBatch(input: unknown): { ok: true; batch: ParsedBatch } | { ok: false; errors: BatchParseIssue[] } {
+  const envelope = Array.isArray(input) ? { operations: input } : input;
+  if (envelope === null || typeof envelope !== 'object') {
+    return { ok: false, errors: [{ path: '(root)', message: `expected an object with "operations" or an array of operations, got ${envelope === null ? 'null' : typeof envelope}` }] };
+  }
+  const parsed = ParseBatchEnvelope.safeParse(envelope);
+  const errors: BatchParseIssue[] = [];
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      const path = issue.path.map(String).join('.') || '(root)';
+      const index = issue.path[0] === 'operations' && typeof issue.path[1] === 'number' ? issue.path[1] : undefined;
+      errors.push({ ...(index !== undefined ? { operationIndex: index } : {}), path, message: issue.message });
+    }
+    return { ok: false, errors };
+  }
+  const raw = (envelope as { operations: unknown[] }).operations;
+  raw.forEach((op, index) => {
+    const detail =
+      insertBodyAnchorDetail(op) ??
+      imageInsertSourceError(op)?.message ??
+      chartSeriesPlotFieldsError(op)?.message;
+    if (detail) errors.push({ operationIndex: index, path: `operations.${index}`, message: detail });
+  });
+  if (errors.length > 0) return { ok: false, errors };
+  return { ok: true, batch: parsed.data as ParsedBatch };
 }
